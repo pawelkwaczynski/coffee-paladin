@@ -43,7 +43,8 @@ install -m 755 "$SRC/guard.py"  "$BIN/thermal-guard"
 install -m 755 "$SRC/safe-run"  "$BIN/safe-run"
 install -m 755 "$SRC/heat"      "$BIN/heat"
 install -m 755 "$SRC/thermal-report" "$BIN/thermal-report"
-echo "  ✅ thermal-guard, safe-run, heat, thermal-report -> $BIN"
+install -m 755 "$SRC/fleet" "$BIN/fleet"
+echo "  ✅ thermal-guard, safe-run, heat, thermal-report, fleet -> $BIN"
 
 # 3. konfiguracja (nie nadpisuje istniejącej)
 if [ ! -f "$BASE/config.json" ]; then

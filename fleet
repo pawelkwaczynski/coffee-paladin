@@ -1,0 +1,213 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""fleet - one table for a whole fleet of Macs running thermal-guard.
+
+Transport is deliberately a shared folder, not a server: every company already has one
+(iCloud Drive, Dropbox, an SMB share, SharePoint). Each agent publishes
+<folder>/<hostname>.json about once a minute; this tool reads the folder and answers the
+questions a fleet owner actually asks: which machines are hot, which are throttling,
+which fans are dead, which boxes crashed hard, and which stopped reporting at all.
+
+Setup on every machine (one line in ~/.thermal-guard/config.json):
+  "fleet_dir": "~/Library/Mobile Documents/com~apple~CloudDocs/FleetTG"
+
+Usage:
+  fleet                      # folder from your own config.json
+  fleet --dir <folder>       # explicit folder
+  fleet --watch              # refresh every 30 s
+  fleet --json               # machine-readable aggregate
+
+Language: TG_LANG=en|pl, or "lang" in ~/.thermal-guard/config.json. Default: en.
+"""
+
+import json
+import os
+import sys
+import time
+
+BASE = os.path.expanduser("~/.thermal-guard")
+
+
+def _lang():
+    v = (os.environ.get("TG_LANG") or "").lower()[:2]
+    if v in ("pl", "en"):
+        return v
+    try:
+        with open(os.path.join(BASE, "config.json")) as f:
+            v = (json.load(f).get("lang") or "").lower()[:2]
+        if v in ("pl", "en"):
+            return v
+    except Exception:
+        pass
+    return "en"
+
+
+LANG = _lang()
+
+PL = {
+    "FLEET: %d machine(s), folder %s": "FLOTA: %d maszyn(y), folder %s",
+    "no fleet folder - set \"fleet_dir\" in ~/.thermal-guard/config.json or pass --dir":
+        "brak folderu floty - ustaw \"fleet_dir\" w ~/.thermal-guard/config.json albo podaj --dir",
+    "no agent snapshots in %s (agents publish about once a minute)":
+        "brak migawek agentow w %s (agenty publikuja mniej wiecej co minute)",
+    "HOST": "HOST", "CHIP": "CHIP", "FAN": "WENT", "POWER": "MOC", "RAM": "RAM",
+    "DISK": "DYSK", "STATE": "STAN", "TODAY": "DZIS", "SEEN": "WIDZIANY", "ISSUES": "PROBLEMY",
+    "now": "teraz", "%d min ago": "%d min temu", "%d h ago": "%d h temu",
+    "calm": "spokoj", "warm": "cieplo", "HOT": "GORACO", "CRIT": "KRYT",
+    "STALE - not reporting": "NIE RAPORTUJE",
+    "hard shutdown %s": "twardy pad %s",
+    "throttled to %d%%": "dlawiony do %d%%",
+    "fans dead at %.0f C": "wentylatory stoja przy %.0f C",
+    "battery %d%% unplugged": "bateria %d%% bez zasilacza",
+    "disk %d%% full": "dysk zapelniony w %d%%",
+    "paused: %s": "wstrzymane: %s",
+    "%d machine(s) need attention:": "%d maszyn(y) wymaga uwagi:",
+    "all machines look fine": "wszystkie maszyny wygladaja dobrze",
+}
+
+
+def T(s):
+    return PL.get(s, s) if LANG == "pl" else s
+
+
+def fleet_dir_from_config():
+    try:
+        with open(os.path.join(BASE, "config.json")) as f:
+            return os.path.expanduser(json.load(f).get("fleet_dir") or "")
+    except Exception:
+        return ""
+
+
+def age_str(seconds):
+    if seconds < 90:
+        return T("now")
+    if seconds < 5400:
+        return T("%d min ago") % round(seconds / 60)
+    return T("%d h ago") % round(seconds / 3600)
+
+
+def load_hosts(d):
+    hosts = []
+    for name in sorted(os.listdir(d)):
+        if not name.endswith(".json") or name.startswith("."):
+            continue
+        path = os.path.join(d, name)
+        try:
+            with open(path) as f:
+                snap = json.load(f)
+        except Exception:
+            continue
+        snap["_age"] = time.time() - os.path.getmtime(path)
+        snap.setdefault("host", name[:-5])
+        hosts.append(snap)
+    return hosts
+
+
+def issues_for(h):
+    """Problemy hosta, w kolejnosci powagi. Pusta lista = wszystko dobrze."""
+    out = []
+    # nie raportuje > 5 min: albo padl, albo spi, albo folder sie nie synchronizuje
+    if h["_age"] > 300:
+        out.append(T("STALE - not reporting"))
+        return out
+    crash = h.get("last_hard_shutdown") or {}
+    if crash.get("time"):
+        out.append(T("hard shutdown %s") % crash["time"])
+    if (h.get("cpu_limit") or 100) < 100:
+        out.append(T("throttled to %d%%") % h["cpu_limit"])
+    fans = h.get("fans") or []
+    chip = h.get("chip_c")
+    if fans and chip and max(fans) == 0 and chip >= 70:
+        out.append(T("fans dead at %.0f C") % chip)
+    if not h.get("on_ac", True) and (h.get("battery_pct") or 100) <= 20:
+        out.append(T("battery %d%% unplugged") % h["battery_pct"])
+    if (h.get("disk_used_pct") or 0) >= 92:
+        out.append(T("disk %d%% full") % h["disk_used_pct"])
+    if h.get("paused"):
+        out.append(T("paused: %s") % ",".join(h["paused"])[:30])
+    return out
+
+
+def render(d):
+    hosts = load_hosts(d)
+    if not hosts:
+        print(T("no agent snapshots in %s (agents publish about once a minute)") % d)
+        return 1
+
+    print(T("FLEET: %d machine(s), folder %s") % (len(hosts), d))
+    print()
+    hdr = (T("HOST"), T("CHIP"), T("FAN"), T("POWER"), T("RAM"), T("DISK"),
+           T("STATE"), T("TODAY"), T("SEEN"), T("ISSUES"))
+    rows = []
+    attention = []
+    levels = [T("calm"), T("warm"), T("HOT"), T("CRIT")]
+    for h in hosts:
+        probs = issues_for(h)
+        stale = h["_age"] > 300
+        fans = h.get("fans") or []
+        stats = h.get("stats") or {}
+        today = "%dp" % stats.get("pauses", 0)
+        if stats.get("kills"):
+            today += " %dk" % stats["kills"]
+        rows.append((
+            h["host"][:18],
+            "-" if stale or h.get("chip_c") is None else "%.0fC" % h["chip_c"],
+            "-" if stale or not fans else ("0!" if max(fans) == 0 and (h.get("chip_c") or 0) >= 70
+                                          else "%.1fk" % (max(fans) / 1000.0) if max(fans) >= 1000
+                                          else str(max(fans))),
+            "-" if stale or h.get("watts") is None else "%.0fW" % h["watts"],
+            "-" if stale or not h.get("ram_total_gb") else "%d%%" % round(
+                100.0 * h.get("ram_used_gb", 0) / h["ram_total_gb"]),
+            "-" if stale or h.get("disk_used_pct") is None else "%d%%" % h["disk_used_pct"],
+            "?" if stale else levels[min(h.get("level") or 0, 3)],
+            "-" if stale else today,
+            age_str(h["_age"]),
+            "; ".join(probs),
+        ))
+        if probs:
+            attention.append((h["host"], probs))
+
+    widths = [max(len(str(r[i])) for r in rows + [hdr]) for i in range(len(hdr))]
+    fmt = "  ".join("%%-%ds" % w for w in widths)
+    print(fmt % hdr)
+    print(fmt % tuple("-" * w for w in widths))
+    for r in rows:
+        print(fmt % r)
+    print()
+    if attention:
+        print(T("%d machine(s) need attention:") % len(attention))
+        for host, probs in attention:
+            print("  %s: %s" % (host, "; ".join(probs)))
+        return 2
+    print(T("all machines look fine"))
+    return 0
+
+
+def main():
+    d = ""
+    if "--dir" in sys.argv:
+        d = os.path.expanduser(sys.argv[sys.argv.index("--dir") + 1])
+    else:
+        d = fleet_dir_from_config()
+    if not d or not os.path.isdir(d):
+        print(T("no fleet folder - set \"fleet_dir\" in ~/.thermal-guard/config.json or pass --dir"))
+        return 1
+
+    if "--json" in sys.argv:
+        hosts = load_hosts(d)
+        for h in hosts:
+            h["issues"] = issues_for(h)
+            h["age_seconds"] = round(h.pop("_age"))
+        print(json.dumps({"folder": d, "hosts": hosts}, ensure_ascii=False, indent=2))
+        return 0
+
+    if "--watch" in sys.argv:
+        while True:
+            os.system("clear")
+            render(d)
+            time.sleep(30)
+    return render(d)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

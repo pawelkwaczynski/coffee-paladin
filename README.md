@@ -1,8 +1,10 @@
 # thermal-guard v1.0
 
-**A thermal and power safety net for Apple Silicon Macs.** It watches the chip temperature, the
-battery, the fans and the power source, and it *freezes* heavy jobs before your laptop cooks
-itself — instead of letting them run until the machine shuts down.
+**A thermal and power safety net for Apple Silicon Macs — from one laptop to a whole fleet.**
+It watches the chip temperature, the battery, the fans and the power source, and it *freezes*
+heavy jobs before the machine cooks itself — instead of letting them run until it shuts down.
+Built for people who make Macs work for a living: render farms, post-production studios,
+CI pools of Mac minis, ML teams, and anyone leaving a laptop to compute overnight.
 
 No `sudo`. No kernel extensions. No daemons running as root. Everything reads sensors that are
 available to a normal user process.
@@ -95,6 +97,95 @@ event **together with the last eight measurements taken before the crash**.
 serial, battery health and cycle count, detected hard shutdowns with the readings that preceded
 them, the system's own shutdown-cause entries, every intervention the guard made, and the full
 measurement timeline with the peak temperature highlighted.
+
+---
+
+## What nothing else does
+
+There are excellent Mac monitoring tools — Stats, iStat Menus, TG Pro, Macs Fan Control. They
+show you numbers, or drive the fans harder. **None of them touches the workload.** When the chip
+hits 90 °C at 3 a.m., a chart of it is not protection.
+
+thermal-guard occupies a different category:
+
+| | Monitoring apps | Fan controllers | **thermal-guard** |
+|---|---|---|---|
+| Shows temperatures | yes | yes | yes |
+| Drives fans | – | yes | no (macOS does) |
+| **Pauses the workload itself, losslessly** | – | – | **yes — SIGSTOP/SIGCONT** |
+| Sees orchestrators spawning 1-second children | – | – | **yes — subtree CPU accounting** |
+| Keeps pre-crash readings for a warranty claim | – | – | **yes — black box + report** |
+| Protects long jobs from draining the battery | – | – | **yes — battery gate** |
+| Whole-fleet view with zero infrastructure | – | – | **yes — a shared folder** |
+| Needs sudo / kexts / accounts | varies | often | **no** |
+
+The freeze is the heart of it: a paused process loses *nothing* — memory intact, resumes from
+the same instruction. Measured live: 89.3 °C → 60.2 °C in 19 seconds, computation unharmed.
+
+---
+
+## Fleets: every Mac in one table
+
+```
+FLEET: 14 machines, folder /Volumes/Studio/FleetTG
+
+HOST         CHIP  FAN   POWER  RAM  DISK  STATE  TODAY  SEEN        ISSUES
+render-01    91C   6.1k  72W    81%  88%   HOT    31p    now         throttled to 70%
+render-02    64C   3.0k  55W    77%  61%   calm   2p     now
+edit-suite   47C   1.2k  18W    52%  95%   calm   0p     now         disk 95% full
+mini-ci-7    -     -     -      -    -     ?      -      3 h ago     STALE - not reporting
+...
+```
+
+Each agent publishes a snapshot (`<hostname>.json`, about once a minute) into a **shared
+folder**, and `fleet` reads the folder. That is the whole architecture. No server, no accounts,
+no inbound network, nothing phoning home — the data is plain JSON you can open and read.
+
+### Setup, step by step
+
+**1. Pick the shared folder.** Any folder that all machines can write to:
+
+| You have | Folder to use | Notes |
+|---|---|---|
+| iCloud (same Apple ID on your Macs) | `~/Library/Mobile Documents/com~apple~CloudDocs/FleetTG` | Right for one person with 2–5 machines. This is the closest thing to "link my Apple ID" — Apple offers no fleet API, but iCloud Drive syncs a folder just fine. |
+| Dropbox / Google Drive | `~/Dropbox/FleetTG` | Share the folder with each machine's account. Good for small teams. |
+| Microsoft 365 | a synced SharePoint library folder | The corporate route; IT already manages access. |
+| A NAS / file server | `/Volumes/<share>/FleetTG` | The render-farm route — fastest updates (no cloud sync delay). Make sure the share mounts at login. |
+
+**2. On every machine**, after installing thermal-guard, point the agent at the folder — one key
+in the config:
+
+```bash
+python3 - <<'EOF'
+import json, os
+p = os.path.expanduser("~/.thermal-guard/config.json")
+c = json.load(open(p)) if os.path.exists(p) else {}
+c["fleet_dir"] = "~/Library/Mobile Documents/com~apple~CloudDocs/FleetTG"   # your folder here
+json.dump(c, open(p, "w"), indent=2)
+EOF
+```
+
+No restart needed — the daemon re-reads its config every cycle and starts publishing within a
+minute.
+
+**3. On whichever machine you sit at**, look at the fleet:
+
+```bash
+fleet              # one table, flags what needs attention, exit code 2 if anything does
+fleet --watch      # refreshes every 30 s
+fleet --json       # machine-readable, for dashboards and automation
+```
+
+A host that has not reported for 5 minutes is flagged `STALE` — crashed, asleep, or its sync
+broke; either way you want to know. `fleet --json` plus the exit code make it trivial to wire
+into Slack alerts, Grafana, or a cron job that emails you.
+
+### What is in the published snapshot
+
+Hostname, temperatures, fan rpm, power draw, RAM/disk usage, power source, guard level and
+reason, paused-job names, today's intervention counts, and the last detected hard shutdown.
+No file paths, no serial numbers. If publishing the name of the top CPU process is too much for
+your environment, you can strip it — the file is built in one function (`fleet_write`).
 
 ---
 
@@ -206,10 +297,9 @@ gets paused.
 ### `thermal-report` — evidence for a repair shop
 
 ```bash
-thermal-report --dni 14
+thermal-report --days 14          # plain text to your Desktop
+thermal-report --days 14 --pdf    # the same, rendered to PDF
 ```
-
-Writes a single text file to your Desktop.
 
 ---
 
@@ -249,6 +339,7 @@ set. That is exactly what the slider is for.
 | `never_arg_patterns` | guard's own tooling | matched against the **full command line**, useful when a job runs under an interpreter |
 | `lang` | `en` | `en` or `pl` |
 | `dry_run` | `false` | log decisions, never signal anything |
+| `fleet_dir` | `""` | shared folder for fleet snapshots (see the fleet section) |
 
 ### A note on numbers, because this trips people up
 
@@ -289,9 +380,11 @@ Built by Paweł Kwaczyński / FOCUS FRAME, 2026.
 
 # Po polsku
 
-**Bezpiecznik termiczny i zasilania dla Maców na Apple Silicon.** Pilnuje temperatury chipa,
-baterii, wentylatorów i źródła zasilania, a gdy robi się gorąco — **zamraża** ciężkie zadania,
-zamiast pozwolić im pracować aż komputer zgaśnie.
+**Bezpiecznik termiczny i zasilania dla Maców na Apple Silicon — od jednego laptopa po całą
+flotę.** Pilnuje temperatury chipa, baterii, wentylatorów i zasilania, a gdy robi się gorąco —
+**wstrzymuje** ciężkie zadania, zamiast pozwolić im pracować aż komputer zgaśnie. Pisany z myślą
+o ludziach, u których Maki pracują na chleb: farmy renderujące, studia postprodukcji, pule
+Mac mini pod CI, zespoły ML — i każdy, kto zostawia laptop z obliczeniami na noc.
 
 Bez `sudo`, bez rozszerzeń jądra, bez niczego działającego jako root.
 
@@ -352,6 +445,28 @@ w [`experiments/soctemp.swift`](experiments/soctemp.swift) jako materiał poglą
 
 Sama bateria nie wystarcza: pomiar z czasu pisania tego pliku to **chip 53,5 °C przy baterii
 30,6 °C**. Bateria reaguje z kilkuminutowym opóźnieniem, czyli długo po otwarciu okna na szkodę.
+
+## Czym to się różni od Stats / iStat / TG Pro
+
+Tamte narzędzia **pokazują** liczby albo podkręcają wentylatory. Żadne nie dotyka samej pracy.
+thermal-guard jako jedyny: **wstrzymuje obciążenie bezstratnie** (SIGSTOP — proces wraca do tej
+samej instrukcji; zmierzone 89,3 → 60,2 °C w 19 s bez utraty obliczeń), **widzi orkiestratory**
+rozsiewające sekundowe procesy (liczy CPU całego drzewa), **zbiera dowody** sprzed twardego padu
+do reklamacji, **pilnuje baterii** przy wielodniowych obliczeniach i **składa całą flotę w jedną
+tabelę** bez żadnego serwera.
+
+## Flota: wszystkie Maki w jednej tabeli
+
+Każdy agent publikuje migawkę do **wspólnego folderu** (`<host>.json`, co ~1 min), a polecenie
+`fleet` czyta ten folder. Folderem może być: **iCloud Drive** (to samo Apple ID na Twoich Makach —
+najbliższy odpowiednik „spięcia jednym Apple ID", bo Apple nie daje API do flot), **Dropbox /
+Google Drive** (folder udostępniony zespołowi), **SharePoint** (droga korporacyjna) albo **dysk
+sieciowy NAS/SMB** (droga farmy renderującej — najszybsza, bez opóźnień chmury).
+
+Konfiguracja to jeden klucz na każdej maszynie: `"fleet_dir": "<ścieżka folderu>"` w
+`~/.thermal-guard/config.json` — bez restartu, agent zacznie publikować w ciągu minuty. Potem
+na swojej maszynie: `fleet` (tabela + problemy), `fleet --watch` (odświeżanie), `fleet --json`
+(pod automaty i dashboardy). Host bez raportu od 5 minut dostaje flagę `NIE RAPORTUJE`.
 
 ## Instalacja i użycie
 

@@ -8,8 +8,9 @@ power draw, power source), detected hard shutdowns together with the readings th
 them, every intervention the guard made, and the hardware state.
 
 Usage:
-  thermal-report                    # last 7 days -> ~/Desktop
+  thermal-report                    # last 7 days -> ~/Desktop (plain text)
   thermal-report --days 30
+  thermal-report --pdf              # additionally render a PDF next to the text file
   thermal-report --file /path/report.txt
 
 Language: TG_LANG=en|pl, or "lang" in ~/.thermal-guard/config.json. Default: en.
@@ -214,6 +215,22 @@ def main():
     tekst = "\n".join(W) + "\n"
     with open(cel, "w") as f:
         f.write(tekst)
+
+    # PDF przez systemowy cupsfilter (textutil nie umie pisac PDF — sprawdzone).
+    # Monospace zostaje z natury zrodla tekstowego; gdy sie nie uda, raport tekstowy
+    # nadal istnieje i drukujemy sciezke tego, co jest.
+    if "--pdf" in sys.argv:
+        pdf = cel.rsplit(".", 1)[0] + ".pdf"
+        try:
+            with open(pdf, "wb") as f:
+                r = subprocess.run(["cupsfilter", cel], stdout=f,
+                                   stderr=subprocess.DEVNULL, timeout=120)
+            if r.returncode == 0 and os.path.getsize(pdf) > 1000:
+                print(pdf)
+                return 0
+            os.remove(pdf)
+        except Exception:
+            pass
     print(cel)
     return 0
 

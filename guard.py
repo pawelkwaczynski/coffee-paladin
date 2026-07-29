@@ -91,7 +91,15 @@ DEFAULTS = {
     "demote_cpu_percent": 60.0,
     "notify": True,
     "notify_min_gap_s": 300,
+    # dzwieki systemowe przy zdarzeniach (afplay — dziala nawet gdy powiadomienia sa
+    # wyciszone przez Skupienie). Rozne zdarzenia maja rozne dzwieki, zeby dalo sie
+    # rozpoznac bez patrzenia: pauza=nisko, wznowienie=szklo, ubicie/pad=powaznie.
+    "sound": True,
     "dry_run": False,
+    # FLOTA: sciezka wspolnego folderu (iCloud/Dropbox/SMB/SharePoint). Gdy ustawiona,
+    # guard publikuje tam migawke <hostname>.json — narzedzie `fleet` sklada z nich
+    # tabele calej floty. Celowo folder, nie serwer: kazda firma jakis wspolny dysk juz ma.
+    "fleet_dir": "",
     # co wolno pauzowac (dopasowanie po nazwie procesu, case-insensitive)
     "managed_patterns": [
         "ffmpeg", "ffprobe", "handbrake", "x265", "x264", "compressor",
@@ -269,6 +277,26 @@ def run(cmd, timeout=10):
 _last_notify = {}
 
 
+SOUNDS = {
+    "pause": "Basso",      # goraco — niski, powazny
+    "resume": "Glass",     # ochlodzone — lekki
+    "kill": "Sosumi",      # ubicie zadania
+    "fan": "Basso",        # awaria chlodzenia
+    "pad": "Basso",        # wykryty twardy pad
+    "freeze": "Tink",      # reczne akcje z paska
+}
+
+
+def play_sound(cfg, key):
+    if not cfg.get("sound", True):
+        return
+    name = SOUNDS.get(key, "Ping")
+    path = "/System/Library/Sounds/%s.aiff" % name
+    if os.path.exists(path):
+        subprocess.Popen(["afplay", path],
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
 def notify(cfg, title, text, key="default"):
     if not cfg["notify"]:
         return
@@ -276,7 +304,8 @@ def notify(cfg, title, text, key="default"):
     if t - _last_notify.get(key, 0) < cfg["notify_min_gap_s"]:
         return
     _last_notify[key] = t
-    script = 'display notification %s with title %s sound name "Submarine"' % (
+    play_sound(cfg, key)
+    script = 'display notification %s with title %s' % (
         json.dumps(text), json.dumps(title))
     subprocess.Popen(["osascript", "-e", script],
                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -886,6 +915,38 @@ def zadania_saferun():
     return out
 
 
+_hostname_cache = {"v": None}
+
+
+def hostname():
+    if _hostname_cache["v"] is None:
+        v = run(["scutil", "--get", "ComputerName"]).strip()
+        if not v:
+            import socket
+            v = socket.gethostname()
+        _hostname_cache["v"] = re.sub(r"[^A-Za-z0-9._ -]", "_", v) or "mac"
+    return _hostname_cache["v"]
+
+
+def fleet_write(cfg, status):
+    """Migawka hosta do wspolnego folderu floty (jesli skonfigurowany)."""
+    d = os.path.expanduser(cfg.get("fleet_dir") or "")
+    if not d:
+        return
+    try:
+        if not os.path.isdir(d):
+            os.makedirs(d, 0o755)
+        out = dict(status)
+        out["host"] = hostname()
+        out["guard_version"] = "1.0"
+        tmp = os.path.join(d, ".%s.tmp" % hostname())
+        with open(tmp, "w") as f:
+            json.dump(out, f, ensure_ascii=False)
+        os.replace(tmp, os.path.join(d, "%s.json" % hostname()))
+    except Exception:
+        pass                      # flota jest dodatkiem — nie moze polozyc bezpiecznika
+
+
 def status_write(state, temp, soc, soc_t, ac, pct, speed, load, lvl, why, targets, st, disk=None):
     """Migawka dla paska menu (`heatbar`). Pasek nic sam nie mierzy — czyta ten plik,
     wiec kosztuje zero CPU i zawsze pokazuje dokladnie to, co widzi guard."""
@@ -924,6 +985,7 @@ def status_write(state, temp, soc, soc_t, ac, pct, speed, load, lvl, why, target
         os.replace(tmp, STATUS_PATH)   # podmiana atomowa — pasek nigdy nie zlapie polowy pliku
     except Exception:
         pass
+    return data
 
 
 HIST_HEADER = ("time,thermal_state,chip_C,gpu_C,battery_C,fan_rpm,watts,"
@@ -1056,8 +1118,10 @@ def main():
             # dysk zmienia sie wolno — odczyt raz na ~5 min wystarcza
             if tick % 20 == 0 or not st.get("_disk"):
                 st["_disk"] = disk_usage()
-            status_write(state, temp, soc, soc_t, ac, pct, speed, load, lvl, why, targets, st,
-                         st.get("_disk"))
+            snap_dict = status_write(state, temp, soc, soc_t, ac, pct, speed, load, lvl, why,
+                                     targets, st, st.get("_disk"))
+            if tick % 4 == 0 and snap_dict:      # flota co ~1 min wystarczy
+                fleet_write(cfg, snap_dict)
 
             # puls czarnej skrzynki — po twardym padzie zostanie tu ostatni znak zycia
             try:

@@ -61,7 +61,7 @@ let PL: [String: String] = [
     "   readings: %.0f-%.0f C": "   ostatnie pomiary: %.0f-%.0f C",
     "rising %.1f C/min - about %.0f min to pause": "rośnie %.1f C/min - do pauzy ok. %.0f min",
     "rising %.1f C/min": "rośnie %.1f C/min",
-    "Supervised jobs (safe-run):": "Zadania pod nadzorem (safe-run):",
+    "Supervised jobs (safe-run):": "Zadania pod opieką (safe-run):",
     "Top CPU:  %@ (%d%%)": "Najwięcej CPU:  %@ (%d%%)",
     "Paused: %@": "Wstrzymane: %@",
     "  (manual)": "  (ręcznie)",
@@ -69,20 +69,20 @@ let PL: [String: String] = [
     "calm": "spokój", "warm": "ciepło", "HOT - paused": "GORĄCO - pauza", "CRITICAL": "KRYTYCZNIE",
     "Chip thresholds:  pause %.0f C, kill %.0f C": "Progi chipa:  pauza %.0f C, ubicie %.0f C",
     "Today: %d x pause": "Dziś: %d x pauza", ", %d x kill": ", %d x ubicie",
-    "Resume paused jobs": "Wznów wstrzymane",
-    "Freeze all heavy jobs now": "Zamroź teraz wszystko ciężkie",
+    "Resume paused jobs": "Wznów wstrzymane zadania",
+    "Freeze all heavy jobs now": "Wstrzymaj ciężkie zadania",
     "Show in the bar": "Pokaż na pasku",
-    "Export report for a repair shop...": "Eksportuj raport dla serwisu...",
-    "Show the guard log": "Pokaż log guarda",
-    "Quit heatbar": "Zakończ heatbar",
+    "Export report for a repair shop...": "Raport dla serwisu (PDF/tekst)...",
+    "Show the guard log": "Pokaż dziennik zdarzeń",
+    "Quit heatbar": "Zamknij heatbar",
     "Chip temperature": "Temperatura chipa", "GPU temperature": "Temperatura GPU",
     "Battery temperature": "Temperatura baterii", "Fan rpm": "Obroty wentylatorów",
     "Power draw (W)": "Pobór mocy (W)", "RAM used": "Zajęty RAM", "Disk used": "Zajęty dysk",
     "Throttling marker": "Znacznik dławienia", "Pause marker": "Znacznik pauzy",
     "Settings": "Ustawienia",
-    "Chip pause threshold": "Próg pauzy chipa",
-    "Battery gate": "Bramka baterii",
-    "pause below this charge when unplugged": "pauza poniżej tego poziomu bez zasilacza",
+    "Chip pause threshold": "Wstrzymuj zadania powyżej",
+    "Battery gate": "Wstrzymuj na baterii poniżej",
+    "pause below this charge when unplugged": "bez zasilacza ciężkie zadania poczekają na ładowarkę",
     "TOO LOW - an idle M-series chip already sits at 40-55 C, the guard would pause constantly":
         "ZA NISKO - bezczynny chip M-serii ma 40-55 C, guard pauzowałby bez przerwy",
     "very conservative - a quiet, cool Mac, but long jobs will crawl":
@@ -725,7 +725,7 @@ Remember to switch it off afterwards: in this mode nothing protects the Mac.
     @objc func report() {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: reportBin)
-        p.arguments = ["--days", "14"]
+        p.arguments = ["--days", "14", "--pdf"]
         let pipe = Pipe()
         p.standardOutput = pipe
         do { try p.run() } catch { return }
