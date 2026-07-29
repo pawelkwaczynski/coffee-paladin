@@ -1,4 +1,4 @@
-# thermal-guard
+# thermal-guard v1.0
 
 **A thermal and power safety net for Apple Silicon Macs.** It watches the chip temperature, the
 battery, the fans and the power source, and it *freezes* heavy jobs before your laptop cooks
@@ -10,8 +10,12 @@ available to a normal user process.
 *(Polska wersja poniżej — [przejdź do opisu po polsku](#po-polsku).)*
 
 ```
-🌡 C67° G64° B33° 🌀3.3k 42W
+🌡 C67° G64° B33° 🌀3.3k 42W 🧠62% 💾46%
 ```
+
+chip · GPU · battery · fan rpm · power draw · RAM used · disk used — and you choose which of
+those appear, with checkboxes under **Show in the bar**. Messages come in English by default,
+Polish with `TG_LANG=pl` or `"lang": "pl"` in the config.
 
 ---
 
@@ -177,8 +181,12 @@ so they never depend on name matching.
 🌡 C67° G64° B33° 🌀3.3k 42W ⚡ ⏸
 ```
 
-chip / GPU / battery / fan rpm / power draw / `⚡` when macOS is throttling / `⏸` when something is
-paused. `🌀⚠︎0` means the fans are stopped while the chip is hot.
+chip / GPU / battery / fan rpm / power draw / RAM used / disk used, plus `⚡` when macOS is
+throttling and `⏸` when something is paused. `🌀⚠︎0` means the fans are stopped while the chip is
+hot; `🧠62%⚠︎` means RAM is 62 % used **and** the machine has started swapping.
+
+Everything on the bar is optional — **Show in the bar** gives you a checkbox per element and the
+choice is remembered in `~/.thermal-guard/heatbar.json`. RAM and disk are off by default.
 
 The menu adds a block-character temperature graph, a trend and forecast ("rising 2.1 °C/min —
 about 4 minutes to pause"), running `safe-run` jobs, today's intervention count, a manual
@@ -213,6 +221,9 @@ Writes a single text file to your Desktop.
 | `fan_alert_temp_c` | 70 | above this the fans must be spinning |
 | `unknown_cpu_percent` | 50 | catch-all threshold for unrecognised processes |
 | `never_patterns` | see `guard.py` | never touched, overrides everything |
+| `never_extra` | `[]` | your own additions to the never-touch list (tools you do not want frozen) |
+| `never_arg_patterns` | guard's own tooling | matched against the **full command line**, useful when a job runs under an interpreter |
+| `lang` | `en` | `en` or `pl` |
 
 ### A note on numbers, because this trips people up
 
@@ -235,13 +246,17 @@ The shipped defaults are deliberately more conservative than Apple's own throttl
 - **Apple Silicon only.**
 - The LaunchAgent labels are `pl.pawel.thermal-guard` and `pl.pawel.heatbar`. Rename them in the
   plists if you prefer something neutral.
-- Code comments and console output are in Polish; identifiers and this document are in English.
+- Messages are English by default; `TG_LANG=pl` or `"lang": "pl"` in `config.json` switches every
+  tool and the menu bar to Polish. Adding a language means adding one dictionary per file.
+- Some inline code comments are still in Polish.
 
 ---
 
 ## License
 
 MIT — do whatever you like with it. If it saves your machine, that is payment enough.
+
+Built by Paweł Kwaczyński / FOCUS FRAME, 2026.
 
 ---
 
@@ -323,13 +338,19 @@ bash install.sh
 
 - `heat` — jednym poleceniem: jak gorąco, co grzeje, czy bezpiecznik żyje
 - `safe-run --hours 8 --name render -- <polecenie>` — tak uruchamiaj ciężkie zadania
-- `heatbar` — pasek menu z wykresem, prognozą, ręcznym zamrażaniem i eksportem raportu
+- `heatbar` — pasek menu: chip, GPU, bateria, obroty, waty, RAM i dysk (wybierasz checkboxami
+  w „Pokaż na pasku"), wykres, prognoza, ręczne zamrażanie i eksport raportu
 - `thermal-report --dni 14` — raport dowodowy dla serwisu
 
 Progi w `~/.thermal-guard/config.json`. **Nie ustawiaj progu chipa na 45 °C** — bezczynny M4 Pro
 ma 40-55 °C, a Apple Silicon dławi się dopiero koło 100-108 °C. 45 °C to właściwa liczba dla
 *baterii* i tam jest używana.
 
+Język: domyślnie angielski. `TG_LANG=pl` albo `"lang": "pl"` w `~/.thermal-guard/config.json`
+przełącza wszystkie narzędzia i pasek na polski.
+
 ## Licencja
 
 MIT. Rób z tym co chcesz. Jeśli uratuje Ci komputer, to wystarczająca zapłata.
+
+Autor: Paweł Kwaczyński / FOCUS FRAME, 2026.

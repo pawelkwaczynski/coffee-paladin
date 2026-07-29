@@ -1,21 +1,24 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-safe-run — uruchamia ciezkie zadanie pod nadzorem termicznym.
+safe-run - starts a heavy job under thermal supervision.
 
-Co robi, czego zwykle uruchomienie nie robi:
-  1. sprawdza PRZED startem, czy Mac nie jest juz goracy (odmawia startu),
-  2. odpala zadanie z niskim priorytetem i w tle systemowym (background QoS -> E-cores),
-  3. daje mu wlasna grupe procesow, zeby thermal-guard mogl je wstrzymac razem z dziecmi,
-  4. rejestruje je w ~/.thermal-guard/managed/ (guard wie, ze to zadanie "nasze"),
-  5. pilnuje limitu czasu (domyslnie 6 h) — po nim SIGTERM, po 30 s SIGKILL,
-  6. na koniec pisze podsumowanie: czas, maksymalna temperatura, czy byly pauzy.
+What it does that a plain launch does not:
+  1. checks BEFORE starting whether the Mac is already hot (and refuses to start),
+  2. runs the job at low priority and background QoS (efficiency cores),
+  3. gives it its own process group, so thermal-guard can pause it together with its children,
+  4. registers it in ~/.thermal-guard/managed/ so the guard knows the job explicitly and
+     never has to recognise it by name,
+  5. enforces a time budget (6 h by default) - then SIGTERM, and SIGKILL 30 s later,
+  6. prints a summary at the end: duration, peak temperature, whether it was ever paused.
 
-Uzycie:
+Usage:
   safe-run -- ffmpeg -i in.mp4 ...
-  safe-run --hours 3 --name erd699 -- python scan_v2.py 6 1000000
-  safe-run --allow-hot -- ...      # start mimo cieplego Maca (swiadomie)
-  safe-run --normal -- ...         # bez obnizania priorytetu (np. krotki, interaktywny job)
+  safe-run --hours 3 --name scan -- python scan.py 6 1000000
+  safe-run --allow-hot -- ...      # start even though the Mac is warm (deliberately)
+  safe-run --normal -- ...         # keep normal priority (short, interactive job)
+
+Language: TG_LANG=en|pl, or "lang" in ~/.thermal-guard/config.json. Default: en.
 """
 
 import json
@@ -32,6 +35,50 @@ HIST = os.path.join(BASE, "history.csv")
 GUARD = os.path.join(HOME, ".local/bin/thermal-guard")
 THERMALSTATE = os.path.join(HOME, ".local/bin/thermalstate")
 AGENT_LABEL = "pl.pawel.thermal-guard"
+
+
+def _lang():
+    v = (os.environ.get("TG_LANG") or "").lower()[:2]
+    if v in ("pl", "en"):
+        return v
+    try:
+        with open(os.path.join(BASE, "config.json")) as f:
+            v = (json.load(f).get("lang") or "").lower()[:2]
+        if v in ("pl", "en"):
+            return v
+    except Exception:
+        pass
+    return "en"
+
+
+LANG = _lang()
+
+PL = {
+    "safe-run: unknown option %s": "safe-run: nieznana opcja %s",
+    "safe-run: thermal state=%s, battery=%s, time budget=%.1f h":
+        "safe-run: stan termiczny=%s, bateria=%s, limit czasu=%.1f h",
+    "safe-run: REFUSING TO START - the Mac is already hot. Let it cool down or pass --allow-hot.":
+        "safe-run: ODMOWA STARTU - Mac jest juz goracy. Daj mu ostygnac albo uzyj --allow-hot.",
+    "safe-run: thermal-guard is not running - trying to start it...":
+        "safe-run: thermal-guard nie dziala - probuje uruchomic...",
+    "safe-run: WARNING - the guard did not start, this job will NOT be supervised.":
+        "safe-run: UWAGA - guard nie wstal, zadanie NIE bedzie pilnowane.",
+    "safe-run: cannot start: %r": "safe-run: nie moge uruchomic: %r",
+    "safe-run: TIME BUDGET %.1f h reached - terminating the job (SIGTERM)":
+        "safe-run: LIMIT CZASU %.1f h - koncze zadanie (SIGTERM)",
+    "safe-run: %s - exit code %s, took %dh %dm, peak temperature %s%s":
+        "safe-run: %s - kod %s, czas %dh %dm, max temperatura %s%s",
+    "safe-run: the job was stopped by signal %d - check ~/.thermal-guard/guard.log":
+        "safe-run: zadanie zatrzymane sygnalem %d - sprawdz ~/.thermal-guard/guard.log",
+    "finished": "zakonczone",
+    "failed": "nieudane",
+    "n/a": "n/d",
+    "terminated by the time budget": "ubite przez limit czasu",
+}
+
+
+def T(s):
+    return PL.get(s, s) if LANG == "pl" else s
 
 HOT = ("serious", "critical")
 
@@ -103,7 +150,7 @@ def parse():
         elif a in ("-h", "--help"):
             print(__doc__); sys.exit(0)
         elif a.startswith("-"):
-            print("safe-run: nieznana opcja %s" % a); sys.exit(2)
+            print(T("safe-run: unknown option %s") % a); sys.exit(2)
         else:
             break
     cmd = args[i:]
@@ -144,18 +191,17 @@ def main():
     state, temp = thermal_state(), batt_temp()
     limit = cfg()["batt_pause_c"]
     hot = state in HOT or (temp is not None and temp >= limit - 2)
-    print("safe-run: stan termiczny=%s, bateria=%s, limit czasu=%.1f h" % (
-        state, ("%.1f C" % temp) if temp else "n/d", opt["hours"]))
+    print(T("safe-run: thermal state=%s, battery=%s, time budget=%.1f h") % (
+        state, ("%.1f C" % temp) if temp else T("n/a"), opt["hours"]))
     if hot and not opt["allow_hot"]:
-        print("safe-run: ODMOWA STARTU — Mac jest juz gorący. Daj mu ostygnąć "
-              "albo wymuś: safe-run --allow-hot ...")
+        print(T("safe-run: REFUSING TO START - the Mac is already hot. Let it cool down or pass --allow-hot."))
         return 3
 
     if not guard_running():
-        print("safe-run: thermal-guard nie działa — próbuję uruchomić...")
+        print(T("safe-run: thermal-guard is not running - trying to start it..."))
         if not start_guard():
-            print("safe-run: UWAGA — guard nie wstał, zadanie NIE będzie pilnowane. "
-                  "Napraw: launchctl kickstart -k gui/$UID/%s" % AGENT_LABEL)
+            print(T("safe-run: WARNING - the guard did not start, this job will NOT be supervised.")
+                  + "  launchctl kickstart -k gui/$UID/%s" % AGENT_LABEL)
 
     wrapped = list(cmd)
     if not opt["normal"]:
@@ -166,7 +212,7 @@ def main():
     try:
         proc = subprocess.Popen(wrapped, preexec_fn=os.setsid)
     except Exception as e:
-        print("safe-run: nie mogę uruchomić: %r" % (e,))
+        print(T("safe-run: cannot start: %r") % (e,))
         return 4
 
     reg = os.path.join(MANAGED_DIR, "%d.json" % proc.pid)
@@ -192,7 +238,7 @@ def main():
             break
         if time.time() > deadline:
             killed_by_time = True
-            print("safe-run: LIMIT CZASU %.1f h — kończę zadanie (SIGTERM)" % opt["hours"])
+            print(T("safe-run: TIME BUDGET %.1f h reached - terminating the job (SIGTERM)") % opt["hours"])
             try:
                 os.killpg(proc.pid, signal.SIGCONT)
                 os.killpg(proc.pid, signal.SIGTERM)
@@ -218,13 +264,12 @@ def main():
 
     dur = time.time() - t0
     mx = max_temp_since(t0)
-    print("safe-run: %s — kod %s, czas %dh %dm, max temperatura %s%s" % (
+    print(T("safe-run: %s - exit code %s, took %dh %dm, peak temperature %s%s") % (
         opt["name"], rc, int(dur // 3600), int(dur % 3600 // 60),
-        ("%.1f C" % mx) if mx else "n/d",
-        ", ubite przez limit czasu" if killed_by_time else ""))
+        ("%.1f C" % mx) if mx else T("n/a"),
+        (", " + T("terminated by the time budget")) if killed_by_time else ""))
     if rc is not None and rc < 0 and -rc in (signal.SIGTERM, signal.SIGKILL):
-        print("safe-run: zadanie zatrzymane sygnałem %d — sprawdź ~/.thermal-guard/guard.log "
-              "(mógł je ubić guard z powodu temperatury)." % -rc)
+        print(T("safe-run: the job was stopped by signal %d - check ~/.thermal-guard/guard.log") % -rc)
     return rc if rc and rc > 0 else 0
 
 

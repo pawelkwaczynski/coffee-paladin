@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""heat — jednym poleceniem: jak gorący jest Mac i co go grzeje."""
+"""heat - one command: how hot is this Mac and what is heating it up.
+
+Language: TG_LANG=en|pl, or "lang" in ~/.thermal-guard/config.json. Default: en.
+"""
 
 import json
 import os
@@ -19,6 +22,71 @@ AGENT = "pl.pawel.thermal-guard"
 ICON = {"nominal": "🟢", "fair": "🟡", "serious": "🟠", "critical": "🔴", "unknown": "⚪️"}
 
 
+def _lang():
+    v = (os.environ.get("TG_LANG") or "").lower()[:2]
+    if v in ("pl", "en"):
+        return v
+    try:
+        with open(os.path.join(BASE, "config.json")) as f:
+            v = (json.load(f).get("lang") or "").lower()[:2]
+        if v in ("pl", "en"):
+            return v
+    except Exception:
+        pass
+    return "en"
+
+
+LANG = _lang()
+
+PL = {
+    "%s thermal state: %s   chip: %s   battery: %s   CPU available: %d%%   load: %.2f / %.2f (%d cores)":
+        "%s stan termiczny: %s   chip: %s   bateria: %s   CPU dostepne: %d%%   load: %.2f / %.2f (rdzeni %d)",
+    "n/a": "n/d",
+    "stopped": "stoi",
+    "%d rpm": "%d obr/min",
+    "   fans: %s%s": "   wentylatory: %s%s",
+    "   ⚠️ CHIP IS HOT BUT THE FANS ARE STOPPED - check the cooling!":
+        "   ⚠️ CHIP GORACY, A WENTYLATORY STOJA - sprawdz chlodzenie!",
+    "AC adapter": "zasilacz",
+    "battery %s%%": "bateria %s%%",
+    "   power: %s%s": "   zasilanie: %s%s",
+    "   draw: %.1f W": "   pobor: %.1f W",
+    "   battery temperature record (whole lifetime): %.1f °C":
+        "   rekord temperatury baterii (caly cykl zycia): %.1f °C",
+    "running ✅": "dziala ✅",
+    "NOT RUNNING ❌  (launchctl kickstart -k gui/%d/%s)": "NIE DZIALA ❌  (launchctl kickstart -k gui/%d/%s)",
+    "   thermal-guard: %s": "   thermal-guard: %s",
+    "   ⏸  paused: %s (pid %s, since %s)": "   ⏸  wstrzymane: %s (pid %s, od %s)",
+    "\nTop CPU right now:": "\nNajwiecej CPU teraz:",
+    "\nPeak chip temperature in the last 24 h: %.1f °C (%s)":
+        "\nMax temperatura chipa z ostatnich 24 h: %.1f °C (%s)",
+    "\nRecent guard interventions:": "\nOstatnie interwencje guarda:",
+}
+
+
+def T(s):
+    return PL.get(s, s) if LANG == "pl" else s
+
+
+def normalize_batt_temp(raw):
+    """Temperatura ogniwa w C, niezaleznie od jednostki raportowanej przez kontroler.
+
+    Uklady pomiarowe roznia sie miedzy modelami: jedne podaja setne stopnia (3081 = 30,81 C),
+    inne dziesiate (444 = 44,4 C), a niektore pola cale stopnie (41 = 41 C). Sztywne dzielenie
+    przez 100 pokazywalo na czesci Makow absurdy w rodzaju 444 C, dlatego skalujemy do
+    przedzialu fizycznie mozliwego dla ogniwa litowego.
+    """
+    try:
+        v = float(raw)
+    except (TypeError, ValueError):
+        return None
+    for _ in range(4):
+        if v <= 100.0:
+            break
+        v /= 10.0
+    return v if 5.0 < v <= 100.0 else None
+
+
 def sh(cmd, timeout=15):
     try:
         p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
@@ -32,10 +100,9 @@ def main():
     state = sh([os.path.join(HOME, ".local/bin/thermalstate")]).strip() or "unknown"
     ioreg = sh(["ioreg", "-r", "-c", "AppleSmartBattery", "-d", "1", "-w", "0"])
     m = re.search(r'"Temperature"\s*=\s*(\d+)', ioreg)
-    temp = int(m.group(1)) / 100.0 if m else None
+    temp = normalize_batt_temp(m.group(1)) if m else None
     mmax = re.search(r'"MaximumTemperature"\s*=\s*(\d+)', ioreg)
-    # MaximumTemperature jest w calych stopniach (Temperature — inaczej, w setnych)
-    lifetime = float(mmax.group(1)) if mmax else None
+    lifetime = normalize_batt_temp(mmax.group(1)) if mmax else None
     sl = re.search(r"CPU_Speed_Limit\s*=\s*(\d+)", sh(["pmset", "-g", "therm"]))
     speed = int(sl.group(1)) if sl else 100
     try:
@@ -52,42 +119,42 @@ def main():
     except Exception:
         pass
     chip = snap.get("chip_c")
-    fans = snap.get("wentylatory") or []
+    fans = snap.get("fans") or []
 
-    print("%s stan termiczny: %s   chip: %s   bateria: %s   CPU dostępne: %d%%   load: %.2f / %.2f (rdzeni %d)"
+    print(T("%s thermal state: %s   chip: %s   battery: %s   CPU available: %d%%   load: %.2f / %.2f (%d cores)")
           % (ICON.get(state, "⚪️"), state,
-             ("%.1f °C" % chip) if chip else "n/d",
-             ("%.1f °C" % temp) if temp else "n/d", speed, l1, l15, ncpu))
+             ("%.1f °C" % chip) if chip else T("n/a"),
+             ("%.1f °C" % temp) if temp else T("n/a"), speed, l1, l15, ncpu))
 
     if fans:
-        opis = ", ".join("stoi" if f == 0 else "%d obr/min" % f for f in fans)
+        opis = ", ".join(T("stopped") if f == 0 else T("%d rpm") % f for f in fans)
         ostrz = ""
         if chip and chip >= 75.0 and max(fans) == 0:
-            ostrz = "   ⚠️ CHIP GORĄCY, A WENTYLATORY STOJĄ — sprawdź chłodzenie!"
-        print("   wentylatory: %s%s" % (opis, ostrz))
+            ostrz = T("   ⚠️ CHIP IS HOT BUT THE FANS ARE STOPPED - check the cooling!")
+        print(T("   fans: %s%s") % (opis, ostrz))
 
     if snap:
-        zas = "zasilacz" if snap.get("na_zasilaczu") else "bateria %s%%" % snap.get("bateria_pct", "?")
-        watts = snap.get("waty")
-        print("   zasilanie: %s%s" % (zas, ("   pobór: %.1f W" % watts) if watts else ""))
+        zas = T("AC adapter") if snap.get("on_ac") else T("battery %s%%") % snap.get("battery_pct", "?")
+        watts = snap.get("watts")
+        print(T("   power: %s%s") % (zas, (T("   draw: %.1f W") % watts) if watts else ""))
 
     if lifetime:
-        print("   rekord temperatury baterii (cały cykl życia): %.1f °C" % lifetime)
+        print(T("   battery temperature record (whole lifetime): %.1f °C") % lifetime)
 
     running = AGENT in sh(["launchctl", "list"]) or bool(sh(["pgrep", "-f", "guard.py"]).strip())
-    print("   thermal-guard: %s" % ("działa ✅" if running else "NIE DZIAŁA ❌  (launchctl kickstart -k gui/%d/%s)" % (os.getuid(), AGENT)))
+    print(T("   thermal-guard: %s") % (T("running ✅") if running else T("NOT RUNNING ❌  (launchctl kickstart -k gui/%d/%s)") % (os.getuid(), AGENT)))
 
     try:
         with open(STATE) as f:
             st = json.load(f)
         if st.get("paused"):
             for k, v in st["paused"].items():
-                print("   ⏸  wstrzymane: %s (pid %s, od %s)"
+                print(T("   ⏸  paused: %s (pid %s, since %s)")
                       % (v.get("comm"), k, time.strftime("%H:%M", time.localtime(v.get("since", 0)))))
     except Exception:
         pass
 
-    print("\nNajwięcej CPU teraz:")
+    print(T("\nTop CPU right now:"))
     out = sh(["ps", "-Ao", "pid=,pcpu=,comm=", "-c", "-r"])
     for line in out.splitlines()[:6]:
         p = line.split(None, 2)
@@ -113,15 +180,15 @@ def main():
                     if best is None or v > best:
                         best, when = v, c[0]
         if best:  # kolumna 2 to teraz temperatura CHIPA (wczesniej byla bateria)
-            print("\nMax temperatura chipa z ostatnich 24 h: %.1f °C (%s)" % (best, when))
+            print(T("\nPeak chip temperature in the last 24 h: %.1f °C (%s)") % (best, when))
     except Exception:
         pass
 
     try:
         with open(LOG) as f:
-            lines = [l.rstrip() for l in f if any(k in l for k in ("PAUZA", "WZNOWIONE", "STOP", "SIGKILL", "DEMOTE"))]
+            lines = [l.rstrip() for l in f if any(k in l for k in ("PAUSED", "RESUMED", "PAUZA", "WZNOWIONE", "TERMINATED", "SIGKILL", "DEMOT"))]
         if lines:
-            print("\nOstatnie interwencje guarda:")
+            print(T("\nRecent guard interventions:"))
             for l in lines[-5:]:
                 print("   " + l)
     except Exception:

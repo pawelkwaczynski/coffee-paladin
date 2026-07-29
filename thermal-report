@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""thermal-report — jeden plik z dowodami dla serwisu Apple.
+"""thermal-report - a single evidence file for a repair shop or a warranty claim.
 
-Sklada w calosc to, czego zabraklo przy incydencie 29.07.2026, gdy dziennik systemowy
-urwal sie w chwili zgasniecia: os czasu pomiarow guarda (temperatura chipa, obroty
-wentylatorow, pobor, zasilanie), wykryte twarde pady wraz z odczytami sprzed padu,
-interwencje bezpiecznika oraz stan sprzetu.
+Assembles what is normally missing after a hard shutdown, when the system log simply ends
+at the moment the machine died: the guard's measurement timeline (chip temperature, fan rpm,
+power draw, power source), detected hard shutdowns together with the readings that preceded
+them, every intervention the guard made, and the hardware state.
 
-Uzycie:
-  thermal-report                 # raport z ostatnich 7 dni -> ~/Desktop
-  thermal-report --dni 30
-  thermal-report --plik /sciezka/raport.txt
+Usage:
+  thermal-report                    # last 7 days -> ~/Desktop
+  thermal-report --days 30
+  thermal-report --file /path/report.txt
+
+Language: TG_LANG=en|pl, or "lang" in ~/.thermal-guard/config.json. Default: en.
 """
 
 import json
@@ -25,6 +27,55 @@ BASE = os.path.join(HOME, ".thermal-guard")
 HIST = os.path.join(BASE, "history.csv")
 EVENTS = os.path.join(BASE, "events.log")
 LOG = os.path.join(BASE, "guard.log")
+CFG = os.path.join(BASE, "config.json")
+
+
+def _lang():
+    v = (os.environ.get("TG_LANG") or "").lower()[:2]
+    if v in ("pl", "en"):
+        return v
+    try:
+        with open(CFG) as f:
+            v = (json.load(f).get("lang") or "").lower()[:2]
+        if v in ("pl", "en"):
+            return v
+    except Exception:
+        pass
+    return "en"
+
+
+LANG = _lang()
+
+PL = {
+    "THERMAL AND POWER REPORT - Mac": "RAPORT TERMICZNY I ZASILANIA - Mac",
+    "generated: %s   range: last %d days": "wygenerowano: %s   zakres: ostatnie %d dni",
+    "\n## HARDWARE\n": "\n## SPRZET\n",
+    "\n## BATTERY\n": "\n## BATERIA\n",
+    "\n## CRITICAL EVENTS (hard shutdowns, cooling alarms)\n":
+        "\n## ZDARZENIA KRYTYCZNE (twarde wylaczenia, alarmy chlodzenia)\n",
+    "  (none - no hard shutdown or cooling alarm was detected in this period)":
+        "  (brak - w tym okresie nie wykryto twardego wylaczenia ani alarmu chlodzenia)",
+    "      readings immediately before the event:": "      odczyty bezposrednio przed zdarzeniem:",
+    "\n## SHUTDOWN CAUSES REPORTED BY THE SYSTEM\n": "\n## POWODY WYLACZEN WG SYSTEMU\n",
+    "  (no 'Previous shutdown cause' entries - typical after a loss of power)":
+        "  (brak wpisow 'Previous shutdown cause' - typowe przy utracie zasilania)",
+    "\n## GUARD INTERVENTIONS\n": "\n## INTERWENCJE BEZPIECZNIKA\n",
+    "  (none)": "  (brak)",
+    "\n## MEASUREMENT TIMELINE\n": "\n## OS CZASU POMIAROW\n",
+    "  time, chip C, GPU C, battery C, fan rpm, W, battery %, on AC, CPU limit, load, level":
+        "  czas, chip C, GPU C, bateria C, obroty, W, bateria %, zasilacz, CPU limit, load, poziom",
+    "  PEAK MEASURED CHIP TEMPERATURE: %.1f C (%s)": "  NAJWYZSZA ZMIERZONA TEMPERATURA CHIPA: %.1f C (%s)",
+    "Measurements are collected by thermal-guard every 15 s (written every 5 min and on every event).":
+        "Pomiary zbiera thermal-guard co 15 s (zapis co 5 min oraz przy kazdym zdarzeniu).",
+    "Chip temperature is read through IOReport, battery temperature through AppleSmartBattery.":
+        "Temperatura chipa czytana przez IOReport, temperatura baterii przez AppleSmartBattery.",
+    "AC": "zasilacz",
+    "battery": "bateria",
+}
+
+
+def T(s):
+    return PL.get(s, s) if LANG == "pl" else s
 
 
 def sh(cmd, timeout=30):
@@ -45,30 +96,35 @@ def czas_z(s):
 
 def main():
     dni = 7
-    if "--dni" in sys.argv:
-        try:
-            dni = int(sys.argv[sys.argv.index("--dni") + 1])
-        except Exception:
-            pass
-    if "--plik" in sys.argv:
-        cel = sys.argv[sys.argv.index("--plik") + 1]
-    else:
+    for flaga in ("--days", "--dni"):          # --dni zostaje dla zgodnosci
+        if flaga in sys.argv:
+            try:
+                dni = int(sys.argv[sys.argv.index(flaga) + 1])
+            except Exception:
+                pass
+            break
+    cel = None
+    for flaga in ("--file", "--plik"):
+        if flaga in sys.argv:
+            cel = sys.argv[sys.argv.index(flaga) + 1]
+            break
+    if cel is None:
         cel = os.path.join(HOME, "Desktop",
-                           "raport_termiczny_%s.txt" % time.strftime("%Y%m%d_%H%M"))
+                           "thermal_report_%s.txt" % time.strftime("%Y%m%d_%H%M"))
     granica = time.time() - dni * 86400
     W = []
 
-    W.append("RAPORT TERMICZNY I ZASILANIA — MacBook Pro")
-    W.append("wygenerowano: %s   zakres: ostatnie %d dni" % (
+    W.append(T("THERMAL AND POWER REPORT - Mac"))
+    W.append(T("generated: %s   range: last %d days") % (
         time.strftime("%Y-%m-%d %H:%M:%S"), dni))
     W.append("=" * 78)
 
-    W.append("\n## SPRZET\n")
+    W.append(T("\n## HARDWARE\n"))
     for linia in sh(["system_profiler", "SPHardwareDataType"]).splitlines():
         if re.search(r"Model Name|Model Identifier|Chip|Total Number of Cores|Memory|Serial", linia):
             W.append("  " + linia.strip())
 
-    W.append("\n## BATERIA\n")
+    W.append(T("\n## BATTERY\n"))
     for linia in sh(["system_profiler", "SPPowerDataType"]).splitlines()[:40]:
         if re.search(r"Cycle Count|Condition|Maximum Capacity|Charging|State of Charge|Serial", linia):
             W.append("  " + linia.strip())
@@ -79,7 +135,7 @@ def main():
             W.append("  %s = %s" % (klucz, m.group(1)))
 
     # --- najwazniejsza czesc: twarde pady
-    W.append("\n## ZDARZENIA KRYTYCZNE (twarde wylaczenia, alarmy chlodzenia)\n")
+    W.append(T("\n## CRITICAL EVENTS (hard shutdowns, cooling alarms)\n"))
     zdarzen = 0
     try:
         with open(EVENTS) as f:
@@ -88,48 +144,48 @@ def main():
                     z = json.loads(linia)
                 except Exception:
                     continue
-                if czas_z(z.get("czas", "")) < granica:
+                if czas_z(z.get("time", "")) < granica:
                     continue
                 zdarzen += 1
-                W.append("  [%s] %s — %s" % (z.get("czas"), z.get("rodzaj"), z.get("opis")))
-                pomiary = (z.get("kontekst") or {}).get("ostatnie_pomiary") or []
+                W.append("  [%s] %s — %s" % (z.get("time"), z.get("type"), z.get("description")))
+                pomiary = (z.get("context") or {}).get("last_readings") or []
                 if pomiary:
-                    W.append("      odczyty bezposrednio przed zdarzeniem:")
+                    W.append(T("      readings immediately before the event:"))
                     for p in pomiary:
                         W.append("        %s  chip %s C  wentylator %s obr/min  %s W  bateria %s%%  %s  load %s"
-                                 % (p.get("czas", "?"), p.get("chip_C", "?"),
-                                    p.get("wentylator_rpm", "?"), p.get("waty", "?"),
-                                    p.get("bateria_pct", "?"),
-                                    "zasilacz" if p.get("na_zasilaczu") == "1" else "bateria",
+                                 % (p.get("time", "?"), p.get("chip_C", "?"),
+                                    p.get("fan_rpm", "?"), p.get("watts", "?"),
+                                    p.get("battery_pct", "?"),
+                                    T("AC") if p.get("on_ac") == "1" else T("battery"),
                                     p.get("load1", "?")))
     except FileNotFoundError:
         pass
     if not zdarzen:
-        W.append("  (brak — w tym okresie nie wykryto twardego wylaczenia ani alarmu chlodzenia)")
+        W.append(T("  (none - no hard shutdown or cooling alarm was detected in this period)"))
 
-    W.append("\n## POWODY WYLACZEN WG SYSTEMU\n")
+    W.append(T("\n## SHUTDOWN CAUSES REPORTED BY THE SYSTEM\n"))
     wy = sh(["pmset", "-g", "log"], timeout=60)
     trafienia = [l for l in wy.splitlines() if "shutdown cause" in l.lower()][-10:]
     W.extend("  " + l.strip() for l in trafienia) if trafienia else W.append(
-        "  (brak wpisow 'Previous shutdown cause' — typowe przy utracie zasilania)")
+        T("  (no 'Previous shutdown cause' entries - typical after a loss of power)"))
 
-    W.append("\n## INTERWENCJE BEZPIECZNIKA\n")
+    W.append(T("\n## GUARD INTERVENTIONS\n"))
     inter = 0
     try:
         with open(LOG) as f:
             for linia in f:
                 if czas_z(linia[:19]) < granica:
                     continue
-                if re.search(r"PAUZA|WZNOWIONE|SIGTERM|koncze zadanie|AWARIA|TWARDY", linia):
+                if re.search(r"PAUSED|RESUMED|PAUZA|WZNOWIONE|SIGTERM|TERMINAT|koncze zadanie|AWARIA|FAILURE|HARD SHUT|TWARDY", linia):
                     inter += 1
                     W.append("  " + linia.rstrip())
     except FileNotFoundError:
         pass
     if not inter:
-        W.append("  (brak)")
+        W.append(T("  (none)"))
 
-    W.append("\n## OS CZASU POMIAROW\n")
-    W.append("  czas, chip C, GPU C, bateria C, obroty, W, bateria %, zasilacz, CPU limit, load, poziom")
+    W.append(T("\n## MEASUREMENT TIMELINE\n"))
+    W.append(T("  time, chip C, GPU C, battery C, fan rpm, W, battery %, on AC, CPU limit, load, level"))
     ile = 0
     szczyt = (0, "")
     try:
@@ -149,11 +205,11 @@ def main():
     except FileNotFoundError:
         pass
     if szczyt[0]:
-        W.insert(len(W) - ile - 2, "  NAJWYZSZA ZMIERZONA TEMPERATURA CHIPA: %.1f C (%s)" % szczyt)
+        W.insert(len(W) - ile - 2, T("  PEAK MEASURED CHIP TEMPERATURE: %.1f C (%s)") % szczyt)
 
     W.append("\n" + "=" * 78)
-    W.append("Pomiary zbiera thermal-guard co 15 s (zapis co 5 min oraz przy kazdym zdarzeniu).")
-    W.append("Temperatura chipa czytana przez IOReport, temperatura baterii przez AppleSmartBattery.")
+    W.append(T("Measurements are collected by thermal-guard every 15 s (written every 5 min and on every event)."))
+    W.append(T("Chip temperature is read through IOReport, battery temperature through AppleSmartBattery."))
 
     tekst = "\n".join(W) + "\n"
     with open(cel, "w") as f:

@@ -1,25 +1,30 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-thermal-guard — pilnuje temperatury i obciazenia Maca (bez sudo).
+thermal-guard - watches temperature and load on a Mac, without sudo.
 
-Co N sekund czyta:
-  * stan termiczny macOS  (thermalstate: nominal/fair/serious/critical)
-  * temperature baterii   (ioreg AppleSmartBattery -> "Temperature", setne stopnia)
-  * throttling CPU        (pmset -g therm -> CPU_Speed_Limit)
-  * load average + procesy (ps)
+Every N seconds it reads:
+  * macOS thermal pressure (thermalstate: nominal/fair/serious/critical)
+  * chip and GPU temperature, fan rpm and power draw (macmon -> IOReport)
+  * battery temperature (ioreg AppleSmartBattery)
+  * CPU throttling (pmset -g therm -> CPU_Speed_Limit)
+  * load average and processes, with CPU rolled up across each process subtree (ps)
 
-Gdy goraco: SIGSTOP na ciezkie zadania obliczeniowe (ffmpeg, python, julia, ollama...).
-Gdy ostygnie: SIGCONT. Przy stanie krytycznym: SIGCONT + SIGTERM (zadania maja checkpointy),
-po grace SIGKILL. Systemu, Findera ani sesji Claude/Hermes NIE rusza.
+When it gets hot: SIGSTOP on heavy jobs. When it cools down: SIGCONT. In a critical state:
+SIGCONT + SIGTERM so jobs can checkpoint, then SIGKILL after a grace period. The system,
+Finder and interactive shells are never touched.
 
-Historia pomiarow: ~/.thermal-guard/history.csv     (do dowodow "co sie dzialo o 3 w nocy")
-Zdarzenia:         ~/.thermal-guard/guard.log
-Stan (pauzy):      ~/.thermal-guard/state.json      (odtwarzany po restarcie -> nic nie zostaje zamrozone)
+Measurement history: ~/.thermal-guard/history.csv   (evidence for "what happened at 3 a.m.")
+Events:              ~/.thermal-guard/events.log    (hard shutdowns, cooling alarms)
+Log:                 ~/.thermal-guard/guard.log
+State (pauses):      ~/.thermal-guard/state.json    (restored on start -> nothing stays frozen)
+Snapshot for the menu bar: ~/.thermal-guard/status.json
 
-Uzycie:
-  guard.py            # petla (tak odpala LaunchAgent)
-  guard.py --once     # jeden przebieg, wypisuje odczyt (do testow)
+Usage:
+  guard.py            # the loop (this is how the LaunchAgent starts it)
+  guard.py --once     # a single pass, prints the reading (for testing)
+
+Language of messages: TG_LANG=en|pl, or "lang" in config.json. Default: en.
 """
 
 import json
@@ -56,10 +61,10 @@ DEFAULTS = {
     "speed_limit_pause": 60,    # CPU_Speed_Limit ponizej tego % = mocny throttling
     # temperatura CHIPA (SoC) — reaguje w sekundach, bateria dopiero po kilku minutach.
     # Czytana przez `macmon` (IOReport, bez sudo). Gdy brak macmon, te progi sa ignorowane.
-    # Progi ustalone z Pawlem 29.07.2026 — sufit 90 C to jego decyzja. Sa ostrzejsze niz
-    # fabryczne dlawienie macOS (~100-108 C), bo MBP jest podejrzany o wade zasilania.
-    # Pauza chlodzi chip w kilkanascie sekund (89 -> 60 C zmierzone), wiec do ubicia
-    # w praktyce nie dochodzi — a SIGSTOP niczego nie niszczy.
+    # Progi sa celowo ostrzejsze niz fabryczne dlawienie macOS (~100-108 C). Pauza chlodzi
+    # chip w kilkanascie sekund (zmierzone: 89 -> 60 C w 19 s), wiec do ubicia w praktyce
+    # nie dochodzi — a SIGSTOP niczego nie niszczy. NIE ustawiaj tu 45 C: bezczynny chip
+    # M-serii ma 40-55 C, wiec taki prog oznacza permanentna pauze.
     "soc_pause_c": 85.0,        # >= tego: pauza
     "soc_resume_c": 76.0,       # <= tego: wznowienie
     "soc_kill_c": 90.0,         # >= tego: ubicie, ale dopiero po kill_after_polls z rzedu
@@ -94,12 +99,19 @@ DEFAULTS = {
         "ollama", "llama", "mlx", "whisper", "node", "java", "rustc", "cargo",
         "blender", "rclone", "7z", "zstd", "xz", "tar", "bsdtar", "make", "cc1plus", "clang",
     ],
+    # wlasne wzorce doklejane do never_patterns — tu wpisz narzedzia, ktorych u siebie
+    # nie chcesz zamrazac (np. dlugo dzialajace CLI, wlasne demony, edytory)
+    "never_extra": [],
+    # jak wyzej, ale dopasowanie po PELNEJ linii polecenia, nie po nazwie procesu —
+    # przydatne, gdy ciezkie zadanie jest uruchamiane przez interpreter (python, node)
+    # i sama nazwa procesu nic nie mowi
+    "never_arg_patterns": ["thermal-guard", "thermal_guard", "guard.py", "safe-run"],
     # czego NIE wolno ruszac nigdy (nadrzedne wobec powyzszego)
     "never_patterns": [
         "kernel_task", "windowserver", "launchd", "loginwindow", "logd", "opendirectoryd",
         "backupd", "mds", "mdworker", "spotlight", "fileproviderd", "cloudd", "bird",
         "finder", "dock", "terminal", "ghostty", "iterm", "zsh", "bash", "sshd", "ssh",
-        "claude", "hermes", "guard.py", "thermal-guard", "safe-run", "code helper", "electron",
+        "guard.py", "thermal-guard", "safe-run", "code helper", "electron",
         # demony systemowe: potrafia dlugo zjadac rdzen, ale odrzucaja SIGSTOP albo psuja
         # sie po zamrozeniu — probowanie ich tylko zasmieca log i blokuje prawdziwe cele
         "duetexpertd", "suggestd", "photoanalysisd", "mediaanalysisd", "coreaudiod",
@@ -135,6 +147,94 @@ def load_cfg():
         pass
     return cfg
 
+
+# ---------------------------------------------------------------- jezyk
+
+def _lang():
+    """Jezyk komunikatow: TG_LANG, potem "lang" w config.json, domyslnie angielski."""
+    v = (os.environ.get("TG_LANG") or "").lower()[:2]
+    if v in ("pl", "en"):
+        return v
+    try:
+        with open(CFG_PATH) as f:
+            v = (json.load(f).get("lang") or "").lower()[:2]
+        if v in ("pl", "en"):
+            return v
+    except Exception:
+        pass
+    return "en"
+
+
+LANG = _lang()
+
+# Katalog tlumaczen. Kluczem jest angielski oryginal z kodu — dzieki temu brak wpisu
+# oznacza po prostu wyswietlenie angielskiego, a nie bledu.
+PL = {
+    "PAUSED %s (pid %d, %.0f%% CPU) - %s": "PAUZA  %s (pid %d, %.0f%% CPU) - %s",
+    "[DRY-RUN] would pause %s (pid %d, %.0f%% CPU) - %s": "[DRY-RUN] pauza %s (pid %d, %.0f%% CPU) - %s",
+    "FAILED to pause %s (pid %d) - not permitted to send the signal": "NIE UDALO SIE wstrzymac %s (pid %d) - brak uprawnien do sygnalu",
+    "RESUMED %s (pid %d) - %s": "WZNOWIONE %s (pid %d) - %s",
+    "[DRY-RUN] would terminate %s (pid %d) - %s": "[DRY-RUN] ubicie %s (pid %d) - %s",
+    "TERMINATED (SIGTERM) %s (pid %d) - %s": "STOP (SIGTERM) %s (pid %d) - %s",
+    "SIGKILL %s (pid %d)": "SIGKILL %s (pid %d)",
+    "[DRY-RUN] would demote %s (pid %d)": "[DRY-RUN] demote %s (pid %d)",
+    "DEMOTED %s (pid %d) -> background QoS/E-cores + nice+10 (hot for >%d min)":
+        "DEMOTE %s (pid %d) -> tlo/E-cores + nice+10 (mieli >%d min)",
+    "Thermal guard: hot": "Thermal guard: goraco",
+    "Paused: %s (%s)": "Wstrzymano: %s (%s)",
+    "Thermal guard: cooled down": "Thermal guard: ochlodzone",
+    "Resumed paused jobs (%s)": "Wznowiono wstrzymane zadania (%s)",
+    "Thermal guard: STOPPED": "Thermal guard: ZATRZYMANE",
+    "Jobs terminated (%s). Resume from a checkpoint once the Mac has cooled down.":
+        "Ubito zadania (%s). Wznow z checkpointu, gdy Mac ostygnie.",
+    "!!! HARD SHUTDOWN DETECTED - ": "!!! WYKRYTO TWARDY PAD - ",
+    "Mac shut down without warning": "Mac zgasl bez ostrzezenia",
+    "Evidence from the moment of the crash was saved - menu bar > Export report":
+        "Zapisalem dowody z chwili padu - menu paska > Eksportuj raport",
+    "manual freeze: there was nothing to freeze": "reczne zamrozenie: nie bylo czego zamrozic",
+    "Nothing to freeze": "Nie ma czego zamrozic",
+    "No heavy job meets the conditions": "Zadne ciezkie zadanie nie spelnia warunkow",
+    "COOLING FAILURE? chip %.1f C while both fans report 0 rpm":
+        "AWARIA CHLODZENIA? chip %.1f C, a oba wentylatory 0 obr/min",
+    "Fans stopped while the chip is hot": "Wentylatory stoja przy goracym chipie",
+    "PAUSE >%d min - terminating job %s (pid %s)": "PAUZA >%d min - koncze zadanie %s (pid %s)",
+    "paused for longer than %d min": "pauza dluzsza niz %d min",
+    "LOOP ERROR: %r": "BLAD petli: %r",
+    "MANUAL FREEZE (from the menu bar)": "ZAMROZENIE RECZNE (z paska menu)",
+    "manual resume (from the menu bar)": "wznowienie reczne (z paska menu)",
+    "conditions are back to normal": "warunki wrocily do normy",
+    "guard startup - nothing is left frozen": "start guarda - nic nie zostaje zamrozone",
+    "guard is shutting down": "guard konczy prace",
+    "CRITICAL: ": "KRYTYCZNIE: ",
+    "chip %.1f C": "chip %.1f C",
+    "battery %.1f C": "bateria %.1f C",
+    "thermal state=%s": "stan termiczny=%s",
+    "thermal state=critical": "stan termiczny=critical",
+    "thermal state=fair": "stan termiczny=fair",
+    "CPU throttled to %d%%": "CPU dlawione do %d%%",
+    "battery %d%% on battery power": "bateria %d%% bez zasilacza",
+    "nothing to freeze": "nie ma czego zamrazac",
+    "Mac went down without a clean shutdown. Guard's last heartbeat: %s, system booted: %s.":
+        "Mac zgasl bez czystego zamkniecia. Ostatni puls guarda: %s, system wstal: %s.",
+    "yes": "tak",
+    "NO (macmon missing - running on battery temperature only)":
+        "NIE (brak macmon - lecimy na samej baterii)",
+    "thermal-guard start | chip: pause>=%.0fC resume<=%.0fC kill>=%.0fC (sensor: %s)"
+    " | battery: pause>=%.0fC kill>=%.0fC | state>=%s | battery gate: <=%d%% on battery":
+        "thermal-guard start | chip: pauza>=%.0fC wznow<=%.0fC ubicie>=%.0fC (czujnik: %s)"
+        " | bateria: pauza>=%.0fC ubicie>=%.0fC | stan>=%s | bramka baterii: <=%d%% bez zasilacza",
+    "state=%s chip=%s battery=%s fans=%s power=%s CPU_limit=%d%% load1=%.2f level=%d (%s)":
+        "stan=%s chip=%s bateria=%s wentylatory=%s zasilanie=%s CPU_limit=%d%% load1=%.2f poziom=%d (%s)",
+    "  candidate: %-20s pid=%-7d %.0f%% CPU": "  kandydat: %-20s pid=%-7d %.0f%% CPU",
+    "AC": "AC",
+    "battery %s%%": "bateria %s%%",
+    "calm": "spokoj",
+}
+
+
+def T(s):
+    """Tlumaczy komunikat na polski, gdy LANG == pl. Angielski jest zrodlem prawdy."""
+    return PL.get(s, s) if LANG == "pl" else s
 
 def rotate(path):
     try:
@@ -192,6 +292,25 @@ def thermal_state():
     return "unknown"
 
 
+def normalize_batt_temp(raw):
+    """Temperatura ogniwa w C, niezaleznie od jednostki raportowanej przez kontroler.
+
+    Uklady pomiarowe baterii roznia sie miedzy modelami Makow: jedne podaja setne stopnia
+    (3081 = 30,81 C), inne dziesiate (444 = 44,4 C), a niektore pola cale stopnie (41 = 41 C).
+    Sztywne dzielenie przez 100 daje na czesci maszyn absurdy w rodzaju 444 C albo 0,4 C,
+    dlatego skalujemy do przedzialu fizycznie mozliwego dla ogniwa litowego.
+    """
+    try:
+        v = float(raw)
+    except (TypeError, ValueError):
+        return None
+    for _ in range(4):
+        if v <= 100.0:
+            break
+        v /= 10.0
+    return v if 5.0 < v <= 100.0 else None
+
+
 def battery_temp_c():
     """Temperatura pakietu baterii w C (None gdy brak baterii)."""
     out = run(["ioreg", "-r", "-c", "AppleSmartBattery", "-d", "1", "-w", "0"], timeout=15)
@@ -199,8 +318,8 @@ def battery_temp_c():
     for key in ('"Temperature"', '"VirtualTemperature"'):
         m = re.search(re.escape(key) + r"\s*=\s*(\d+)", out)
         if m:
-            v = int(m.group(1)) / 100.0
-            if 5.0 < v < 90.0 and (best is None or v > best):
+            v = normalize_batt_temp(m.group(1))
+            if v is not None and (best is None or v > best):
                 best = v
     return best
 
@@ -238,9 +357,14 @@ def soc_sensors(max_age=10.0):
         def sane(v):
             return float(v) if isinstance(v, (int, float)) and 10.0 < v < 130.0 else None
 
+        mem = d.get("memory") or {}
+        GB = float(1024 ** 3)
         val = {
             "cpu": sane(cpu),
             "gpu": sane(gpu),
+            "ram_used": (mem.get("ram_usage") or 0) / GB,
+            "ram_total": (mem.get("ram_total") or 0) / GB,
+            "swap_used": (mem.get("swap_usage") or 0) / GB,
             "fans": fans,
             "watts": float(d.get("all_power") or 0.0),
         }
@@ -257,6 +381,24 @@ def soc_temp_c():
         return None
     vals = [v for v in (s.get("cpu"), s.get("gpu")) if v is not None]
     return max(vals) if vals else None
+
+
+def disk_usage():
+    """Miejsce na dysku systemowym: (zajete_GB, calosc_GB, procent_zajety)."""
+    try:
+        st = os.statvfs("/System/Volumes/Data")
+    except Exception:
+        try:
+            st = os.statvfs("/")
+        except Exception:
+            return None
+    GB = float(1024 ** 3)
+    total = st.f_blocks * st.f_frsize / GB
+    # f_bavail, nie f_bfree: to miejsce realnie dostepne dla uzytkownika
+    free = st.f_bavail * st.f_frsize / GB
+    if total <= 0:
+        return None
+    return (total - free, total, 100.0 * (total - free) / total)
 
 
 def power_source():
@@ -402,7 +544,7 @@ def cpu_z_dziecmi(procs):
 def pick_targets(cfg, procs, saferun):
     """Procesy ktore wolno pauzowac, posortowane po CPU malejaco."""
     me = os.getpid()
-    never = [p.lower() for p in cfg["never_patterns"]]
+    never = [p.lower() for p in list(cfg["never_patterns"]) + list(cfg.get("never_extra") or [])]
     patterns = [p.lower() for p in cfg["managed_patterns"]]
     drzewo = cpu_z_dziecmi(procs) if cfg.get("count_children", True) else {}
     out = []
@@ -431,9 +573,7 @@ def pick_targets(cfg, procs, saferun):
             if proc_age_seconds(pid) < cfg.get("unknown_min_seconds", 120):
                 continue
         args = full_args(pid).lower()
-        if any(n in args for n in ("thermal-guard", "thermal_guard", "guard.py", "safe-run")):
-            continue
-        if "claude" in args and "python" not in low:
+        if any(n.lower() in args for n in (cfg.get("never_arg_patterns") or [])):
             continue
         out.append((pid, cpu, comm, None))
     out.sort(key=lambda x: -x[1])
@@ -484,19 +624,19 @@ def do_pause(cfg, st, targets, reason):
         if key in st["paused"]:
             continue
         if cfg["dry_run"]:
-            log("[DRY-RUN] pauza %s (pid %d, %.0f%% CPU) — %s" % (comm, pid, cpu, reason))
+            log(T("[DRY-RUN] would pause %s (pid %d, %.0f%% CPU) - %s") % (comm, pid, cpu, reason))
             continue
         if sig(pid, pgid, signal.SIGSTOP):
             st["paused"][key] = {"since": now(), "comm": comm, "pgid": pgid, "cpu": cpu}
             changed = True
-            log("PAUZA  %s (pid %d, %.0f%% CPU) — %s" % (comm, pid, cpu, reason))
+            log(T("PAUSED %s (pid %d, %.0f%% CPU) - %s") % (comm, pid, cpu, reason))
         else:
             # Cicha porazka byla grozna: pasek pokazywal "zamrozone", a proces biegl dalej.
             # Zwykle to demon systemowy, ktory odrzuca SIGSTOP — dopisujemy go do pominietych.
-            log("NIE UDALO SIE wstrzymac %s (pid %d) — brak uprawnien do sygnalu" % (comm, pid))
+            log(T("FAILED to pause %s (pid %d) - not permitted to send the signal") % (comm, pid))
     if changed:
         names = ", ".join(sorted(set(v["comm"] for v in st["paused"].values())))
-        notify(cfg, "Thermal guard: gorąco", "Wstrzymano: %s (%s)" % (names, reason), "pause")
+        notify(cfg, T("Thermal guard: hot"), T("Paused: %s (%s)") % (names, reason), "pause")
     return changed
 
 
@@ -507,9 +647,9 @@ def do_resume(cfg, st, reason):
         pid = int(key)
         if alive(pid):
             sig(pid, info.get("pgid"), signal.SIGCONT)
-            log("WZNOWIONE %s (pid %d) — %s" % (info.get("comm", "?"), pid, reason))
+            log(T("RESUMED %s (pid %d) - %s") % (info.get("comm", "?"), pid, reason))
         del st["paused"][key]
-    notify(cfg, "Thermal guard: ochłodzone", "Wznowiono wstrzymane zadania (%s)" % reason, "resume")
+    notify(cfg, T("Thermal guard: cooled down"), T("Resumed paused jobs (%s)") % reason, "resume")
     return True
 
 
@@ -522,16 +662,17 @@ def do_terminate(cfg, st, reason):
             del st["paused"][key]
             continue
         if cfg["dry_run"]:
-            log("[DRY-RUN] ubicie %s (pid %d) — %s" % (info.get("comm"), pid, reason))
+            log(T("[DRY-RUN] would terminate %s (pid %d) - %s") % (info.get("comm"), pid, reason))
             continue
         sig(pid, info.get("pgid"), signal.SIGCONT)
         sig(pid, info.get("pgid"), signal.SIGTERM)
         victims.append((pid, info))
-        log("STOP (SIGTERM) %s (pid %d) — %s" % (info.get("comm", "?"), pid, reason))
+        log(T("TERMINATED (SIGTERM) %s (pid %d) - %s") % (info.get("comm", "?"), pid, reason))
         del st["paused"][key]
     if victims:
-        notify(cfg, "Thermal guard: ZATRZYMANE",
-               "Ubito zadania (%s). Wznow z checkpointu, gdy Mac ostygnie." % reason, "kill")
+        notify(cfg, T("Thermal guard: STOPPED"),
+               T("Jobs terminated (%s). Resume from a checkpoint once the Mac has cooled down.")
+               % reason, "kill")
         time.sleep(20)
         for pid, info in victims:
             if alive(pid):
@@ -550,14 +691,14 @@ def do_demote(cfg, st, targets, cpu_hist):
         if now() - first < limit or pid in st["demoted"]:
             continue
         if cfg["dry_run"]:
-            log("[DRY-RUN] demote %s (pid %d)" % (comm, pid))
+            log(T("[DRY-RUN] would demote %s (pid %d)") % (comm, pid))
             continue
         subprocess.call(["taskpolicy", "-b", "-p", str(pid)],
                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         subprocess.call(["renice", "+10", "-p", str(pid)],
                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         st["demoted"].append(pid)
-        log("DEMOTE %s (pid %d) -> tlo/E-cores + nice+10 (mieli >%d min)"
+        log(T("DEMOTED %s (pid %d) -> background QoS/E-cores + nice+10 (hot for >%d min)")
             % (comm, pid, cfg["demote_after_minutes"]))
 
 
@@ -573,7 +714,7 @@ def severity(cfg, state, temp, speed, soc=None, ac=True, pct=None):
     why = []
     if soc is not None:
         if soc >= cfg.get("soc_kill_c", 100.0):
-            lvl = max(lvl, 3); why.append("chip %.1f C" % soc)
+            lvl = max(lvl, 3); why.append(T("chip %.1f C") % soc)
         elif soc >= cfg.get("soc_pause_c", 92.0):
             lvl = max(lvl, 2); why.append("chip %.1f C" % soc)
         elif soc >= cfg.get("soc_pause_c", 92.0) - 7:
@@ -581,23 +722,23 @@ def severity(cfg, state, temp, speed, soc=None, ac=True, pct=None):
     # bramka na baterie: na zasilaniu bateryjnym ponizej progu pauzujemy, zeby dlugie
     # obliczenie nie zgaslo razem z laptopem w polowie bloku (czekamy na zasilacz)
     if not ac and pct is not None and pct <= cfg.get("batt_pct_pause", 10):
-        lvl = max(lvl, 2); why.append("bateria %d%% bez zasilacza" % pct)
+        lvl = max(lvl, 2); why.append(T("battery %d%% on battery power") % pct)
     s = LEVELS.get(state, 1)
     if s >= 3:
-        lvl = max(lvl, 3); why.append("stan termiczny=critical")
+        lvl = max(lvl, 3); why.append(T("thermal state=critical"))
     elif s >= LEVELS.get(cfg["pause_on_thermal_state"], 2):
-        lvl = max(lvl, 2); why.append("stan termiczny=%s" % state)
+        lvl = max(lvl, 2); why.append(T("thermal state=%s") % state)
     elif s == 1:
-        lvl = max(lvl, 1); why.append("stan termiczny=fair")
+        lvl = max(lvl, 1); why.append(T("thermal state=fair"))
     if temp is not None:
         if temp >= cfg["batt_kill_c"]:
-            lvl = max(lvl, 3); why.append("bateria %.1f C" % temp)
+            lvl = max(lvl, 3); why.append(T("battery %.1f C") % temp)
         elif temp >= cfg["batt_pause_c"]:
             lvl = max(lvl, 2); why.append("bateria %.1f C" % temp)
         elif temp >= cfg["batt_pause_c"] - 3:
             lvl = max(lvl, 1); why.append("bateria %.1f C" % temp)
     if speed < cfg["speed_limit_pause"]:
-        lvl = max(lvl, 2); why.append("CPU dławione do %d%%" % speed)
+        lvl = max(lvl, 2); why.append(T("CPU throttled to %d%%") % speed)
     return lvl, ", ".join(why)
 
 
@@ -611,9 +752,9 @@ def zapisz_zdarzenie(rodzaj, opis, kontekst=None):
     """Czarna skrzynka — zdarzenia, ktore maja przezyc restart i trafic do raportu."""
     try:
         with open(EVENTS_PATH, "a") as f:
-            wpis = {"czas": ts(), "rodzaj": rodzaj, "opis": opis}
+            wpis = {"time": ts(), "type": rodzaj, "description": opis}
             if kontekst:
-                wpis["kontekst"] = kontekst
+                wpis["context"] = kontekst
             f.write(json.dumps(wpis, ensure_ascii=False) + "\n")
     except Exception:
         pass
@@ -645,15 +786,15 @@ def wykryj_twardy_pad():
                 wiersze = f.readlines()
             naglowek = wiersze[0].strip().split(",") if wiersze else []
             for w in wiersze[-8:]:
-                if w.strip() and not w.startswith("czas,"):
+                if w.strip() and not w.startswith("time,"):
                     ogon.append(dict(zip(naglowek, w.strip().split(","))))
         except Exception:
             pass
-        opis = ("Mac zgasl bez czystego zamkniecia. Ostatni puls guarda: %s, "
-                "system wstal: %s." % (ts(puls), ts(boot)))
-        zapisz_zdarzenie("TWARDY_PAD", opis, {"ostatnie_pomiary": ogon})
-        log("!!! WYKRYTO TWARDY PAD — " + opis)
-        return {"czas": ts(puls), "opis": opis, "pomiary": ogon}
+        opis = (T("Mac went down without a clean shutdown. Guard's last heartbeat: %s, "
+                "system booted: %s.") % (ts(puls), ts(boot)))
+        zapisz_zdarzenie("HARD_SHUTDOWN", opis, {"last_readings": ogon})
+        log(T("!!! HARD SHUTDOWN DETECTED - ") + opis)
+        return {"time": ts(puls), "description": opis, "readings": ogon}
     except Exception:
         return None
 
@@ -670,15 +811,15 @@ def obsluz_rozkaz(cfg, st, targets):
         return
     if rozkaz == "freeze":
         # flage stawiamy TYLKO gdy naprawde cos zamrozilismy — inaczej pasek klamie
-        if targets and do_pause(cfg, st, targets, "ZAMROZENIE RECZNE (z paska menu)"):
+        if targets and do_pause(cfg, st, targets, T("MANUAL FREEZE (from the menu bar)")):
             st["reczna_pauza"] = True
         else:
-            log("reczne zamrozenie: nie bylo czego zamrozic")
-            notify(cfg, "Nie ma czego zamrozic",
-                   "Zadne ciezkie zadanie nie spelnia warunkow", key="freeze")
+            log(T("manual freeze: there was nothing to freeze"))
+            notify(cfg, T("Nothing to freeze"),
+                   T("No heavy job meets the conditions"), key="freeze")
     elif rozkaz == "resume":
         st["reczna_pauza"] = False
-        do_resume(cfg, st, "wznowienie reczne (z paska menu)")
+        do_resume(cfg, st, T("manual resume (from the menu bar)"))
 
 
 def statystyki_dnia():
@@ -698,7 +839,7 @@ def statystyki_dnia():
                     ubicia += 1
     except Exception:
         pass
-    return {"pauzy": pauzy, "wznowienia": wznowienia, "ubicia": ubicia}
+    return {"pauses": pauzy, "resumes": wznowienia, "kills": ubicia}
 
 
 _trend = []
@@ -737,37 +878,44 @@ def zadania_saferun():
                 d = json.load(f)
             pid = int(d.get("pid", 0))
             if pid and alive(pid):
-                out.append({"nazwa": d.get("name") or d.get("comm") or "?",
+                out.append({"name": d.get("name") or d.get("comm") or "?",
                             "pid": pid,
-                            "minuty": round(proc_age_seconds(pid) / 60.0)})
+                            "minutes": round(proc_age_seconds(pid) / 60.0)})
     except Exception:
         pass
     return out
 
 
-def status_write(state, temp, soc, soc_t, ac, pct, speed, load, lvl, why, targets, st):
+def status_write(state, temp, soc, soc_t, ac, pct, speed, load, lvl, why, targets, st, disk=None):
     """Migawka dla paska menu (`heatbar`). Pasek nic sam nie mierzy — czyta ten plik,
     wiec kosztuje zero CPU i zawsze pokazuje dokladnie to, co widzi guard."""
     top = targets[0] if targets else None
     data = {
-        "czas": ts(), "stan": state, "poziom": lvl, "powod": why,
+        "time": ts(), "thermal_state": state, "level": lvl, "reason": why,
         "chip_c": round(soc_t, 1) if soc_t else None,
         "gpu_c": round(soc["gpu"], 1) if soc and soc.get("gpu") else None,
-        "bateria_c": round(temp, 1) if temp else None,
-        "wentylatory": (soc.get("fans") if soc else []) or [],
-        "waty": round(soc["watts"], 1) if soc else None,
-        "bateria_pct": pct, "na_zasilaczu": bool(ac),
+        "battery_c": round(temp, 1) if temp else None,
+        "fans": (soc.get("fans") if soc else []) or [],
+        "watts": round(soc["watts"], 1) if soc else None,
+        "ram_used_gb": round(soc["ram_used"], 1) if soc and soc.get("ram_total") else None,
+        "ram_total_gb": round(soc["ram_total"], 1) if soc and soc.get("ram_total") else None,
+        # swap uzywany na maszynie z duzym RAM-em to najlepszy sygnal realnej presji pamieci
+        "swap_used_gb": round(soc["swap_used"], 2) if soc and soc.get("ram_total") else None,
+        "disk_used_gb": round(disk[0]) if disk else None,
+        "disk_total_gb": round(disk[1]) if disk else None,
+        "disk_used_pct": round(disk[2]) if disk else None,
+        "battery_pct": pct, "on_ac": bool(ac),
         "cpu_limit": speed, "load1": round(load, 2),
-        "wstrzymane": [v.get("comm") for v in st.get("paused", {}).values()],
+        "paused": [v.get("comm") for v in st.get("paused", {}).values()],
         "top_proc": top[2] if top else None,
         "top_cpu": round(top[1]) if top else None,
-        "reczna_pauza": bool(st.get("reczna_pauza")),
+        "manual_pause": bool(st.get("reczna_pauza")),
         "trend_c_min": st.get("_trend_c_min"),
-        "eta_pauza_min": st.get("_eta_min"),
-        "zadania": st.get("_zadania", []),
-        "statystyki": st.get("_stat", {}),
-        "ostatni_pad": st.get("_ostatni_pad"),
-        "progi": {"pauza": st.get("_prog_pauza"), "ubicie": st.get("_prog_ubicie")},
+        "eta_pause_min": st.get("_eta_min"),
+        "jobs": st.get("_zadania", []),
+        "stats": st.get("_stat", {}),
+        "last_hard_shutdown": st.get("_ostatni_pad"),
+        "thresholds": {"pause": st.get("_prog_pauza"), "kill": st.get("_prog_ubicie")},
     }
     tmp = STATUS_PATH + ".tmp"
     try:
@@ -778,8 +926,8 @@ def status_write(state, temp, soc, soc_t, ac, pct, speed, load, lvl, why, target
         pass
 
 
-HIST_HEADER = ("czas,stan,chip_C,gpu_C,bateria_C,wentylator_rpm,waty,"
-               "bateria_pct,na_zasilaczu,cpu_limit,load1,poziom,top_proc,top_cpu\n")
+HIST_HEADER = ("time,thermal_state,chip_C,gpu_C,battery_C,fan_rpm,watts,"
+               "battery_pct,on_ac,cpu_limit,load1,level,top_proc,top_cpu\n")
 
 
 def hist_write(row):
@@ -789,7 +937,7 @@ def hist_write(row):
         if os.path.exists(HIST_PATH):
             with open(HIST_PATH) as f:
                 if f.readline() != HIST_HEADER:
-                    os.rename(HIST_PATH, HIST_PATH.replace(".csv", "_stary.csv"))
+                    os.rename(HIST_PATH, HIST_PATH.replace(".csv", "_old.csv"))
     except Exception:
         pass
     new = not os.path.exists(HIST_PATH)
@@ -833,9 +981,9 @@ def fan_alarm(cfg, soc, soc_t, st):
     if hot and dead:
         if now() - st.get("fan_alarm_at", 0) > 600:
             st["fan_alarm_at"] = now()
-            msg = ("AWARIA CHLODZENIA? chip %.1f C, a oba wentylatory 0 obr/min" % soc_t)
+            msg = (T("COOLING FAILURE? chip %.1f C while both fans report 0 rpm") % soc_t)
             log("!!! " + msg)
-            notify(cfg, "Wentylatory stoja przy goracym chipie", msg, key="fan")
+            notify(cfg, T("Fans stopped while the chip is hot"), msg, key="fan")
 
 
 def main():
@@ -844,19 +992,19 @@ def main():
     st = load_state()
 
     if st["paused"]:
-        do_resume(cfg, st, "start guarda — nic nie zostaje zamrozone")
+        do_resume(cfg, st, T("guard startup - nothing is left frozen"))
         save_state(st)
 
     if "--once" in sys.argv:
         state, temp, speed, load, targets, lvl, why, soc, soc_t, ac, pct = snapshot(cfg)
         fans = ",".join(str(x) for x in (soc.get("fans") if soc else [])) or "n/d"
-        print("stan=%s chip=%s bateria=%s wentylatory=%s zasilanie=%s CPU_limit=%d%% load1=%.2f poziom=%d (%s)" % (
+        print(T("state=%s chip=%s battery=%s fans=%s power=%s CPU_limit=%d%% load1=%.2f level=%d (%s)") % (
             state, ("%.1f C" % soc_t) if soc_t else "n/d",
             ("%.1f C" % temp) if temp else "n/d", fans,
-            ("AC" if ac else "bateria %s%%" % (pct if pct is not None else "?")),
-            speed, load, lvl, why or "spokoj"))
+            (T("AC") if ac else T("battery %s%%") % (pct if pct is not None else "?")),
+            speed, load, lvl, why or T("calm")))
         for pid, cpu, comm, _ in targets[:5]:
-            print("  kandydat: %-20s pid=%-7d %.0f%% CPU" % (comm, pid, cpu))
+            print(T("  candidate: %-20s pid=%-7d %.0f%% CPU") % (comm, pid, cpu))
         return 0
 
     stop = {"flag": False}
@@ -871,8 +1019,8 @@ def main():
     pad = wykryj_twardy_pad()
     if pad:
         st["_ostatni_pad"] = pad
-        notify(cfg, "Mac zgasl bez ostrzezenia",
-               "Zapisalem dowody z chwili padu — menu paska > Eksportuj raport", key="pad")
+        notify(cfg, T("Mac shut down without warning"),
+               T("Evidence from the moment of the crash was saved - menu bar > Export report"), key="pad")
     st["reczna_pauza"] = False
     try:
         if os.path.exists(CLEAN_STOP_PATH):
@@ -880,9 +1028,9 @@ def main():
     except Exception:
         pass
 
-    czujnik_chipa = "tak" if soc_temp_c() is not None else "NIE (brak macmon — lecimy na samej baterii)"
-    log("thermal-guard start | chip: pauza>=%.0fC wznow<=%.0fC ubicie>=%.0fC (czujnik: %s)"
-        " | bateria: pauza>=%.0fC ubicie>=%.0fC | stan>=%s | bramka baterii: <=%d%% bez zasilacza"
+    czujnik_chipa = T("yes") if soc_temp_c() is not None else T("NO (macmon missing - running on battery temperature only)")
+    log(T("thermal-guard start | chip: pause>=%.0fC resume<=%.0fC kill>=%.0fC (sensor: %s)"
+          " | battery: pause>=%.0fC kill>=%.0fC | state>=%s | battery gate: <=%d%% on battery")
         % (cfg.get("soc_pause_c", 92), cfg.get("soc_resume_c", 80), cfg.get("soc_kill_c", 100),
            czujnik_chipa, cfg["batt_pause_c"], cfg["batt_kill_c"],
            cfg["pause_on_thermal_state"], cfg.get("batt_pct_pause", 10)))
@@ -905,7 +1053,11 @@ def main():
             if tick % 4 == 0:                      # rzadziej — to czytanie z dysku
                 st["_zadania"] = zadania_saferun()
                 st["_stat"] = statystyki_dnia()
-            status_write(state, temp, soc, soc_t, ac, pct, speed, load, lvl, why, targets, st)
+            # dysk zmienia sie wolno — odczyt raz na ~5 min wystarcza
+            if tick % 20 == 0 or not st.get("_disk"):
+                st["_disk"] = disk_usage()
+            status_write(state, temp, soc, soc_t, ac, pct, speed, load, lvl, why, targets, st,
+                         st.get("_disk"))
 
             # puls czarnej skrzynki — po twardym padzie zostanie tu ostatni znak zycia
             try:
@@ -929,7 +1081,7 @@ def main():
 
             if lvl >= 3:
                 crit_polls += 1
-                do_pause(cfg, st, targets, "KRYTYCZNIE: " + why)
+                do_pause(cfg, st, targets, T("CRITICAL: ") + why)
                 if crit_polls >= cfg["kill_after_polls"]:
                     do_terminate(cfg, st, why)
                     crit_polls = 0
@@ -945,7 +1097,7 @@ def main():
                 powered = ac or pct is None or pct >= cfg.get("batt_pct_resume", 25)
                 # reczne zamrozenie z paska ma pierwszenstwo — nie odmrazamy za plecami Pawla
                 if st["paused"] and cool and powered and not st.get("reczna_pauza"):
-                    do_resume(cfg, st, "warunki wrocily do normy")
+                    do_resume(cfg, st, T("conditions are back to normal"))
                 do_demote(cfg, st, targets, cpu_hist)
 
             # Nic nie moze wisiec w pauzie w nieskonczonosc — ALE czekanie na zasilacz
@@ -958,9 +1110,9 @@ def main():
             limit_min = cfg.get("max_pause_minutes_batt", 240) if tylko_bateria else cfg["max_pause_minutes"]
             for key, info in list(st["paused"].items()):
                 if now() - info["since"] > limit_min * 60:
-                    log("PAUZA >%d min — koncze zadanie %s (pid %s)"
+                    log(T("PAUSE >%d min - terminating job %s (pid %s)")
                         % (limit_min, info.get("comm"), key))
-                    do_terminate(cfg, st, "pauza dluzsza niz %d min" % limit_min)
+                    do_terminate(cfg, st, T("paused for longer than %d min") % limit_min)
                     break
 
             live = set(p[0] for p in targets)
@@ -968,14 +1120,14 @@ def main():
             st["demoted"] = [p for p in st["demoted"] if alive(p)]
             save_state(st)
         except Exception as e:
-            log("BLAD petli: %r" % (e,))
+            log(T("LOOP ERROR: %r") % (e,))
         tick += 1
         for _ in range(int(cfg["poll_seconds"] * 2)):
             if stop["flag"]:
                 break
             time.sleep(0.5)
 
-    do_resume(cfg, st, "guard konczy prace")
+    do_resume(cfg, st, T("guard is shutting down"))
     save_state(st)
     # znacznik czystego zamkniecia — bez niego nastepny start uzna to za twardy pad
     try:
