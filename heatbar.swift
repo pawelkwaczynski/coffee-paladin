@@ -99,6 +99,8 @@ let PL: [String: String] = [
     "resume at %.0f C, terminate at %.0f C": "wznowienie przy %.0f C, ubicie przy %.0f C",
     "no fans (fanless Mac)": "brak wentylatorów (Mac bez wentylatorów)",
     "What does watch-only mode do?": "Co daje tryb „tylko obserwuj”?",
+    "Report a problem (GitHub)...": "Zgłoś problem lub pomysł (GitHub)...",
+    "Write to the author...": "Napisz do autora...",
     "Watch only (dry run)": "Tylko obserwuj (dry run)",
     """
 With this on, thermal-guard measures everything and writes to its log exactly what it WOULD do \
@@ -224,12 +226,14 @@ extension Double { var nonZero: Double? { self == 0 ? nil : self } }
 /// Ostrzezenie dobrane do wartosci suwaka. Sens: uzytkownik ma zobaczyc konsekwencje ZANIM
 /// ustawi absurd. Najczestszy blad to przenoszenie progu baterii (45 C) na chip — przy 45 C
 /// bezpiecznik pauzowalby wszystko bez przerwy, bo bezczynny chip ma juz 40-55 C.
+/// Drugi element pary to nazwa SF Symbol — zadnych emoji: maja wlasny staly kolor
+/// i w menu wygladaja jak naklejki, symbol szablonowy przyjmuje kolor tekstu.
 func thresholdWarning(_ v: Double) -> (String, String) {
-    if v < 60 { return (T("TOO LOW - an idle M-series chip already sits at 40-55 C, the guard would pause constantly"), "\u{26D4}") }
-    if v < 70 { return (T("very conservative - a quiet, cool Mac, but long jobs will crawl"), "\u{26A0}\u{FE0F}") }
-    if v < 80 { return (T("conservative - good for a fanless Mac (Air, 12-inch)"), "\u{1F4A1}") }
-    if v <= 92 { return (T("recommended - well below Apple's own throttling point (~100-108 C)"), "\u{2705}") }
-    return (T("aggressive - close to the temperature at which macOS throttles by itself"), "\u{26A0}\u{FE0F}")
+    if v < 60 { return (T("TOO LOW - an idle M-series chip already sits at 40-55 C, the guard would pause constantly"), "nosign") }
+    if v < 70 { return (T("very conservative - a quiet, cool Mac, but long jobs will crawl"), "exclamationmark.triangle") }
+    if v < 80 { return (T("conservative - good for a fanless Mac (Air, 12-inch)"), "lightbulb") }
+    if v <= 92 { return (T("recommended - well below Apple's own throttling point (~100-108 C)"), "checkmark.circle") }
+    return (T("aggressive - close to the temperature at which macOS throttles by itself"), "exclamationmark.triangle")
 }
 
 /// Wiersz menu z suwakiem. NSMenuItem.view pozwala wstawic dowolny widok, wiec suwak
@@ -313,7 +317,16 @@ final class SliderRow: NSView {
     private func render() {
         value.stringValue = String(format: "%.0f %@", slider.doubleValue, unit)
         let (text, mark) = describe(slider.doubleValue)
-        note.stringValue = mark.isEmpty ? text : "\(mark) \(text)"
+        let out = NSMutableAttributedString()
+        if !mark.isEmpty {
+            out.append(icon(mark, fallback: "", size: 11))
+            out.append(NSAttributedString(string: " "))
+        }
+        out.append(NSAttributedString(string: text))
+        out.addAttributes([.font: NSFont.systemFont(ofSize: 11),
+                           .foregroundColor: NSColor.labelColor],
+                          range: NSRange(location: 0, length: out.length))
+        note.attributedStringValue = out
         if let d = derive { derived.stringValue = d(slider.doubleValue) }
     }
 
@@ -417,6 +430,9 @@ final class Bar: NSObject, NSMenuDelegate {
 
     override init() {
         super.init()
+        // macOS domyslnie wygasza pozycje menu bez akcji — a u nas wiekszosc wierszy to
+        // informacje, nie polecenia. Bez tej flagi caly odczyt byl szary i nieczytelny.
+        menu.autoenablesItems = false
         menu.delegate = self
         item.menu = menu
         refresh()
@@ -584,6 +600,7 @@ final class Bar: NSObject, NSMenuDelegate {
         // checkboxes deciding what appears in the bar; state kept in heatbar.json
         let showItem = NSMenuItem(title: T("Show in the bar"), action: nil, keyEquivalent: "")
         let sub = NSMenu()
+        sub.autoenablesItems = false
         for (i, it) in Item.allCases.enumerated() {
             let mi = NSMenuItem(title: it.label, action: #selector(toggleItem(_:)), keyEquivalent: "")
             mi.target = self
@@ -598,6 +615,7 @@ final class Bar: NSObject, NSMenuDelegate {
         // przebiegu, wiec zmiana dziala od razu, bez restartu czegokolwiek.
         let setItem = NSMenuItem(title: T("Settings"), action: nil, keyEquivalent: "")
         let ss = NSMenu()
+        ss.autoenablesItems = false
 
         let pauseNow = GuardCfg.double("soc_pause_c", 85)
         let chipRow = NSMenuItem()
@@ -649,6 +667,9 @@ final class Bar: NSObject, NSMenuDelegate {
 
         m.addItem(withTitle: T("Export report for a repair shop..."), action: #selector(report), keyEquivalent: "").target = self
         m.addItem(withTitle: T("Show the guard log"), action: #selector(openLog), keyEquivalent: "").target = self
+        m.addItem(.separator())
+        m.addItem(withTitle: T("Report a problem (GitHub)..."), action: #selector(openIssues), keyEquivalent: "").target = self
+        m.addItem(withTitle: T("Write to the author..."), action: #selector(mailAuthor), keyEquivalent: "").target = self
         m.addItem(.separator())
 
         // nazwa, wersja i sygnatura autora — pozycja nieaktywna, sama informacja
@@ -717,6 +738,14 @@ Remember to switch it off afterwards: in this mode nothing protects the Mac.
     }
 
     @objc func openLog() { NSWorkspace.shared.open(URL(fileURLWithPath: logPath)) }
+
+    @objc func openIssues() {
+        NSWorkspace.shared.open(URL(string: "https://github.com/pawelkwaczynski/thermal-guard/issues")!)
+    }
+
+    @objc func mailAuthor() {
+        NSWorkspace.shared.open(URL(string: "mailto:kwaczynski.pawel@gmail.com?subject=thermal-guard%20v\(VERSION)")!)
+    }
     @objc func quit() { NSApp.terminate(nil) }
 }
 
