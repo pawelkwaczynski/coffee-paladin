@@ -108,7 +108,7 @@ processes.
 | **Chip / GPU temperature** | [`macmon`](https://github.com/vladkens/macmon) → **IOReport** | The one route that still works without `sudo`. |
 | **Fan RPM, power draw (W)** | same | Also gives per-core frequency and RAM/swap usage. |
 | **Thermal pressure** (`nominal`/`fair`/`serious`/`critical`) | `ProcessInfo.thermalState` via a tiny Swift binary | Public API, no privileges needed. |
-| **Battery temperature, cycles, cell voltages** | `ioreg -c AppleSmartBattery` | `Temperature` is in hundredths of °C; `MaximumTemperature` is in whole °C — an easy bug to write. |
+| **Battery temperature, cycles, cell voltages** | `ioreg -c AppleSmartBattery` | Units vary by model — see the gotcha below. |
 | **CPU throttling** | `pmset -g therm` → `CPU_Speed_Limit` | 100 = not throttled. |
 | **Power source, battery %** | `pmset -g batt` | |
 | **Processes** | `ps` | Own CPU plus subtree rollup. |
@@ -124,6 +124,12 @@ usage `0x0005`, and pull `kIOHIDEventTypeTemperature`. On **macOS 26 it returns 
 an unentitled process — Apple closed it. A complete, working-by-the-old-rules implementation is
 kept in [`experiments/soctemp.swift`](experiments/soctemp.swift) as a reference and a warning.
 IOReport is currently the surviving path.
+
+**The battery temperature unit is not fixed.** Different battery controllers report different
+scales: hundredths of a degree on one Mac (`3081` = 30.81 °C), tenths on another (`444` = 44.4 °C),
+and some fields whole degrees (`41` = 41 °C). A hardcoded divisor is wrong somewhere — it produced
+a reading of *444 °C* on one machine and *0.4 °C* on another. thermal-guard scales the raw value
+into the range a lithium cell can physically be in instead of assuming a unit.
 
 **Why battery temperature alone is not enough.** It lags the chip by minutes and reads far lower.
 A measurement taken while writing this README: **chip 53.5 °C, battery 30.6 °C.** A guard using
@@ -156,10 +162,10 @@ Make sure `~/.local/bin` is on your `PATH`.
 ### `heat` — one-shot status
 
 ```
-🟢 stan termiczny: nominal   chip: 53.5 °C   bateria: 30.6 °C   CPU dostępne: 100%   load: 4.29
-   wentylatory: 4500 obr/min, 4831 obr/min
-   zasilanie: zasilacz   pobór: 32.6 W
-   thermal-guard: działa ✅
+🟢 thermal state: nominal   chip: 53.5 °C   battery: 30.6 °C   CPU available: 100%   load: 4.29
+   fans: 4500 rpm, 4831 rpm
+   power: AC adapter   draw: 32.6 W
+   thermal-guard: running ✅
 ```
 
 Plus what is currently burning CPU, the 24-hour peak, and the guard's recent interventions.
