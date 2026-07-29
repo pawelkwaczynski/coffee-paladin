@@ -97,6 +97,27 @@ let PL: [String: String] = [
     "Language: Polish": "Język: polski",
     "resume at %.0f C, terminate at %.0f C": "wznowienie przy %.0f C, ubicie przy %.0f C",
     "no fans (fanless Mac)": "brak wentylatorów (Mac bez wentylatorów)",
+    "What does watch-only mode do?": "Co daje tryb „tylko obserwuj”?",
+    "Watch only (dry run)": "Tylko obserwuj (dry run)",
+    """
+With this on, thermal-guard measures everything and writes to its log exactly what it WOULD do \
+- "would pause Python (595% CPU)" - but sends no signal and never touches a single process.
+
+Use it to see whether the thresholds suit your machine before you let the tool freeze real work. \
+Open "Show the guard log" after a heavy job and you will know if it would have interfered too \
+eagerly, or not soon enough.
+
+Remember to switch it off afterwards: in this mode nothing protects the Mac.
+""": """
+Przy włączonym trybie thermal-guard mierzy wszystko i zapisuje w logu dokładnie to, co ZROBIŁBY \
+- „pauza Python (595% CPU)” - ale nie wysyła żadnego sygnału i nie rusza ani jednego procesu.
+
+Służy do sprawdzenia, czy progi pasują do Twojej maszyny, zanim pozwolisz narzędziu zamrażać \
+realną pracę. Po ciężkim zadaniu otwórz „Pokaż log guarda” i zobaczysz, czy wtrącałby się za \
+gorliwie, czy odwrotnie - za późno.
+
+Pamiętaj potem wyłączyć: w tym trybie nic nie chroni Maca.
+""",
 ]
 
 func T(_ s: String) -> String { lang == "pl" ? (PL[s] ?? s) : s }
@@ -183,41 +204,58 @@ extension Double { var nonZero: Double? { self == 0 ? nil : self } }
 /// Ostrzezenie dobrane do wartosci suwaka. Sens: uzytkownik ma zobaczyc konsekwencje ZANIM
 /// ustawi absurd. Najczestszy blad to przenoszenie progu baterii (45 C) na chip — przy 45 C
 /// bezpiecznik pauzowalby wszystko bez przerwy, bo bezczynny chip ma juz 40-55 C.
-func thresholdWarning(_ v: Double) -> (String, NSColor) {
-    if v < 60 { return (T("TOO LOW - an idle M-series chip already sits at 40-55 C, the guard would pause constantly"), .systemRed) }
-    if v < 70 { return (T("very conservative - a quiet, cool Mac, but long jobs will crawl"), .systemOrange) }
-    if v < 80 { return (T("conservative - good for a fanless Mac (Air, 12-inch)"), .secondaryLabelColor) }
-    if v <= 92 { return (T("recommended - well below Apple's own throttling point (~100-108 C)"), .systemGreen) }
-    return (T("aggressive - close to the temperature at which macOS throttles by itself"), .systemOrange)
+func thresholdWarning(_ v: Double) -> (String, String) {
+    if v < 60 { return (T("TOO LOW - an idle M-series chip already sits at 40-55 C, the guard would pause constantly"), "\u{26D4}") }
+    if v < 70 { return (T("very conservative - a quiet, cool Mac, but long jobs will crawl"), "\u{26A0}\u{FE0F}") }
+    if v < 80 { return (T("conservative - good for a fanless Mac (Air, 12-inch)"), "\u{1F4A1}") }
+    if v <= 92 { return (T("recommended - well below Apple's own throttling point (~100-108 C)"), "\u{2705}") }
+    return (T("aggressive - close to the temperature at which macOS throttles by itself"), "\u{26A0}\u{FE0F}")
 }
 
 /// Wiersz menu z suwakiem. NSMenuItem.view pozwala wstawic dowolny widok, wiec suwak
-/// z opisem i ostrzezeniem siedzi bezposrednio w menu, bez osobnego okna preferencji.
+/// z opisem siedzi wprost w menu, bez osobnego okna preferencji.
+///
+/// Trzy rzeczy, ktore musialy byc poprawione po pierwszej wersji: opis nie moze byc obcinany
+/// (dlatego zawija sie na dwie linie), kolor musi byc czytelny na tle menu (dlatego tekst jest
+/// w labelColor, a nasilenie ostrzezenia nosi symbol, nie kolor), a linia z wartosciami
+/// pochodnymi musi odswiezac sie W TRAKCIE przesuwania — wczesniej pokazywala stan z chwili
+/// otwarcia menu, wiec przy suwaku na 65 C nadal twierdzila "wznowienie przy 76 C".
 final class SliderRow: NSView {
     let slider = NSSlider()
-    let value = NSTextField(labelWithString: "")
-    let note = NSTextField(labelWithString: "")
+    private let value = NSTextField(labelWithString: "")
+    private let note = NSTextField(labelWithString: "")
+    private let derived = NSTextField(labelWithString: "")
     private let onChange: (Double) -> Void
     private let unit: String
-    private let describe: (Double) -> (String, NSColor)
+    private let describe: (Double) -> (String, String)
+    private let derive: ((Double) -> String)?
 
     init(title: String, min: Double, max: Double, current: Double, unit: String,
-         describe: @escaping (Double) -> (String, NSColor), onChange: @escaping (Double) -> Void) {
+         describe: @escaping (Double) -> (String, String),
+         derive: ((Double) -> String)? = nil,
+         onChange: @escaping (Double) -> Void) {
         self.onChange = onChange
         self.unit = unit
         self.describe = describe
-        super.init(frame: NSRect(x: 0, y: 0, width: 330, height: 66))
+        self.derive = derive
+        let height: CGFloat = derive == nil ? 82 : 100
+        super.init(frame: NSRect(x: 0, y: 0, width: 400, height: height))
+
+        var y = height - 26
 
         let label = NSTextField(labelWithString: title)
         label.font = .menuFont(ofSize: 13)
-        label.frame = NSRect(x: 14, y: 44, width: 220, height: 16)
+        label.textColor = .labelColor
+        label.frame = NSRect(x: 16, y: y, width: 250, height: 18)
         addSubview(label)
 
-        value.font = .monospacedDigitSystemFont(ofSize: 13, weight: .semibold)
+        value.font = .monospacedDigitSystemFont(ofSize: 13, weight: .bold)
         value.alignment = .right
-        value.frame = NSRect(x: 236, y: 44, width: 80, height: 16)
+        value.textColor = .labelColor
+        value.frame = NSRect(x: 270, y: y, width: 114, height: 18)
         addSubview(value)
 
+        y -= 26
         slider.minValue = min
         slider.maxValue = max
         slider.doubleValue = current
@@ -226,13 +264,26 @@ final class SliderRow: NSView {
         slider.allowsTickMarkValuesOnly = true
         slider.target = self
         slider.action = #selector(moved)
-        slider.frame = NSRect(x: 14, y: 24, width: 302, height: 20)
+        slider.frame = NSRect(x: 16, y: y, width: 368, height: 20)
         addSubview(slider)
 
-        note.font = .systemFont(ofSize: 10)
-        note.lineBreakMode = .byTruncatingTail
-        note.frame = NSRect(x: 14, y: 6, width: 302, height: 14)
+        y -= 32
+        note.font = .systemFont(ofSize: 11)
+        note.textColor = .labelColor
+        note.maximumNumberOfLines = 2
+        note.lineBreakMode = .byWordWrapping
+        note.cell?.wraps = true
+        note.cell?.isScrollable = false
+        note.frame = NSRect(x: 16, y: y, width: 368, height: 30)
         addSubview(note)
+
+        if derive != nil {
+            y -= 20
+            derived.font = .monospacedDigitSystemFont(ofSize: 11, weight: .regular)
+            derived.textColor = .secondaryLabelColor
+            derived.frame = NSRect(x: 16, y: y, width: 368, height: 16)
+            addSubview(derived)
+        }
 
         render()
     }
@@ -241,9 +292,9 @@ final class SliderRow: NSView {
 
     private func render() {
         value.stringValue = String(format: "%.0f %@", slider.doubleValue, unit)
-        let (text, colour) = describe(slider.doubleValue)
-        note.stringValue = text
-        note.textColor = colour
+        let (text, mark) = describe(slider.doubleValue)
+        note.stringValue = mark.isEmpty ? text : "\(mark) \(text)"
+        if let d = derive { derived.stringValue = d(slider.doubleValue) }
     }
 
     @objc private func moved() {
@@ -505,26 +556,23 @@ final class Bar: NSObject, NSMenuDelegate {
 
         let pauseNow = GuardCfg.double("soc_pause_c", 85)
         let chipRow = NSMenuItem()
-        chipRow.view = SliderRow(title: T("Chip pause threshold"), min: 55, max: 100,
-                                 current: pauseNow, unit: "°C", describe: thresholdWarning) { v in
+        chipRow.view = SliderRow(
+            title: T("Chip pause threshold"), min: 55, max: 100, current: pauseNow, unit: "°C",
+            describe: thresholdWarning,
+            derive: { v in String(format: T("resume at %.0f C, terminate at %.0f C"),
+                                  v - 9, Swift.min(v + 5, 100)) }) { v in
             // pochodne trzymamy spojne: histereza 9 C w dol, ubicie 5 C w gore (nie wyzej niz 100)
             GuardCfg.set(["soc_pause_c": v,
                           "soc_resume_c": v - 9,
                           "soc_kill_c": Swift.min(v + 5, 100)])
         }
         ss.addItem(chipRow)
-        let derived = NSMenuItem(
-            title: String(format: T("resume at %.0f C, terminate at %.0f C"),
-                          pauseNow - 9, Swift.min(pauseNow + 5, 100)),
-            action: nil, keyEquivalent: "")
-        derived.isEnabled = false
-        ss.addItem(derived)
         ss.addItem(.separator())
 
         let battRow = NSMenuItem()
         battRow.view = SliderRow(title: T("Battery gate"), min: 5, max: 50,
                                  current: GuardCfg.double("batt_pct_pause", 10), unit: "%",
-                                 describe: { _ in (T("pause below this charge when unplugged"), .secondaryLabelColor) }) { v in
+                                 describe: { _ in (T("pause below this charge when unplugged"), "") }) { v in
             GuardCfg.set(["batt_pct_pause": Int(v), "batt_pct_resume": Int(v) + 15])
         }
         ss.addItem(battRow)
@@ -540,6 +588,11 @@ final class Bar: NSObject, NSMenuDelegate {
         dry.target = self
         dry.state = GuardCfg.bool("dry_run", false) ? .on : .off
         ss.addItem(dry)
+
+        let help = NSMenuItem(title: T("What does watch-only mode do?"), action: #selector(explainDry), keyEquivalent: "")
+        help.target = self
+        ss.addItem(help)
+        ss.addItem(.separator())
 
         let pl = NSMenuItem(title: T("Language: Polish"), action: #selector(toggleLang), keyEquivalent: "")
         pl.target = self
@@ -558,6 +611,23 @@ final class Bar: NSObject, NSMenuDelegate {
         sig.isEnabled = false
         m.addItem(sig)
         m.addItem(withTitle: T("Quit heatbar"), action: #selector(quit), keyEquivalent: "q").target = self
+    }
+
+    /// Tryb "tylko obserwuj" bywa niezrozumialy, a to najwazniejsza opcja dla kogos, kto boi sie
+    /// oddac narzedziu wladze nad swoimi procesami — wiec tlumaczymy go wprost.
+    @objc func explainDry() {
+        let a = NSAlert()
+        a.messageText = T("Watch only (dry run)")
+        a.informativeText = T("""
+With this on, thermal-guard measures everything and writes to its log exactly what it WOULD do - "would pause Python (595% CPU)" - but sends no signal and never touches a single process.
+
+Use it to see whether the thresholds suit your machine before you let the tool freeze real work. Open "Show the guard log" after a heavy job and you will know if it would have interfered too eagerly, or not soon enough.
+
+Remember to switch it off afterwards: in this mode nothing protects the Mac.
+""")
+        a.alertStyle = .informational
+        a.addButton(withTitle: "OK")
+        a.runModal()
     }
 
     @objc func toggleNotify() { GuardCfg.set(["notify": !GuardCfg.bool("notify", true)]) }
