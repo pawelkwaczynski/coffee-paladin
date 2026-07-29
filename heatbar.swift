@@ -16,7 +16,7 @@
 
 import Cocoa
 
-let VERSION = "1.3"
+let VERSION = "1.4"
 let SIGNATURE = "thermal-guard v\(VERSION)  ·  FOCUS FRAME 2026"
 
 let base = NSString(string: "~/.thermal-guard").expandingTildeInPath
@@ -101,6 +101,8 @@ let PL: [String: String] = [
     "Watch only, never touch processes (dry run)": "Tylko obserwuj, nie ruszaj procesów (dry run)",
     "Language": "Język",
     "Sounds": "Dźwięki",
+    "Keep the Mac awake while heavy jobs run": "Nie usypiaj Maca, gdy działają ciężkie zadania",
+    "Keeping the Mac awake (heavy job running)": "Trzymam Maca w czuwaniu (działa ciężkie zadanie)",
     "resume at %.0f C, terminate at %.0f C": "wznowienie przy %.0f C, ubicie przy %.0f C",
     "no fans (fanless Mac)": "brak wentylatorów (Mac bez wentylatorów)",
     "What does watch-only mode do?": "Co daje tryb „tylko obserwuj”?",
@@ -133,6 +135,8 @@ Pamiętaj potem wyłączyć: w tym trybie nic nie chroni Maca.
 ]
 
 let RU: [String: String] = [
+    "Keep the Mac awake while heavy jobs run": "Не давать Mac засыпать, пока идут тяжёлые задачи",
+    "Keeping the Mac awake (heavy job running)": "Держу Mac в бодрствовании (идёт тяжёлая задача)",
     "no data - is thermal-guard running?": "нет данных - работает ли thermal-guard?",
     "data is stale (%@) - the guard may have died": "данные устарели (%@) - демон мог упасть",
     "the Mac shut down without warning: %@": "Mac выключился без предупреждения: %@",
@@ -204,6 +208,8 @@ let RU: [String: String] = [
 ]
 
 let ZH: [String: String] = [
+    "Keep the Mac awake while heavy jobs run": "繁重任务运行时保持 Mac 唤醒",
+    "Keeping the Mac awake (heavy job running)": "正在保持 Mac 唤醒（繁重任务运行中）",
     "no data - is thermal-guard running?": "没有数据 - thermal-guard 在运行吗？",
     "data is stale (%@) - the guard may have died": "数据已过期（%@）- 守护进程可能已停止",
     "the Mac shut down without warning: %@": "Mac 毫无预警地关机了：%@",
@@ -275,6 +281,8 @@ let ZH: [String: String] = [
 ]
 
 let ES: [String: String] = [
+    "Keep the Mac awake while heavy jobs run": "Mantener el Mac despierto mientras corren tareas pesadas",
+    "Keeping the Mac awake (heavy job running)": "Manteniendo el Mac despierto (tarea pesada en curso)",
     "no data - is thermal-guard running?": "sin datos - ¿está funcionando thermal-guard?",
     "data is stale (%@) - the guard may have died": "datos obsoletos (%@) - el guardián pudo detenerse",
     "the Mac shut down without warning: %@": "el Mac se apagó sin aviso: %@",
@@ -574,6 +582,7 @@ struct Snap {
     var paused: [String] = []
     var manualPause = false
     var dryRun = false
+    var keepAwake = false
     var trend: Double?, eta: Double?
     var jobs: [Job] = []
     var pausesToday = 0, killsToday = 0
@@ -609,6 +618,7 @@ func readSnap() -> Snap? {
     s.paused = (j["paused"] as? [String]) ?? []
     s.manualPause = (j["manual_pause"] as? Bool) ?? false
     s.dryRun = (j["dry_run"] as? Bool) ?? false
+    s.keepAwake = (j["keep_awake"] as? Bool) ?? false
     s.trend = j["trend_c_min"] as? Double
     s.eta = j["eta_pause_min"] as? Double
     s.stamp = (j["time"] as? String) ?? ""
@@ -726,6 +736,7 @@ final class Bar: NSObject, NSMenuDelegate {
             gap(); out.append(icon("tortoise.fill", fallback: "slow"))
         }
         if s.dryRun { gap(); out.append(icon("eye", fallback: "obs")) }
+        if s.keepAwake { gap(); out.append(icon("cup.and.saucer.fill", fallback: "awake")) }
         if prefs.enabled(.paused), !s.paused.isEmpty {
             gap(); out.append(icon("pause.circle.fill", fallback: "||"))
         }
@@ -776,6 +787,7 @@ final class Bar: NSObject, NSMenuDelegate {
                    s.onAC ? T("AC adapter")
                           : String(format: T("battery %@"), s.pct.map { "\($0)%" } ?? "?")))
         row(String(format: T("Load:  %.2f    CPU available: %d%%"), s.load, s.cpuLimit))
+        if s.keepAwake { row(T("Keeping the Mac awake (heavy job running)")) }
 
         if let (line, lo, hi) = sparkline() {
             m.addItem(.separator())
@@ -889,6 +901,12 @@ final class Bar: NSObject, NSMenuDelegate {
         snd.state = GuardCfg.bool("sound", true) ? .on : .off
         ss.addItem(snd)
 
+        let ka = NSMenuItem(title: T("Keep the Mac awake while heavy jobs run"),
+                            action: #selector(toggleAwake), keyEquivalent: "")
+        ka.target = self
+        ka.state = GuardCfg.bool("keep_awake_auto", false) ? .on : .off
+        ss.addItem(ka)
+
         let langItem = NSMenuItem(title: T("Language"), action: nil, keyEquivalent: "")
         let lm = NSMenu()
         lm.autoenablesItems = false
@@ -950,6 +968,7 @@ Remember to switch it off afterwards: in this mode nothing protects the Mac.
     @objc func toggleDry() { GuardCfg.set(["dry_run": !GuardCfg.bool("dry_run", false)]) }
 
     @objc func toggleSound() { GuardCfg.set(["sound": !GuardCfg.bool("sound", true)]) }
+    @objc func toggleAwake() { GuardCfg.set(["keep_awake_auto": !GuardCfg.bool("keep_awake_auto", false)]) }
 
     /// Zmiana jezyka wymaga restartu paska (slownik jest wybierany raz, przy starcie).
     /// Wychodzimy z bledem — launchd (KeepAlive.SuccessfulExit=false) podnosi nas z powrotem.

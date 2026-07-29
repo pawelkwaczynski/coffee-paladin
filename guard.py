@@ -95,6 +95,12 @@ DEFAULTS = {
     # wyciszone przez Skupienie). Rozne zdarzenia maja rozne dzwieki, zeby dalo sie
     # rozpoznac bez patrzenia: pauza=nisko, wznowienie=szklo, ubicie/pad=powaznie.
     "sound": True,
+    # NIE USYPIAJ, GDY LICZY — jak Caffeine/Amphetamine, ale z bezpiecznikiem: czuwanie
+    # trzymamy TYLKO gdy realnie dziala ciezkie zadanie i jest chlodno; przy pauzie/goracu
+    # blokade zwalniamy (sen chlodzi najszybciej), po zakonczeniu zadania Mac normalnie
+    # zasypia. Amphetamine trzymane bezwarunkowo to klasyczna droga do ugotowania laptopa
+    # w plecaku — dlatego domyslnie wylaczone, wlacza sie swiadomie w Ustawieniach.
+    "keep_awake_auto": False,
     # DOMYSLNIE TYLKO OBSERWACJA: swieza instalacja mierzy, loguje i ALARMUJE, ale nie
     # wstrzymuje niczyich procesow. Ochrone wlacza sie swiadomie — jednym kliknieciem w menu
     # paska albo "dry_run": false. Narzedzie, ktore od wejscia rusza cudza prace, traci
@@ -938,6 +944,37 @@ def hostname():
     return _hostname_cache["v"]
 
 
+_caff = {"proc": None}
+
+
+def keep_awake_update(cfg, targets, lvl):
+    """Utrzymuje/zwalnia blokade snu przez systemowy caffeinate.
+
+    Warunek trzymania: opcja wlaczona ORAZ dziala ciezkie zadanie ORAZ poziom < 2 (chlodno).
+    Kazde inne polaczenie = blokada w dol. To jest cala roznica wzgledem Caffeine:
+    tam czlowiek musi pamietac o wylaczeniu, tu wylacza fizyka.
+    """
+    proc = _caff["proc"]
+    zywy = proc is not None and proc.poll() is None
+    chcemy = bool(cfg.get("keep_awake_auto")) and bool(targets) and lvl < 2
+    if chcemy and not zywy:
+        try:
+            _caff["proc"] = subprocess.Popen(
+                ["caffeinate", "-is"],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            log("KEEP-AWAKE start (heavy job running, machine cool)")
+        except Exception:
+            _caff["proc"] = None
+    elif not chcemy and zywy:
+        try:
+            proc.terminate()
+        except Exception:
+            pass
+        _caff["proc"] = None
+        log("KEEP-AWAKE stop (job done, hot, or disabled)")
+    return _caff["proc"] is not None and _caff["proc"].poll() is None
+
+
 def fleet_write(cfg, status):
     """Migawka hosta do wspolnego folderu floty (jesli skonfigurowany)."""
     d = os.path.expanduser(cfg.get("fleet_dir") or "")
@@ -948,7 +985,7 @@ def fleet_write(cfg, status):
             os.makedirs(d, 0o755)
         out = dict(status)
         out["host"] = hostname()
-        out["guard_version"] = "1.3"
+        out["guard_version"] = "1.4"
         tmp = os.path.join(d, ".%s.tmp" % hostname())
         with open(tmp, "w") as f:
             json.dump(out, f, ensure_ascii=False)
@@ -1121,6 +1158,7 @@ def main():
             # dane pomocnicze dla paska (trend, zadania, licznik dnia)
             st["_trend_c_min"], st["_eta_min"] = trend_i_prognoza(cfg, soc_t)
             st["_dry"] = bool(cfg.get("dry_run"))
+            st["_awake"] = keep_awake_update(cfg, targets, lvl)
             st["_prog_pauza"] = cfg.get("soc_pause_c")
             st["_prog_ubicie"] = cfg.get("soc_kill_c")
             if tick % 4 == 0:                      # rzadziej — to czytanie z dysku

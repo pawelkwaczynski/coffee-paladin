@@ -17,6 +17,7 @@ Usage:
   safe-run --hours 3 --name scan -- python scan.py 6 1000000
   safe-run --allow-hot -- ...      # start even though the Mac is warm (deliberately)
   safe-run --normal -- ...         # keep normal priority (short, interactive job)
+  safe-run --allow-sleep -- ...    # do not hold the Mac awake for this job
 
 Language: TG_LANG=en|pl, or "lang" in ~/.thermal-guard/config.json. Default: en.
 """
@@ -132,7 +133,7 @@ def start_guard():
 def parse():
     args = sys.argv[1:]
     opt = {"hours": float(os.environ.get("SAFE_RUN_HOURS", 6)), "name": None,
-           "allow_hot": False, "normal": False}
+           "allow_hot": False, "normal": False, "allow_sleep": False}
     i = 0
     while i < len(args):
         a = args[i]
@@ -146,7 +147,9 @@ def parse():
         elif a == "--allow-hot":
             opt["allow_hot"] = True; i += 1
         elif a == "--normal":
-            opt["normal"] = True; i += 1
+            opt["normal"] = True
+        elif a == "--allow-sleep":
+            opt["allow_sleep"] = True; i += 1
         elif a in ("-h", "--help"):
             print(__doc__); sys.exit(0)
         elif a.startswith("-"):
@@ -214,6 +217,15 @@ def main():
     except Exception as e:
         print(T("safe-run: cannot start: %r") % (e,))
         return 4
+
+    # sen w polowie zadania = zadanie stoi do rana; caffeinate -w konczy sie sam z procesem
+    caff = None
+    if not opt["allow_sleep"]:
+        try:
+            caff = subprocess.Popen(["caffeinate", "-is", "-w", str(proc.pid)],
+                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except Exception:
+            caff = None
 
     reg = os.path.join(MANAGED_DIR, "%d.json" % proc.pid)
     with open(reg, "w") as f:
