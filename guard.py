@@ -1018,6 +1018,8 @@ def status_write(state, temp, soc, soc_t, ac, pct, speed, load, lvl, why, target
         "top_proc": top[2] if top else None,
         "top_cpu": round(top[1]) if top else None,
         "manual_pause": bool(st.get("reczna_pauza")),
+        "dry_run": bool(st.get("_dry")),
+        "keep_awake": bool(st.get("_awake")),
         "trend_c_min": st.get("_trend_c_min"),
         "eta_pause_min": st.get("_eta_min"),
         "jobs": st.get("_zadania", []),
