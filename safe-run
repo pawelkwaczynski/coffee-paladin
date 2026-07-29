@@ -1,0 +1,232 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+safe-run — uruchamia ciezkie zadanie pod nadzorem termicznym.
+
+Co robi, czego zwykle uruchomienie nie robi:
+  1. sprawdza PRZED startem, czy Mac nie jest juz goracy (odmawia startu),
+  2. odpala zadanie z niskim priorytetem i w tle systemowym (background QoS -> E-cores),
+  3. daje mu wlasna grupe procesow, zeby thermal-guard mogl je wstrzymac razem z dziecmi,
+  4. rejestruje je w ~/.thermal-guard/managed/ (guard wie, ze to zadanie "nasze"),
+  5. pilnuje limitu czasu (domyslnie 6 h) — po nim SIGTERM, po 30 s SIGKILL,
+  6. na koniec pisze podsumowanie: czas, maksymalna temperatura, czy byly pauzy.
+
+Uzycie:
+  safe-run -- ffmpeg -i in.mp4 ...
+  safe-run --hours 3 --name erd699 -- python scan_v2.py 6 1000000
+  safe-run --allow-hot -- ...      # start mimo cieplego Maca (swiadomie)
+  safe-run --normal -- ...         # bez obnizania priorytetu (np. krotki, interaktywny job)
+"""
+
+import json
+import os
+import signal
+import subprocess
+import sys
+import time
+
+HOME = os.path.expanduser("~")
+BASE = os.path.join(HOME, ".thermal-guard")
+MANAGED_DIR = os.path.join(BASE, "managed")
+HIST = os.path.join(BASE, "history.csv")
+GUARD = os.path.join(HOME, ".local/bin/thermal-guard")
+THERMALSTATE = os.path.join(HOME, ".local/bin/thermalstate")
+AGENT_LABEL = "pl.pawel.thermal-guard"
+
+HOT = ("serious", "critical")
+
+
+def cfg():
+    d = {"batt_pause_c": 40.0}
+    try:
+        with open(os.path.join(BASE, "config.json")) as f:
+            d.update(json.load(f))
+    except Exception:
+        pass
+    return d
+
+
+def sh(cmd, timeout=15):
+    try:
+        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+        out, _ = p.communicate(timeout=timeout)
+        return out.decode("utf-8", "replace")
+    except Exception:
+        return ""
+
+
+def thermal_state():
+    out = sh([THERMALSTATE]).strip()
+    return out if out else "unknown"
+
+
+def batt_temp():
+    import re
+    out = sh(["ioreg", "-r", "-c", "AppleSmartBattery", "-d", "1", "-w", "0"])
+    m = re.search(r'"Temperature"\s*=\s*(\d+)', out)
+    return int(m.group(1)) / 100.0 if m else None
+
+
+def guard_running():
+    out = sh(["launchctl", "list"])
+    if AGENT_LABEL in out:
+        return True
+    return "guard.py" in sh(["pgrep", "-fl", "guard.py"])
+
+
+def start_guard():
+    uid = os.getuid()
+    subprocess.call(["launchctl", "kickstart", "-k", "gui/%d/%s" % (uid, AGENT_LABEL)],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    time.sleep(1)
+    return guard_running()
+
+
+def parse():
+    args = sys.argv[1:]
+    opt = {"hours": float(os.environ.get("SAFE_RUN_HOURS", 6)), "name": None,
+           "allow_hot": False, "normal": False}
+    i = 0
+    while i < len(args):
+        a = args[i]
+        if a == "--":
+            i += 1
+            break
+        elif a == "--hours" and i + 1 < len(args):
+            opt["hours"] = float(args[i + 1]); i += 2
+        elif a == "--name" and i + 1 < len(args):
+            opt["name"] = args[i + 1]; i += 2
+        elif a == "--allow-hot":
+            opt["allow_hot"] = True; i += 1
+        elif a == "--normal":
+            opt["normal"] = True; i += 1
+        elif a in ("-h", "--help"):
+            print(__doc__); sys.exit(0)
+        elif a.startswith("-"):
+            print("safe-run: nieznana opcja %s" % a); sys.exit(2)
+        else:
+            break
+    cmd = args[i:]
+    if not cmd:
+        print(__doc__)
+        sys.exit(2)
+    opt["name"] = opt["name"] or os.path.basename(cmd[0])
+    return opt, cmd
+
+
+def max_temp_since(t0):
+    best = None
+    try:
+        with open(HIST) as f:
+            next(f, None)
+            for line in f:
+                p = line.split(",")
+                if len(p) < 3 or not p[2]:
+                    continue
+                try:
+                    when = time.mktime(time.strptime(p[0], "%Y-%m-%d %H:%M:%S"))
+                except Exception:
+                    continue
+                if when >= t0:
+                    v = float(p[2])
+                    best = v if best is None or v > best else best
+    except Exception:
+        pass
+    return best
+
+
+def main():
+    opt, cmd = parse()
+    for d in (BASE, MANAGED_DIR):
+        if not os.path.isdir(d):
+            os.makedirs(d, 0o755)
+
+    state, temp = thermal_state(), batt_temp()
+    limit = cfg()["batt_pause_c"]
+    hot = state in HOT or (temp is not None and temp >= limit - 2)
+    print("safe-run: stan termiczny=%s, bateria=%s, limit czasu=%.1f h" % (
+        state, ("%.1f C" % temp) if temp else "n/d", opt["hours"]))
+    if hot and not opt["allow_hot"]:
+        print("safe-run: ODMOWA STARTU — Mac jest juz gorący. Daj mu ostygnąć "
+              "albo wymuś: safe-run --allow-hot ...")
+        return 3
+
+    if not guard_running():
+        print("safe-run: thermal-guard nie działa — próbuję uruchomić...")
+        if not start_guard():
+            print("safe-run: UWAGA — guard nie wstał, zadanie NIE będzie pilnowane. "
+                  "Napraw: launchctl kickstart -k gui/$UID/%s" % AGENT_LABEL)
+
+    wrapped = list(cmd)
+    if not opt["normal"]:
+        # background QoS (E-cores) + nice: najtansza termicznie forma dlugiego liczenia
+        wrapped = ["nice", "-n", "10", "taskpolicy", "-b"] + wrapped
+
+    t0 = time.time()
+    try:
+        proc = subprocess.Popen(wrapped, preexec_fn=os.setsid)
+    except Exception as e:
+        print("safe-run: nie mogę uruchomić: %r" % (e,))
+        return 4
+
+    reg = os.path.join(MANAGED_DIR, "%d.json" % proc.pid)
+    with open(reg, "w") as f:
+        json.dump({"pid": proc.pid, "pgid": proc.pid, "name": opt["name"],
+                   "cmd": cmd, "started": t0, "hours": opt["hours"]}, f, indent=1)
+
+    def forward(signum, frame):
+        try:
+            os.killpg(proc.pid, signum)
+        except Exception:
+            pass
+
+    signal.signal(signal.SIGINT, forward)
+    signal.signal(signal.SIGTERM, forward)
+
+    deadline = t0 + opt["hours"] * 3600
+    rc = None
+    killed_by_time = False
+    while True:
+        rc = proc.poll()
+        if rc is not None:
+            break
+        if time.time() > deadline:
+            killed_by_time = True
+            print("safe-run: LIMIT CZASU %.1f h — kończę zadanie (SIGTERM)" % opt["hours"])
+            try:
+                os.killpg(proc.pid, signal.SIGCONT)
+                os.killpg(proc.pid, signal.SIGTERM)
+            except Exception:
+                pass
+            for _ in range(30):
+                if proc.poll() is not None:
+                    break
+                time.sleep(1)
+            if proc.poll() is None:
+                try:
+                    os.killpg(proc.pid, signal.SIGKILL)
+                except Exception:
+                    pass
+            rc = proc.wait()
+            break
+        time.sleep(2)
+
+    try:
+        os.unlink(reg)
+    except Exception:
+        pass
+
+    dur = time.time() - t0
+    mx = max_temp_since(t0)
+    print("safe-run: %s — kod %s, czas %dh %dm, max temperatura %s%s" % (
+        opt["name"], rc, int(dur // 3600), int(dur % 3600 // 60),
+        ("%.1f C" % mx) if mx else "n/d",
+        ", ubite przez limit czasu" if killed_by_time else ""))
+    if rc is not None and rc < 0 and -rc in (signal.SIGTERM, signal.SIGKILL):
+        print("safe-run: zadanie zatrzymane sygnałem %d — sprawdź ~/.thermal-guard/guard.log "
+              "(mógł je ubić guard z powodu temperatury)." % -rc)
+    return rc if rc and rc > 0 else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
