@@ -51,6 +51,7 @@ if [ ! -f "$BASE/config.json" ]; then
   cat > "$BASE/config.json" <<'JSON'
 {
   "poll_seconds": 15,
+  "dry_run": true,
   "soc_pause_c": 85.0,
   "soc_resume_c": 76.0,
   "soc_kill_c": 90.0,
@@ -68,7 +69,9 @@ if [ ! -f "$BASE/config.json" ]; then
   "notify": true
 }
 JSON
-  echo "  ✅ config.json (chip: pauza 85 / ubicie 90 °C; bateria: 40/45 °C; bramka baterii 10 %)"
+  echo "  ✅ config.json (chip 85/90 °C, bateria 40/45 °C, bramka 10 %)"
+  echo "  ℹ️  START W TRYBIE OBSERWACJI: guard mierzy i alarmuje, ale niczego nie wstrzymuje."
+  echo "      Ochronę włączysz w menu paska (🌡 > jeden klik) albo: dry_run=false w config.json"
 else
   echo "  ℹ️  config.json już istnieje — zostawiam"
 fi
@@ -105,3 +108,5 @@ echo
 echo "Sprawdź teraz:  heat"
 echo "Ciężkie zadania odpalaj:  safe-run -- <polecenie>"
 echo "Pasek menu wyłączysz:  launchctl bootout gui/$UID/pl.pawel.heatbar"
+echo "Flota (wiele Maków):   fleet --setup"
+echo "Odinstalowanie:        bash uninstall.sh"

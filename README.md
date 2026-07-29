@@ -1,4 +1,4 @@
-# thermal-guard v1.0
+# thermal-guard v1.3
 
 **A thermal and power safety net for Apple Silicon Macs — from one laptop to a whole fleet.**
 It watches the chip temperature, the battery, the fans and the power source, and it *freezes*
@@ -165,6 +165,13 @@ json.dump(c, open(p, "w"), indent=2)
 EOF
 ```
 
+Or let the tool find your synced folders and do it for you:
+
+```bash
+fleet --setup      # detects iCloud Drive / Dropbox / Google Drive / OneDrive / mounted volumes,
+                   # you pick a number, it writes the config
+```
+
 No restart needed — the daemon re-reads its config every cycle and starts publishing within a
 minute.
 
@@ -243,6 +250,15 @@ The installer compiles the two Swift helpers, installs the scripts into `~/.loca
 default config into `~/.thermal-guard/config.json` (it will **not** overwrite an existing one),
 and loads two LaunchAgents — the daemon and, separately, the menu bar app, so you can disable the
 latter without touching the safety net.
+
+**A fresh install starts in watch-only mode.** It measures, logs and alerts — with sound — but
+pauses nothing, until you enable protection yourself: one click in the menu bar (*Enable
+protection*) or `"dry_run": false` in the config. A tool that touches your processes should earn
+that right by first showing you what it *would* have done. The menu bar shows an eye icon while
+in watch-only mode, so you cannot forget which mode you are in.
+
+To remove everything: `bash uninstall.sh` (keeps the measurement history and black box —
+you may still need them for a warranty claim; `--purge` removes those too).
 
 Make sure `~/.local/bin` is on your `PATH`.
 
@@ -338,7 +354,7 @@ set. That is exactly what the slider is for.
 | `never_extra` | `[]` | your own additions to the never-touch list (tools you do not want frozen) |
 | `never_arg_patterns` | guard's own tooling | matched against the **full command line**, useful when a job runs under an interpreter |
 | `lang` | `en` | `en` or `pl` |
-| `dry_run` | `false` | log decisions, never signal anything |
+| `dry_run` | **`true`** | watch-only: log and alert, never signal (disable to arm the guard) |
 | `fleet_dir` | `""` | shared folder for fleet snapshots (see the fleet section) |
 
 ### A note on numbers, because this trips people up
@@ -463,7 +479,12 @@ najbliższy odpowiednik „spięcia jednym Apple ID", bo Apple nie daje API do f
 Google Drive** (folder udostępniony zespołowi), **SharePoint** (droga korporacyjna) albo **dysk
 sieciowy NAS/SMB** (droga farmy renderującej — najszybsza, bez opóźnień chmury).
 
-Konfiguracja to jeden klucz na każdej maszynie: `"fleet_dir": "<ścieżka folderu>"` w
+Świeża instalacja startuje w **trybie obserwacji**: mierzy, loguje i alarmuje (też dźwiękiem),
+ale niczego nie wstrzymuje, dopóki nie włączysz ochrony — jednym kliknięciem w menu paska.
+Na pasku widać wtedy ikonę oka. Odinstalowanie: `bash uninstall.sh`.
+
+Konfiguracja floty: `fleet --setup` (wykrywa foldery synchronizowane i zapisuje wybór) albo
+ręcznie — jeden klucz na każdej maszynie: `"fleet_dir": "<ścieżka folderu>"` w
 `~/.thermal-guard/config.json` — bez restartu, agent zacznie publikować w ciągu minuty. Potem
 na swojej maszynie: `fleet` (tabela + problemy), `fleet --watch` (odświeżanie), `fleet --json`
 (pod automaty i dashboardy). Host bez raportu od 5 minut dostaje flagę `NIE RAPORTUJE`.

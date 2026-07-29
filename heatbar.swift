@@ -16,7 +16,7 @@
 
 import Cocoa
 
-let VERSION = "1.0"
+let VERSION = "1.3"
 let SIGNATURE = "thermal-guard v\(VERSION)  ·  FOCUS FRAME 2026"
 
 let base = NSString(string: "~/.thermal-guard").expandingTildeInPath
@@ -30,16 +30,18 @@ let reportBin = NSString(string: "~/.local/bin/thermal-report").expandingTildeIn
 
 // MARK: - language
 
+let SUPPORTED_LANGS = ["en", "pl", "ru", "zh", "es"]
+
 let lang: String = {
-    let env = (ProcessInfo.processInfo.environment["TG_LANG"] ?? "").lowercased()
-    if env.hasPrefix("pl") { return "pl" }
-    if env.hasPrefix("en") { return "en" }
+    func norm(_ v: String) -> String? {
+        let l = v.lowercased()
+        for c in SUPPORTED_LANGS where l.hasPrefix(c) { return c }
+        return nil
+    }
+    if let v = norm(ProcessInfo.processInfo.environment["TG_LANG"] ?? "") { return v }
     if let d = FileManager.default.contents(atPath: configPath),
        let j = try? JSONSerialization.jsonObject(with: d) as? [String: Any],
-       let l = (j["lang"] as? String)?.lowercased() {
-        if l.hasPrefix("pl") { return "pl" }
-        if l.hasPrefix("en") { return "en" }
-    }
+       let v = norm((j["lang"] as? String) ?? "") { return v }
     return "en"
 }()
 
@@ -72,7 +74,9 @@ let PL: [String: String] = [
     "Resume paused jobs": "Wznów wstrzymane zadania",
     "Freeze all heavy jobs now": "Wstrzymaj ciężkie zadania",
     "Show in the bar": "Pokaż na pasku",
-    "Export report for a repair shop...": "Raport dla serwisu (PDF/tekst)...",
+    "Export report for a repair shop": "Raport dla serwisu",
+    "As PDF...": "Jako PDF...",
+    "As plain text (TXT)...": "Jako tekst (TXT)...",
     "Show the guard log": "Pokaż dziennik zdarzeń",
     "Quit heatbar": "Zamknij heatbar",
     "Chip temperature": "Temperatura chipa", "GPU temperature": "Temperatura GPU",
@@ -95,13 +99,18 @@ let PL: [String: String] = [
         "agresywnie - blisko temperatury, w której macOS sam zaczyna dławić",
     "Notifications": "Powiadomienia",
     "Watch only, never touch processes (dry run)": "Tylko obserwuj, nie ruszaj procesów (dry run)",
-    "Language: Polish": "Język: polski",
+    "Language": "Język",
+    "Sounds": "Dźwięki",
     "resume at %.0f C, terminate at %.0f C": "wznowienie przy %.0f C, ubicie przy %.0f C",
     "no fans (fanless Mac)": "brak wentylatorów (Mac bez wentylatorów)",
     "What does watch-only mode do?": "Co daje tryb „tylko obserwuj”?",
     "Report a problem (GitHub)...": "Zgłoś problem lub pomysł (GitHub)...",
     "Write to the author...": "Napisz do autora...",
     "Watch only (dry run)": "Tylko obserwuj (dry run)",
+    "WATCH-ONLY MODE - measuring and alerting, pausing nothing":
+        "TRYB OBSERWACJI - mierzę i alarmuję, niczego nie wstrzymuję",
+    "Enable protection (pause heavy jobs when hot)":
+        "Włącz ochronę (wstrzymuj ciężkie zadania, gdy gorąco)",
     """
 With this on, thermal-guard measures everything and writes to its log exactly what it WOULD do \
 - "would pause Python (595% CPU)" - but sends no signal and never touches a single process.
@@ -123,7 +132,222 @@ Pamiętaj potem wyłączyć: w tym trybie nic nie chroni Maca.
 """,
 ]
 
-func T(_ s: String) -> String { lang == "pl" ? (PL[s] ?? s) : s }
+let RU: [String: String] = [
+    "no data - is thermal-guard running?": "нет данных - работает ли thermal-guard?",
+    "data is stale (%@) - the guard may have died": "данные устарели (%@) - демон мог упасть",
+    "the Mac shut down without warning: %@": "Mac выключился без предупреждения: %@",
+    "Battery:  %@": "Батарея:  %@",
+    "Fans:  %@": "Вентиляторы:  %@",
+    "stopped": "стоит",
+    "%d rpm": "%d об/мин",
+    "n/a": "н/д",
+    "Draw:  %.1f W": "Мощность:  %.1f Вт",
+    "RAM:  %.1f / %.1f GB (%d%%)": "RAM:  %.1f / %.1f ГБ (%d%%)",
+    "swap %.2f GB": "своп %.2f ГБ",
+    "Disk:  %d / %d GB used (%d%%)": "Диск:  занято %d / %d ГБ (%d%%)",
+    "Power:  %@": "Питание:  %@",
+    "AC adapter": "адаптер питания",
+    "battery %@": "батарея %@",
+    "Load:  %.2f    CPU available: %d%%": "Нагрузка:  %.2f    CPU доступно: %d%%",
+    "   readings: %.0f-%.0f C": "   измерения: %.0f-%.0f C",
+    "rising %.1f C/min - about %.0f min to pause": "растёт на %.1f C/мин - до паузы около %.0f мин",
+    "rising %.1f C/min": "растёт на %.1f C/мин",
+    "Supervised jobs (safe-run):": "Задачи под присмотром (safe-run):",
+    "Top CPU:  %@ (%d%%)": "Больше всего CPU:  %@ (%d%%)",
+    "Paused: %@": "Приостановлено: %@",
+    "  (manual)": "  (вручную)",
+    "State: %@": "Состояние: %@",
+    "calm": "спокойно",
+    "warm": "тепло",
+    "HOT - paused": "ГОРЯЧО - пауза",
+    "CRITICAL": "КРИТИЧНО",
+    "Chip thresholds:  pause %.0f C, kill %.0f C": "Пороги чипа:  пауза %.0f C, завершение %.0f C",
+    "Today: %d x pause": "Сегодня: %d x пауза",
+    ", %d x kill": ", %d x завершение",
+    "Resume paused jobs": "Возобновить приостановленные задачи",
+    "Freeze all heavy jobs now": "Приостановить тяжёлые задачи",
+    "Show in the bar": "Показывать в строке меню",
+    "Export report for a repair shop": "Отчёт для сервисного центра",
+    "As PDF...": "В PDF...",
+    "As plain text (TXT)...": "Текстом (TXT)...",
+    "Show the guard log": "Показать журнал",
+    "Quit heatbar": "Завершить heatbar",
+    "Chip temperature": "Температура чипа",
+    "GPU temperature": "Температура GPU",
+    "Battery temperature": "Температура батареи",
+    "Fan rpm": "Обороты вентиляторов",
+    "Power draw (W)": "Потребляемая мощность (Вт)",
+    "RAM used": "Занятая память",
+    "Disk used": "Занятый диск",
+    "Throttling marker": "Индикатор троттлинга",
+    "Pause marker": "Индикатор паузы",
+    "Settings": "Настройки",
+    "Chip pause threshold": "Пауза при температуре чипа выше",
+    "Battery gate": "Пауза при заряде ниже",
+    "pause below this charge when unplugged": "без адаптера тяжёлые задачи подождут зарядку",
+    "TOO LOW - an idle M-series chip already sits at 40-55 C, the guard would pause constantly": "СЛИШКОМ НИЗКО - чип M-серии без нагрузки уже при 40-55 C, пауза была бы постоянной",
+    "very conservative - a quiet, cool Mac, but long jobs will crawl": "очень осторожно - тихий и холодный Mac, но долгие задачи будут ползти",
+    "conservative - good for a fanless Mac (Air, 12-inch)": "осторожно - подходит для Mac без вентиляторов (Air)",
+    "recommended - well below Apple's own throttling point (~100-108 C)": "рекомендуется - заметно ниже порога троттлинга macOS (~100-108 C)",
+    "aggressive - close to the temperature at which macOS throttles by itself": "агрессивно - близко к температуре, при которой macOS сам снижает частоты",
+    "Notifications": "Уведомления",
+    "Watch only, never touch processes (dry run)": "Только наблюдать, не трогать процессы (dry run)",
+    "resume at %.0f C, terminate at %.0f C": "возобновление при %.0f C, завершение при %.0f C",
+    "What does watch-only mode do?": "Что делает режим наблюдения?",
+    "Report a problem (GitHub)...": "Сообщить о проблеме (GitHub)...",
+    "Write to the author...": "Написать автору...",
+    "Watch only (dry run)": "Только наблюдение (dry run)",
+    "WATCH-ONLY MODE - measuring and alerting, pausing nothing": "РЕЖИМ НАБЛЮДЕНИЯ - измеряю и предупреждаю, ничего не приостанавливаю",
+    "Enable protection (pause heavy jobs when hot)": "Включить защиту (пауза тяжёлых задач при нагреве)",
+    "Language": "Язык",
+    "Sounds": "Звуки",
+]
+
+let ZH: [String: String] = [
+    "no data - is thermal-guard running?": "没有数据 - thermal-guard 在运行吗？",
+    "data is stale (%@) - the guard may have died": "数据已过期（%@）- 守护进程可能已停止",
+    "the Mac shut down without warning: %@": "Mac 毫无预警地关机了：%@",
+    "Battery:  %@": "电池：  %@",
+    "Fans:  %@": "风扇：  %@",
+    "stopped": "停转",
+    "%d rpm": "%d 转/分",
+    "n/a": "无",
+    "Draw:  %.1f W": "功耗：  %.1f W",
+    "RAM:  %.1f / %.1f GB (%d%%)": "内存：  %.1f / %.1f GB（%d%%）",
+    "swap %.2f GB": "交换 %.2f GB",
+    "Disk:  %d / %d GB used (%d%%)": "磁盘：  已用 %d / %d GB（%d%%）",
+    "Power:  %@": "电源：  %@",
+    "AC adapter": "电源适配器",
+    "battery %@": "电池 %@",
+    "Load:  %.2f    CPU available: %d%%": "负载：  %.2f    CPU 可用：%d%%",
+    "   readings: %.0f-%.0f C": "   测量值：%.0f-%.0f C",
+    "rising %.1f C/min - about %.0f min to pause": "每分钟上升 %.1f C - 约 %.0f 分钟后暂停",
+    "rising %.1f C/min": "每分钟上升 %.1f C",
+    "Supervised jobs (safe-run):": "受监管的任务（safe-run）：",
+    "Top CPU:  %@ (%d%%)": "CPU 占用最高：  %@（%d%%）",
+    "Paused: %@": "已暂停：%@",
+    "  (manual)": "（手动）",
+    "State: %@": "状态：%@",
+    "calm": "正常",
+    "warm": "偏热",
+    "HOT - paused": "过热 - 已暂停",
+    "CRITICAL": "危急",
+    "Chip thresholds:  pause %.0f C, kill %.0f C": "芯片阈值：  暂停 %.0f C，终止 %.0f C",
+    "Today: %d x pause": "今天：%d 次暂停",
+    ", %d x kill": "，%d 次终止",
+    "Resume paused jobs": "恢复已暂停的任务",
+    "Freeze all heavy jobs now": "立即暂停繁重任务",
+    "Show in the bar": "菜单栏显示内容",
+    "Export report for a repair shop": "导出维修报告",
+    "As PDF...": "PDF 格式...",
+    "As plain text (TXT)...": "纯文本（TXT）...",
+    "Show the guard log": "查看守护日志",
+    "Quit heatbar": "退出 heatbar",
+    "Chip temperature": "芯片温度",
+    "GPU temperature": "GPU 温度",
+    "Battery temperature": "电池温度",
+    "Fan rpm": "风扇转速",
+    "Power draw (W)": "功耗（W）",
+    "RAM used": "内存占用",
+    "Disk used": "磁盘占用",
+    "Throttling marker": "降频标记",
+    "Pause marker": "暂停标记",
+    "Settings": "设置",
+    "Chip pause threshold": "芯片温度高于此值时暂停",
+    "Battery gate": "电量低于此值时暂停",
+    "pause below this charge when unplugged": "未接电源时，繁重任务将等待充电",
+    "TOO LOW - an idle M-series chip already sits at 40-55 C, the guard would pause constantly": "太低 - M 系列芯片空闲时已有 40-55 C，守护会不停暂停",
+    "very conservative - a quiet, cool Mac, but long jobs will crawl": "非常保守 - 机器安静凉爽，但长任务会很慢",
+    "conservative - good for a fanless Mac (Air, 12-inch)": "保守 - 适合无风扇的 Mac（Air）",
+    "recommended - well below Apple's own throttling point (~100-108 C)": "推荐 - 明显低于 macOS 自身降频点（约 100-108 C）",
+    "aggressive - close to the temperature at which macOS throttles by itself": "激进 - 接近 macOS 自动降频的温度",
+    "Notifications": "通知",
+    "Watch only, never touch processes (dry run)": "仅观察，不干预进程（dry run）",
+    "resume at %.0f C, terminate at %.0f C": "%.0f C 时恢复，%.0f C 时终止",
+    "What does watch-only mode do?": "「仅观察」模式是什么？",
+    "Report a problem (GitHub)...": "报告问题（GitHub）...",
+    "Write to the author...": "给作者写信...",
+    "Watch only (dry run)": "仅观察（dry run）",
+    "WATCH-ONLY MODE - measuring and alerting, pausing nothing": "仅观察模式 - 只测量和提醒，不暂停任何任务",
+    "Enable protection (pause heavy jobs when hot)": "启用保护（过热时暂停繁重任务）",
+    "Language": "语言",
+    "Sounds": "提示音",
+]
+
+let ES: [String: String] = [
+    "no data - is thermal-guard running?": "sin datos - ¿está funcionando thermal-guard?",
+    "data is stale (%@) - the guard may have died": "datos obsoletos (%@) - el guardián pudo detenerse",
+    "the Mac shut down without warning: %@": "el Mac se apagó sin aviso: %@",
+    "Battery:  %@": "Batería:  %@",
+    "Fans:  %@": "Ventiladores:  %@",
+    "stopped": "parado",
+    "%d rpm": "%d rpm",
+    "n/a": "n/d",
+    "Draw:  %.1f W": "Consumo:  %.1f W",
+    "RAM:  %.1f / %.1f GB (%d%%)": "RAM:  %.1f / %.1f GB (%d%%)",
+    "swap %.2f GB": "swap %.2f GB",
+    "Disk:  %d / %d GB used (%d%%)": "Disco:  %d / %d GB usados (%d%%)",
+    "Power:  %@": "Alimentación:  %@",
+    "AC adapter": "adaptador de corriente",
+    "battery %@": "batería %@",
+    "Load:  %.2f    CPU available: %d%%": "Carga:  %.2f    CPU disponible: %d%%",
+    "   readings: %.0f-%.0f C": "   lecturas: %.0f-%.0f C",
+    "rising %.1f C/min - about %.0f min to pause": "sube %.1f C/min - pausa en unos %.0f min",
+    "rising %.1f C/min": "sube %.1f C/min",
+    "Supervised jobs (safe-run):": "Tareas supervisadas (safe-run):",
+    "Top CPU:  %@ (%d%%)": "Mayor uso de CPU:  %@ (%d%%)",
+    "Paused: %@": "En pausa: %@",
+    "  (manual)": "  (manual)",
+    "State: %@": "Estado: %@",
+    "calm": "tranquilo",
+    "warm": "templado",
+    "HOT - paused": "CALIENTE - en pausa",
+    "CRITICAL": "CRÍTICO",
+    "Chip thresholds:  pause %.0f C, kill %.0f C": "Umbrales del chip:  pausa %.0f C, terminar %.0f C",
+    "Today: %d x pause": "Hoy: %d x pausa",
+    ", %d x kill": ", %d x terminación",
+    "Resume paused jobs": "Reanudar tareas en pausa",
+    "Freeze all heavy jobs now": "Pausar las tareas pesadas",
+    "Show in the bar": "Mostrar en la barra",
+    "Export report for a repair shop": "Informe para el servicio técnico",
+    "As PDF...": "Como PDF...",
+    "As plain text (TXT)...": "Como texto (TXT)...",
+    "Show the guard log": "Ver el registro",
+    "Quit heatbar": "Salir de heatbar",
+    "Chip temperature": "Temperatura del chip",
+    "GPU temperature": "Temperatura de la GPU",
+    "Battery temperature": "Temperatura de la batería",
+    "Fan rpm": "Revoluciones del ventilador",
+    "Power draw (W)": "Consumo (W)",
+    "RAM used": "RAM usada",
+    "Disk used": "Disco usado",
+    "Throttling marker": "Indicador de throttling",
+    "Pause marker": "Indicador de pausa",
+    "Settings": "Ajustes",
+    "Chip pause threshold": "Pausar por encima de",
+    "Battery gate": "Pausar con batería por debajo de",
+    "pause below this charge when unplugged": "sin adaptador, las tareas pesadas esperarán al cargador",
+    "TOO LOW - an idle M-series chip already sits at 40-55 C, the guard would pause constantly": "DEMASIADO BAJO - un chip M en reposo ya está a 40-55 C, pausaría sin parar",
+    "very conservative - a quiet, cool Mac, but long jobs will crawl": "muy conservador - un Mac frío y silencioso, pero las tareas largas irán lentas",
+    "conservative - good for a fanless Mac (Air, 12-inch)": "conservador - adecuado para un Mac sin ventiladores (Air)",
+    "recommended - well below Apple's own throttling point (~100-108 C)": "recomendado - muy por debajo del throttling de macOS (~100-108 C)",
+    "aggressive - close to the temperature at which macOS throttles by itself": "agresivo - cerca de la temperatura a la que macOS reduce la frecuencia",
+    "Notifications": "Notificaciones",
+    "Watch only, never touch processes (dry run)": "Solo observar, no tocar procesos (dry run)",
+    "resume at %.0f C, terminate at %.0f C": "reanuda a %.0f C, termina a %.0f C",
+    "What does watch-only mode do?": "¿Qué hace el modo de solo observación?",
+    "Report a problem (GitHub)...": "Informar de un problema (GitHub)...",
+    "Write to the author...": "Escribir al autor...",
+    "Watch only (dry run)": "Solo observación (dry run)",
+    "WATCH-ONLY MODE - measuring and alerting, pausing nothing": "MODO OBSERVACIÓN - mido y aviso, no pauso nada",
+    "Enable protection (pause heavy jobs when hot)": "Activar la protección (pausar tareas pesadas al calentarse)",
+    "Language": "Idioma",
+    "Sounds": "Sonidos",
+]
+
+let DICTS: [String: [String: String]] = ["pl": PL, "ru": RU, "zh": ZH, "es": ES]
+
+func T(_ s: String) -> String { DICTS[lang]?[s] ?? s }
 
 // MARK: - icons
 
@@ -349,6 +573,7 @@ struct Snap {
     var reason = "", topProc: String?, topCPU: Int?
     var paused: [String] = []
     var manualPause = false
+    var dryRun = false
     var trend: Double?, eta: Double?
     var jobs: [Job] = []
     var pausesToday = 0, killsToday = 0
@@ -383,6 +608,7 @@ func readSnap() -> Snap? {
     s.topCPU = j["top_cpu"] as? Int
     s.paused = (j["paused"] as? [String]) ?? []
     s.manualPause = (j["manual_pause"] as? Bool) ?? false
+    s.dryRun = (j["dry_run"] as? Bool) ?? false
     s.trend = j["trend_c_min"] as? Double
     s.eta = j["eta_pause_min"] as? Double
     s.stamp = (j["time"] as? String) ?? ""
@@ -499,6 +725,7 @@ final class Bar: NSObject, NSMenuDelegate {
         if prefs.enabled(.throttle), s.cpuLimit < 100 {
             gap(); out.append(icon("tortoise.fill", fallback: "slow"))
         }
+        if s.dryRun { gap(); out.append(icon("eye", fallback: "obs")) }
         if prefs.enabled(.paused), !s.paused.isEmpty {
             gap(); out.append(icon("pause.circle.fill", fallback: "||"))
         }
@@ -657,15 +884,36 @@ final class Bar: NSObject, NSMenuDelegate {
         ss.addItem(help)
         ss.addItem(.separator())
 
-        let pl = NSMenuItem(title: T("Language: Polish"), action: #selector(toggleLang), keyEquivalent: "")
-        pl.target = self
-        pl.state = GuardCfg.string("lang", "en").hasPrefix("pl") ? .on : .off
-        ss.addItem(pl)
+        let snd = NSMenuItem(title: T("Sounds"), action: #selector(toggleSound), keyEquivalent: "")
+        snd.target = self
+        snd.state = GuardCfg.bool("sound", true) ? .on : .off
+        ss.addItem(snd)
+
+        let langItem = NSMenuItem(title: T("Language"), action: nil, keyEquivalent: "")
+        let lm = NSMenu()
+        lm.autoenablesItems = false
+        for (code, name) in [("en", "English"), ("pl", "Polski"), ("ru", "Русский"),
+                             ("zh", "中文"), ("es", "Español")] {
+            let li = NSMenuItem(title: name, action: #selector(setLang(_:)), keyEquivalent: "")
+            li.target = self
+            li.representedObject = code
+            li.state = (lang == code) ? .on : .off
+            lm.addItem(li)
+        }
+        langItem.submenu = lm
+        ss.addItem(langItem)
 
         setItem.submenu = ss
         m.addItem(setItem)
 
-        m.addItem(withTitle: T("Export report for a repair shop..."), action: #selector(report), keyEquivalent: "").target = self
+        // eksport: uzytkownik wybiera format, nie my
+        let rep = NSMenuItem(title: T("Export report for a repair shop"), action: nil, keyEquivalent: "")
+        let rm = NSMenu()
+        rm.autoenablesItems = false
+        rm.addItem(withTitle: T("As PDF..."), action: #selector(reportPDF), keyEquivalent: "").target = self
+        rm.addItem(withTitle: T("As plain text (TXT)..."), action: #selector(reportTXT), keyEquivalent: "").target = self
+        rep.submenu = rm
+        m.addItem(rep)
         m.addItem(withTitle: T("Show the guard log"), action: #selector(openLog), keyEquivalent: "").target = self
         m.addItem(.separator())
         m.addItem(withTitle: T("Report a problem (GitHub)..."), action: #selector(openIssues), keyEquivalent: "").target = self
@@ -696,14 +944,18 @@ Remember to switch it off afterwards: in this mode nothing protects the Mac.
         a.runModal()
     }
 
+    @objc func enableProtection() { GuardCfg.set(["dry_run": false]) }
+
     @objc func toggleNotify() { GuardCfg.set(["notify": !GuardCfg.bool("notify", true)]) }
     @objc func toggleDry() { GuardCfg.set(["dry_run": !GuardCfg.bool("dry_run", false)]) }
 
-    /// Zmiana jezyka wymaga restartu paska (katalog jest wczytywany raz, przy starcie).
-    /// launchd podnosi go z powrotem, bo wyjscie z bledem liczy sie jako awaria.
-    @objc func toggleLang() {
-        let pl = GuardCfg.string("lang", "en").hasPrefix("pl")
-        GuardCfg.set(["lang": pl ? "en" : "pl"])
+    @objc func toggleSound() { GuardCfg.set(["sound": !GuardCfg.bool("sound", true)]) }
+
+    /// Zmiana jezyka wymaga restartu paska (slownik jest wybierany raz, przy starcie).
+    /// Wychodzimy z bledem — launchd (KeepAlive.SuccessfulExit=false) podnosi nas z powrotem.
+    @objc func setLang(_ sender: NSMenuItem) {
+        guard let code = sender.representedObject as? String, code != lang else { return }
+        GuardCfg.set(["lang": code])
         exit(1)
     }
 
@@ -722,10 +974,13 @@ Remember to switch it off afterwards: in this mode nothing protects the Mac.
     @objc func freeze() { send("freeze") }
     @objc func resume() { send("resume") }
 
-    @objc func report() {
+    @objc func reportPDF() { report(pdf: true) }
+    @objc func reportTXT() { report(pdf: false) }
+
+    func report(pdf: Bool) {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: reportBin)
-        p.arguments = ["--days", "14", "--pdf"]
+        p.arguments = pdf ? ["--days", "14", "--pdf"] : ["--days", "14"]
         let pipe = Pipe()
         p.standardOutput = pipe
         do { try p.run() } catch { return }

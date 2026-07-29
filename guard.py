@@ -95,7 +95,12 @@ DEFAULTS = {
     # wyciszone przez Skupienie). Rozne zdarzenia maja rozne dzwieki, zeby dalo sie
     # rozpoznac bez patrzenia: pauza=nisko, wznowienie=szklo, ubicie/pad=powaznie.
     "sound": True,
-    "dry_run": False,
+    # DOMYSLNIE TYLKO OBSERWACJA: swieza instalacja mierzy, loguje i ALARMUJE, ale nie
+    # wstrzymuje niczyich procesow. Ochrone wlacza sie swiadomie — jednym kliknieciem w menu
+    # paska albo "dry_run": false. Narzedzie, ktore od wejscia rusza cudza prace, traci
+    # zaufanie przy pierwszym falszywym alarmie; narzedzie, ktore najpierw pokazuje, CO by
+    # zrobilo, zdobywa je.
+    "dry_run": True,
     # FLOTA: sciezka wspolnego folderu (iCloud/Dropbox/SMB/SharePoint). Gdy ustawiona,
     # guard publikuje tam migawke <hostname>.json — narzedzie `fleet` sklada z nich
     # tabele calej floty. Celowo folder, nie serwer: kazda firma jakis wspolny dysk juz ma.
@@ -189,6 +194,9 @@ PL = {
     "DEMOTED %s (pid %d) -> background QoS/E-cores + nice+10 (hot for >%d min)":
         "DEMOTE %s (pid %d) -> tlo/E-cores + nice+10 (mieli >%d min)",
     "Thermal guard: hot": "Thermal guard: goraco",
+    "Thermal guard (watch-only): hot": "Thermal guard (obserwacja): goraco",
+    "Would pause %s - %s. Protection is off.":
+        "Wstrzymalbym %s - %s. Ochrona jest wylaczona.",
     "Paused: %s (%s)": "Wstrzymano: %s (%s)",
     "Thermal guard: cooled down": "Thermal guard: ochlodzone",
     "Resumed paused jobs (%s)": "Wznowiono wstrzymane zadania (%s)",
@@ -654,6 +662,8 @@ def do_pause(cfg, st, targets, reason):
             continue
         if cfg["dry_run"]:
             log(T("[DRY-RUN] would pause %s (pid %d, %.0f%% CPU) - %s") % (comm, pid, cpu, reason))
+            notify(cfg, T("Thermal guard (watch-only): hot"),
+                   T("Would pause %s - %s. Protection is off.") % (comm, reason), "pause")
             continue
         if sig(pid, pgid, signal.SIGSTOP):
             st["paused"][key] = {"since": now(), "comm": comm, "pgid": pgid, "cpu": cpu}
@@ -938,7 +948,7 @@ def fleet_write(cfg, status):
             os.makedirs(d, 0o755)
         out = dict(status)
         out["host"] = hostname()
-        out["guard_version"] = "1.0"
+        out["guard_version"] = "1.3"
         tmp = os.path.join(d, ".%s.tmp" % hostname())
         with open(tmp, "w") as f:
             json.dump(out, f, ensure_ascii=False)
@@ -1110,6 +1120,7 @@ def main():
 
             # dane pomocnicze dla paska (trend, zadania, licznik dnia)
             st["_trend_c_min"], st["_eta_min"] = trend_i_prognoza(cfg, soc_t)
+            st["_dry"] = bool(cfg.get("dry_run"))
             st["_prog_pauza"] = cfg.get("soc_pause_c")
             st["_prog_ubicie"] = cfg.get("soc_kill_c")
             if tick % 4 == 0:                      # rzadziej — to czytanie z dysku

@@ -16,6 +16,8 @@ Usage:
   fleet --dir <folder>       # explicit folder
   fleet --watch              # refresh every 30 s
   fleet --json               # machine-readable aggregate
+  fleet --setup              # detect synced folders (iCloud/Dropbox/Drive/OneDrive), pick one
+  fleet --set-dir <folder>   # write fleet_dir into this machine's config
 
 Language: TG_LANG=en|pl, or "lang" in ~/.thermal-guard/config.json. Default: en.
 """
@@ -63,6 +65,15 @@ PL = {
     "paused: %s": "wstrzymane: %s",
     "%d machine(s) need attention:": "%d maszyn(y) wymaga uwagi:",
     "all machines look fine": "wszystkie maszyny wygladaja dobrze",
+    "fleet_dir saved: %s (the agent starts publishing within a minute)":
+        "fleet_dir zapisany: %s (agent zacznie publikowac w ciagu minuty)",
+    "no synced folders detected - pass the path yourself: fleet --set-dir <folder>":
+        "nie wykryto folderow synchronizowanych - podaj sciezke sam: fleet --set-dir <folder>",
+    "Detected folders every machine of yours could share:":
+        "Wykryte foldery, ktore Twoje maszyny moga wspoldzielic:",
+    "Pick a number (the SAME folder must be set on every machine):":
+        "Wybierz numer (TEN SAM folder trzeba ustawic na kazdej maszynie):",
+    "cancelled": "anulowano",
 }
 
 
@@ -183,7 +194,80 @@ def render(d):
     return 0
 
 
+def candidates():
+    """Foldery synchronizowane obecne na TEJ maszynie — nic nie zgadujemy, tylko pokazujemy,
+    co uzytkownik juz ma. Wybor nalezy do niego (iCloud dla jednej osoby, Dropbox/Drive dla
+    zespolu, OneDrive/SharePoint w firmie, wolumen SMB na farmie)."""
+    H = os.path.expanduser("~")
+    out = []
+    ic = os.path.join(H, "Library/Mobile Documents/com~apple~CloudDocs")
+    if os.path.isdir(ic):
+        out.append(("iCloud Drive", os.path.join(ic, "FleetTG")))
+    cs = os.path.join(H, "Library/CloudStorage")
+    if os.path.isdir(cs):
+        for name in sorted(os.listdir(cs)):
+            full = os.path.join(cs, name)
+            # tylko realne foldery dostawcow (OneDrive-..., GoogleDrive-..., Dropbox),
+            # bez plikow ukrytych w rodzaju .DS_Store
+            if name.startswith(".") or not os.path.isdir(full):
+                continue
+            out.append((name.replace("-", " "), os.path.join(full, "FleetTG")))
+    for d, label in (("Dropbox", "Dropbox"), ("Google Drive", "Google Drive")):
+        if os.path.isdir(os.path.join(H, d)):
+            out.append((label, os.path.join(H, d, "FleetTG")))
+    try:
+        for v in sorted(os.listdir("/Volumes")):
+            pth = os.path.join("/Volumes", v)
+            if os.path.ismount(pth) and os.access(pth, os.W_OK) and v != "Macintosh HD":
+                out.append(("Network/external volume: %s" % v, os.path.join(pth, "FleetTG")))
+    except Exception:
+        pass
+    return out
+
+
+def set_dir(path):
+    path = os.path.expanduser(path)
+    try:
+        os.makedirs(path, exist_ok=True)
+    except Exception:
+        pass
+    cfgp = os.path.join(BASE, "config.json")
+    try:
+        with open(cfgp) as f:
+            c = json.load(f)
+    except Exception:
+        c = {}
+    c["fleet_dir"] = path
+    os.makedirs(BASE, exist_ok=True)
+    with open(cfgp, "w") as f:
+        json.dump(c, f, indent=2, ensure_ascii=False)
+    print(T("fleet_dir saved: %s (the agent starts publishing within a minute)") % path)
+    return 0
+
+
+def setup():
+    cand = candidates()
+    if not cand:
+        print(T("no synced folders detected - pass the path yourself: fleet --set-dir <folder>"))
+        return 1
+    print(T("Detected folders every machine of yours could share:"))
+    for i, (label, path) in enumerate(cand, 1):
+        print("  %d) %-28s %s" % (i, label, path))
+    print(T("Pick a number (the SAME folder must be set on every machine):"))
+    try:
+        n = int(input("> ").strip())
+        label, path = cand[n - 1]
+    except Exception:
+        print(T("cancelled"))
+        return 1
+    return set_dir(path)
+
+
 def main():
+    if "--set-dir" in sys.argv:
+        return set_dir(sys.argv[sys.argv.index("--set-dir") + 1])
+    if "--setup" in sys.argv:
+        return setup()
     d = ""
     if "--dir" in sys.argv:
         d = os.path.expanduser(sys.argv[sys.argv.index("--dir") + 1])
