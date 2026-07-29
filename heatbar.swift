@@ -44,6 +44,7 @@ let lang: String = {
 }()
 
 let PL: [String: String] = [
+    "!": "!",
     "no data - is thermal-guard running?": "brak danych - czy thermal-guard działa?",
     "data is stale (%@) - the guard may have died": "dane nieświeże (%@) - guard mógł paść",
     "the Mac shut down without warning: %@": "Mac zgasł bez ostrzeżenia: %@",
@@ -121,6 +122,25 @@ Pamiętaj potem wyłączyć: w tym trybie nic nie chroni Maca.
 ]
 
 func T(_ s: String) -> String { lang == "pl" ? (PL[s] ?? s) : s }
+
+// MARK: - icons
+
+/// Ikony na pasku to SF Symbols, nie emoji. Powody sa praktyczne: emoji maja wlasny, staly kolor
+/// (wiec w ciemnym motywie odcinaja sie jak naklejki), roznia sie szerokoscia miedzy wersjami
+/// systemu i psuja rownanie tekstu. Symbol szablonowy przyjmuje kolor paska i wyglada jak czesc
+/// systemu. Gdy symbol nie istnieje na danym macOS, wracamy do krotkiego napisu.
+func icon(_ name: String, fallback: String, size: CGFloat = 12) -> NSAttributedString {
+    guard let raw = NSImage(systemSymbolName: name, accessibilityDescription: nil) else {
+        return NSAttributedString(string: fallback)
+    }
+    let cfg = NSImage.SymbolConfiguration(pointSize: size, weight: .regular)
+    let img = raw.withSymbolConfiguration(cfg) ?? raw
+    img.isTemplate = true
+    let att = NSTextAttachment()
+    att.image = img
+    att.bounds = CGRect(x: 0, y: -2, width: img.size.width, height: img.size.height)
+    return NSAttributedString(attachment: att)
+}
 
 // MARK: - what to show in the bar
 
@@ -416,36 +436,61 @@ final class Bar: NSObject, NSMenuDelegate {
     }
 
     func refresh() {
+        let bold = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .regular)
         guard let s = readSnap() else {
-            item.button?.attributedTitle = NSAttributedString(
-                string: "\u{1F321} —", attributes: [.foregroundColor: NSColor.secondaryLabelColor])
+            let out = NSMutableAttributedString()
+            out.append(icon("thermometer.medium", fallback: "T"))
+            out.append(NSAttributedString(string: " —"))
+            out.addAttributes([.foregroundColor: NSColor.secondaryLabelColor, .font: bold],
+                              range: NSRange(location: 0, length: out.length))
+            item.button?.attributedTitle = out
             return
         }
-        var parts: [String] = []
-        if prefs.enabled(.chip) { parts.append(s.chip.map { String(format: "C%.0f°", $0) } ?? "C—") }
-        if prefs.enabled(.gpu), let g = s.gpu { parts.append(String(format: "G%.0f°", g)) }
-        if prefs.enabled(.battery), let b = s.batt { parts.append(String(format: "B%.0f°", b)) }
+
+        let out = NSMutableAttributedString()
+        func text(_ t: String) { out.append(NSAttributedString(string: t)) }
+        func gap() { if out.length > 0 { text(" ") } }
+
+        out.append(icon("thermometer.medium", fallback: "T"))
+        var temps: [String] = []
+        if prefs.enabled(.chip) { temps.append(s.chip.map { String(format: "%.0f°", $0) } ?? "—") }
+        if prefs.enabled(.gpu), let g = s.gpu { temps.append(String(format: "%.0f°", g)) }
+        if prefs.enabled(.battery), let b = s.batt { temps.append(String(format: "%.0f°", b)) }
+        if !temps.isEmpty { text(" " + temps.joined(separator: "/")) }
+
         if prefs.enabled(.fans), let f = s.fans.max() {
-            if f == 0 {
-                parts.append((s.chip ?? 0) >= 70 ? "\u{1F300}\u{26A0}\u{FE0E}0" : "\u{1F300}0")
+            gap()
+            if f == 0 && (s.chip ?? 0) >= 70 {
+                out.append(icon("exclamationmark.triangle.fill", fallback: "!"))
+                text(" 0")
             } else {
-                parts.append("\u{1F300}" + (f >= 1000 ? String(format: "%.1fk", Double(f) / 1000.0) : "\(f)"))
+                out.append(icon("fan", fallback: "fan"))
+                text(" " + (f >= 1000 ? String(format: "%.1fk", Double(f) / 1000.0) : "\(f)"))
             }
         }
-        if prefs.enabled(.watts), let w = s.watts, w >= 1 { parts.append(String(format: "%.0fW", w)) }
-        if prefs.enabled(.ram), let u = s.ramUsed, let t = s.ramTotal, t > 0 {
-            // swap in use is a stronger signal than the RAM percentage alone, so we flag it
-            let swapping = (s.swap ?? 0) > 0.1
-            parts.append(String(format: "\u{1F9E0}%.0f%%%@", 100 * u / t, swapping ? "\u{26A0}\u{FE0E}" : ""))
+        if prefs.enabled(.watts), let w = s.watts, w >= 1 {
+            gap(); out.append(icon("bolt.fill", fallback: "W")); text(String(format: " %.0fW", w))
         }
-        if prefs.enabled(.disk), let p = s.diskPct { parts.append("\u{1F4BE}\(p)%") }
-        if prefs.enabled(.throttle), s.cpuLimit < 100 { parts.append("\u{26A1}") }
-        if prefs.enabled(.paused), !s.paused.isEmpty { parts.append("\u{23F8}") }
+        if prefs.enabled(.ram), let u = s.ramUsed, let t = s.ramTotal, t > 0 {
+            gap(); out.append(icon("memorychip", fallback: "RAM"))
+            text(String(format: " %.0f%%", 100 * u / t))
+            // swap w uzyciu to mocniejszy sygnal presji pamieci niz sam procent
+            if (s.swap ?? 0) > 0.1 { out.append(icon("arrow.down.circle", fallback: "!")) }
+        }
+        if prefs.enabled(.disk), let p = s.diskPct {
+            gap(); out.append(icon("internaldrive", fallback: "SSD")); text(" \(p)%")
+        }
+        if prefs.enabled(.throttle), s.cpuLimit < 100 {
+            gap(); out.append(icon("tortoise.fill", fallback: "slow"))
+        }
+        if prefs.enabled(.paused), !s.paused.isEmpty {
+            gap(); out.append(icon("pause.circle.fill", fallback: "||"))
+        }
 
-        item.button?.attributedTitle = NSAttributedString(
-            string: "\u{1F321} " + parts.joined(separator: " "),
-            attributes: [.foregroundColor: tint(s),
-                         .font: NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .regular)])
+        out.addAttributes([.foregroundColor: tint(s), .font: bold],
+                          range: NSRange(location: 0, length: out.length))
+        item.button?.attributedTitle = out
+
         var tip = s.reason.isEmpty ? "thermal-guard: " + T("calm") : s.reason
         if let e = s.eta { tip += String(format: "\n%.0f min", e) }
         item.button?.toolTip = tip
@@ -466,8 +511,8 @@ final class Bar: NSObject, NSMenuDelegate {
         }
         let na = T("n/a")
 
-        if s.stale { row("\u{26A0}\u{FE0F} " + String(format: T("data is stale (%@) - the guard may have died"), s.stamp)) }
-        if let c = s.lastCrash { row("\u{1F6D1} " + String(format: T("the Mac shut down without warning: %@"), c)) }
+        if s.stale { row(T("!") + " " + String(format: T("data is stale (%@) - the guard may have died"), s.stamp)) }
+        if let c = s.lastCrash { row(String(format: T("the Mac shut down without warning: %@"), c)) }
 
         row("Chip:  " + (s.chip.map { String(format: "%.1f °C", $0) } ?? na)
             + (s.gpu != nil ? String(format: "     GPU: %.1f °C", s.gpu!) : ""))
@@ -496,9 +541,9 @@ final class Bar: NSObject, NSMenuDelegate {
         }
         if let t = s.trend, t > 0.5 {
             if let e = s.eta {
-                row("\u{1F4C8} " + String(format: T("rising %.1f C/min - about %.0f min to pause"), t, e))
+                row(String(format: T("rising %.1f C/min - about %.0f min to pause"), t, e))
             } else {
-                row("\u{1F4C8} " + String(format: T("rising %.1f C/min"), t))
+                row(String(format: T("rising %.1f C/min"), t))
             }
         }
 
@@ -509,7 +554,7 @@ final class Bar: NSObject, NSMenuDelegate {
         }
         if let p = s.topProc, let c = s.topCPU { row(String(format: T("Top CPU:  %@ (%d%%)"), p, c)) }
         if !s.paused.isEmpty {
-            row("\u{23F8} " + String(format: T("Paused: %@"), s.paused.joined(separator: ", "))
+            row(String(format: T("Paused: %@"), s.paused.joined(separator: ", "))
                 + (s.manualPause ? T("  (manual)") : ""))
         } else {
             let names = [T("calm"), T("warm"), T("HOT - paused"), T("CRITICAL")]
@@ -529,10 +574,10 @@ final class Bar: NSObject, NSMenuDelegate {
     func addTail(_ m: NSMenu, paused: Bool) {
         m.addItem(.separator())
         if paused {
-            m.addItem(withTitle: "\u{25B6} " + T("Resume paused jobs"),
+            m.addItem(withTitle: T("Resume paused jobs"),
                       action: #selector(resume), keyEquivalent: "").target = self
         } else {
-            m.addItem(withTitle: "\u{23F8} " + T("Freeze all heavy jobs now"),
+            m.addItem(withTitle: T("Freeze all heavy jobs now"),
                       action: #selector(freeze), keyEquivalent: "").target = self
         }
 
