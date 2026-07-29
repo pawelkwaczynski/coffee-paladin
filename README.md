@@ -215,6 +215,24 @@ Writes a single text file to your Desktop.
 
 ## Configuration
 
+Most of it is adjustable from the menu bar: **Settings** holds a slider for the chip pause
+threshold with a live warning under it, a slider for the battery gate, and switches for
+notifications, language, and a **watch-only (dry run)** mode that logs what it *would* do without
+touching a single process — the honest way to build trust in a tool that can freeze your work.
+
+The daemon re-reads its config on every cycle, so changes take effect immediately, with no restart.
+
+### Do different chips need different thresholds?
+
+Between M-series generations, not really: they all throttle themselves somewhere around
+100-108 °C and Tjmax is about 110 °C, so the shipped 85/76/90 is sane from M1 to M4 and there is
+no reason to expect M5 or M6 to leave that range.
+
+**Cooling is what differs.** A fanless Mac (Air, 12-inch) dumps heat into the chassis and gets hot
+sooner, so a lower threshold — around 75-78 °C — is kinder to it. thermal-guard detects the
+absence of fans and simply skips the fan alarm there, but the temperature threshold is yours to
+set. That is exactly what the slider is for.
+
 `~/.thermal-guard/config.json`. The defaults:
 
 | Setting | Default | Meaning |
@@ -230,6 +248,7 @@ Writes a single text file to your Desktop.
 | `never_extra` | `[]` | your own additions to the never-touch list (tools you do not want frozen) |
 | `never_arg_patterns` | guard's own tooling | matched against the **full command line**, useful when a job runs under an interpreter |
 | `lang` | `en` | `en` or `pl` |
+| `dry_run` | `false` | log decisions, never signal anything |
 
 ### A note on numbers, because this trips people up
 

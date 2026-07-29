@@ -78,6 +78,25 @@ let PL: [String: String] = [
     "Battery temperature": "Temperatura baterii", "Fan rpm": "Obroty wentylatorów",
     "Power draw (W)": "Pobór mocy (W)", "RAM used": "Zajęty RAM", "Disk used": "Zajęty dysk",
     "Throttling marker": "Znacznik dławienia", "Pause marker": "Znacznik pauzy",
+    "Settings": "Ustawienia",
+    "Chip pause threshold": "Próg pauzy chipa",
+    "Battery gate": "Bramka baterii",
+    "pause below this charge when unplugged": "pauza poniżej tego poziomu bez zasilacza",
+    "TOO LOW - an idle M-series chip already sits at 40-55 C, the guard would pause constantly":
+        "ZA NISKO - bezczynny chip M-serii ma 40-55 C, guard pauzowałby bez przerwy",
+    "very conservative - a quiet, cool Mac, but long jobs will crawl":
+        "bardzo ostrożnie - cichy, chłodny Mac, ale długie zadania będą się wlekły",
+    "conservative - good for a fanless Mac (Air, 12-inch)":
+        "ostrożnie - dobre dla Maca bez wentylatorów (Air, 12-cal)",
+    "recommended - well below Apple's own throttling point (~100-108 C)":
+        "zalecane - wyraźnie poniżej progu, na którym macOS sam dławi (~100-108 C)",
+    "aggressive - close to the temperature at which macOS throttles by itself":
+        "agresywnie - blisko temperatury, w której macOS sam zaczyna dławić",
+    "Notifications": "Powiadomienia",
+    "Watch only, never touch processes (dry run)": "Tylko obserwuj, nie ruszaj procesów (dry run)",
+    "Language: Polish": "Język: polski",
+    "resume at %.0f C, terminate at %.0f C": "wznowienie przy %.0f C, ubicie przy %.0f C",
+    "no fans (fanless Mac)": "brak wentylatorów (Mac bez wentylatorów)",
 ]
 
 func T(_ s: String) -> String { lang == "pl" ? (PL[s] ?? s) : s }
@@ -131,6 +150,107 @@ final class Prefs {
 }
 
 let prefs = Prefs()
+
+// MARK: - guard configuration (thresholds live in config.json, the daemon re-reads it every cycle)
+
+/// Odczyt i zapis config.json guarda. Zawsze scalamy z istniejaca trescia — plik nalezy do
+/// demona i zawiera znacznie wiecej niz to, co pokazuje pasek.
+enum GuardCfg {
+    static func all() -> [String: Any] {
+        guard let d = FileManager.default.contents(atPath: configPath),
+              let j = try? JSONSerialization.jsonObject(with: d) as? [String: Any] else { return [:] }
+        return j
+    }
+
+    static func double(_ key: String, _ fallback: Double) -> Double {
+        (all()[key] as? Double) ?? Double((all()[key] as? Int) ?? 0).nonZero ?? fallback
+    }
+
+    static func bool(_ key: String, _ fallback: Bool) -> Bool { (all()[key] as? Bool) ?? fallback }
+    static func string(_ key: String, _ fallback: String) -> String { (all()[key] as? String) ?? fallback }
+
+    static func set(_ values: [String: Any]) {
+        var j = all()
+        for (k, v) in values { j[k] = v }
+        if let d = try? JSONSerialization.data(withJSONObject: j, options: [.prettyPrinted, .sortedKeys]) {
+            try? d.write(to: URL(fileURLWithPath: configPath))
+        }
+    }
+}
+
+extension Double { var nonZero: Double? { self == 0 ? nil : self } }
+
+/// Ostrzezenie dobrane do wartosci suwaka. Sens: uzytkownik ma zobaczyc konsekwencje ZANIM
+/// ustawi absurd. Najczestszy blad to przenoszenie progu baterii (45 C) na chip — przy 45 C
+/// bezpiecznik pauzowalby wszystko bez przerwy, bo bezczynny chip ma juz 40-55 C.
+func thresholdWarning(_ v: Double) -> (String, NSColor) {
+    if v < 60 { return (T("TOO LOW - an idle M-series chip already sits at 40-55 C, the guard would pause constantly"), .systemRed) }
+    if v < 70 { return (T("very conservative - a quiet, cool Mac, but long jobs will crawl"), .systemOrange) }
+    if v < 80 { return (T("conservative - good for a fanless Mac (Air, 12-inch)"), .secondaryLabelColor) }
+    if v <= 92 { return (T("recommended - well below Apple's own throttling point (~100-108 C)"), .systemGreen) }
+    return (T("aggressive - close to the temperature at which macOS throttles by itself"), .systemOrange)
+}
+
+/// Wiersz menu z suwakiem. NSMenuItem.view pozwala wstawic dowolny widok, wiec suwak
+/// z opisem i ostrzezeniem siedzi bezposrednio w menu, bez osobnego okna preferencji.
+final class SliderRow: NSView {
+    let slider = NSSlider()
+    let value = NSTextField(labelWithString: "")
+    let note = NSTextField(labelWithString: "")
+    private let onChange: (Double) -> Void
+    private let unit: String
+    private let describe: (Double) -> (String, NSColor)
+
+    init(title: String, min: Double, max: Double, current: Double, unit: String,
+         describe: @escaping (Double) -> (String, NSColor), onChange: @escaping (Double) -> Void) {
+        self.onChange = onChange
+        self.unit = unit
+        self.describe = describe
+        super.init(frame: NSRect(x: 0, y: 0, width: 330, height: 66))
+
+        let label = NSTextField(labelWithString: title)
+        label.font = .menuFont(ofSize: 13)
+        label.frame = NSRect(x: 14, y: 44, width: 220, height: 16)
+        addSubview(label)
+
+        value.font = .monospacedDigitSystemFont(ofSize: 13, weight: .semibold)
+        value.alignment = .right
+        value.frame = NSRect(x: 236, y: 44, width: 80, height: 16)
+        addSubview(value)
+
+        slider.minValue = min
+        slider.maxValue = max
+        slider.doubleValue = current
+        slider.isContinuous = true
+        slider.numberOfTickMarks = Int((max - min) / 5) + 1
+        slider.allowsTickMarkValuesOnly = true
+        slider.target = self
+        slider.action = #selector(moved)
+        slider.frame = NSRect(x: 14, y: 24, width: 302, height: 20)
+        addSubview(slider)
+
+        note.font = .systemFont(ofSize: 10)
+        note.lineBreakMode = .byTruncatingTail
+        note.frame = NSRect(x: 14, y: 6, width: 302, height: 14)
+        addSubview(note)
+
+        render()
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    private func render() {
+        value.stringValue = String(format: "%.0f %@", slider.doubleValue, unit)
+        let (text, colour) = describe(slider.doubleValue)
+        note.stringValue = text
+        note.textColor = colour
+    }
+
+    @objc private func moved() {
+        render()
+        onChange(slider.doubleValue)
+    }
+}
 
 // MARK: - snapshot
 
@@ -378,6 +498,57 @@ final class Bar: NSObject, NSMenuDelegate {
         showItem.submenu = sub
         m.addItem(showItem)
 
+        // panel ustawien: progi suwakiem + przelaczniki. Demon czyta config.json w kazdym
+        // przebiegu, wiec zmiana dziala od razu, bez restartu czegokolwiek.
+        let setItem = NSMenuItem(title: T("Settings"), action: nil, keyEquivalent: "")
+        let ss = NSMenu()
+
+        let pauseNow = GuardCfg.double("soc_pause_c", 85)
+        let chipRow = NSMenuItem()
+        chipRow.view = SliderRow(title: T("Chip pause threshold"), min: 55, max: 100,
+                                 current: pauseNow, unit: "°C", describe: thresholdWarning) { v in
+            // pochodne trzymamy spojne: histereza 9 C w dol, ubicie 5 C w gore (nie wyzej niz 100)
+            GuardCfg.set(["soc_pause_c": v,
+                          "soc_resume_c": v - 9,
+                          "soc_kill_c": Swift.min(v + 5, 100)])
+        }
+        ss.addItem(chipRow)
+        let derived = NSMenuItem(
+            title: String(format: T("resume at %.0f C, terminate at %.0f C"),
+                          pauseNow - 9, Swift.min(pauseNow + 5, 100)),
+            action: nil, keyEquivalent: "")
+        derived.isEnabled = false
+        ss.addItem(derived)
+        ss.addItem(.separator())
+
+        let battRow = NSMenuItem()
+        battRow.view = SliderRow(title: T("Battery gate"), min: 5, max: 50,
+                                 current: GuardCfg.double("batt_pct_pause", 10), unit: "%",
+                                 describe: { _ in (T("pause below this charge when unplugged"), .secondaryLabelColor) }) { v in
+            GuardCfg.set(["batt_pct_pause": Int(v), "batt_pct_resume": Int(v) + 15])
+        }
+        ss.addItem(battRow)
+        ss.addItem(.separator())
+
+        let notif = NSMenuItem(title: T("Notifications"), action: #selector(toggleNotify), keyEquivalent: "")
+        notif.target = self
+        notif.state = GuardCfg.bool("notify", true) ? .on : .off
+        ss.addItem(notif)
+
+        let dry = NSMenuItem(title: T("Watch only, never touch processes (dry run)"),
+                             action: #selector(toggleDry), keyEquivalent: "")
+        dry.target = self
+        dry.state = GuardCfg.bool("dry_run", false) ? .on : .off
+        ss.addItem(dry)
+
+        let pl = NSMenuItem(title: T("Language: Polish"), action: #selector(toggleLang), keyEquivalent: "")
+        pl.target = self
+        pl.state = GuardCfg.string("lang", "en").hasPrefix("pl") ? .on : .off
+        ss.addItem(pl)
+
+        setItem.submenu = ss
+        m.addItem(setItem)
+
         m.addItem(withTitle: T("Export report for a repair shop..."), action: #selector(report), keyEquivalent: "").target = self
         m.addItem(withTitle: T("Show the guard log"), action: #selector(openLog), keyEquivalent: "").target = self
         m.addItem(.separator())
@@ -387,6 +558,17 @@ final class Bar: NSObject, NSMenuDelegate {
         sig.isEnabled = false
         m.addItem(sig)
         m.addItem(withTitle: T("Quit heatbar"), action: #selector(quit), keyEquivalent: "q").target = self
+    }
+
+    @objc func toggleNotify() { GuardCfg.set(["notify": !GuardCfg.bool("notify", true)]) }
+    @objc func toggleDry() { GuardCfg.set(["dry_run": !GuardCfg.bool("dry_run", false)]) }
+
+    /// Zmiana jezyka wymaga restartu paska (katalog jest wczytywany raz, przy starcie).
+    /// launchd podnosi go z powrotem, bo wyjscie z bledem liczy sie jako awaria.
+    @objc func toggleLang() {
+        let pl = GuardCfg.string("lang", "en").hasPrefix("pl")
+        GuardCfg.set(["lang": pl ? "en" : "pl"])
+        exit(1)
     }
 
     @objc func toggleItem(_ sender: NSMenuItem) {
