@@ -31,9 +31,10 @@ chassis and a hard shutdown. Worse, when the logs were examined afterwards, ther
 ended at the moment the machine died. There was no way to reconstruct what the temperature
 had been.
 
-And losing a Mac hurts more in 2026 than it ever did. Lease queues for new MacBooks run
-15+ weeks (operators report clients waiting since April), even dusty M1 machines sell out,
-and Apple has raised prices. Nobody can afford to lose the machine they have.
+And losing a Mac hurts more in 2026 than it ever did. When we called leasing operators in
+Poland this July, the quoted wait for new MacBooks was 15+ weeks with clients queued since
+April; even aging M1 machines were selling out, and list prices had gone up. Wherever you
+are, the direction is the same: nobody can afford to lose the machine they have.
 
 This project is the answer to all of it: *stop it before it cooks*, and *keep the evidence
 when something goes wrong anyway*.
@@ -46,7 +47,9 @@ when something goes wrong anyway*.
 
 When the chip gets too hot, heavy processes receive `SIGSTOP`. That is **not** destructive: the
 process freezes exactly where it is, its memory is untouched, and when things cool down it gets
-`SIGCONT` and continues **from the same instruction**. Nothing is lost.
+`SIGCONT` and continues from where it stopped. Memory and computation state survive intact;
+the honest caveat is time-sensitive I/O - network peers, watchdogs and license servers can
+notice the pause (see Known limitations).
 
 Measured on a real job: chip at 89.3 °C → paused → **60.2 °C nineteen seconds later** → resumed.
 The computation never noticed.
@@ -173,10 +176,10 @@ measurement timeline with the peak temperature highlighted.
 
 ---
 
-## What nothing else does
+## What the usual tools don't do
 
 There are excellent Mac monitoring tools - Stats, iStat Menus, TG Pro, Macs Fan Control. They
-show you numbers, or drive the fans harder. **None of them touches the workload.** When the chip
+show you numbers, or drive the fans harder. **None of the popular ones touches the workload itself.** When the chip
 hits 90 °C at 3 a.m., a chart of it is not protection.
 
 thermal-guard occupies a different category:
@@ -276,10 +279,12 @@ into Slack alerts, Grafana, or a cron job that emails you.
 
 ### What is in the published snapshot
 
-Hostname, temperatures, fan rpm, power draw, RAM/disk usage, power source, guard level and
-reason, paused-job names, today's intervention counts, and the last detected hard shutdown.
-No file paths, no serial numbers. If publishing the name of the top CPU process is too much for
-your environment, you can strip it - the file is built in one function (`fleet_write`).
+Hostname (or your custom label), model, serial number, temperatures, fan rpm, power draw,
+RAM/disk usage, power source, guard level and reason, paused-job names, today's intervention
+counts, and the last detected hard shutdown. To be clear about privacy: the snapshot never
+leaves **your own shared folder** - there is no server and nothing phones home - and if the
+serial number or the top-process name is too much for your environment, strip them: the whole
+file is built in one function (`fleet_write`).
 
 ---
 
@@ -324,6 +329,15 @@ only battery temperature reacts long after the damage window has opened.
 
 ## Tests
 
+The hard-crash detector - the code that writes warranty evidence - ships with its own test
+matrix: 16 cases covering clean/dirty shutdowns, backup artifacts, garbage content and
+timezone changes (a pulse written in Warsaw must still prove a crash after booting in New
+York). It runs in one command against an isolated HOME and never touches your real black box:
+
+```bash
+T=$(mktemp -d) && python3 tests/test_wykryj_twardy_pad.py "$T"; rm -rf "$T"
+```
+
 This project was **tested and refined with the help of AI - four heads at once** ;) and the
 process is worth describing, because it found bugs no single reviewer would have caught. Every risky area (signal handling on
 process groups, the CPU limiter, sleep-lock management, the crash detector) was reviewed
@@ -336,15 +350,6 @@ protection as armed while the daemon only observed, an installer that declared s
 while the menu bar never started, and a timezone bug that could silence a genuine crash
 in the evidence file (a pulse written in Warsaw, read after "flying" to New York, parsed
 as the future). Agreement between reviewers proves little; the divergence is the signal.
-
-The hard-crash detector - the code that writes warranty evidence - ships with its own test
-matrix: 16 cases covering clean/dirty shutdowns, backup artifacts, garbage content and
-timezone changes (a pulse written in Warsaw must still prove a crash after booting in New
-York). It runs in one command against an isolated HOME and never touches your real black box:
-
-```bash
-T=$(mktemp -d) && python3 tests/test_wykryj_twardy_pad.py "$T"; rm -rf "$T"
-```
 
 ---
 
@@ -512,6 +517,10 @@ The shipped defaults are deliberately more conservative than Apple's own throttl
 
 ## Known limitations
 
+- **Time-sensitive I/O can notice a pause.** A frozen process stops answering the network:
+  long pauses can trip remote timeouts, heartbeats/watchdogs and license-server check-ins.
+  Batch compute, renders and downloads by the guard's own hand are fine; latency-critical
+  services belong in `never_extra`.
 - **It will freeze GUI applications too.** If Blender or a video export pushes the chip to 85 °C,
   that window freezes until things cool down. Nothing is lost, but it looks like a hang. Add such
   apps to `never_patterns` if you would rather they were left alone.
@@ -570,9 +579,10 @@ Gorzej - gdy potem sięgnięto do logów, **nie było czego czytać**: żadnej p
 zapisu o przegrzaniu, a dziennik systemowy po prostu urywał się w chwili zgaśnięcia. Nie dało
 się odtworzyć, jaka była temperatura.
 
-A utrata Maca boli w 2026 bardziej niż kiedykolwiek: kolejki leasingowe na nowe MacBooki to
-15+ tygodni (operatorzy mówią o klientach czekających od kwietnia), z rynku znikają nawet
-zakurzone M1, a Apple podniosło ceny. Nikt nie może sobie pozwolić na utratę maszyny, którą ma.
+A utrata Maca boli w 2026 bardziej niż kiedykolwiek. Gdy w lipcu dzwoniliśmy po operatorach
+leasingu, kolejka na nowe MacBooki wynosiła 15+ tygodni (klienci czekający od kwietnia),
+z rynku znikały nawet leciwe M1, a cenniki poszły w górę. Nikt nie może sobie pozwolić
+na utratę maszyny, którą ma.
 
 Ten projekt odpowiada na oba problemy: *zatrzymać, zanim się ugotuje*, i *zachować dowody, gdy coś
 jednak pójdzie źle*.
@@ -580,8 +590,9 @@ jednak pójdzie źle*.
 ## Co robi
 
 **Zamraża, nie zabija.** Przy przegrzaniu ciężkie procesy dostają `SIGSTOP` - proces zamiera
-w miejscu, pamięć zostaje nietknięta, a po ostygnięciu `SIGCONT` i liczy dalej od tej samej
-instrukcji. Zmierzone na żywym zadaniu: chip 89,3 °C → pauza → **60,2 °C po dziewiętnastu
+w miejscu, pamięć zostaje nietknięta, a po ostygnięciu `SIGCONT` i liczy dalej od miejsca,
+w którym stanął. Uczciwe zastrzeżenie: pauzę mogą zauważyć rzeczy wrażliwe na czas - druga
+strona połączenia sieciowego, watchdogi, serwery licencji (patrz ograniczenia). Zmierzone na żywym zadaniu: chip 89,3 °C → pauza → **60,2 °C po dziewiętnastu
 sekundach** → wznowienie. Obliczenia niczego nie zauważyły. Ubicie (łagodnym `SIGTERM`, żeby
 zadanie zdążyło zapisać checkpoint) następuje dopiero po kilku krytycznych odczytach z rzędu.
 
@@ -637,7 +648,8 @@ Przy pierwszym starcie demon sam wykrywa sprzęt (chip, podział rdzeni P/E, RAM
 zdrowie baterii - zakładka **O moim Macu**) i kalibruje progi: Mac bez wentylatorów dostaje
 niższe (78/70/88) i wyłączony alarm wentylatorów. Ręcznie ustawionych progów kalibracja nigdy
 nie nadpisuje. Push na telefon: **Ustawienia > Push na telefon (ntfy.sh)** + darmowa aplikacja
-ntfy z tym samym tematem. Przełącznik **Uruchamiaj przy starcie komputera** (domyślnie włączony)
+ntfy z tym samym tematem. **Nazwa tematu to jedyny sekret** - kto ją zna, czyta Twoje
+alerty i może wysyłać fałszywe; dialog podpowiada losową, niezgadywalną nazwę. Przełącznik **Uruchamiaj przy starcie komputera** (domyślnie włączony)
 i wybór języka guzikami wprost na głównej karcie menu.
 
 **Alarmuje tak, że nie da się przeoczyć.** Powiadomienie z osobnym dźwiękiem przy pauzie,
@@ -656,8 +668,9 @@ macOS nie udostępnia temperatury chipa zwykłemu procesowi. Działające źród
 
 - **temperatura chipa i GPU, obroty wentylatorów, pobór mocy** - [`macmon`](https://github.com/vladkens/macmon) przez **IOReport**, jedyna droga bez `sudo`,
 - **stan termiczny systemu** - `ProcessInfo.thermalState` przez malutką binarkę Swift,
-- **bateria** - `ioreg -c AppleSmartBattery` (uwaga: `Temperature` w setnych °C, ale
-  `MaximumTemperature` w całych - łatwo o błąd),
+- **bateria** - `ioreg -c AppleSmartBattery` (uwaga: jednostki różnią się między modelami -
+  raz setne stopnia, raz dziesiąte, raz całe; skalujemy do zakresu fizycznie możliwego
+  dla ogniwa, zamiast zakładać jednostkę),
 - **dławienie CPU** - `pmset -g therm`, **zasilanie** - `pmset -g batt`, **procesy** - `ps`.
 
 Dwie ślepe uliczki, spisane, żeby nikt nie powtarzał: **`powermetrics` żąda hasła**, a odczyt
@@ -720,6 +733,11 @@ na swojej maszynie: `fleet` (tabela + problemy), `fleet --watch` (odświeżanie)
 
 ## Testy
 
+Detektor twardego padu (kod piszący dowody gwarancyjne) ma własną matrycę 16 przypadków -
+łącznie ze zmianami stref czasowych i artefaktami z backupów. Jedno polecenie, izolowany HOME,
+prawdziwa czarna skrzynka nietknięta:
+`T=$(mktemp -d) && python3 tests/test_wykryj_twardy_pad.py "$T"; rm -rf "$T"`
+
 Ten projekt był **testowany i udoskonalany z pomocą AI - czterech głów naraz** ;) a proces
 warto opisać, bo wyłapał błędy, których żaden pojedynczy recenzent by nie znalazł. Każdy ryzykowny obszar (sygnały na grupach
 procesów, limiter CPU, blokady snu, detektor padu) recenzowały **cztery różne modele AI
@@ -732,11 +750,6 @@ demon tylko obserwował; instalator raportujący sukces, gdy pasek menu nigdy ni
 i błąd strefy czasowej, który potrafił wyciszyć prawdziwy pad w pliku dowodowym (puls
 zapisany w Warszawie, odczytany po „przelocie" do Nowego Jorku, parsował się jako
 przyszłość). Zgoda recenzentów niewiele dowodzi - sygnałem jest rozbieżność.
-
-Detektor twardego padu (kod piszący dowody gwarancyjne) ma własną matrycę 16 przypadków -
-łącznie ze zmianami stref czasowych i artefaktami z backupów. Jedno polecenie, izolowany HOME,
-prawdziwa czarna skrzynka nietknięta:
-`T=$(mktemp -d) && python3 tests/test_wykryj_twardy_pad.py "$T"; rm -rf "$T"`
 
 ## Instalacja i użycie
 
