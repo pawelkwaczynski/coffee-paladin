@@ -451,7 +451,8 @@ The shipped defaults are deliberately more conservative than Apple's own throttl
 
 MIT — do whatever you like with it. If it saves your machine, that is payment enough.
 
-Built by Paweł Kwaczyński / FOCUS FRAME, 2026.
+Built by Paweł Kwaczyński / FOCUS FRAME, 2026. Developed also as a project of **AIrON** —
+the student research club for computer science at AHE in Łódź (SKN Informatyki AHE w Łodzi).
 
 ---
 
@@ -604,4 +605,5 @@ językach** (angielski, polski, rosyjski, chiński, hiszpański) — przełącza
 
 MIT. Rób z tym co chcesz. Jeśli uratuje Ci komputer, to wystarczająca zapłata.
 
-Autor: Paweł Kwaczyński / FOCUS FRAME, 2026.
+Autor: Paweł Kwaczyński / FOCUS FRAME, 2026. Projekt rozwijany także w ramach koła naukowego
+**AIrON** (SKN Informatyki AHE w Łodzi).

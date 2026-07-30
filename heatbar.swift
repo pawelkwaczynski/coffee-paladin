@@ -129,7 +129,8 @@ let PL: [String: String] = [
     "Enter a secret topic name. Install the ntfy app on your phone and subscribe to the same topic - pauses, kills and alarms will arrive as push notifications. Leave empty to disable.":
         "Wpisz sekretną nazwę tematu. Zainstaluj na telefonie aplikację ntfy i zasubskrybuj ten sam temat — pauzy, ubicia i alarmy przyjdą jako push. Puste pole wyłącza.",
     "The topic name is the ONLY protection: anyone who knows or guesses it can read your alerts and send fake ones. Click Generate for a random unguessable name. On your phone install the ntfy.sh app (from ntfy.sh - mind the lookalike apps) and subscribe to the same topic. Leave empty to disable.":
-        "Nazwa tematu to JEDYNE zabezpieczenie: kto ją zna lub zgadnie, widzi Twoje alerty i może wysyłać fałszywe. Kliknij Wygeneruj, aby dostać losową, niezgadywalną nazwę. Na telefonie zainstaluj aplikację ntfy.sh (ze strony ntfy.sh — uwaga na podobne apki) i zasubskrybuj ten sam temat. Puste pole wyłącza.",
+        "Nazwa tematu to JEDYNE zabezpieczenie: kto ją zna lub zgadnie, widzi Twoje alerty i może wysyłać fałszywe. Kliknij Wygeneruj, aby dostać losową, niezgadywalną nazwę. Na telefonie zainstaluj aplikację ntfy.sh (ze strony ntfy.sh - uwaga na podobne apki) i zasubskrybuj ten sam temat. Puste pole wyłącza.",
+    "A project of the AIrON student research club.": "Projekt w ramach koła naukowego.",
     "Generate": "Wygeneruj",
     "Model:  %@": "Model:  %@",
     "Chip:  %@": "Chip:  %@",
@@ -275,6 +276,7 @@ let RU: [String: String] = [
         "Введите секретное имя темы. Установите приложение ntfy на телефон и подпишитесь на ту же тему - паузы, завершения и тревоги придут как push. Пустое поле отключает.",
     "The topic name is the ONLY protection: anyone who knows or guesses it can read your alerts and send fake ones. Click Generate for a random unguessable name. On your phone install the ntfy.sh app (from ntfy.sh - mind the lookalike apps) and subscribe to the same topic. Leave empty to disable.":
         "Имя темы - ЕДИНСТВЕННАЯ защита: кто его знает или угадает, видит ваши оповещения и может слать поддельные. Нажмите «Сгенерировать», чтобы получить случайное имя. Установите на телефон приложение ntfy.sh (с сайта ntfy.sh - остерегайтесь похожих приложений) и подпишитесь на ту же тему. Пустое поле отключает.",
+    "A project of the AIrON student research club.": "Проект в рамках студенческого научного кружка AIrON.",
     "Generate": "Сгенерировать",
     "Model:  %@": "Модель:  %@",
     "Chip:  %@": "Чип:  %@",
@@ -389,6 +391,7 @@ let ZH: [String: String] = [
         "输入一个保密的主题名。在手机上安装 ntfy 应用并订阅同一主题 - 暂停、终止和警报会以推送形式送达。留空则禁用。",
     "The topic name is the ONLY protection: anyone who knows or guesses it can read your alerts and send fake ones. Click Generate for a random unguessable name. On your phone install the ntfy.sh app (from ntfy.sh - mind the lookalike apps) and subscribe to the same topic. Leave empty to disable.":
         "主题名是唯一的保护:知道或猜到它的人都能看到你的警报并发送伪造消息。点击「生成」获取随机且难以猜测的名称。在手机上安装 ntfy.sh 应用(来自 ntfy.sh, 谨防仿冒应用)并订阅同一主题。留空则禁用。",
+    "A project of the AIrON student research club.": "AIrON 学生科研社团的项目。",
     "Generate": "生成",
     "Model:  %@": "型号:  %@",
     "Chip:  %@": "芯片:  %@",
@@ -503,6 +506,7 @@ let ES: [String: String] = [
         "Escribe un nombre de tema secreto. Instala la app ntfy en el teléfono y suscríbete al mismo tema: pausas, terminaciones y alarmas llegarán como push. Vacío = desactivado.",
     "The topic name is the ONLY protection: anyone who knows or guesses it can read your alerts and send fake ones. Click Generate for a random unguessable name. On your phone install the ntfy.sh app (from ntfy.sh - mind the lookalike apps) and subscribe to the same topic. Leave empty to disable.":
         "El nombre del tema es la ÚNICA protección: quien lo conozca o adivine verá tus alertas y podrá enviar falsas. Pulsa Generar para obtener un nombre aleatorio. Instala en el teléfono la app ntfy.sh (de ntfy.sh, cuidado con las imitaciones) y suscríbete al mismo tema. Vacío = desactivado.",
+    "A project of the AIrON student research club.": "Proyecto del club científico estudiantil AIrON.",
     "Generate": "Generar",
     "Model:  %@": "Modelo:  %@",
     "Chip:  %@": "Chip:  %@",
@@ -557,6 +561,31 @@ func customLogo() -> NSImage? {
     return img
 }
 
+/// Stopka: kolorowe logo z ~/.thermal-guard/logo_footer.png (w ciemnym motywie wariant
+/// logo_footer_dark.png z jasnym tekstem, jesli istnieje). Brak plikow = brak wiersza.
+final class FooterLogoRow: NSView {
+    static func make() -> FooterLogoRow? {
+        let dark = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        let candidates = dark ? ["/logo_footer_dark.png", "/logo_footer.png"] : ["/logo_footer.png"]
+        for c in candidates {
+            if let img = NSImage(contentsOfFile: base + c) { return FooterLogoRow(img: img) }
+        }
+        return nil
+    }
+
+    private init(img: NSImage) {
+        super.init(frame: NSRect(x: 0, y: 0, width: 400, height: 26))
+        let ratio = img.size.width / max(img.size.height, 1)
+        let h: CGFloat = 13
+        let w = min(h * ratio, 280)
+        let iv = NSImageView(frame: NSRect(x: (400 - w) / 2, y: 6, width: w, height: h))
+        iv.image = img
+        iv.imageScaling = .scaleProportionallyUpOrDown
+        addSubview(iv)
+    }
+    required init?(coder: NSCoder) { fatalError() }
+}
+
 /// Naglowek menu: logo + nazwa + wersja, wszystko WYSRODKOWANE. Gdy w ~/.thermal-guard
 /// lezy logo.png (u Pawla: znak AIrON), pokazujemy je; bez pliku rysujemy wlasny squircle.
 final class HeaderRow: NSView {
@@ -578,8 +607,8 @@ final class HeaderRow: NSView {
             iv.image = makeLogo(22)
             addSubview(iv)
         }
-        let name = NSTextField(labelWithString: "thermal-guard  ·  v\(VERSION)")
-        name.font = .systemFont(ofSize: 11, weight: .semibold)
+        let name = NSTextField(labelWithString: T("A project of the AIrON student research club."))
+        name.font = .systemFont(ofSize: 11)
         name.textColor = .secondaryLabelColor
         name.alignment = .center
         name.frame = NSRect(x: 0, y: 6, width: W, height: 14)
@@ -1083,8 +1112,8 @@ final class Bar: NSObject, NSMenuDelegate {
         if prefs.enabled(.ram), let u = s.ramUsed, let t = s.ramTotal, t > 0 {
             gap(); out.append(icon("memorychip", fallback: "RAM"))
             text(String(format: " %.0f%%", 100 * u / t))
-            // swap w uzyciu to mocniejszy sygnal presji pamieci niz sam procent
-            if (s.swap ?? 0) > 0.1 { out.append(icon("arrow.down.circle", fallback: "!")) }
+            // swap NIE dostaje ikony na pasku: macOS niemal zawsze trzyma troche swapu,
+            // wiec znaczek wygladal na przypadkowy; szczegoly sa w wierszu RAM w menu
         }
         if prefs.enabled(.disk), let p = s.diskPct {
             gap(); out.append(icon("internaldrive", fallback: "SSD")); text(" \(p)%")
@@ -1184,6 +1213,20 @@ final class Bar: NSObject, NSMenuDelegate {
             }
         }
 
+        // akcja zamrozenia TUZ POD odczytami i wykresem — tam, gdzie patrzysz, gdy jest goraco
+        m.addItem(.separator())
+        if !s.paused.isEmpty {
+            let it = m.addItem(withTitle: T("Resume paused jobs"),
+                               action: #selector(resume), keyEquivalent: "")
+            it.target = self
+            it.image = img("play.circle")
+        } else {
+            let it = m.addItem(withTitle: T("Freeze all heavy jobs now"),
+                               action: #selector(freeze), keyEquivalent: "")
+            it.target = self
+            it.image = img("pause.circle")
+        }
+
         m.addItem(.separator())
         // "Informacje o obciazeniu": zadania, top CPU/RAM, stan, progi, licznik dnia —
         // wszystko w rozwijanym podmenu, zeby glowna karta zostala zwarta
@@ -1238,18 +1281,6 @@ final class Bar: NSObject, NSMenuDelegate {
 
     func addTail(_ m: NSMenu, paused: Bool) {
         m.addItem(.separator())
-        if paused {
-            let it = m.addItem(withTitle: T("Resume paused jobs"),
-                               action: #selector(resume), keyEquivalent: "")
-            it.target = self
-            it.image = img("play.circle")
-        } else {
-            let it = m.addItem(withTitle: T("Freeze all heavy jobs now"),
-                               action: #selector(freeze), keyEquivalent: "")
-            it.target = self
-            it.image = img("pause.circle")
-        }
-
         // KEEP AWAKE jak w Amphetamine — tyle ze kazdy z tych trybow ma nadrzedny
         // bezpiecznik termiczny: przy przegrzaniu demon i tak zwalnia blokade snu.
         let ka = NSMenuItem(title: T("Keep awake"), action: nil, keyEquivalent: "")
@@ -1467,18 +1498,17 @@ final class Bar: NSObject, NSMenuDelegate {
         logIt.target = self
         logIt.image = img("text.alignleft")
 
-        // autostart przy logowaniu — default ON (tak instaluje install.sh)
-        let auto = m.addItem(withTitle: T("Start at login"), action: #selector(toggleAutostart), keyEquivalent: "")
-        auto.target = self
-        auto.image = img("power")
-        auto.state = Autostart.enabled() ? .on : .off
-
         m.addItem(.separator())
         m.addItem(withTitle: T("Report a problem (GitHub)..."), action: #selector(openIssues), keyEquivalent: "").target = self
         m.addItem(withTitle: T("Write to the author..."), action: #selector(mailAuthor), keyEquivalent: "").target = self
         m.addItem(.separator())
 
-        // stopka: sygnatura i "Zamknij heatbar" WYSRODKOWANE — domykaja menu wizualnie
+        // STOPKA: kolorowe logo firmowe, sygnatura, autostart i wysrodkowane Zamknij
+        if let footer = FooterLogoRow.make() {
+            let fi = NSMenuItem()
+            fi.view = footer
+            m.addItem(fi)
+        }
         let center = NSMutableParagraphStyle()
         center.alignment = .center
         let sig = NSMenuItem(title: "", action: nil, keyEquivalent: "")
@@ -1488,6 +1518,13 @@ final class Bar: NSObject, NSMenuDelegate {
                          .foregroundColor: NSColor.secondaryLabelColor])
         sig.isEnabled = false
         m.addItem(sig)
+
+        // autostart przy logowaniu — default ON (tak instaluje install.sh)
+        let auto = m.addItem(withTitle: T("Start at login"), action: #selector(toggleAutostart), keyEquivalent: "")
+        auto.target = self
+        auto.image = img("power")
+        auto.state = Autostart.enabled() ? .on : .off
+
         let quitIt = NSMenuItem(title: "", action: #selector(quit), keyEquivalent: "q")
         quitIt.target = self
         quitIt.attributedTitle = NSAttributedString(
