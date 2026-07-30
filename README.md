@@ -12,7 +12,7 @@ available to a normal user process.
 *(Polska wersja poniżej - [przejdź do opisu po polsku](#po-polsku).)*
 
 ```
-🌡 C67° G64° B33° 🌀3.3k 42W 🧠62% 💾46%
+C67°  G64°  B33°  ·  3.3k rpm  ·  42W  ·  RAM 62%  ·  disk 46%
 ```
 
 chip · GPU · battery · fan rpm · power draw · RAM used · disk used - and you choose which of
@@ -324,8 +324,8 @@ only battery temperature reacts long after the damage window has opened.
 
 ## Tests
 
-This code went through an unusual review process, and it is worth describing because it
-found bugs no single reviewer would have caught. Every risky area (signal handling on
+This project was **tested and refined with the help of AI - four heads at once** ;) and the
+process is worth describing, because it found bugs no single reviewer would have caught. Every risky area (signal handling on
 process groups, the CPU limiter, sleep-lock management, the crash detector) was reviewed
 by **four different AI models independently** - two local ones, GPT and Claude - across six
 review rounds, with every claim verified by hand against the actual code before anything
@@ -404,12 +404,12 @@ so they never depend on name matching.
 ### `heatbar` - menu bar
 
 ```
-🌡 C67° G64° B33° 🌀3.3k 42W ⚡ ⏸
+C67°  G64°  B33°  ·  3.3k rpm  ·  42W  ·  throttled  ·  paused
 ```
 
 chip / GPU / battery / fan rpm / power draw / RAM used / disk used, plus `⚡` when macOS is
-throttling and `⏸` when something is paused. `🌀⚠︎0` means the fans are stopped while the chip is
-hot; `🧠62%⚠︎` means RAM is 62 % used **and** the machine has started swapping.
+throttling and `⏸` when something is paused. a fan reading of 0 with a warning mark means the fans are stopped while the chip is
+hot; a RAM warning means memory is 62 % used **and** the machine has started swapping.
 
 Everything on the bar is optional - **Show in the bar** gives you a checkbox per element and the
 choice is remembered in `~/.thermal-guard/heatbar.json`. RAM and disk are off by default.
@@ -526,6 +526,20 @@ The shipped defaults are deliberately more conservative than Apple's own throttl
 - Some inline code comments are still in Polish.
 
 ---
+
+## Honest authorship note
+
+I work in Python. The Swift menu bar app exists because I build with AI as a pair - and this
+project takes that seriously: four different models reviewed each other's work across six
+rounds, and a second Mac audited the first one's install. The human here decided, verified
+and took the risks; the AI wrote a lot of the Swift. Both statements are true and I see no
+reason to hide either.
+
+## Buy me a double espresso ☕︎
+
+This project literally runs on the stuff - the release codename is "Double Espresso" and the
+keep-awake fuse is our answer to Caffeine. If thermal-guard saved your Mac (or your render):
+**https://suppi.pl/panbookovsky**
 
 ## License
 
@@ -706,8 +720,8 @@ na swojej maszynie: `fleet` (tabela + problemy), `fleet --watch` (odświeżanie)
 
 ## Testy
 
-Ten kod przeszedł nietypowy proces przeglądu - i warto go opisać, bo wyłapał błędy, których
-żaden pojedynczy recenzent by nie znalazł. Każdy ryzykowny obszar (sygnały na grupach
+Ten projekt był **testowany i udoskonalany z pomocą AI - czterech głów naraz** ;) a proces
+warto opisać, bo wyłapał błędy, których żaden pojedynczy recenzent by nie znalazł. Każdy ryzykowny obszar (sygnały na grupach
 procesów, limiter CPU, blokady snu, detektor padu) recenzowały **cztery różne modele AI
 niezależnie** - dwa lokalne, GPT i Claude - w sześciu rundach, a każde twierdzenie było
 weryfikowane ręcznie w kodzie, zanim cokolwiek zmieniono. Do tego **drugi Mac audytował
@@ -750,6 +764,20 @@ ma 40-55 °C, a Apple Silicon dławi się dopiero koło 100-108 °C. 45 °C to w
 Język: domyślnie angielski. Pasek menu, powiadomienia i wszystkie narzędzia CLI mówią w **pięciu
 językach** (angielski, polski, rosyjski, chiński, hiszpański) - przełączasz w menu paska
 (*Ustawienia > Język*) albo przez `"lang"` w `~/.thermal-guard/config.json` / `TG_LANG`.
+
+## Uczciwa notka o autorstwie
+
+Pracuję w Pythonie. Aplikacja paska menu w Swift istnieje, bo buduję w parze z AI - i ten
+projekt traktuje to poważnie: cztery różne modele recenzowały nawzajem swoją pracę w sześciu
+rundach, a drugi Mac audytował instalację pierwszego. Człowiek decydował, weryfikował i brał
+ryzyko; AI napisało sporo Swifta. Oba zdania są prawdziwe i nie widzę powodu, żeby którekolwiek
+ukrywać.
+
+## Postaw mi podwójne espresso ☕︎
+
+Ten projekt dosłownie na tym jeździ - kodowa nazwa wydania to „Double Espresso", a bezpiecznik
+keep-awake to nasza odpowiedź na Caffeine. Jeśli thermal-guard uratował Ci Maca (albo render):
+**https://suppi.pl/panbookovsky**
 
 ## Licencja
 
