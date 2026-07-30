@@ -1084,6 +1084,7 @@ def wykryj_twardy_pad():
         # mtime tylko jako ostatecznosc: przezywa cp -p, ale restore bez -p ustawia "teraz"
         # i rowniez maskowalby pad. Format: "<epoch> <czytelna data>"; starszy format (sam
         # tekst) czytamy przejsciowo po staremu.
+        boot = boot_time()
         puls = None
         raw = ""
         try:
@@ -1095,9 +1096,14 @@ def wykryj_twardy_pad():
         if puls is None:
             try:
                 puls = time.mktime(time.strptime(raw, "%Y-%m-%d %H:%M:%S"))
+                mt = os.path.getmtime(HEARTBEAT_PATH)
+                # legacy-tekst nie niesie strefy: przeczytany po zmianie strefy moze
+                # "przeskoczyc" boot i wyciszyc pad — gdy mtime mowi, ze puls byl
+                # sprzed bootu, ufamy mtime (okno jednej detekcji po upgrade; Neo 30.07)
+                if boot and puls >= boot > mt:
+                    puls = mt
             except Exception:
                 puls = os.path.getmtime(HEARTBEAT_PATH)
-        boot = boot_time()
         if not boot or puls >= boot:
             return None                       # puls z biezacej sesji — nic sie nie stalo
         if puls < boot - 30 * 86400:
@@ -1473,7 +1479,7 @@ def fleet_write(cfg, status):
         hw = _hw_cache_fleet()
         out["model"] = hw.get("model")
         out["serial"] = hw.get("serial")
-        out["guard_version"] = "1.7.4"
+        out["guard_version"] = "1.7.5"
         tmp = os.path.join(d, ".%s.tmp" % hostname())
         with open(tmp, "w") as f:
             json.dump(out, f, ensure_ascii=False)

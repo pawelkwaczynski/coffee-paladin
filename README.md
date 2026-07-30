@@ -1,4 +1,4 @@
-# thermal-guard v1.7.4
+# thermal-guard v1.7.5
 
 **A thermal and power safety net for Apple Silicon Macs — from one laptop to a whole fleet.**
 It watches the chip temperature, the battery, the fans and the power source, and it *freezes*
