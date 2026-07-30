@@ -1267,6 +1267,10 @@ def auto_calibrate(cfg, hw):
             changes.update({"soc_pause_c": 78.0, "soc_resume_c": 70.0, "soc_kill_c": 88.0})
             log("CALIBRATION: fanless Mac detected (%s) - chip thresholds 78/70/88"
                 % hw.get("model_name"))
+        # fanless pauzuje czesciej i dluzej (obudowa oddaje cieplo powoli) — 45 min limitu
+        # pauzy ubijaloby dlugie joby, ktore po prostu czekaja na ostygniecie
+        if cfg.get("max_pause_minutes") == DEFAULTS["max_pause_minutes"]:
+            changes["max_pause_minutes"] = 120
     else:
         log("CALIBRATION: %s, %s (%dP+%dE), %d GB RAM, fans: %s - thresholds %s"
             % (hw.get("model_name"), hw.get("chip"), hw.get("p_cores", 0),
