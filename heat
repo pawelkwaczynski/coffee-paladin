@@ -176,7 +176,25 @@ def sh(cmd, timeout=15):
         return ""
 
 
+ESPRESSO = r"""
+        ) )
+       ( (
+        ) )
+     .........
+     |       |]
+     \       /    thermal-guard "Double Espresso"
+      `-----'
+"""
+
+
 def main():
+    if "--espresso" in sys.argv:
+        print(ESPRESSO)
+        print("  " + ("Podwójne espresso: system czuwa, ekran śpi."
+                      if LANG == "pl" else
+                      "Double espresso: the system stays awake, the screen sleeps."))
+        print("  github.com/pawelkwaczynski/thermal-guard\n")
+        return 0
     state = sh([os.path.join(HOME, ".local/bin/thermalstate")]).strip() or "unknown"
     ioreg = sh(["ioreg", "-r", "-c", "AppleSmartBattery", "-d", "1", "-w", "0"])
     m = re.search(r'"Temperature"\s*=\s*(\d+)', ioreg)

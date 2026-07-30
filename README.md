@@ -200,6 +200,19 @@ the same instruction. Measured live: 89.3 °C → 60.2 °C in 19 seconds, comput
 
 ## Fleets: every Mac in one table
 
+Companies increasingly run local AI on Macs: a Mac mini or Studio with plenty of RAM, models
+on-prem, data that never leaves the building. Those machines grind 24/7 - just like render
+farms, post-production studios and CI pools. With 15+ week queues for new Macs and rising
+prices, losing one is not a minor incident, it is real downtime - every machine saved is
+real money.
+
+The fleet is deliberately simple: **the "server" is a folder your company already has**
+(iCloud, Dropbox, SharePoint, SMB/NAS). No accounts, no SaaS panel, no data leaving your
+folder - which makes compliance conversations short: IT sees plain JSON files in a place it
+already controls. `fleet --json` plus the exit code plug into alerts, cron, Grafana or Slack,
+and the guard on every machine keeps pausing overheating jobs and recording its black box
+on its own.
+
 ```
 FLEET: 14 machines, folder /Volumes/Studio/FleetTG
 
@@ -579,7 +592,7 @@ obietnica dalszego grzania.
 | W ogóle widzi temperaturę | nie | nie | **tak (chip, bateria, wentylatory)** |
 | Timer / dopóki działa apka / dopóki pobiera | timer | tak | tak |
 | Pauzuje zadania, które przegrzewają Maca | nie | nie | **tak** |
-| Zapisuje czarną skrzynkę przed twardym wyłączeniem (dowód do reklamacji) | nie | nie | **tak** |
+| Zapisuje czarną skrzynkę przed twardym wyłączeniem (dowód w przypadku awarii) | nie | nie | **tak** |
 | Open source | nie | nie | **MIT** |
 
 **Ekran śpi. Obliczenia nie.** Druga różnica względem rodziny Caffeine: klasyczne aplikacje
@@ -639,7 +652,7 @@ Gdy chip dobija do 90 °C o trzeciej w nocy, wykres tego faktu nie jest żadną 
 | Steruje wentylatorami | - | tak | nie (robi to macOS) |
 | **Wstrzymuje samą pracę, bezstratnie** | - | - | **tak - SIGSTOP/SIGCONT, zmierzone 89,3 → 60,2 °C w 19 s** |
 | Widzi orkiestratory rozsiewające sekundowe procesy | - | - | **tak - CPU całego drzewa procesów** |
-| Trzyma pomiary sprzed padu do reklamacji | - | - | **tak - czarna skrzynka + raport** |
+| Trzyma pomiary sprzed padu na wypadek awarii | - | - | **tak - czarna skrzynka + raport** |
 | Chroni długie obliczenia przed rozładowaniem | - | - | **tak - bramka baterii** |
 | Keep-awake trzymany **tylko gdy chłodno** | - | - | **tak - bezpiecznik termiczny** |
 | Cała flota w jednej tabeli, bez serwera | - | - | **tak - wspólny folder** |
@@ -647,11 +660,26 @@ Gdy chip dobija do 90 °C o trzeciej w nocy, wykres tego faktu nie jest żadną 
 
 ## Flota: wszystkie Maki w jednej tabeli
 
-Każdy agent publikuje migawkę do **wspólnego folderu** (`<host>.json`, co ~1 min), a polecenie
-`fleet` czyta ten folder. Folderem może być: **iCloud Drive** (to samo Apple ID na Twoich Makach -
-najbliższy odpowiednik „spięcia jednym Apple ID", bo Apple nie daje API do flot), **Dropbox /
-Google Drive** (folder udostępniony zespołowi), **SharePoint** (droga korporacyjna) albo **dysk
-sieciowy NAS/SMB** (droga farmy renderującej - najszybsza, bez opóźnień chmury).
+Firmy coraz częściej stawiają lokalne AI na Makach: Mac mini albo Mac Studio z dużym RAM-em,
+modele on-prem, dane bez wysyłania do chmury. Te maszyny mielą 24/7 - tak samo jak farmy
+renderujące, studia postprodukcji i pule CI. Przy kolejkach na nowe Maki rzędu 15+ tygodni
+i podwyżkach cen utrata jednej sztuki to nie drobna awaria, tylko realny przestój - każda
+uratowana maszyna to konkretny pieniądz.
+
+Flota w thermal-guard jest prosta: każdy Mac publikuje co około minutę migawkę JSON do
+wspólnego folderu, a `fleet` i pasek menu składają z tych plików jedną tabelę: temperatura,
+wentylatory, waty, RAM, stan, wstrzymane zadania i ostatni raport. Maszyny mają własne nazwy,
+model i numer seryjny; po 5 minutach ciszy dostają znacznik `NIE RAPORTUJE`. **„Serwerem" jest
+folder, który firma już ma** - iCloud, Dropbox, SharePoint albo SMB/NAS.
+
+Nie ma serwera, kont, panelu SaaS ani danych wychodzących poza folder firmy. To ułatwia
+compliance: IT widzi zwykłe pliki JSON w miejscu, którym samo zarządza. `fleet --json` plus
+kod wyjścia wpinają się w alerty, cron, Grafanę albo Slacka, a guard na każdej maszynie sam
+pauzuje przegrzane zadania i zbiera czarną skrzynkę na wypadek awarii.
+
+Konkretnie daje to: wgląd w całą flotę bez wdrażania infrastruktury, dłuższe życie sprzętu
+pracującego pod pełnym obciążeniem, szybkie wykrycie maszyn, które przestały raportować,
+i dowody dla serwisu po twardym padzie.
 
 Świeża instalacja startuje w **trybie obserwacji**: mierzy, loguje i alarmuje (też dźwiękiem),
 ale niczego nie wstrzymuje, dopóki nie włączysz ochrony - jednym kliknięciem w menu paska.

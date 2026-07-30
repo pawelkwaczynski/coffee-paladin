@@ -17,7 +17,8 @@
 import Cocoa
 
 let VERSION = "1.7.5"
-let SIGNATURE = "thermal-guard v\(VERSION)  ·  FOCUS FRAME 2026"
+let CODENAME = "Double Espresso"
+let SIGNATURE = "thermal-guard v\(VERSION) \u{201E}\(CODENAME)\u{201D}  ·  FOCUS FRAME 2026"
 
 let base = NSString(string: "~/.thermal-guard").expandingTildeInPath
 let statusPath = base + "/status.json"
