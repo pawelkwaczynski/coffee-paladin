@@ -1097,7 +1097,10 @@ def wykryj_twardy_pad():
             log("heartbeat implausibly old (%s) - ignoring as unreliable, not recording" % ts(puls))
             return None
         czyste = os.path.getmtime(CLEAN_STOP_PATH) if os.path.exists(CLEAN_STOP_PATH) else 0
-        if czyste >= puls - 60:
+        # znacznik czystego zamkniecia liczy sie TYLKO gdy pochodzi sprzed biezacego bootu —
+        # clean_stop z aktualnej sesji albo artefakt (backup, cp -p, zegar z przyszlosci)
+        # nie moze wyciszyc prawdziwego twardego padu (finalny przeglad Codex, 30.07)
+        if puls - 60 <= czyste < boot:
             return None                       # guard zostal zamkniety po ludzku
         # ostatnie pomiary sprzed zgasniecia — to jest material dowodowy
         ogon = []
