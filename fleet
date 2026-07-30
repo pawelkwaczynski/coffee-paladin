@@ -30,14 +30,17 @@ import time
 BASE = os.path.expanduser("~/.thermal-guard")
 
 
+SUPPORTED_LANGS = ("en", "pl", "ru", "zh", "es")
+
+
 def _lang():
     v = (os.environ.get("TG_LANG") or "").lower()[:2]
-    if v in ("pl", "en"):
+    if v in SUPPORTED_LANGS:
         return v
     try:
         with open(os.path.join(BASE, "config.json")) as f:
             v = (json.load(f).get("lang") or "").lower()[:2]
-        if v in ("pl", "en"):
+        if v in SUPPORTED_LANGS:
             return v
     except Exception:
         pass
@@ -76,9 +79,101 @@ PL = {
     "cancelled": "anulowano",
 }
 
+RU = {
+    "FLEET: %d machine(s), folder %s": "ПАРК: %d машин(ы), папка %s",
+    "no fleet folder - set \"fleet_dir\" in ~/.thermal-guard/config.json or pass --dir":
+        "нет папки парка - задайте \"fleet_dir\" в ~/.thermal-guard/config.json или передайте --dir",
+    "no agent snapshots in %s (agents publish about once a minute)":
+        "нет снимков агентов в %s (агенты публикуют примерно раз в минуту)",
+    "HOST": "ХОСТ", "CHIP": "ЧИП", "FAN": "ВЕНТ", "POWER": "МОЩН", "RAM": "RAM",
+    "DISK": "ДИСК", "STATE": "СОСТ", "TODAY": "СЕГОДНЯ", "SEEN": "ВИДЕЛИ", "ISSUES": "ПРОБЛЕМЫ",
+    "now": "сейчас", "%d min ago": "%d мин назад", "%d h ago": "%d ч назад",
+    "calm": "спокойно", "warm": "тепло", "HOT": "ГОРЯЧО", "CRIT": "КРИТ",
+    "STALE - not reporting": "НЕ ОТЧИТЫВАЕТСЯ",
+    "hard shutdown %s": "жёсткое выключение %s",
+    "throttled to %d%%": "ограничен до %d%%",
+    "fans dead at %.0f C": "вентиляторы стоят при %.0f C",
+    "battery %d%% unplugged": "батарея %d%% без адаптера",
+    "disk %d%% full": "диск заполнен на %d%%",
+    "paused: %s": "приостановлено: %s",
+    "%d machine(s) need attention:": "%d машин(ы) требуют внимания:",
+    "all machines look fine": "все машины выглядят нормально",
+    "fleet_dir saved: %s (the agent starts publishing within a minute)":
+        "fleet_dir сохранён: %s (агент начнёт публиковать в течение минуты)",
+    "no synced folders detected - pass the path yourself: fleet --set-dir <folder>":
+        "синхронизируемые папки не найдены - укажите путь сами: fleet --set-dir <папка>",
+    "Detected folders every machine of yours could share:":
+        "Найденные папки, которые могут разделять все ваши машины:",
+    "Pick a number (the SAME folder must be set on every machine):":
+        "Выберите номер (ТА ЖЕ папка должна быть задана на каждой машине):",
+    "cancelled": "отменено",
+}
+
+ZH = {
+    "FLEET: %d machine(s), folder %s": "机群: %d 台机器, 文件夹 %s",
+    "no fleet folder - set \"fleet_dir\" in ~/.thermal-guard/config.json or pass --dir":
+        "没有机群文件夹 - 请在 ~/.thermal-guard/config.json 中设置 \"fleet_dir\" 或传入 --dir",
+    "no agent snapshots in %s (agents publish about once a minute)":
+        "%s 中没有代理快照(代理约每分钟发布一次)",
+    "HOST": "主机", "CHIP": "芯片", "FAN": "风扇", "POWER": "功耗", "RAM": "内存",
+    "DISK": "磁盘", "STATE": "状态", "TODAY": "今天", "SEEN": "最后上报", "ISSUES": "问题",
+    "now": "现在", "%d min ago": "%d 分钟前", "%d h ago": "%d 小时前",
+    "calm": "正常", "warm": "偏热", "HOT": "过热", "CRIT": "危急",
+    "STALE - not reporting": "未上报",
+    "hard shutdown %s": "硬关机 %s",
+    "throttled to %d%%": "降频至 %d%%",
+    "fans dead at %.0f C": "%.0f C 时风扇停转",
+    "battery %d%% unplugged": "电池 %d%% 且未接电源",
+    "disk %d%% full": "磁盘已满 %d%%",
+    "paused: %s": "已暂停: %s",
+    "%d machine(s) need attention:": "%d 台机器需要关注:",
+    "all machines look fine": "所有机器状态良好",
+    "fleet_dir saved: %s (the agent starts publishing within a minute)":
+        "fleet_dir 已保存: %s (代理将在一分钟内开始发布)",
+    "no synced folders detected - pass the path yourself: fleet --set-dir <folder>":
+        "未检测到同步文件夹 - 请自行指定路径: fleet --set-dir <文件夹>",
+    "Detected folders every machine of yours could share:":
+        "检测到的、你的所有机器都能共享的文件夹:",
+    "Pick a number (the SAME folder must be set on every machine):":
+        "选择一个编号(每台机器必须设置同一个文件夹):",
+    "cancelled": "已取消",
+}
+
+ES = {
+    "FLEET: %d machine(s), folder %s": "FLOTA: %d máquina(s), carpeta %s",
+    "no fleet folder - set \"fleet_dir\" in ~/.thermal-guard/config.json or pass --dir":
+        "sin carpeta de flota - define \"fleet_dir\" en ~/.thermal-guard/config.json o pasa --dir",
+    "no agent snapshots in %s (agents publish about once a minute)":
+        "no hay instantáneas de agentes en %s (los agentes publican una vez por minuto)",
+    "HOST": "HOST", "CHIP": "CHIP", "FAN": "VENT", "POWER": "POT", "RAM": "RAM",
+    "DISK": "DISCO", "STATE": "ESTADO", "TODAY": "HOY", "SEEN": "VISTO", "ISSUES": "PROBLEMAS",
+    "now": "ahora", "%d min ago": "hace %d min", "%d h ago": "hace %d h",
+    "calm": "tranquilo", "warm": "templado", "HOT": "CALIENTE", "CRIT": "CRÍT",
+    "STALE - not reporting": "SIN REPORTAR",
+    "hard shutdown %s": "apagado brusco %s",
+    "throttled to %d%%": "limitado al %d%%",
+    "fans dead at %.0f C": "ventiladores parados a %.0f C",
+    "battery %d%% unplugged": "batería %d%% sin adaptador",
+    "disk %d%% full": "disco al %d%%",
+    "paused: %s": "en pausa: %s",
+    "%d machine(s) need attention:": "%d máquina(s) necesitan atención:",
+    "all machines look fine": "todas las máquinas se ven bien",
+    "fleet_dir saved: %s (the agent starts publishing within a minute)":
+        "fleet_dir guardado: %s (el agente empieza a publicar en un minuto)",
+    "no synced folders detected - pass the path yourself: fleet --set-dir <folder>":
+        "no se detectaron carpetas sincronizadas - pasa la ruta tú mismo: fleet --set-dir <carpeta>",
+    "Detected folders every machine of yours could share:":
+        "Carpetas detectadas que todas tus máquinas podrían compartir:",
+    "Pick a number (the SAME folder must be set on every machine):":
+        "Elige un número (la MISMA carpeta debe configurarse en cada máquina):",
+    "cancelled": "cancelado",
+}
+
+DICTS = {"pl": PL, "ru": RU, "zh": ZH, "es": ES}
+
 
 def T(s):
-    return PL.get(s, s) if LANG == "pl" else s
+    return DICTS.get(LANG, {}).get(s, s)
 
 
 def fleet_dir_from_config():

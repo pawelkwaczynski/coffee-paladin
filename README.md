@@ -1,4 +1,4 @@
-# thermal-guard v1.3
+# thermal-guard v1.5
 
 **A thermal and power safety net for Apple Silicon Macs — from one laptop to a whole fleet.**
 It watches the chip temperature, the battery, the fans and the power source, and it *freezes*
@@ -16,8 +16,9 @@ available to a normal user process.
 ```
 
 chip · GPU · battery · fan rpm · power draw · RAM used · disk used — and you choose which of
-those appear, with checkboxes under **Show in the bar**. Messages come in English by default,
-Polish with `TG_LANG=pl` or `"lang": "pl"` in the config.
+those appear, with checkboxes under **Show in the bar**. The menu bar, the notifications and all
+CLI tools speak **five languages** — English (default), Polish, Russian, Chinese and Spanish —
+switched from the menu bar (*Settings > Language*), with `TG_LANG` or `"lang"` in the config.
 
 ---
 
@@ -87,7 +88,24 @@ So thermal-guard:
 - **Fan alarm** — if the chip is above 70 °C and both fans report 0 rpm, you get a notification
   and a log entry. A seized fan is a common cause of exactly the burning smell described above.
 
-### 4. It keeps evidence (the black box)
+### 4. It keeps the Mac awake — with a fuse
+
+`safe-run` holds a sleep block (`caffeinate`) for exactly as long as the job runs, and the daemon
+can do the same automatically for any heavy job it sees (*Keep the Mac awake while heavy jobs
+run* in Settings — off by default). The difference from Caffeine/Amphetamine is the **fuse**:
+the wake lock is held **only while the machine is cool**. The moment the guard pauses jobs for
+heat, the lock is released — sleep is the fastest cooler there is — and an unconditional
+keep-awake in a backpack is precisely how MacBooks get cooked. When the job ends, the Mac goes
+back to sleeping normally. A cup icon on the bar shows when the lock is held.
+
+### 5. It escalates so you cannot miss it
+
+Notification with a distinct sound at pause, resume and kill — and at the **critical** level
+additionally a **system alert on top of everything** (`critical_banner`, its own 3-minute gap,
+self-dismissing). A notification is easy to miss under Focus or a full-screen app; the critical
+banner is not.
+
+### 6. It keeps evidence (the black box)
 
 The daemon writes a heartbeat on every cycle and a marker on clean shutdown. After a restart it
 compares those against `kern.boottime`. If the machine went down without warning, it records the
@@ -116,6 +134,7 @@ thermal-guard occupies a different category:
 | Sees orchestrators spawning 1-second children | – | – | **yes — subtree CPU accounting** |
 | Keeps pre-crash readings for a warranty claim | – | – | **yes — black box + report** |
 | Protects long jobs from draining the battery | – | – | **yes — battery gate** |
+| Keeps the Mac awake for a job **only while it is cool** | – | – | **yes — keep-awake with a thermal fuse** |
 | Whole-fleet view with zero infrastructure | – | – | **yes — a shared folder** |
 | Needs sudo / kexts / accounts | varies | often | **no** |
 
@@ -302,8 +321,10 @@ Everything on the bar is optional — **Show in the bar** gives you a checkbox p
 choice is remembered in `~/.thermal-guard/heatbar.json`. RAM and disk are off by default.
 
 The menu adds a block-character temperature graph, a trend and forecast ("rising 2.1 °C/min —
-about 4 minutes to pause"), running `safe-run` jobs, today's intervention count, a manual
-**Freeze / Resume** control, and **Export report**.
+about 4 minutes to pause"), **what is heating the machine right now** (top 3 by CPU — the best
+per-process proxy for heat there is) and **what is eating the RAM** (top 3 by resident memory),
+running `safe-run` jobs, today's intervention count, a manual **Freeze / Resume** control, and
+**Export report**.
 
 The bar measures nothing itself — it reads `~/.thermal-guard/status.json`, which the daemon writes
 every cycle. It therefore costs no CPU and can never disagree with the guard. Manual commands are
@@ -353,8 +374,11 @@ set. That is exactly what the slider is for.
 | `never_patterns` | see `guard.py` | never touched, overrides everything |
 | `never_extra` | `[]` | your own additions to the never-touch list (tools you do not want frozen) |
 | `never_arg_patterns` | guard's own tooling | matched against the **full command line**, useful when a job runs under an interpreter |
-| `lang` | `en` | `en` or `pl` |
+| `lang` | `en` | `en`, `pl`, `ru`, `zh` or `es` |
 | `dry_run` | **`true`** | watch-only: log and alert, never signal (disable to arm the guard) |
+| `critical_banner` | `true` | modal system alert at the critical level (own 180 s gap, self-dismissing) |
+| `keep_awake_auto` | `false` | hold a sleep block while a heavy job runs **and** the machine is cool |
+| `sound` | `true` | distinct system sound per event (pause / resume / kill) |
 | `fleet_dir` | `""` | shared folder for fleet snapshots (see the fleet section) |
 
 ### A note on numbers, because this trips people up
@@ -378,8 +402,9 @@ The shipped defaults are deliberately more conservative than Apple's own throttl
 - **Apple Silicon only.**
 - The LaunchAgent labels are `pl.pawel.thermal-guard` and `pl.pawel.heatbar`. Rename them in the
   plists if you prefer something neutral.
-- Messages are English by default; `TG_LANG=pl` or `"lang": "pl"` in `config.json` switches every
-  tool and the menu bar to Polish. Adding a language means adding one dictionary per file.
+- Messages are English by default; `"lang"` in `config.json` (or `TG_LANG`) switches every tool,
+  the notifications and the menu bar to Polish, Russian, Chinese or Spanish. Adding a language
+  means adding one dictionary per file.
 - Some inline code comments are still in Polish.
 
 ---
@@ -438,6 +463,18 @@ ciężkie **każde** zadanie powyżej 50 % CPU żyjące dłużej niż 2 minuty, 
 **Pilnuje zasilania.** Na baterii poniżej 10 % pauzuje długie obliczenia i wznawia je dopiero po
 podpięciu zasilacza — czekanie na kabel nie jest awarią, więc taka pauza może trwać godzinami.
 Osobno ostrzega, gdy chip przekracza 70 °C, a wentylatory stoją.
+
+**Trzyma Maca w czuwaniu — ale z bezpiecznikiem.** `safe-run` blokuje sen dokładnie na czas
+zadania (`caffeinate`), a demon umie robić to sam dla każdego ciężkiego zadania (opcja w
+Ustawieniach, domyślnie wyłączona). Różnica względem Caffeine/Amphetamine: blokada czuwania
+trzymana jest **tylko póki maszyna jest chłodna** — przy przegrzaniu guard ją zwalnia, bo sen
+chłodzi najszybciej. Bezwarunkowy keep-awake w plecaku to klasyczna droga do ugotowania laptopa.
+Kubek na pasku pokazuje, kiedy blokada jest trzymana.
+
+**Alarmuje tak, że nie da się przeoczyć.** Powiadomienie z osobnym dźwiękiem przy pauzie,
+wznowieniu i ubiciu — a przy poziomie **krytycznym** dodatkowo **modalny alert systemowy na
+wierzchu wszystkiego** (`critical_banner`, własny odstęp 3 min, sam znika). Powiadomienie łatwo
+zginie pod Skupieniem albo aplikacją na pełnym ekranie; ten baner nie zginie.
 
 **Zbiera dowody.** Tyka puls przy każdym przebiegu, a po restarcie porównuje go z czasem startu
 systemu. Jeśli Mac zgasł bez uprzedzenia, zapisuje to zdarzenie razem z ośmioma ostatnimi
@@ -500,15 +537,18 @@ bash install.sh
 - `heat` — jednym poleceniem: jak gorąco, co grzeje, czy bezpiecznik żyje
 - `safe-run --hours 8 --name render -- <polecenie>` — tak uruchamiaj ciężkie zadania
 - `heatbar` — pasek menu: chip, GPU, bateria, obroty, waty, RAM i dysk (wybierasz checkboxami
-  w „Pokaż na pasku"), wykres, prognoza, ręczne zamrażanie i eksport raportu
+  w „Pokaż na pasku"), wykres, prognoza, listy „co grzeje" (top 3 po CPU — najlepsze dostępne
+  przybliżenie ciepła per proces) i „co zjada RAM" (top 3 po pamięci), ręczne zamrażanie
+  i eksport raportu
 - `thermal-report --dni 14` — raport dowodowy dla serwisu
 
 Progi w `~/.thermal-guard/config.json`. **Nie ustawiaj progu chipa na 45 °C** — bezczynny M4 Pro
 ma 40-55 °C, a Apple Silicon dławi się dopiero koło 100-108 °C. 45 °C to właściwa liczba dla
 *baterii* i tam jest używana.
 
-Język: domyślnie angielski. `TG_LANG=pl` albo `"lang": "pl"` w `~/.thermal-guard/config.json`
-przełącza wszystkie narzędzia i pasek na polski.
+Język: domyślnie angielski. Pasek menu, powiadomienia i wszystkie narzędzia CLI mówią w **pięciu
+językach** (angielski, polski, rosyjski, chiński, hiszpański) — przełączasz w menu paska
+(*Ustawienia > Język*) albo przez `"lang"` w `~/.thermal-guard/config.json` / `TG_LANG`.
 
 ## Licencja
 

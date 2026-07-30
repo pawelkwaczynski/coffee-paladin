@@ -38,14 +38,17 @@ THERMALSTATE = os.path.join(HOME, ".local/bin/thermalstate")
 AGENT_LABEL = "pl.pawel.thermal-guard"
 
 
+SUPPORTED_LANGS = ("en", "pl", "ru", "zh", "es")
+
+
 def _lang():
     v = (os.environ.get("TG_LANG") or "").lower()[:2]
-    if v in ("pl", "en"):
+    if v in SUPPORTED_LANGS:
         return v
     try:
         with open(os.path.join(BASE, "config.json")) as f:
             v = (json.load(f).get("lang") or "").lower()[:2]
-        if v in ("pl", "en"):
+        if v in SUPPORTED_LANGS:
             return v
     except Exception:
         pass
@@ -77,9 +80,80 @@ PL = {
     "terminated by the time budget": "ubite przez limit czasu",
 }
 
+RU = {
+    "safe-run: unknown option %s": "safe-run: неизвестный параметр %s",
+    "safe-run: thermal state=%s, battery=%s, time budget=%.1f h":
+        "safe-run: термосостояние=%s, батарея=%s, лимит времени=%.1f ч",
+    "safe-run: REFUSING TO START - the Mac is already hot. Let it cool down or pass --allow-hot.":
+        "safe-run: ОТКАЗ ЗАПУСКА - Mac уже горячий. Дайте ему остыть или передайте --allow-hot.",
+    "safe-run: thermal-guard is not running - trying to start it...":
+        "safe-run: thermal-guard не работает - пробую запустить...",
+    "safe-run: WARNING - the guard did not start, this job will NOT be supervised.":
+        "safe-run: ВНИМАНИЕ - guard не запустился, задача останется БЕЗ присмотра.",
+    "safe-run: cannot start: %r": "safe-run: не могу запустить: %r",
+    "safe-run: TIME BUDGET %.1f h reached - terminating the job (SIGTERM)":
+        "safe-run: ЛИМИТ ВРЕМЕНИ %.1f ч исчерпан - завершаю задачу (SIGTERM)",
+    "safe-run: %s - exit code %s, took %dh %dm, peak temperature %s%s":
+        "safe-run: %s - код %s, время %dч %dм, пик температуры %s%s",
+    "safe-run: the job was stopped by signal %d - check ~/.thermal-guard/guard.log":
+        "safe-run: задача остановлена сигналом %d - смотрите ~/.thermal-guard/guard.log",
+    "finished": "завершено",
+    "failed": "неудачно",
+    "n/a": "н/д",
+    "terminated by the time budget": "завершено по лимиту времени",
+}
+
+ZH = {
+    "safe-run: unknown option %s": "safe-run: 未知选项 %s",
+    "safe-run: thermal state=%s, battery=%s, time budget=%.1f h":
+        "safe-run: 热状态=%s, 电池=%s, 时间预算=%.1f 小时",
+    "safe-run: REFUSING TO START - the Mac is already hot. Let it cool down or pass --allow-hot.":
+        "safe-run: 拒绝启动 - Mac 已经过热。请等待降温或使用 --allow-hot。",
+    "safe-run: thermal-guard is not running - trying to start it...":
+        "safe-run: thermal-guard 未运行 - 正在尝试启动...",
+    "safe-run: WARNING - the guard did not start, this job will NOT be supervised.":
+        "safe-run: 警告 - guard 未能启动, 该任务将不受监管。",
+    "safe-run: cannot start: %r": "safe-run: 无法启动: %r",
+    "safe-run: TIME BUDGET %.1f h reached - terminating the job (SIGTERM)":
+        "safe-run: 已达到时间预算 %.1f 小时 - 正在终止任务 (SIGTERM)",
+    "safe-run: %s - exit code %s, took %dh %dm, peak temperature %s%s":
+        "safe-run: %s - 退出码 %s, 用时 %d 小时 %d 分, 峰值温度 %s%s",
+    "safe-run: the job was stopped by signal %d - check ~/.thermal-guard/guard.log":
+        "safe-run: 任务被信号 %d 停止 - 请查看 ~/.thermal-guard/guard.log",
+    "finished": "已完成",
+    "failed": "失败",
+    "n/a": "无",
+    "terminated by the time budget": "因时间预算终止",
+}
+
+ES = {
+    "safe-run: unknown option %s": "safe-run: opción desconocida %s",
+    "safe-run: thermal state=%s, battery=%s, time budget=%.1f h":
+        "safe-run: estado térmico=%s, batería=%s, límite de tiempo=%.1f h",
+    "safe-run: REFUSING TO START - the Mac is already hot. Let it cool down or pass --allow-hot.":
+        "safe-run: ME NIEGO A EMPEZAR - el Mac ya está caliente. Déjalo enfriarse o pasa --allow-hot.",
+    "safe-run: thermal-guard is not running - trying to start it...":
+        "safe-run: thermal-guard no está funcionando - intentando arrancarlo...",
+    "safe-run: WARNING - the guard did not start, this job will NOT be supervised.":
+        "safe-run: AVISO - el guard no arrancó, esta tarea NO estará supervisada.",
+    "safe-run: cannot start: %r": "safe-run: no puedo arrancar: %r",
+    "safe-run: TIME BUDGET %.1f h reached - terminating the job (SIGTERM)":
+        "safe-run: LÍMITE DE TIEMPO %.1f h alcanzado - terminando la tarea (SIGTERM)",
+    "safe-run: %s - exit code %s, took %dh %dm, peak temperature %s%s":
+        "safe-run: %s - código %s, duró %dh %dm, temperatura máxima %s%s",
+    "safe-run: the job was stopped by signal %d - check ~/.thermal-guard/guard.log":
+        "safe-run: la tarea fue detenida por la señal %d - revisa ~/.thermal-guard/guard.log",
+    "finished": "terminada",
+    "failed": "fallida",
+    "n/a": "n/d",
+    "terminated by the time budget": "terminada por el límite de tiempo",
+}
+
+DICTS = {"pl": PL, "ru": RU, "zh": ZH, "es": ES}
+
 
 def T(s):
-    return PL.get(s, s) if LANG == "pl" else s
+    return DICTS.get(LANG, {}).get(s, s)
 
 HOT = ("serious", "critical")
 
@@ -147,7 +221,7 @@ def parse():
         elif a == "--allow-hot":
             opt["allow_hot"] = True; i += 1
         elif a == "--normal":
-            opt["normal"] = True
+            opt["normal"] = True; i += 1
         elif a == "--allow-sleep":
             opt["allow_sleep"] = True; i += 1
         elif a in ("-h", "--help"):

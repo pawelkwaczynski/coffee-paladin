@@ -91,6 +91,11 @@ DEFAULTS = {
     "demote_cpu_percent": 60.0,
     "notify": True,
     "notify_min_gap_s": 300,
+    # BANER przy poziomie krytycznym: zwykle powiadomienie latwo przeoczyc (Skupienie,
+    # aplikacja na pelnym ekranie) — modalny alert systemowy przebija sie zawsze.
+    # Osobny odstep, bo to najwyzszy kaliber alarmu i nie moze spamowac.
+    "critical_banner": True,
+    "critical_banner_gap_s": 180,
     # dzwieki systemowe przy zdarzeniach (afplay — dziala nawet gdy powiadomienia sa
     # wyciszone przez Skupienie). Rozne zdarzenia maja rozne dzwieki, zeby dalo sie
     # rozpoznac bez patrzenia: pauza=nisko, wznowienie=szklo, ubicie/pad=powaznie.
@@ -169,15 +174,18 @@ def load_cfg():
 
 # ---------------------------------------------------------------- jezyk
 
+SUPPORTED_LANGS = ("en", "pl", "ru", "zh", "es")
+
+
 def _lang():
     """Jezyk komunikatow: TG_LANG, potem "lang" w config.json, domyslnie angielski."""
     v = (os.environ.get("TG_LANG") or "").lower()[:2]
-    if v in ("pl", "en"):
+    if v in SUPPORTED_LANGS:
         return v
     try:
         with open(CFG_PATH) as f:
             v = (json.load(f).get("lang") or "").lower()[:2]
-        if v in ("pl", "en"):
+        if v in SUPPORTED_LANGS:
             return v
     except Exception:
         pass
@@ -251,12 +259,135 @@ PL = {
     "AC": "AC",
     "battery %s%%": "bateria %s%%",
     "calm": "spokoj",
+    "Thermal guard: CRITICAL overheating": "Thermal guard: KRYTYCZNE przegrzanie",
+    "The Mac is critically hot (%s). Heavy jobs are being stopped.":
+        "Mac jest krytycznie gorący (%s). Ciężkie zadania są zatrzymywane.",
+    "The Mac is critically hot (%s). Watch-only mode - nothing is being stopped.":
+        "Mac jest krytycznie gorący (%s). Tryb obserwacji - nic nie jest zatrzymywane.",
 }
+
+# Powiadomienia i alerty w pozostalych jezykach paska (ru/zh/es). Tlumaczymy to, co widzi
+# czlowiek (powiadomienia, baner, powody) — log techniczny zostaje po angielsku/polsku.
+RU = {
+    "Thermal guard: hot": "Thermal guard: горячо",
+    "Thermal guard (watch-only): hot": "Thermal guard (наблюдение): горячо",
+    "Would pause %s - %s. Protection is off.":
+        "Приостановил бы %s - %s. Защита выключена.",
+    "Paused: %s (%s)": "Приостановлено: %s (%s)",
+    "Thermal guard: cooled down": "Thermal guard: остыло",
+    "Resumed paused jobs (%s)": "Возобновлены приостановленные задачи (%s)",
+    "Thermal guard: STOPPED": "Thermal guard: ОСТАНОВЛЕНО",
+    "Jobs terminated (%s). Resume from a checkpoint once the Mac has cooled down.":
+        "Задачи завершены (%s). Возобновите с контрольной точки, когда Mac остынет.",
+    "Mac shut down without warning": "Mac выключился без предупреждения",
+    "Evidence from the moment of the crash was saved - menu bar > Export report":
+        "Данные с момента сбоя сохранены - строка меню > Экспорт отчёта",
+    "Nothing to freeze": "Нечего приостанавливать",
+    "No heavy job meets the conditions": "Ни одна тяжёлая задача не подходит под условия",
+    "Fans stopped while the chip is hot": "Вентиляторы стоят при горячем чипе",
+    "COOLING FAILURE? chip %.1f C while both fans report 0 rpm":
+        "ОТКАЗ ОХЛАЖДЕНИЯ? чип %.1f C, а оба вентилятора 0 об/мин",
+    "chip %.1f C": "чип %.1f C",
+    "battery %.1f C": "батарея %.1f C",
+    "thermal state=%s": "термосостояние=%s",
+    "thermal state=critical": "термосостояние=critical",
+    "thermal state=fair": "термосостояние=fair",
+    "CPU throttled to %d%%": "CPU ограничен до %d%%",
+    "battery %d%% on battery power": "батарея %d%% без адаптера",
+    "CRITICAL: ": "КРИТИЧНО: ",
+    "MANUAL FREEZE (from the menu bar)": "РУЧНАЯ ПАУЗА (из строки меню)",
+    "manual resume (from the menu bar)": "ручное возобновление (из строки меню)",
+    "conditions are back to normal": "условия вернулись в норму",
+    "paused for longer than %d min": "в паузе дольше %d мин",
+    "Thermal guard: CRITICAL overheating": "Thermal guard: КРИТИЧЕСКИЙ перегрев",
+    "The Mac is critically hot (%s). Heavy jobs are being stopped.":
+        "Mac критически горячий (%s). Тяжёлые задачи останавливаются.",
+    "The Mac is critically hot (%s). Watch-only mode - nothing is being stopped.":
+        "Mac критически горячий (%s). Режим наблюдения - ничего не останавливается.",
+}
+
+ZH = {
+    "Thermal guard: hot": "Thermal guard：过热",
+    "Thermal guard (watch-only): hot": "Thermal guard（仅观察）：过热",
+    "Would pause %s - %s. Protection is off.": "本应暂停 %s - %s。保护已关闭。",
+    "Paused: %s (%s)": "已暂停:%s(%s)",
+    "Thermal guard: cooled down": "Thermal guard:已降温",
+    "Resumed paused jobs (%s)": "已恢复暂停的任务(%s)",
+    "Thermal guard: STOPPED": "Thermal guard:已终止",
+    "Jobs terminated (%s). Resume from a checkpoint once the Mac has cooled down.":
+        "任务已终止(%s)。等 Mac 降温后从检查点恢复。",
+    "Mac shut down without warning": "Mac 毫无预警地关机了",
+    "Evidence from the moment of the crash was saved - menu bar > Export report":
+        "已保存崩溃时刻的证据 - 菜单栏 > 导出报告",
+    "Nothing to freeze": "没有可暂停的任务",
+    "No heavy job meets the conditions": "没有符合条件的繁重任务",
+    "Fans stopped while the chip is hot": "芯片过热时风扇停转",
+    "COOLING FAILURE? chip %.1f C while both fans report 0 rpm":
+        "散热故障?芯片 %.1f C,而两个风扇均为 0 转/分",
+    "chip %.1f C": "芯片 %.1f C",
+    "battery %.1f C": "电池 %.1f C",
+    "thermal state=%s": "热状态=%s",
+    "thermal state=critical": "热状态=critical",
+    "thermal state=fair": "热状态=fair",
+    "CPU throttled to %d%%": "CPU 降频至 %d%%",
+    "battery %d%% on battery power": "电池 %d%% 且未接电源",
+    "CRITICAL: ": "危急:",
+    "MANUAL FREEZE (from the menu bar)": "手动暂停(来自菜单栏)",
+    "manual resume (from the menu bar)": "手动恢复(来自菜单栏)",
+    "conditions are back to normal": "条件已恢复正常",
+    "paused for longer than %d min": "暂停超过 %d 分钟",
+    "Thermal guard: CRITICAL overheating": "Thermal guard:严重过热",
+    "The Mac is critically hot (%s). Heavy jobs are being stopped.":
+        "Mac 已严重过热(%s)。正在停止繁重任务。",
+    "The Mac is critically hot (%s). Watch-only mode - nothing is being stopped.":
+        "Mac 已严重过热(%s)。仅观察模式 - 不停止任何任务。",
+}
+
+ES = {
+    "Thermal guard: hot": "Thermal guard: caliente",
+    "Thermal guard (watch-only): hot": "Thermal guard (solo observación): caliente",
+    "Would pause %s - %s. Protection is off.":
+        "Habría pausado %s - %s. La protección está desactivada.",
+    "Paused: %s (%s)": "En pausa: %s (%s)",
+    "Thermal guard: cooled down": "Thermal guard: enfriado",
+    "Resumed paused jobs (%s)": "Tareas en pausa reanudadas (%s)",
+    "Thermal guard: STOPPED": "Thermal guard: DETENIDO",
+    "Jobs terminated (%s). Resume from a checkpoint once the Mac has cooled down.":
+        "Tareas terminadas (%s). Reanuda desde un checkpoint cuando el Mac se haya enfriado.",
+    "Mac shut down without warning": "El Mac se apagó sin aviso",
+    "Evidence from the moment of the crash was saved - menu bar > Export report":
+        "Se guardaron las pruebas del momento del fallo - barra de menús > Exportar informe",
+    "Nothing to freeze": "Nada que pausar",
+    "No heavy job meets the conditions": "Ninguna tarea pesada cumple las condiciones",
+    "Fans stopped while the chip is hot": "Ventiladores parados con el chip caliente",
+    "COOLING FAILURE? chip %.1f C while both fans report 0 rpm":
+        "¿FALLO DE REFRIGERACIÓN? chip a %.1f C y ambos ventiladores a 0 rpm",
+    "chip %.1f C": "chip %.1f C",
+    "battery %.1f C": "batería %.1f C",
+    "thermal state=%s": "estado térmico=%s",
+    "thermal state=critical": "estado térmico=critical",
+    "thermal state=fair": "estado térmico=fair",
+    "CPU throttled to %d%%": "CPU limitada al %d%%",
+    "battery %d%% on battery power": "batería al %d%% sin adaptador",
+    "CRITICAL: ": "CRÍTICO: ",
+    "MANUAL FREEZE (from the menu bar)": "PAUSA MANUAL (desde la barra de menús)",
+    "manual resume (from the menu bar)": "reanudación manual (desde la barra de menús)",
+    "conditions are back to normal": "las condiciones volvieron a la normalidad",
+    "paused for longer than %d min": "en pausa durante más de %d min",
+    "Thermal guard: CRITICAL overheating": "Thermal guard: sobrecalentamiento CRÍTICO",
+    "The Mac is critically hot (%s). Heavy jobs are being stopped.":
+        "El Mac está críticamente caliente (%s). Se están deteniendo las tareas pesadas.",
+    "The Mac is critically hot (%s). Watch-only mode - nothing is being stopped.":
+        "El Mac está críticamente caliente (%s). Modo observación: no se detiene nada.",
+}
+
+DICTS = {"pl": PL, "ru": RU, "zh": ZH, "es": ES}
 
 
 def T(s):
-    """Tlumaczy komunikat na polski, gdy LANG == pl. Angielski jest zrodlem prawdy."""
-    return PL.get(s, s) if LANG == "pl" else s
+    """Tlumaczy komunikat wg jezyka z konfiguracji. Angielski jest zrodlem prawdy —
+    brak wpisu w slowniku oznacza po prostu angielski, nigdy blad."""
+    return DICTS.get(LANG, {}).get(s, s)
 
 def rotate(path):
     try:
@@ -321,6 +452,29 @@ def notify(cfg, title, text, key="default"):
     play_sound(cfg, key)
     script = 'display notification %s with title %s' % (
         json.dumps(text), json.dumps(title))
+    subprocess.Popen(["osascript", "-e", script],
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+_last_banner = {"t": 0.0}
+
+
+def banner(cfg, title, text):
+    """Modalny alert na wierzchu wszystkiego — tylko poziom krytyczny.
+
+    Popen, nie call: osascript wisi do klikniecia OK, a petla guarda nie moze stac
+    ani sekundy. `giving up after` zdejmuje okno samo, wiec po nocy nie zastaje sie
+    stosu okien — a kazdy kolejny alert i tak jest trzymany wlasnym odstepem czasowym.
+    """
+    if not cfg.get("critical_banner", True):
+        return
+    t = now()
+    gap = cfg.get("critical_banner_gap_s", 180)
+    if t - _last_banner["t"] < gap:
+        return
+    _last_banner["t"] = t
+    script = 'display alert %s message %s as critical giving up after %d' % (
+        json.dumps(title), json.dumps(text), int(gap))
     subprocess.Popen(["osascript", "-e", script],
                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
@@ -496,6 +650,28 @@ def list_procs():
 def full_args(pid):
     out = run(["ps", "-o", "args=", "-p", str(pid)])
     return out.strip()
+
+
+def top_lists(n=3):
+    """Top procesy po CPU i po RAM — do menu paska ("co grzeje / co zjada pamiec").
+
+    CPU to najlepsze dostepne przyblizenie ciepla per proces (per-proces temperatury
+    nie istnieja) i tak wlasnie pasek to opisuje. RSS z ps jest w KB.
+    """
+    out = run(["ps", "-Ao", "pcpu=,rss=,comm=", "-c", "-r"], timeout=15)
+    rows = []
+    for line in out.splitlines():
+        p = line.split(None, 2)
+        if len(p) < 3:
+            continue
+        try:
+            rows.append((float(p[0]), int(p[1]), p[2].strip()))
+        except ValueError:
+            continue
+    cpu = [{"name": c[:24], "cpu": round(v)} for v, r, c in rows[:n] if v >= 1]
+    ram = [{"name": c[:24], "gb": round(r / 1048576.0, 1)}
+           for v, r, c in sorted(rows, key=lambda x: -x[1])[:n] if r > 102400]
+    return cpu, ram
 
 
 # ---------------------------------------------------------------- wybor procesow
@@ -985,7 +1161,7 @@ def fleet_write(cfg, status):
             os.makedirs(d, 0o755)
         out = dict(status)
         out["host"] = hostname()
-        out["guard_version"] = "1.4"
+        out["guard_version"] = "1.5"
         tmp = os.path.join(d, ".%s.tmp" % hostname())
         with open(tmp, "w") as f:
             json.dump(out, f, ensure_ascii=False)
@@ -1024,6 +1200,8 @@ def status_write(state, temp, soc, soc_t, ac, pct, speed, load, lvl, why, target
         "eta_pause_min": st.get("_eta_min"),
         "jobs": st.get("_zadania", []),
         "stats": st.get("_stat", {}),
+        "top_cpu_list": st.get("_top_cpu", []),
+        "top_ram_list": st.get("_top_ram", []),
         "last_hard_shutdown": st.get("_ostatni_pad"),
         "thresholds": {"pause": st.get("_prog_pauza"), "kill": st.get("_prog_ubicie")},
     }
@@ -1166,6 +1344,7 @@ def main():
             if tick % 4 == 0:                      # rzadziej — to czytanie z dysku
                 st["_zadania"] = zadania_saferun()
                 st["_stat"] = statystyki_dnia()
+                st["_top_cpu"], st["_top_ram"] = top_lists()
             # dysk zmienia sie wolno — odczyt raz na ~5 min wystarcza
             if tick % 20 == 0 or not st.get("_disk"):
                 st["_disk"] = disk_usage()
@@ -1196,6 +1375,10 @@ def main():
 
             if lvl >= 3:
                 crit_polls += 1
+                banner(cfg, T("Thermal guard: CRITICAL overheating"),
+                       (T("The Mac is critically hot (%s). Watch-only mode - nothing is being stopped.")
+                        if cfg.get("dry_run") else
+                        T("The Mac is critically hot (%s). Heavy jobs are being stopped.")) % why)
                 do_pause(cfg, st, targets, T("CRITICAL: ") + why)
                 if crit_polls >= cfg["kill_after_polls"]:
                     do_terminate(cfg, st, why)

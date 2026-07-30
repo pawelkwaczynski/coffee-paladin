@@ -22,14 +22,17 @@ AGENT = "pl.pawel.thermal-guard"
 ICON = {"nominal": "🟢", "fair": "🟡", "serious": "🟠", "critical": "🔴", "unknown": "⚪️"}
 
 
+SUPPORTED_LANGS = ("en", "pl", "ru", "zh", "es")
+
+
 def _lang():
     v = (os.environ.get("TG_LANG") or "").lower()[:2]
-    if v in ("pl", "en"):
+    if v in SUPPORTED_LANGS:
         return v
     try:
         with open(os.path.join(BASE, "config.json")) as f:
             v = (json.load(f).get("lang") or "").lower()[:2]
-        if v in ("pl", "en"):
+        if v in SUPPORTED_LANGS:
             return v
     except Exception:
         pass
@@ -63,9 +66,86 @@ PL = {
     "\nRecent guard interventions:": "\nOstatnie interwencje guarda:",
 }
 
+RU = {
+    "%s thermal state: %s   chip: %s   battery: %s   CPU available: %d%%   load: %.2f / %.2f (%d cores)":
+        "%s термосостояние: %s   чип: %s   батарея: %s   CPU доступно: %d%%   load: %.2f / %.2f (ядер %d)",
+    "n/a": "н/д",
+    "stopped": "стоит",
+    "%d rpm": "%d об/мин",
+    "   fans: %s%s": "   вентиляторы: %s%s",
+    "   ⚠️ CHIP IS HOT BUT THE FANS ARE STOPPED - check the cooling!":
+        "   ⚠️ ЧИП ГОРЯЧИЙ, А ВЕНТИЛЯТОРЫ СТОЯТ - проверьте охлаждение!",
+    "AC adapter": "адаптер питания",
+    "battery %s%%": "батарея %s%%",
+    "   power: %s%s": "   питание: %s%s",
+    "   draw: %.1f W": "   мощность: %.1f Вт",
+    "   battery temperature record (whole lifetime): %.1f °C":
+        "   рекорд температуры батареи (за всё время): %.1f °C",
+    "running ✅": "работает ✅",
+    "NOT RUNNING ❌  (launchctl kickstart -k gui/%d/%s)": "НЕ РАБОТАЕТ ❌  (launchctl kickstart -k gui/%d/%s)",
+    "   thermal-guard: %s": "   thermal-guard: %s",
+    "   ⏸  paused: %s (pid %s, since %s)": "   ⏸  приостановлено: %s (pid %s, с %s)",
+    "\nTop CPU right now:": "\nБольше всего CPU сейчас:",
+    "\nPeak chip temperature in the last 24 h: %.1f °C (%s)":
+        "\nПик температуры чипа за 24 ч: %.1f °C (%s)",
+    "\nRecent guard interventions:": "\nПоследние вмешательства guard:",
+}
+
+ZH = {
+    "%s thermal state: %s   chip: %s   battery: %s   CPU available: %d%%   load: %.2f / %.2f (%d cores)":
+        "%s 热状态: %s   芯片: %s   电池: %s   CPU 可用: %d%%   负载: %.2f / %.2f (%d 核)",
+    "n/a": "无",
+    "stopped": "停转",
+    "%d rpm": "%d 转/分",
+    "   fans: %s%s": "   风扇: %s%s",
+    "   ⚠️ CHIP IS HOT BUT THE FANS ARE STOPPED - check the cooling!":
+        "   ⚠️ 芯片过热但风扇停转 - 请检查散热!",
+    "AC adapter": "电源适配器",
+    "battery %s%%": "电池 %s%%",
+    "   power: %s%s": "   电源: %s%s",
+    "   draw: %.1f W": "   功耗: %.1f W",
+    "   battery temperature record (whole lifetime): %.1f °C":
+        "   电池温度纪录(整个生命周期): %.1f °C",
+    "running ✅": "运行中 ✅",
+    "NOT RUNNING ❌  (launchctl kickstart -k gui/%d/%s)": "未运行 ❌  (launchctl kickstart -k gui/%d/%s)",
+    "   thermal-guard: %s": "   thermal-guard: %s",
+    "   ⏸  paused: %s (pid %s, since %s)": "   ⏸  已暂停: %s (pid %s, 自 %s)",
+    "\nTop CPU right now:": "\n当前 CPU 占用最高:",
+    "\nPeak chip temperature in the last 24 h: %.1f °C (%s)":
+        "\n过去 24 小时芯片峰值温度: %.1f °C (%s)",
+    "\nRecent guard interventions:": "\nguard 最近的干预:",
+}
+
+ES = {
+    "%s thermal state: %s   chip: %s   battery: %s   CPU available: %d%%   load: %.2f / %.2f (%d cores)":
+        "%s estado térmico: %s   chip: %s   batería: %s   CPU disponible: %d%%   carga: %.2f / %.2f (%d núcleos)",
+    "n/a": "n/d",
+    "stopped": "parado",
+    "%d rpm": "%d rpm",
+    "   fans: %s%s": "   ventiladores: %s%s",
+    "   ⚠️ CHIP IS HOT BUT THE FANS ARE STOPPED - check the cooling!":
+        "   ⚠️ CHIP CALIENTE CON VENTILADORES PARADOS - ¡revisa la refrigeración!",
+    "AC adapter": "adaptador de corriente",
+    "battery %s%%": "batería %s%%",
+    "   power: %s%s": "   alimentación: %s%s",
+    "   draw: %.1f W": "   consumo: %.1f W",
+    "   battery temperature record (whole lifetime): %.1f °C":
+        "   récord de temperatura de la batería (toda su vida): %.1f °C",
+    "running ✅": "funcionando ✅",
+    "NOT RUNNING ❌  (launchctl kickstart -k gui/%d/%s)": "NO FUNCIONA ❌  (launchctl kickstart -k gui/%d/%s)",
+    "   thermal-guard: %s": "   thermal-guard: %s",
+    "   ⏸  paused: %s (pid %s, since %s)": "   ⏸  en pausa: %s (pid %s, desde %s)",
+    "\nTop CPU right now:": "\nMayor uso de CPU ahora:",
+    "\nPeak chip temperature in the last 24 h: %.1f °C (%s)":
+        "\nPico de temperatura del chip en 24 h: %.1f °C (%s)",
+    "\nRecent guard interventions:": "\nÚltimas intervenciones del guard:",
+}
+
+DICTS = {"pl": PL, "ru": RU, "zh": ZH, "es": ES}
+
 
 def T(s):
-    return PL.get(s, s) if LANG == "pl" else s
+    return DICTS.get(LANG, {}).get(s, s)
 
 
 def normalize_batt_temp(raw):

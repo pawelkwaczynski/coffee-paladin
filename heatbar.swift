@@ -16,7 +16,7 @@
 
 import Cocoa
 
-let VERSION = "1.4"
+let VERSION = "1.5"
 let SIGNATURE = "thermal-guard v\(VERSION)  ·  FOCUS FRAME 2026"
 
 let base = NSString(string: "~/.thermal-guard").expandingTildeInPath
@@ -64,6 +64,8 @@ let PL: [String: String] = [
     "rising %.1f C/min - about %.0f min to pause": "rośnie %.1f C/min - do pauzy ok. %.0f min",
     "rising %.1f C/min": "rośnie %.1f C/min",
     "Supervised jobs (safe-run):": "Zadania pod opieką (safe-run):",
+    "Heating the most now (CPU ≈ heat):": "Najbardziej grzeją teraz (CPU ≈ ciepło):",
+    "Eating the most RAM:": "Najwięcej RAM zjadają:",
     "Top CPU:  %@ (%d%%)": "Najwięcej CPU:  %@ (%d%%)",
     "Paused: %@": "Wstrzymane: %@",
     "  (manual)": "  (ręcznie)",
@@ -157,6 +159,8 @@ let RU: [String: String] = [
     "rising %.1f C/min - about %.0f min to pause": "растёт на %.1f C/мин - до паузы около %.0f мин",
     "rising %.1f C/min": "растёт на %.1f C/мин",
     "Supervised jobs (safe-run):": "Задачи под присмотром (safe-run):",
+    "Heating the most now (CPU ≈ heat):": "Сильнее всего греют сейчас (CPU ≈ тепло):",
+    "Eating the most RAM:": "Больше всего памяти занимают:",
     "Top CPU:  %@ (%d%%)": "Больше всего CPU:  %@ (%d%%)",
     "Paused: %@": "Приостановлено: %@",
     "  (manual)": "  (вручную)",
@@ -230,6 +234,8 @@ let ZH: [String: String] = [
     "rising %.1f C/min - about %.0f min to pause": "每分钟上升 %.1f C - 约 %.0f 分钟后暂停",
     "rising %.1f C/min": "每分钟上升 %.1f C",
     "Supervised jobs (safe-run):": "受监管的任务（safe-run）：",
+    "Heating the most now (CPU ≈ heat):": "当前发热最多（CPU ≈ 热量）：",
+    "Eating the most RAM:": "内存占用最多：",
     "Top CPU:  %@ (%d%%)": "CPU 占用最高：  %@（%d%%）",
     "Paused: %@": "已暂停：%@",
     "  (manual)": "（手动）",
@@ -303,6 +309,8 @@ let ES: [String: String] = [
     "rising %.1f C/min - about %.0f min to pause": "sube %.1f C/min - pausa en unos %.0f min",
     "rising %.1f C/min": "sube %.1f C/min",
     "Supervised jobs (safe-run):": "Tareas supervisadas (safe-run):",
+    "Heating the most now (CPU ≈ heat):": "Lo que más calienta ahora (CPU ≈ calor):",
+    "Eating the most RAM:": "Lo que más RAM consume:",
     "Top CPU:  %@ (%d%%)": "Mayor uso de CPU:  %@ (%d%%)",
     "Paused: %@": "En pausa: %@",
     "  (manual)": "  (manual)",
@@ -571,6 +579,8 @@ final class SliderRow: NSView {
 // MARK: - snapshot
 
 struct Job { let name: String; let minutes: Int }
+struct TopCPU { let name: String; let cpu: Int }
+struct TopRAM { let name: String; let gb: Double }
 
 struct Snap {
     var chip: Double?, gpu: Double?, batt: Double?, watts: Double?
@@ -585,6 +595,8 @@ struct Snap {
     var keepAwake = false
     var trend: Double?, eta: Double?
     var jobs: [Job] = []
+    var topCpuList: [TopCPU] = []
+    var topRamList: [TopRAM] = []
     var pausesToday = 0, killsToday = 0
     var lastCrash: String?
     var thrPause: Double?, thrKill: Double?
@@ -624,6 +636,14 @@ func readSnap() -> Snap? {
     s.stamp = (j["time"] as? String) ?? ""
     if let z = j["jobs"] as? [[String: Any]] {
         s.jobs = z.map { Job(name: ($0["name"] as? String) ?? "?", minutes: ($0["minutes"] as? Int) ?? 0) }
+    }
+    if let z = j["top_cpu_list"] as? [[String: Any]] {
+        s.topCpuList = z.map { TopCPU(name: ($0["name"] as? String) ?? "?",
+                                      cpu: ($0["cpu"] as? Int) ?? Int(($0["cpu"] as? Double) ?? 0)) }
+    }
+    if let z = j["top_ram_list"] as? [[String: Any]] {
+        s.topRamList = z.map { TopRAM(name: ($0["name"] as? String) ?? "?",
+                                      gb: ($0["gb"] as? Double) ?? Double(($0["gb"] as? Int) ?? 0)) }
     }
     if let st = j["stats"] as? [String: Any] {
         s.pausesToday = (st["pauses"] as? Int) ?? 0
@@ -807,7 +827,19 @@ final class Bar: NSObject, NSMenuDelegate {
             row(T("Supervised jobs (safe-run):"))
             for j in s.jobs { row("   - \(j.name) — \(j.minutes) min") }
         }
-        if let p = s.topProc, let c = s.topCPU { row(String(format: T("Top CPU:  %@ (%d%%)"), p, c)) }
+        // listy "co grzeje / co zjada RAM": CPU jest przyblizeniem ciepla (per-proces
+        // temperatur nie ma) i tak to opisujemy. Gdy guard jeszcze nie opublikowal list
+        // (stara wersja demona), zostaje dawny pojedynczy wiersz Top CPU.
+        if !s.topCpuList.isEmpty {
+            row(T("Heating the most now (CPU ≈ heat):"))
+            for t in s.topCpuList { row("   - \(t.name) — \(t.cpu)% CPU") }
+        } else if let p = s.topProc, let c = s.topCPU {
+            row(String(format: T("Top CPU:  %@ (%d%%)"), p, c))
+        }
+        if !s.topRamList.isEmpty {
+            row(T("Eating the most RAM:"))
+            for t in s.topRamList { row(String(format: "   - %@ — %.1f GB", t.name, t.gb)) }
+        }
         if !s.paused.isEmpty {
             row(String(format: T("Paused: %@"), s.paused.joined(separator: ", "))
                 + (s.manualPause ? T("  (manual)") : ""))

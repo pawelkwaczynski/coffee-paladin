@@ -31,14 +31,17 @@ LOG = os.path.join(BASE, "guard.log")
 CFG = os.path.join(BASE, "config.json")
 
 
+SUPPORTED_LANGS = ("en", "pl", "ru", "zh", "es")
+
+
 def _lang():
     v = (os.environ.get("TG_LANG") or "").lower()[:2]
-    if v in ("pl", "en"):
+    if v in SUPPORTED_LANGS:
         return v
     try:
         with open(CFG) as f:
             v = (json.load(f).get("lang") or "").lower()[:2]
-        if v in ("pl", "en"):
+        if v in SUPPORTED_LANGS:
             return v
     except Exception:
         pass
@@ -74,9 +77,92 @@ PL = {
     "battery": "bateria",
 }
 
+RU = {
+    "THERMAL AND POWER REPORT - Mac": "ОТЧЁТ О ТЕМПЕРАТУРЕ И ПИТАНИИ - Mac",
+    "generated: %s   range: last %d days": "создан: %s   период: последние %d дн.",
+    "\n## HARDWARE\n": "\n## ОБОРУДОВАНИЕ\n",
+    "\n## BATTERY\n": "\n## БАТАРЕЯ\n",
+    "\n## CRITICAL EVENTS (hard shutdowns, cooling alarms)\n":
+        "\n## КРИТИЧЕСКИЕ СОБЫТИЯ (жёсткие выключения, тревоги охлаждения)\n",
+    "  (none - no hard shutdown or cooling alarm was detected in this period)":
+        "  (нет - за этот период не обнаружено жёстких выключений и тревог охлаждения)",
+    "      readings immediately before the event:": "      измерения непосредственно перед событием:",
+    "\n## SHUTDOWN CAUSES REPORTED BY THE SYSTEM\n": "\n## ПРИЧИНЫ ВЫКЛЮЧЕНИЙ ПО ДАННЫМ СИСТЕМЫ\n",
+    "  (no 'Previous shutdown cause' entries - typical after a loss of power)":
+        "  (нет записей 'Previous shutdown cause' - типично при потере питания)",
+    "\n## GUARD INTERVENTIONS\n": "\n## ВМЕШАТЕЛЬСТВА ЗАЩИТЫ\n",
+    "  (none)": "  (нет)",
+    "\n## MEASUREMENT TIMELINE\n": "\n## ХРОНОЛОГИЯ ИЗМЕРЕНИЙ\n",
+    "  time, chip C, GPU C, battery C, fan rpm, W, battery %, on AC, CPU limit, load, level":
+        "  время, чип C, GPU C, батарея C, об/мин, Вт, батарея %, адаптер, CPU limit, load, уровень",
+    "  PEAK MEASURED CHIP TEMPERATURE: %.1f C (%s)": "  ПИКОВАЯ ТЕМПЕРАТУРА ЧИПА: %.1f C (%s)",
+    "Measurements are collected by thermal-guard every 15 s (written every 5 min and on every event).":
+        "Измерения собирает thermal-guard каждые 15 с (запись каждые 5 мин и при каждом событии).",
+    "Chip temperature is read through IOReport, battery temperature through AppleSmartBattery.":
+        "Температура чипа читается через IOReport, температура батареи - через AppleSmartBattery.",
+    "AC": "адаптер",
+    "battery": "батарея",
+}
+
+ZH = {
+    "THERMAL AND POWER REPORT - Mac": "温度与电源报告 - Mac",
+    "generated: %s   range: last %d days": "生成时间: %s   范围: 最近 %d 天",
+    "\n## HARDWARE\n": "\n## 硬件\n",
+    "\n## BATTERY\n": "\n## 电池\n",
+    "\n## CRITICAL EVENTS (hard shutdowns, cooling alarms)\n":
+        "\n## 关键事件(硬关机、散热警报)\n",
+    "  (none - no hard shutdown or cooling alarm was detected in this period)":
+        "  (无 - 此期间未检测到硬关机或散热警报)",
+    "      readings immediately before the event:": "      事件发生前的最后测量值:",
+    "\n## SHUTDOWN CAUSES REPORTED BY THE SYSTEM\n": "\n## 系统报告的关机原因\n",
+    "  (no 'Previous shutdown cause' entries - typical after a loss of power)":
+        "  (没有 'Previous shutdown cause' 记录 - 断电后的典型情况)",
+    "\n## GUARD INTERVENTIONS\n": "\n## 守护的干预\n",
+    "  (none)": "  (无)",
+    "\n## MEASUREMENT TIMELINE\n": "\n## 测量时间线\n",
+    "  time, chip C, GPU C, battery C, fan rpm, W, battery %, on AC, CPU limit, load, level":
+        "  时间, 芯片 C, GPU C, 电池 C, 风扇转速, W, 电池 %, 接电源, CPU limit, 负载, 级别",
+    "  PEAK MEASURED CHIP TEMPERATURE: %.1f C (%s)": "  实测芯片峰值温度: %.1f C (%s)",
+    "Measurements are collected by thermal-guard every 15 s (written every 5 min and on every event).":
+        "thermal-guard 每 15 秒采集一次测量(每 5 分钟及每次事件时写入)。",
+    "Chip temperature is read through IOReport, battery temperature through AppleSmartBattery.":
+        "芯片温度通过 IOReport 读取, 电池温度通过 AppleSmartBattery 读取。",
+    "AC": "电源适配器",
+    "battery": "电池",
+}
+
+ES = {
+    "THERMAL AND POWER REPORT - Mac": "INFORME TÉRMICO Y DE ALIMENTACIÓN - Mac",
+    "generated: %s   range: last %d days": "generado: %s   rango: últimos %d días",
+    "\n## HARDWARE\n": "\n## HARDWARE\n",
+    "\n## BATTERY\n": "\n## BATERÍA\n",
+    "\n## CRITICAL EVENTS (hard shutdowns, cooling alarms)\n":
+        "\n## EVENTOS CRÍTICOS (apagados bruscos, alarmas de refrigeración)\n",
+    "  (none - no hard shutdown or cooling alarm was detected in this period)":
+        "  (ninguno - no se detectó apagado brusco ni alarma de refrigeración en este período)",
+    "      readings immediately before the event:": "      lecturas inmediatamente antes del evento:",
+    "\n## SHUTDOWN CAUSES REPORTED BY THE SYSTEM\n": "\n## CAUSAS DE APAGADO SEGÚN EL SISTEMA\n",
+    "  (no 'Previous shutdown cause' entries - typical after a loss of power)":
+        "  (sin entradas 'Previous shutdown cause' - típico tras una pérdida de alimentación)",
+    "\n## GUARD INTERVENTIONS\n": "\n## INTERVENCIONES DEL GUARD\n",
+    "  (none)": "  (ninguna)",
+    "\n## MEASUREMENT TIMELINE\n": "\n## CRONOLOGÍA DE MEDICIONES\n",
+    "  time, chip C, GPU C, battery C, fan rpm, W, battery %, on AC, CPU limit, load, level":
+        "  hora, chip C, GPU C, batería C, rpm, W, batería %, adaptador, CPU limit, carga, nivel",
+    "  PEAK MEASURED CHIP TEMPERATURE: %.1f C (%s)": "  TEMPERATURA MÁXIMA MEDIDA DEL CHIP: %.1f C (%s)",
+    "Measurements are collected by thermal-guard every 15 s (written every 5 min and on every event).":
+        "thermal-guard toma mediciones cada 15 s (escritura cada 5 min y en cada evento).",
+    "Chip temperature is read through IOReport, battery temperature through AppleSmartBattery.":
+        "La temperatura del chip se lee por IOReport, la de la batería por AppleSmartBattery.",
+    "AC": "adaptador",
+    "battery": "batería",
+}
+
+DICTS = {"pl": PL, "ru": RU, "zh": ZH, "es": ES}
+
 
 def T(s):
-    return PL.get(s, s) if LANG == "pl" else s
+    return DICTS.get(LANG, {}).get(s, s)
 
 
 def sh(cmd, timeout=30):
