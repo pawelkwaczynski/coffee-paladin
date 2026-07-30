@@ -102,6 +102,16 @@ keep-awake in a backpack is precisely how MacBooks get cooked. When the job ends
 runs out), the Mac goes back to sleeping normally. A cup icon on the bar shows when the lock is
 held.
 
+**The screen sleeps. The math doesn't.** This is the second difference from the Caffeine
+family: classic keep-awake apps hold the *display* assertion (`caffeinate -d`) — the screen
+burns watts all night just to prove the machine is awake. thermal-guard holds only the
+*system* assertion (`caffeinate -is`): lock the screen (Ctrl+Cmd+Q), let the display sleep on
+its own schedule — the jobs keep computing in the dark, and the display (often the single
+biggest power draw during light work) costs you nothing. One caveat: keep the lid open —
+closing it forces sleep regardless of assertions (clamshell mode with an external display and
+power being the exception). And the thermal fuse stays supreme: if the machine runs hot, the
+lock is released and the Mac may fully sleep; a `safe-run` job resumes when you wake it.
+
 ### 4b. It controls how hard heavy jobs are allowed to push
 
 Two knobs in Settings, both consumed by `safe-run` as defaults: **which cores** heavy jobs run on
@@ -527,6 +537,14 @@ i „dopóki trwa pobieranie" (aktywność sieci). Różnica względem Caffeine/
 trybów trzyma blokadę czuwania **tylko póki maszyna jest chłodna** — przy przegrzaniu guard ją
 zwalnia, bo sen chłodzi najszybciej. Bezwarunkowy keep-awake w plecaku to klasyczna droga do
 ugotowania laptopa. Kubek na pasku pokazuje, kiedy blokada jest trzymana.
+
+**Ekran śpi. Obliczenia nie.** Druga różnica względem rodziny Caffeine: klasyczne aplikacje
+trzymają asercję *wyświetlacza* (`caffeinate -d`) — ekran pali waty całą noc tylko po to, żeby
+udowodnić, że Mac czuwa. thermal-guard trzyma wyłącznie asercję *systemu* (`caffeinate -is`):
+zablokuj ekran (Ctrl+Cmd+Q), pozwól mu zgasnąć — zadania liczą dalej po ciemku, a wyświetlacz
+(przy lekkiej pracy często największy pojedynczy odbiornik energii) nie kosztuje nic. Jeden
+haczyk: klapa musi zostać otwarta — zamknięcie pokrywy wymusza sen mimo asercji (wyjątek:
+tryb clamshell z zewnętrznym monitorem i zasilaczem). Bezpiecznik termiczny pozostaje nadrzędny.
 
 **Steruje mocą ciężkich zadań i dopasowuje się do maszyny.** W Ustawieniach wybierasz, na jakich
 rdzeniach chodzą zadania z `safe-run` (tylko energooszczędne E albo wszystkie — temperatury i tak
