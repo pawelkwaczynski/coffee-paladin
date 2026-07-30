@@ -1567,7 +1567,7 @@ final class Bar: NSObject, NSMenuDelegate {
         let dry = NSMenuItem(title: T("Watch only, never touch processes (dry run)"),
                              action: #selector(toggleDry), keyEquivalent: "")
         dry.target = self
-        dry.state = GuardCfg.bool("dry_run", false) ? .on : .off
+        dry.state = GuardCfg.bool("dry_run", true) ? .on : .off
         ss.addItem(dry)
 
         let help = NSMenuItem(title: T("What does watch-only mode do?"), action: #selector(explainDry), keyEquivalent: "")
@@ -1799,7 +1799,7 @@ Remember to switch it off afterwards: in this mode nothing protects the Mac.
     @objc func enableProtection() { GuardCfg.set(["dry_run": false]) }
 
     @objc func toggleNotify() { GuardCfg.set(["notify": !GuardCfg.bool("notify", true)]) }
-    @objc func toggleDry() { GuardCfg.set(["dry_run": !GuardCfg.bool("dry_run", false)]) }
+    @objc func toggleDry() { GuardCfg.set(["dry_run": !GuardCfg.bool("dry_run", true)]) }
 
     @objc func toggleSound() { GuardCfg.set(["sound": !GuardCfg.bool("sound", true)]) }
     @objc func toggleAwake() { GuardCfg.set(["keep_awake_auto": !GuardCfg.bool("keep_awake_auto", false)]) }
