@@ -578,11 +578,25 @@ final class FooterLogoRow: NSView {
         let ratio = img.size.width / max(img.size.height, 1)
         let h: CGFloat = 13
         let w = min(h * ratio, 280)
-        let iv = NSImageView(frame: NSRect(x: (400 - w) / 2, y: 6, width: w, height: h))
-        iv.image = img
-        iv.imageScaling = .scaleProportionallyUpOrDown
-        addSubview(iv)
+        // logo jest przyciskiem: klik otwiera strone z config.json (footer_logo_url)
+        let b = NSButton(frame: NSRect(x: (400 - w) / 2, y: 6, width: w, height: h))
+        b.image = img
+        b.isBordered = false
+        b.imagePosition = .imageOnly
+        b.imageScaling = .scaleProportionallyUpOrDown
+        b.target = self
+        b.action = #selector(openSite)
+        b.toolTip = GuardCfg.string("footer_logo_url", "")
+        addSubview(b)
     }
+
+    @objc private func openSite() {
+        let raw = GuardCfg.string("footer_logo_url", "")
+        if !raw.isEmpty, let url = URL(string: raw) {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
     required init?(coder: NSCoder) { fatalError() }
 }
 
