@@ -129,6 +129,11 @@ Phone push (ntfy.sh)**, install the free [ntfy](https://ntfy.sh) app and subscri
 topic — pauses, kills, cooling failures and hard-shutdown reports arrive on your phone. No
 account, no server of ours; leave the field empty and nothing is ever sent.
 
+**The topic name is the whole secret.** Public ntfy.sh topics have no other access control:
+anyone who knows (or guesses) the name can read your alerts *and* send fake ones. Do not use
+a guessable name like `mac-guard` — append something random, e.g. `mbp-guard-x7kq93w2`. The
+messages themselves contain process names and temperatures, nothing more.
+
 ### 6. It keeps evidence (the black box)
 
 The daemon writes a heartbeat on every cycle and a marker on clean shutdown. After a restart it

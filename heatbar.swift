@@ -103,6 +103,7 @@ let PL: [String: String] = [
     "Watch only, never touch processes (dry run)": "Tylko obserwuj, nie ruszaj procesów (dry run)",
     "Language": "Język",
     "Sounds": "Dźwięki",
+    "Load info": "Informacje o obciążeniu",
     "Keep awake": "Nie usypiaj Maca",
     "Off": "Wyłącz",
     "%d min": "%d min",
@@ -244,6 +245,7 @@ let RU: [String: String] = [
     "Enable protection (pause heavy jobs when hot)": "Включить защиту (пауза тяжёлых задач при нагреве)",
     "Language": "Язык",
     "Sounds": "Звуки",
+    "Load info": "Сведения о нагрузке",
     "Keep awake": "Не давать Mac спать",
     "Off": "Выключить",
     "%d min": "%d мин",
@@ -354,6 +356,7 @@ let ZH: [String: String] = [
     "Enable protection (pause heavy jobs when hot)": "启用保护（过热时暂停繁重任务）",
     "Language": "语言",
     "Sounds": "提示音",
+    "Load info": "负载信息",
     "Keep awake": "保持 Mac 唤醒",
     "Off": "关闭",
     "%d min": "%d 分钟",
@@ -464,6 +467,7 @@ let ES: [String: String] = [
     "Enable protection (pause heavy jobs when hot)": "Activar la protección (pausar tareas pesadas al calentarse)",
     "Language": "Idioma",
     "Sounds": "Sonidos",
+    "Load info": "Información de carga",
     "Keep awake": "Mantener el Mac despierto",
     "Off": "Apagar",
     "%d min": "%d min",
@@ -506,6 +510,12 @@ let DICTS: [String: [String: String]] = ["pl": PL, "ru": RU, "zh": ZH, "es": ES]
 func T(_ s: String) -> String { DICTS[lang]?[s] ?? s }
 
 // MARK: - icons
+
+/// Kubek: preferujemy natywny "mug" (SF Symbols 5, macOS 14+); starsze systemy dostaja filizanke.
+let MUG: String = NSImage(systemSymbolName: "mug", accessibilityDescription: nil) != nil
+    ? "mug" : "cup.and.saucer"
+let MUG_FILL: String = NSImage(systemSymbolName: "mug.fill", accessibilityDescription: nil) != nil
+    ? "mug.fill" : "cup.and.saucer.fill"
 
 /// Ikony na pasku to SF Symbols, nie emoji. Powody sa praktyczne: emoji maja wlasny, staly kolor
 /// (wiec w ciemnym motywie odcinaja sie jak naklejki), roznia sie szerokoscia miedzy wersjami
@@ -1005,7 +1015,7 @@ final class Bar: NSObject, NSMenuDelegate {
             gap(); out.append(icon("tortoise.fill", fallback: "slow"))
         }
         if s.dryRun { gap(); out.append(icon("eye", fallback: "obs")) }
-        if s.keepAwake { gap(); out.append(icon("cup.and.saucer.fill", fallback: "awake")) }
+        if s.keepAwake { gap(); out.append(icon(MUG_FILL, fallback: "awake")) }
         if prefs.enabled(.paused), !s.paused.isEmpty {
             gap(); out.append(icon("pause.circle.fill", fallback: "||"))
         }
@@ -1021,6 +1031,11 @@ final class Bar: NSObject, NSMenuDelegate {
 
     func menuNeedsUpdate(_ m: NSMenu) {
         m.removeAllItems()
+        // jezyk na samej gorze — osobna, elegancko odseparowana sekcja
+        let langTop = NSMenuItem()
+        langTop.view = LangRow()
+        m.addItem(langTop)
+        m.addItem(.separator())
         guard let s = readSnap() else {
             m.addItem(NSMenuItem(title: T("no data - is thermal-guard running?"), action: nil, keyEquivalent: ""))
             addTail(m, paused: false); return
@@ -1087,38 +1102,47 @@ final class Bar: NSObject, NSMenuDelegate {
         }
 
         m.addItem(.separator())
+        // "Informacje o obciazeniu": zadania, top CPU/RAM, stan, progi, licznik dnia —
+        // wszystko w rozwijanym podmenu, zeby glowna karta zostala zwarta
+        let loadIt = NSMenuItem(title: T("Load info"), action: nil, keyEquivalent: "")
+        loadIt.image = img("chart.bar")
+        let lo = NSMenu()
+        lo.autoenablesItems = false
+        func lrow(_ t: String) { lo.addItem(NSMenuItem(title: t, action: nil, keyEquivalent: "")) }
         if !s.jobs.isEmpty {
-            row(T("Supervised jobs (safe-run):"))
-            for j in s.jobs { row("   - \(j.name) — \(j.minutes) min") }
+            lrow(T("Supervised jobs (safe-run):"))
+            for j in s.jobs { lrow("   - \(j.name) — \(j.minutes) min") }
         }
         // listy "co grzeje / co zjada RAM": CPU jest przyblizeniem ciepla (per-proces
         // temperatur nie ma) i tak to opisujemy. Gdy guard jeszcze nie opublikowal list
         // (stara wersja demona), zostaje dawny pojedynczy wiersz Top CPU.
         if !s.topCpuList.isEmpty {
-            row(T("Heating the most now (CPU ≈ heat):"))
-            for t in s.topCpuList { row("   - \(t.name) — \(t.cpu)% CPU") }
+            lrow(T("Heating the most now (CPU ≈ heat):"))
+            for t in s.topCpuList { lrow("   - \(t.name) — \(t.cpu)% CPU") }
         } else if let p = s.topProc, let c = s.topCPU {
-            row(String(format: T("Top CPU:  %@ (%d%%)"), p, c))
+            lrow(String(format: T("Top CPU:  %@ (%d%%)"), p, c))
         }
         if !s.topRamList.isEmpty {
-            row(T("Eating the most RAM:"))
-            for t in s.topRamList { row(String(format: "   - %@ — %.1f GB", t.name, t.gb)) }
+            lrow(T("Eating the most RAM:"))
+            for t in s.topRamList { lrow(String(format: "   - %@ — %.1f GB", t.name, t.gb)) }
         }
         if !s.paused.isEmpty {
-            row(String(format: T("Paused: %@"), s.paused.joined(separator: ", "))
-                + (s.manualPause ? T("  (manual)") : ""))
+            lrow(String(format: T("Paused: %@"), s.paused.joined(separator: ", "))
+                 + (s.manualPause ? T("  (manual)") : ""))
         } else {
             let names = [T("calm"), T("warm"), T("HOT - paused"), T("CRITICAL")]
-            row(String(format: T("State: %@"), names[min(s.level, 3)])
-                + (s.reason.isEmpty ? "" : " — \(s.reason)"))
+            lrow(String(format: T("State: %@"), names[min(s.level, 3)])
+                 + (s.reason.isEmpty ? "" : " — \(s.reason)"))
         }
         if let pp = s.thrPause, let pk = s.thrKill {
-            row(String(format: T("Chip thresholds:  pause %.0f C, kill %.0f C"), pp, pk))
+            lrow(String(format: T("Chip thresholds:  pause %.0f C, kill %.0f C"), pp, pk))
         }
         if s.pausesToday > 0 || s.killsToday > 0 {
-            row(String(format: T("Today: %d x pause"), s.pausesToday)
-                + (s.killsToday > 0 ? String(format: T(", %d x kill"), s.killsToday) : ""))
+            lrow(String(format: T("Today: %d x pause"), s.pausesToday)
+                 + (s.killsToday > 0 ? String(format: T(", %d x kill"), s.killsToday) : ""))
         }
+        loadIt.submenu = lo
+        m.addItem(loadIt)
         addTail(m, paused: !s.paused.isEmpty)
     }
 
@@ -1146,7 +1170,7 @@ final class Bar: NSObject, NSMenuDelegate {
         // KEEP AWAKE jak w Amphetamine — tyle ze kazdy z tych trybow ma nadrzedny
         // bezpiecznik termiczny: przy przegrzaniu demon i tak zwalnia blokade snu.
         let ka = NSMenuItem(title: T("Keep awake"), action: nil, keyEquivalent: "")
-        ka.image = img("cup.and.saucer")
+        ka.image = img(MUG)
         let km = NSMenu()
         km.autoenablesItems = false
         let cur = Awake.read()
@@ -1207,6 +1231,7 @@ final class Bar: NSObject, NSMenuDelegate {
 
         // checkboxes deciding what appears in the bar; state kept in heatbar.json
         let showItem = NSMenuItem(title: T("Show in the bar"), action: nil, keyEquivalent: "")
+        showItem.image = img("eye")
         let sub = NSMenu()
         sub.autoenablesItems = false
         for (i, it) in Item.allCases.enumerated() {
@@ -1222,6 +1247,7 @@ final class Bar: NSObject, NSMenuDelegate {
         // panel ustawien: progi suwakiem + przelaczniki. Demon czyta config.json w kazdym
         // przebiegu, wiec zmiana dziala od razu, bez restartu czegokolwiek.
         let setItem = NSMenuItem(title: T("Settings"), action: nil, keyEquivalent: "")
+        setItem.image = img("gearshape")
         let ss = NSMenu()
         ss.autoenablesItems = false
 
@@ -1369,16 +1395,19 @@ final class Bar: NSObject, NSMenuDelegate {
         m.addItem(withTitle: T("Write to the author..."), action: #selector(mailAuthor), keyEquivalent: "").target = self
         m.addItem(.separator())
 
-        // jezyk na glownej karcie — piec przyciskow, bez szukania po Ustawieniach
-        let langRow = NSMenuItem()
-        langRow.view = LangRow()
-        m.addItem(langRow)
-
         // nazwa, wersja i sygnatura autora — pozycja nieaktywna, sama informacja
         let sig = NSMenuItem(title: SIGNATURE, action: nil, keyEquivalent: "")
         sig.isEnabled = false
         m.addItem(sig)
-        m.addItem(withTitle: T("Quit heatbar"), action: #selector(quit), keyEquivalent: "q").target = self
+        // "Zamknij heatbar" wysrodkowane — zamyka menu wizualnie jak stopka
+        let quitIt = NSMenuItem(title: "", action: #selector(quit), keyEquivalent: "q")
+        quitIt.target = self
+        let center = NSMutableParagraphStyle()
+        center.alignment = .center
+        quitIt.attributedTitle = NSAttributedString(
+            string: T("Quit heatbar"),
+            attributes: [.paragraphStyle: center, .font: NSFont.menuFont(ofSize: 13)])
+        m.addItem(quitIt)
     }
 
     // --- keep awake (zapis zyczenia; wykonuje demon, bezpiecznik termiczny nadrzedny)
