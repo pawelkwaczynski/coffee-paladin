@@ -193,7 +193,10 @@ def main():
     cel = None
     for flaga in ("--file", "--plik"):
         if flaga in sys.argv:
-            cel = sys.argv[sys.argv.index(flaga) + 1]
+            try:
+                cel = sys.argv[sys.argv.index(flaga) + 1]
+            except IndexError:
+                pass
             break
     if cel is None:
         cel = os.path.join(HOME, "Desktop",
@@ -231,11 +234,15 @@ def main():
                     z = json.loads(linia)
                 except Exception:
                     continue
+                if not isinstance(z, dict):
+                    continue
                 if czas_z(z.get("time", "")) < granica:
                     continue
                 zdarzen += 1
                 W.append("  [%s] %s — %s" % (z.get("time"), z.get("type"), z.get("description")))
-                pomiary = (z.get("context") or {}).get("last_readings") or []
+                kontekst = z.get("context")
+                pomiary = kontekst.get("last_readings") if isinstance(kontekst, dict) else []
+                pomiary = [x for x in (pomiary or []) if isinstance(x, dict)]
                 if pomiary:
                     W.append(T("      readings immediately before the event:"))
                     for p in pomiary:

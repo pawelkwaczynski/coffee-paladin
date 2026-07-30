@@ -731,6 +731,13 @@ def managed_pids_from_saferun():
                     d = json.load(f)
                 pid = int(d["pid"])
                 if alive(pid):
+                    # PID moze zostac ponownie uzyty po padzie guarda: sprawdzamy, czy
+                    # biezacy proces w ogole przypomina zarejestrowane polecenie
+                    cmd0 = os.path.basename(((d.get("cmd") or [""])[0] or "")).lower()
+                    comm = run(["ps", "-o", "comm=", "-c", "-p", str(pid)]).strip().lower()
+                    if comm and cmd0 and comm not in cmd0 and cmd0 not in comm:
+                        os.unlink(path)
+                        continue
                     res[pid] = int(d.get("pgid", pid))
                 else:
                     os.unlink(path)
@@ -878,7 +885,7 @@ def sig(pid, pgid, s):
         return False
 
 
-def do_pause(cfg, st, targets, reason):
+def do_pause(cfg, st, targets, reason, manual=False):
     changed = False
     for pid, cpu, comm, pgid in targets:
         key = str(pid)
@@ -890,7 +897,8 @@ def do_pause(cfg, st, targets, reason):
                    T("Would pause %s - %s. Protection is off.") % (comm, reason), "pause")
             continue
         if sig(pid, pgid, signal.SIGSTOP):
-            st["paused"][key] = {"since": now(), "comm": comm, "pgid": pgid, "cpu": cpu}
+            st["paused"][key] = {"since": now(), "comm": comm, "pgid": pgid, "cpu": cpu,
+                                 "manual": manual}
             changed = True
             log(T("PAUSED %s (pid %d, %.0f%% CPU) - %s") % (comm, pid, cpu, reason))
         else:
@@ -909,17 +917,29 @@ def do_resume(cfg, st, reason):
     for key, info in list(st["paused"].items()):
         pid = int(key)
         if alive(pid):
-            sig(pid, info.get("pgid"), signal.SIGCONT)
-            log(T("RESUMED %s (pid %d) - %s") % (info.get("comm", "?"), pid, reason))
+            if sig(pid, info.get("pgid"), signal.SIGCONT):
+                log(T("RESUMED %s (pid %d) - %s") % (info.get("comm", "?"), pid, reason))
+            else:
+                log("FAILED to resume %s (pid %d) - job may still be frozen"
+                    % (info.get("comm", "?"), pid))
         del st["paused"][key]
     notify(cfg, T("Thermal guard: cooled down"), T("Resumed paused jobs (%s)") % reason, "resume")
     return True
 
 
-def do_terminate(cfg, st, reason):
-    """SIGCONT + SIGTERM (proces w SIGSTOP nie obsluzy TERM), po 20 s SIGKILL."""
+def do_terminate(cfg, st, reason, only_keys=None):
+    """SIGCONT + SIGTERM (proces w SIGSTOP nie obsluzy TERM), po 20 s SIGKILL.
+
+    only_keys: ubij TYLKO te wpisy (timeout pauzy nie moze zabijac swiezo wstrzymanych).
+    Wpisy reczne (zamrozone z paska) sa pomijane ZAWSZE: zamrozony proces nie grzeje,
+    wiec jego ubicie niczego nie chlodzi — a bylby to cios w plecy uzytkownika.
+    """
     victims = []
     for key, info in list(st["paused"].items()):
+        if only_keys is not None and key not in only_keys:
+            continue
+        if info.get("manual"):
+            continue
         pid = int(key)
         if not alive(pid):
             del st["paused"][key]
@@ -938,9 +958,11 @@ def do_terminate(cfg, st, reason):
                % reason, "kill")
         time.sleep(20)
         for pid, info in victims:
-            if alive(pid):
-                sig(pid, info.get("pgid"), signal.SIGKILL)
-                log("SIGKILL %s (pid %d)" % (info.get("comm", "?"), pid))
+            # grupa moze zyc mimo smierci lidera (dzieci ignoruja TERM) — killpg
+            # na martwej grupie po prostu odbije sie bledem, ktory polykamy
+            if info.get("pgid") or alive(pid):
+                if sig(pid, info.get("pgid"), signal.SIGKILL):
+                    log("SIGKILL %s (pid %d)" % (info.get("comm", "?"), pid))
     return bool(victims)
 
 
@@ -979,9 +1001,9 @@ def severity(cfg, state, temp, speed, soc=None, ac=True, pct=None):
         if soc >= cfg.get("soc_kill_c", 100.0):
             lvl = max(lvl, 3); why.append(T("chip %.1f C") % soc)
         elif soc >= cfg.get("soc_pause_c", 92.0):
-            lvl = max(lvl, 2); why.append("chip %.1f C" % soc)
+            lvl = max(lvl, 2); why.append(T("chip %.1f C") % soc)
         elif soc >= cfg.get("soc_pause_c", 92.0) - 7:
-            lvl = max(lvl, 1); why.append("chip %.1f C" % soc)
+            lvl = max(lvl, 1); why.append(T("chip %.1f C") % soc)
     # bramka na baterie: na zasilaniu bateryjnym ponizej progu pauzujemy, zeby dlugie
     # obliczenie nie zgaslo razem z laptopem w polowie bloku (czekamy na zasilacz)
     if not ac and pct is not None and pct <= cfg.get("batt_pct_pause", 10):
@@ -997,9 +1019,9 @@ def severity(cfg, state, temp, speed, soc=None, ac=True, pct=None):
         if temp >= cfg["batt_kill_c"]:
             lvl = max(lvl, 3); why.append(T("battery %.1f C") % temp)
         elif temp >= cfg["batt_pause_c"]:
-            lvl = max(lvl, 2); why.append("bateria %.1f C" % temp)
+            lvl = max(lvl, 2); why.append(T("battery %.1f C") % temp)
         elif temp >= cfg["batt_pause_c"] - 3:
-            lvl = max(lvl, 1); why.append("bateria %.1f C" % temp)
+            lvl = max(lvl, 1); why.append(T("battery %.1f C") % temp)
     if speed < cfg["speed_limit_pause"]:
         lvl = max(lvl, 2); why.append(T("CPU throttled to %d%%") % speed)
     return lvl, ", ".join(why)
@@ -1074,7 +1096,7 @@ def obsluz_rozkaz(cfg, st, targets):
         return
     if rozkaz == "freeze":
         # flage stawiamy TYLKO gdy naprawde cos zamrozilismy — inaczej pasek klamie
-        if targets and do_pause(cfg, st, targets, T("MANUAL FREEZE (from the menu bar)")):
+        if targets and do_pause(cfg, st, targets, T("MANUAL FREEZE (from the menu bar)"), manual=True):
             st["reczna_pauza"] = True
         else:
             log(T("manual freeze: there was nothing to freeze"))
@@ -1481,7 +1503,17 @@ def main():
     st = load_state()
 
     if st["paused"]:
-        do_resume(cfg, st, T("guard startup - nothing is left frozen"))
+        try:
+            stan_mtime = os.path.getmtime(STATE_PATH)
+        except Exception:
+            stan_mtime = 0
+        if stan_mtime >= boot_time():
+            do_resume(cfg, st, T("guard startup - nothing is left frozen"))
+        else:
+            # stan sprzed rebootu: PID-y moga nalezec do zupelnie obcych procesow
+            log("stale state from before boot - dropping %d paused entries without signaling"
+                % len(st["paused"]))
+            st["paused"] = {}
         save_state(st)
 
     if "--once" in sys.argv:
@@ -1626,12 +1658,14 @@ def main():
                              and (soc_t is None or soc_t < cfg.get("soc_pause_c", 88) - 10)
                              and (temp is None or temp < cfg["batt_pause_c"] - 3))
             limit_min = cfg.get("max_pause_minutes_batt", 240) if tylko_bateria else cfg["max_pause_minutes"]
-            for key, info in list(st["paused"].items()):
-                if now() - info["since"] > limit_min * 60:
+            przeterminowane = [k for k, v in st["paused"].items()
+                               if now() - v["since"] > limit_min * 60 and not v.get("manual")]
+            if przeterminowane:
+                for k in przeterminowane:
                     log(T("PAUSE >%d min - terminating job %s (pid %s)")
-                        % (limit_min, info.get("comm"), key))
-                    do_terminate(cfg, st, T("paused for longer than %d min") % limit_min)
-                    break
+                        % (limit_min, st["paused"][k].get("comm"), k))
+                do_terminate(cfg, st, T("paused for longer than %d min") % limit_min,
+                             only_keys=przeterminowane)
 
             live = set(p[0] for p in targets)
             cpu_hist = dict((k, v) for k, v in cpu_hist.items() if k in live)

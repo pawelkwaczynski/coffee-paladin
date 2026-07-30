@@ -10,7 +10,15 @@ AGENT="pl.pawel.thermal-guard"
 PLIST="$HOME/Library/LaunchAgents/$AGENT.plist"
 
 echo "== thermal-guard: instalacja na $(scutil --get ComputerName 2>/dev/null || hostname) =="
-mkdir -p "$BIN" "$BASE" "$BASE/managed"
+mkdir -p "$BIN" "$BASE" "$BASE/managed" "$HOME/Library/LaunchAgents"
+
+# swieze konto / niekompletna paczka: sprawdz zrodla ZANIM cokolwiek ruszymy
+for f in guard.py safe-run heat thermal-report fleet thermalstate.swift heatbar.swift; do
+  if [ ! -f "$SRC/$f" ]; then
+    echo "  ❌ brak pliku zrodlowego: $SRC/$f — przerwano (niepelna paczka/klon?)"
+    exit 1
+  fi
+done
 
 # 1. czujnik stanu termicznego (Swift, bez sudo)
 if command -v swiftc >/dev/null 2>&1; then
@@ -33,9 +41,13 @@ else
   echo "  ⚠️  brak brew i macmon — guard użyje samej temperatury baterii"
 fi
 
-# 1c. pasek menu
+# 1c. pasek menu — blad kompilacji ma byc WIDOCZNY, nie polkniety
 if command -v swiftc >/dev/null 2>&1; then
-  swiftc -O -o "$BIN/heatbar" "$SRC/heatbar.swift" 2>/dev/null && echo "  ✅ heatbar (pasek menu) zbudowany"
+  if swiftc -O -o "$BIN/heatbar" "$SRC/heatbar.swift" 2>/tmp/heatbar_build.err; then
+    echo "  ✅ heatbar (pasek menu) zbudowany"
+  else
+    echo "  ⚠️  heatbar NIE zbudowany — szczegoly: /tmp/heatbar_build.err (demon dziala bez paska)"
+  fi
 fi
 
 # 2. skrypty
@@ -76,8 +88,8 @@ else
   echo "  ℹ️  config.json już istnieje — zostawiam"
 fi
 
-# 3b. branding (opcjonalny): logo do naglowka i stopki menu. Katalog branding/ nie jest
-# czescia publicznego repo — jesli istnieje (paczka prywatna), kopiujemy logotypy.
+# 3b. branding: logo do naglowka i stopki menu (branding/*.png w repo).
+# Podmien pliki na wlasne logotypy, jesli chcesz przebrandowac swoja instalacje.
 if [ -d "$SRC/branding" ]; then
   cp "$SRC/branding/"*.png "$BASE/" 2>/dev/null && echo "  ✅ logotypy (naglowek + stopka) skopiowane"
 fi

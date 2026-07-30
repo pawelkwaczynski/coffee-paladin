@@ -192,17 +192,42 @@ def age_str(seconds):
     return T("%d h ago") % round(seconds / 3600)
 
 
+def _num(v):
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
 def load_hosts(d):
+    """Wczytuje migawki, NORMALIZUJAC typy: zepsuty/reczny plik jednego hosta nie moze
+    wywalic tabeli calej floty (liczby jako stringi, level spoza 0-3 itd.)."""
     hosts = []
     for name in sorted(os.listdir(d)):
+        if name.endswith(".json.icloud"):
+            # zewinkowane przez iCloud: host istnieje, danych nie ma pod reka
+            base = name.lstrip(".")[:-len(".json.icloud")]
+            hosts.append({"host": base, "_age": 1e9})
+            continue
         if not name.endswith(".json") or name.startswith("."):
             continue
         path = os.path.join(d, name)
         try:
             with open(path) as f:
                 snap = json.load(f)
+            if not isinstance(snap, dict):
+                continue
         except Exception:
             continue
+        for k in ("chip_c", "watts", "ram_used_gb", "ram_total_gb"):
+            snap[k] = _num(snap.get(k))
+        for k in ("disk_used_pct", "battery_pct", "cpu_limit"):
+            v = _num(snap.get(k))
+            snap[k] = int(v) if v is not None else None
+        lv = _num(snap.get("level"))
+        snap["level"] = min(max(int(lv), 0), 3) if lv is not None else 0
+        fans = snap.get("fans")
+        snap["fans"] = [int(f) for f in fans if _num(f) is not None] if isinstance(fans, list) else []
         snap["_age"] = time.time() - os.path.getmtime(path)
         snap.setdefault("host", name[:-5])
         hosts.append(snap)
@@ -219,13 +244,13 @@ def issues_for(h):
     crash = h.get("last_hard_shutdown") or {}
     if crash.get("time"):
         out.append(T("hard shutdown %s") % crash["time"])
-    if (h.get("cpu_limit") or 100) < 100:
+    if h.get("cpu_limit") is not None and h["cpu_limit"] < 100:
         out.append(T("throttled to %d%%") % h["cpu_limit"])
     fans = h.get("fans") or []
     chip = h.get("chip_c")
     if fans and chip and max(fans) == 0 and chip >= 70:
         out.append(T("fans dead at %.0f C") % chip)
-    if not h.get("on_ac", True) and (h.get("battery_pct") or 100) <= 20:
+    if not h.get("on_ac", True) and h.get("battery_pct") is not None and h["battery_pct"] <= 20:
         out.append(T("battery %d%% unplugged") % h["battery_pct"])
     if (h.get("disk_used_pct") or 0) >= 92:
         out.append(T("disk %d%% full") % h["disk_used_pct"])
@@ -265,7 +290,7 @@ def render(d):
             "-" if stale or not h.get("ram_total_gb") else "%d%%" % round(
                 100.0 * h.get("ram_used_gb", 0) / h["ram_total_gb"]),
             "-" if stale or h.get("disk_used_pct") is None else "%d%%" % h["disk_used_pct"],
-            "?" if stale else levels[min(h.get("level") or 0, 3)],
+            "?" if stale else levels[h.get("level", 0)],
             "-" if stale else today,
             age_str(h["_age"]),
             "; ".join(probs),

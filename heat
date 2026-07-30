@@ -198,8 +198,14 @@ def main():
             snap = json.load(f)
     except Exception:
         pass
-    chip = snap.get("chip_c")
-    fans = snap.get("fans") or []
+    def _num(v):
+        try:
+            return float(v)
+        except (TypeError, ValueError):
+            return None
+    chip = _num(snap.get("chip_c"))
+    fans_raw = snap.get("fans")
+    fans = [int(f) for f in fans_raw if _num(f) is not None] if isinstance(fans_raw, list) else []
 
     print(T("%s thermal state: %s   chip: %s   battery: %s   CPU available: %d%%   load: %.2f / %.2f (%d cores)")
           % (ICON.get(state, "⚪️"), state,
@@ -215,7 +221,7 @@ def main():
 
     if snap:
         zas = T("AC adapter") if snap.get("on_ac") else T("battery %s%%") % snap.get("battery_pct", "?")
-        watts = snap.get("watts")
+        watts = _num(snap.get("watts"))
         print(T("   power: %s%s") % (zas, (T("   draw: %.1f W") % watts) if watts else ""))
 
     if lifetime:

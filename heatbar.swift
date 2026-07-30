@@ -632,21 +632,21 @@ func fleetHosts() -> [FleetHost]? {
         guard let d = FileManager.default.contents(atPath: path),
               let j = try? JSONSerialization.jsonObject(with: d) as? [String: Any] else { continue }
         let mtime = (try? FileManager.default.attributesOfItem(atPath: path)[.modificationDate]) as? Date
-        let ru = j["ram_used_gb"] as? Double
-        let rt = j["ram_total_gb"] as? Double
+        let ru = num(j["ram_used_gb"])
+        let rt = num(j["ram_total_gb"])
         out.append(FleetHost(
             name: (j["host"] as? String) ?? String(fname.dropLast(5)),
             // max(0,...): mtime z przyszlosci (rozjazd zegarow na SMB) nie moze dawac
             // ujemnego wieku — host wygladalby na wiecznie swiezy
             age: mtime.map { max(0, Date().timeIntervalSince($0)) } ?? 1e9,
-            chip: j["chip_c"] as? Double,
-            fans: (j["fans"] as? [Int])?.max(),
-            watts: j["watts"] as? Double,
+            chip: num(j["chip_c"]),
+            fans: (j["fans"] as? [Any])?.compactMap { numInt($0) }.max(),
+            watts: num(j["watts"]),
             ramPct: (ru != nil && (rt ?? 0) > 0) ? Int(100 * ru! / rt!) : nil,
-            level: (j["level"] as? Int) ?? 0,
+            level: numInt(j["level"]) ?? 0,
             paused: (j["paused"] as? [String]) ?? [],
             onAC: (j["on_ac"] as? Bool) ?? true,
-            battPct: j["battery_pct"] as? Int))
+            battPct: numInt(j["battery_pct"])))
     }
     return out
 }
@@ -793,7 +793,7 @@ final class Prefs {
     }
     func save() {
         if let d = try? JSONSerialization.data(withJSONObject: ["show": on], options: [.prettyPrinted]) {
-            try? d.write(to: URL(fileURLWithPath: prefsPath))
+            try? d.write(to: URL(fileURLWithPath: prefsPath), options: .atomic)
         }
     }
     func enabled(_ i: Item) -> Bool { on[i.rawValue] ?? i.byDefault }
@@ -824,7 +824,8 @@ enum GuardCfg {
         var j = all()
         for (k, v) in values { j[k] = v }
         if let d = try? JSONSerialization.data(withJSONObject: j, options: [.prettyPrinted, .sortedKeys]) {
-            try? d.write(to: URL(fileURLWithPath: configPath))
+            // .atomic: plik dzieli z nami demon Pythona — uciety zapis = config na DEFAULTS
+            try? d.write(to: URL(fileURLWithPath: configPath), options: .atomic)
         }
     }
 }
@@ -861,7 +862,7 @@ enum Awake {
             return
         }
         if let d = try? JSONSerialization.data(withJSONObject: v, options: [.prettyPrinted]) {
-            try? d.write(to: URL(fileURLWithPath: awakePath))
+            try? d.write(to: URL(fileURLWithPath: awakePath), options: .atomic)
         }
     }
 }
@@ -880,9 +881,11 @@ enum Autostart {
     static let services = ["pl.pawel.thermal-guard", "pl.pawel.heatbar"]
     static func enabled() -> Bool {
         let out = shell(["/bin/launchctl", "print-disabled", "gui/\(getuid())"])
-        // brak wpisu = wlaczone; "service" => disabled/true = wylaczone
-        for line in out.split(separator: "\n") where line.contains(services[0]) {
-            if line.contains("disabled") || line.contains("true") { return false }
+        // brak wpisu = wlaczone; KTORAKOLWIEK usluga wylaczona = przelacznik OFF
+        for svc in services {
+            for line in out.split(separator: "\n") where line.contains(svc) {
+                if line.contains("disabled") || line.contains("true") { return false }
+            }
         }
         return true
     }
@@ -1008,6 +1011,15 @@ final class SliderRow: NSView {
 
 // MARK: - snapshot
 
+/// JSON z Pythona raz niesie 90, raz 90.0 — pasek musi przyjac oba (uwaga z recenzji Codex).
+func num(_ v: Any?) -> Double? {
+    if let d = v as? Double { return d }
+    if let i = v as? Int { return Double(i) }
+    return (v as? NSNumber)?.doubleValue
+}
+
+func numInt(_ v: Any?) -> Int? { num(v).map { Int($0) } }
+
 struct Job { let name: String; let minutes: Int }
 struct TopCPU { let name: String; let cpu: Int }
 struct TopRAM { let name: String; let gb: Double }
@@ -1038,42 +1050,42 @@ func readSnap() -> Snap? {
     guard let data = FileManager.default.contents(atPath: statusPath),
           let j = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
     var s = Snap()
-    s.chip = j["chip_c"] as? Double
-    s.gpu = j["gpu_c"] as? Double
-    s.batt = j["battery_c"] as? Double
-    s.watts = j["watts"] as? Double
-    s.fans = (j["fans"] as? [Int]) ?? []
-    s.ramUsed = j["ram_used_gb"] as? Double
-    s.ramTotal = j["ram_total_gb"] as? Double
-    s.swap = j["swap_used_gb"] as? Double
-    s.diskUsed = j["disk_used_gb"] as? Int
-    s.diskTotal = j["disk_total_gb"] as? Int
-    s.diskPct = j["disk_used_pct"] as? Int
-    s.pct = j["battery_pct"] as? Int
+    s.chip = num(j["chip_c"])
+    s.gpu = num(j["gpu_c"])
+    s.batt = num(j["battery_c"])
+    s.watts = num(j["watts"])
+    s.fans = (j["fans"] as? [Any])?.compactMap { numInt($0) } ?? []
+    s.ramUsed = num(j["ram_used_gb"])
+    s.ramTotal = num(j["ram_total_gb"])
+    s.swap = num(j["swap_used_gb"])
+    s.diskUsed = numInt(j["disk_used_gb"])
+    s.diskTotal = numInt(j["disk_total_gb"])
+    s.diskPct = numInt(j["disk_used_pct"])
+    s.pct = numInt(j["battery_pct"])
     s.onAC = (j["on_ac"] as? Bool) ?? true
-    s.level = (j["level"] as? Int) ?? 0
-    s.load = (j["load1"] as? Double) ?? 0
-    s.cpuLimit = (j["cpu_limit"] as? Int) ?? 100
+    s.level = numInt(j["level"]) ?? 0
+    s.load = num(j["load1"]) ?? 0
+    s.cpuLimit = numInt(j["cpu_limit"]) ?? 100
     s.reason = (j["reason"] as? String) ?? ""
     s.topProc = j["top_proc"] as? String
-    s.topCPU = j["top_cpu"] as? Int
+    s.topCPU = numInt(j["top_cpu"])
     s.paused = (j["paused"] as? [String]) ?? []
     s.manualPause = (j["manual_pause"] as? Bool) ?? false
     s.dryRun = (j["dry_run"] as? Bool) ?? false
     s.keepAwake = (j["keep_awake"] as? Bool) ?? false
-    s.trend = j["trend_c_min"] as? Double
-    s.eta = j["eta_pause_min"] as? Double
+    s.trend = num(j["trend_c_min"])
+    s.eta = num(j["eta_pause_min"])
     s.stamp = (j["time"] as? String) ?? ""
     if let z = j["jobs"] as? [[String: Any]] {
-        s.jobs = z.map { Job(name: ($0["name"] as? String) ?? "?", minutes: ($0["minutes"] as? Int) ?? 0) }
+        s.jobs = z.map { Job(name: ($0["name"] as? String) ?? "?", minutes: numInt($0["minutes"]) ?? 0) }
     }
     if let z = j["top_cpu_list"] as? [[String: Any]] {
         s.topCpuList = z.map { TopCPU(name: ($0["name"] as? String) ?? "?",
-                                      cpu: ($0["cpu"] as? Int) ?? Int(($0["cpu"] as? Double) ?? 0)) }
+                                      cpu: numInt($0["cpu"]) ?? 0) }
     }
     if let z = j["top_ram_list"] as? [[String: Any]] {
         s.topRamList = z.map { TopRAM(name: ($0["name"] as? String) ?? "?",
-                                      gb: ($0["gb"] as? Double) ?? Double(($0["gb"] as? Int) ?? 0)) }
+                                      gb: num($0["gb"]) ?? 0) }
     }
     if let st = j["stats"] as? [String: Any] {
         s.pausesToday = (st["pauses"] as? Int) ?? 0
@@ -1081,8 +1093,8 @@ func readSnap() -> Snap? {
     }
     if let p = j["last_hard_shutdown"] as? [String: Any] { s.lastCrash = p["time"] as? String }
     if let t = j["thresholds"] as? [String: Any] {
-        s.thrPause = t["pause"] as? Double
-        s.thrKill = t["kill"] as? Double
+        s.thrPause = num(t["pause"])
+        s.thrKill = num(t["kill"])
     }
     if let m = try? FileManager.default.attributesOfItem(atPath: statusPath)[.modificationDate] as? Date {
         s.stale = Date().timeIntervalSince(m) > 90
