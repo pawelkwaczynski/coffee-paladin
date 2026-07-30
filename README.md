@@ -552,7 +552,7 @@ buy me a coffee: **https://suppi.pl/panbookovsky**
 
 ## License
 
-MIT - do whatever you like with it. If it saves your machine, that is payment enough.
+MIT - do whatever you like with it. If it saves your machine, that is satisfaction enough.
 
 Built by Paweł Kwaczyński / FOCUS FRAME, 2026. Developed also as a project of **AIrON** -
 the student research club for computer science at AHE in Łódź (SKN Informatyki AHE w Łodzi).
@@ -794,7 +794,7 @@ a bezpiecznik keep-awake to moja odpowiedź na Caffeine. Jeśli thermal-guard ur
 
 ## Licencja
 
-MIT. Rób z tym co chcesz. Jeśli uratuje Ci komputer, to wystarczająca zapłata.
+MIT. Rób z tym co chcesz. Jeśli uratuje Ci komputer, to wystarczająca satysfakcja.
 
 Autor: Paweł Kwaczyński / FOCUS FRAME, 2026. Projekt rozwijany także w ramach koła naukowego
 **AIrON** (SKN Informatyki AHE w Łodzi).
