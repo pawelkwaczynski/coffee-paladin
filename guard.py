@@ -1079,15 +1079,24 @@ def wykryj_twardy_pad():
     try:
         if not os.path.exists(HEARTBEAT_PATH):
             return None
-        puls = os.path.getmtime(HEARTBEAT_PATH)
-        # tresc pliku (guard pisze tam ts()) jest rownie wazna jak mtime: mtime przezywa
-        # cp -p, przywracanie z backupu i testowe utime — bierzemy POZNIEJSZY znak zycia
+        # AUTORYTATYWNA jest TRESC pulsu (epoch — niezalezny od strefy i DST; lot na zachod
+        # albo jesienna zmiana czasu przesuwalyby tekstowa date "w przod" i wyciszaly pad).
+        # mtime tylko jako ostatecznosc: przezywa cp -p, ale restore bez -p ustawia "teraz"
+        # i rowniez maskowalby pad. Format: "<epoch> <czytelna data>"; starszy format (sam
+        # tekst) czytamy przejsciowo po staremu.
+        puls = None
+        raw = ""
         try:
             with open(HEARTBEAT_PATH) as f:
-                z_tresci = time.mktime(time.strptime(f.read().strip(), "%Y-%m-%d %H:%M:%S"))
-            puls = max(puls, z_tresci)
+                raw = f.read().strip()
+            puls = float(raw.split(None, 1)[0])
         except Exception:
             pass
+        if puls is None:
+            try:
+                puls = time.mktime(time.strptime(raw, "%Y-%m-%d %H:%M:%S"))
+            except Exception:
+                puls = os.path.getmtime(HEARTBEAT_PATH)
         boot = boot_time()
         if not boot or puls >= boot:
             return None                       # puls z biezacej sesji — nic sie nie stalo
@@ -1464,7 +1473,7 @@ def fleet_write(cfg, status):
         hw = _hw_cache_fleet()
         out["model"] = hw.get("model")
         out["serial"] = hw.get("serial")
-        out["guard_version"] = "1.7"
+        out["guard_version"] = "1.7.4"
         tmp = os.path.join(d, ".%s.tmp" % hostname())
         with open(tmp, "w") as f:
             json.dump(out, f, ensure_ascii=False)
@@ -1685,7 +1694,9 @@ def main():
             # puls czarnej skrzynki — po twardym padzie zostanie tu ostatni znak zycia
             try:
                 with open(HEARTBEAT_PATH, "w") as f:
-                    f.write(ts())
+                    # epoch przodem: strefa czasowa i DST wypadaja z rownania przy odczycie;
+                    # tekst po spacji zostaje dla czlowieka (znalezisko Neo, 30.07)
+                    f.write("%d %s" % (now(), ts()))
             except Exception:
                 pass
 

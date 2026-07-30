@@ -16,7 +16,7 @@
 
 import Cocoa
 
-let VERSION = "1.7"
+let VERSION = "1.7.4"
 let SIGNATURE = "thermal-guard v\(VERSION)  ·  FOCUS FRAME 2026"
 
 let base = NSString(string: "~/.thermal-guard").expandingTildeInPath
