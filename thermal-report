@@ -236,6 +236,8 @@ def main():
                     continue
                 if not isinstance(z, dict):
                     continue
+                if z.get("synthetic"):
+                    continue          # wpisy testowe nie wchodza do dowodu dla serwisu
                 if czas_z(z.get("time", "")) < granica:
                     continue
                 zdarzen += 1

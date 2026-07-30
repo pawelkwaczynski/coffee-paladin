@@ -1048,11 +1048,18 @@ def boot_time():
     return int(m.group(1)) if m else 0
 
 
-def zapisz_zdarzenie(rodzaj, opis, kontekst=None):
-    """Czarna skrzynka — zdarzenia, ktore maja przezyc restart i trafic do raportu."""
+def zapisz_zdarzenie(rodzaj, opis, kontekst=None, synthetic=False):
+    """Czarna skrzynka — zdarzenia, ktore maja przezyc restart i trafic do raportu.
+
+    synthetic=True oznacza wpis z testu/harnessu: thermal-report go POMIJA, zeby zaden
+    sztuczny pad nie trafil do dowodu na gwarancje (lekcja 30.07: test skaza dowod
+    rownie latwo jak config).
+    """
     try:
         with open(EVENTS_PATH, "a") as f:
             wpis = {"time": ts(), "type": rodzaj, "description": opis}
+            if synthetic:
+                wpis["synthetic"] = True
             if kontekst:
                 wpis["context"] = kontekst
             f.write(json.dumps(wpis, ensure_ascii=False) + "\n")
@@ -1073,9 +1080,22 @@ def wykryj_twardy_pad():
         if not os.path.exists(HEARTBEAT_PATH):
             return None
         puls = os.path.getmtime(HEARTBEAT_PATH)
+        # tresc pliku (guard pisze tam ts()) jest rownie wazna jak mtime: mtime przezywa
+        # cp -p, przywracanie z backupu i testowe utime — bierzemy POZNIEJSZY znak zycia
+        try:
+            with open(HEARTBEAT_PATH) as f:
+                z_tresci = time.mktime(time.strptime(f.read().strip(), "%Y-%m-%d %H:%M:%S"))
+            puls = max(puls, z_tresci)
+        except Exception:
+            pass
         boot = boot_time()
         if not boot or puls >= boot:
             return None                       # puls z biezacej sesji — nic sie nie stalo
+        if puls < boot - 30 * 86400:
+            # puls "starszy" niz 30 dni przed bootem = artefakt (test, backup, zly zegar);
+            # wpisanie takiej daty do dowodu gwarancyjnego podkopaloby caly raport
+            log("heartbeat implausibly old (%s) - ignoring as unreliable, not recording" % ts(puls))
+            return None
         czyste = os.path.getmtime(CLEAN_STOP_PATH) if os.path.exists(CLEAN_STOP_PATH) else 0
         if czyste >= puls - 60:
             return None                       # guard zostal zamkniety po ludzku
