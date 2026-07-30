@@ -113,7 +113,8 @@ Mac was. A wake lock without a thermal fuse is a promise to keep heating.
 | Releases the lock when the Mac runs hot | no | no | **yes - thermal fuse** |
 | Sees temperature at all | no | no | **yes (chip, battery, fans)** |
 | Timer / while-app-runs / while-downloading | timer | yes | yes |
-| Pauses runaway heavy jobs, keeps crash evidence | no | no | **yes** |
+| Pauses jobs that overheat the Mac | no | no | **yes** |
+| Records a black box before a hard shutdown (warranty evidence) | no | no | **yes** |
 | Open source | no | no | **MIT** |
 
 **The screen sleeps. The math doesn't.** This is the second difference from the Caffeine
@@ -577,7 +578,8 @@ obietnica dalszego grzania.
 | Zwalnia blokadę, gdy Mac jest gorący | nie | nie | **tak - bezpiecznik termiczny** |
 | W ogóle widzi temperaturę | nie | nie | **tak (chip, bateria, wentylatory)** |
 | Timer / dopóki działa apka / dopóki pobiera | timer | tak | tak |
-| Pauzuje rozgrzane zadania, trzyma dowody padu | nie | nie | **tak** |
+| Pauzuje zadania, które przegrzewają Maca | nie | nie | **tak** |
+| Zapisuje czarną skrzynkę przed twardym wyłączeniem (dowód do reklamacji) | nie | nie | **tak** |
 | Open source | nie | nie | **MIT** |
 
 **Ekran śpi. Obliczenia nie.** Druga różnica względem rodziny Caffeine: klasyczne aplikacje
