@@ -230,7 +230,8 @@ def parse():
            "allow_hot": False, "allow_sleep": False,
            # defaulty z config.json — pasek menu ustawia je przelacznikami
            "normal": (c.get("job_cores_mode") or "efficiency") == "all",
-           "cpu_limit": float(c.get("job_cpu_percent") or 100)}
+           # 95, nie 100: ten sam default co w DEFAULTS guarda i w dokumentacji
+           "cpu_limit": float(c.get("job_cpu_percent") or 95)}
     i = 0
     while i < len(args):
         a = args[i]

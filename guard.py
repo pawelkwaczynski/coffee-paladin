@@ -1323,6 +1323,7 @@ def keep_awake_update(cfg, targets, lvl, st=None):
     elif not chcemy and zywy:
         try:
             proc.terminate()
+            proc.wait(timeout=3)      # bez wait() kazdy cykl start/stop zostawialby zombie
         except Exception:
             pass
         _caff["proc"] = None
@@ -1562,6 +1563,17 @@ def main():
                             pct if pct is not None else "", 1 if ac else 0,
                             speed, "%.2f" % load, lvl,
                             top[2] if top else "", "%.0f" % top[1] if top else ""])
+
+            # PONOWNY SIGSTOP dla wszystkiego, co uznajemy za wstrzymane. Powod: miedzy
+            # zamrozeniem a zapisem state.json jest okno, w ktorym duty-limiter safe-run
+            # (albo reczny kill -CONT) moze obudzic zadanie — a my dalej mielibysmy je
+            # w pamieci jako "paused" i nigdy nie zamrozili ponownie. STOP na juz
+            # zatrzymanym procesie nic nie kosztuje i nic nie psuje.
+            if lvl >= 2 and not cfg["dry_run"]:
+                for key, info in st["paused"].items():
+                    pid = int(key)
+                    if alive(pid):
+                        sig(pid, info.get("pgid"), signal.SIGSTOP)
 
             if lvl >= 3:
                 crit_polls += 1
