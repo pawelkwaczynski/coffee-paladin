@@ -128,8 +128,9 @@ let PL: [String: String] = [
     "Phone push (ntfy.sh)...": "Push na telefon (ntfy.sh)...",
     "Enter a secret topic name. Install the ntfy app on your phone and subscribe to the same topic - pauses, kills and alarms will arrive as push notifications. Leave empty to disable.":
         "Wpisz sekretną nazwę tematu. Zainstaluj na telefonie aplikację ntfy i zasubskrybuj ten sam temat — pauzy, ubicia i alarmy przyjdą jako push. Puste pole wyłącza.",
-    "The topic name is the ONLY protection: anyone who knows or guesses it can read your alerts and send fake ones. Use the suggested random name (or your own - long and random). Install the ntfy app on your phone and subscribe to the same topic. Leave empty to disable.":
-        "Nazwa tematu to JEDYNE zabezpieczenie: kto ją zna lub zgadnie, widzi Twoje alerty i może wysyłać fałszywe. Użyj podpowiedzianej losowej nazwy (albo własnej — długiej i losowej). Zainstaluj na telefonie aplikację ntfy i zasubskrybuj ten sam temat. Puste pole wyłącza.",
+    "The topic name is the ONLY protection: anyone who knows or guesses it can read your alerts and send fake ones. Click Generate for a random unguessable name. On your phone install the ntfy.sh app (from ntfy.sh - mind the lookalike apps) and subscribe to the same topic. Leave empty to disable.":
+        "Nazwa tematu to JEDYNE zabezpieczenie: kto ją zna lub zgadnie, widzi Twoje alerty i może wysyłać fałszywe. Kliknij Wygeneruj, aby dostać losową, niezgadywalną nazwę. Na telefonie zainstaluj aplikację ntfy.sh (ze strony ntfy.sh — uwaga na podobne apki) i zasubskrybuj ten sam temat. Puste pole wyłącza.",
+    "Generate": "Wygeneruj",
     "Model:  %@": "Model:  %@",
     "Chip:  %@": "Chip:  %@",
     "Cores:  %d performance + %d efficiency": "Rdzenie:  %d wydajnościowych + %d energooszczędnych",
@@ -272,8 +273,9 @@ let RU: [String: String] = [
     "Phone push (ntfy.sh)...": "Push на телефон (ntfy.sh)...",
     "Enter a secret topic name. Install the ntfy app on your phone and subscribe to the same topic - pauses, kills and alarms will arrive as push notifications. Leave empty to disable.":
         "Введите секретное имя темы. Установите приложение ntfy на телефон и подпишитесь на ту же тему - паузы, завершения и тревоги придут как push. Пустое поле отключает.",
-    "The topic name is the ONLY protection: anyone who knows or guesses it can read your alerts and send fake ones. Use the suggested random name (or your own - long and random). Install the ntfy app on your phone and subscribe to the same topic. Leave empty to disable.":
-        "Имя темы - ЕДИНСТВЕННАЯ защита: кто его знает или угадает, видит ваши оповещения и может слать поддельные. Используйте предложенное случайное имя (или своё - длинное и случайное). Установите приложение ntfy на телефон и подпишитесь на ту же тему. Пустое поле отключает.",
+    "The topic name is the ONLY protection: anyone who knows or guesses it can read your alerts and send fake ones. Click Generate for a random unguessable name. On your phone install the ntfy.sh app (from ntfy.sh - mind the lookalike apps) and subscribe to the same topic. Leave empty to disable.":
+        "Имя темы - ЕДИНСТВЕННАЯ защита: кто его знает или угадает, видит ваши оповещения и может слать поддельные. Нажмите «Сгенерировать», чтобы получить случайное имя. Установите на телефон приложение ntfy.sh (с сайта ntfy.sh - остерегайтесь похожих приложений) и подпишитесь на ту же тему. Пустое поле отключает.",
+    "Generate": "Сгенерировать",
     "Model:  %@": "Модель:  %@",
     "Chip:  %@": "Чип:  %@",
     "Cores:  %d performance + %d efficiency": "Ядра:  %d производительных + %d энергоэффективных",
@@ -385,8 +387,9 @@ let ZH: [String: String] = [
     "Phone push (ntfy.sh)...": "手机推送(ntfy.sh)...",
     "Enter a secret topic name. Install the ntfy app on your phone and subscribe to the same topic - pauses, kills and alarms will arrive as push notifications. Leave empty to disable.":
         "输入一个保密的主题名。在手机上安装 ntfy 应用并订阅同一主题 - 暂停、终止和警报会以推送形式送达。留空则禁用。",
-    "The topic name is the ONLY protection: anyone who knows or guesses it can read your alerts and send fake ones. Use the suggested random name (or your own - long and random). Install the ntfy app on your phone and subscribe to the same topic. Leave empty to disable.":
-        "主题名是唯一的保护:知道或猜到它的人都能看到你的警报并发送伪造消息。请使用建议的随机名称(或自己起一个又长又随机的)。在手机上安装 ntfy 应用并订阅同一主题。留空则禁用。",
+    "The topic name is the ONLY protection: anyone who knows or guesses it can read your alerts and send fake ones. Click Generate for a random unguessable name. On your phone install the ntfy.sh app (from ntfy.sh - mind the lookalike apps) and subscribe to the same topic. Leave empty to disable.":
+        "主题名是唯一的保护:知道或猜到它的人都能看到你的警报并发送伪造消息。点击「生成」获取随机且难以猜测的名称。在手机上安装 ntfy.sh 应用(来自 ntfy.sh, 谨防仿冒应用)并订阅同一主题。留空则禁用。",
+    "Generate": "生成",
     "Model:  %@": "型号:  %@",
     "Chip:  %@": "芯片:  %@",
     "Cores:  %d performance + %d efficiency": "核心:  %d 性能 + %d 能效",
@@ -498,8 +501,9 @@ let ES: [String: String] = [
     "Phone push (ntfy.sh)...": "Push al teléfono (ntfy.sh)...",
     "Enter a secret topic name. Install the ntfy app on your phone and subscribe to the same topic - pauses, kills and alarms will arrive as push notifications. Leave empty to disable.":
         "Escribe un nombre de tema secreto. Instala la app ntfy en el teléfono y suscríbete al mismo tema: pausas, terminaciones y alarmas llegarán como push. Vacío = desactivado.",
-    "The topic name is the ONLY protection: anyone who knows or guesses it can read your alerts and send fake ones. Use the suggested random name (or your own - long and random). Install the ntfy app on your phone and subscribe to the same topic. Leave empty to disable.":
-        "El nombre del tema es la ÚNICA protección: quien lo conozca o adivine verá tus alertas y podrá enviar falsas. Usa el nombre aleatorio sugerido (o el tuyo, largo y aleatorio). Instala la app ntfy en el teléfono y suscríbete al mismo tema. Vacío = desactivado.",
+    "The topic name is the ONLY protection: anyone who knows or guesses it can read your alerts and send fake ones. Click Generate for a random unguessable name. On your phone install the ntfy.sh app (from ntfy.sh - mind the lookalike apps) and subscribe to the same topic. Leave empty to disable.":
+        "El nombre del tema es la ÚNICA protección: quien lo conozca o adivine verá tus alertas y podrá enviar falsas. Pulsa Generar para obtener un nombre aleatorio. Instala en el teléfono la app ntfy.sh (de ntfy.sh, cuidado con las imitaciones) y suscríbete al mismo tema. Vacío = desactivado.",
+    "Generate": "Generar",
     "Model:  %@": "Modelo:  %@",
     "Chip:  %@": "Chip:  %@",
     "Cores:  %d performance + %d efficiency": "Núcleos:  %d de rendimiento + %d de eficiencia",
@@ -1518,18 +1522,31 @@ final class Bar: NSObject, NSMenuDelegate {
 
     // --- push na telefon
 
+    private var ntfyField: NSTextField?
+
+    @objc func ntfyGenerate() { ntfyField?.stringValue = randomTopic() }
+
     @objc func ntfyDialog() {
         let a = NSAlert()
         a.messageText = T("Phone push (ntfy.sh)...")
-        a.informativeText = T("The topic name is the ONLY protection: anyone who knows or guesses it can read your alerts and send fake ones. Use the suggested random name (or your own - long and random). Install the ntfy app on your phone and subscribe to the same topic. Leave empty to disable.")
-        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 280, height: 24))
+        a.informativeText = T("The topic name is the ONLY protection: anyone who knows or guesses it can read your alerts and send fake ones. Click Generate for a random unguessable name. On your phone install the ntfy.sh app (from ntfy.sh - mind the lookalike apps) and subscribe to the same topic. Leave empty to disable.")
+        let box = NSView(frame: NSRect(x: 0, y: 0, width: 300, height: 26))
+        let field = NSTextField(frame: NSRect(x: 0, y: 1, width: 196, height: 24))
         let current = GuardCfg.string("ntfy_topic", "")
-        // pusty config = od razu podpowiadamy niezgadywalna nazwe zamiast kusic "mac-guard"
         field.stringValue = current.isEmpty ? randomTopic() : current
-        a.accessoryView = field
+        box.addSubview(field)
+        let gen = NSButton(title: T("Generate"), target: self, action: #selector(ntfyGenerate))
+        gen.bezelStyle = .rounded
+        gen.controlSize = .small
+        gen.frame = NSRect(x: 202, y: 0, width: 98, height: 26)
+        box.addSubview(gen)
+        ntfyField = field
+        a.accessoryView = box
         a.addButton(withTitle: "OK")
         a.addButton(withTitle: "Cancel")
-        if a.runModal() == .alertFirstButtonReturn {
+        let result = a.runModal()
+        ntfyField = nil
+        if result == .alertFirstButtonReturn {
             GuardCfg.set(["ntfy_topic": field.stringValue.trimmingCharacters(in: .whitespaces)])
         }
     }
