@@ -539,8 +539,10 @@ The shipped defaults are deliberately more conservative than Apple's own throttl
 ## Honest authorship note
 
 I work in Python. The Swift menu bar app exists only because I build Swift in a pair with
-AI. Here it was the human who decided, verified and took the risks; the AI wrote the Swift -
-human-in-the-loop. Which is why I see no reason to hide it.
+AI - and this project takes that seriously: four different models reviewed each other's work
+across six rounds, and a second Mac audited the first one's install. Here it was the human
+who decided, verified and took the risks; the AI wrote the Swift - human-in-the-loop. Which
+is why I see no reason to hide it.
 
 ## Buy me a double espresso ☕︎
 
@@ -779,8 +781,10 @@ językach** (angielski, polski, rosyjski, chiński, hiszpański) - przełączasz
 ## Uczciwa notka o autorstwie
 
 Pracuję w Pythonie. Aplikacja paska w Swift istnieje tylko dlatego, że Swift buduję w parze
-z AI. Tutaj to człowiek decydował, weryfikował i brał ryzyko; AI napisało Swifta - metoda
-human-in-the-loop. Dlatego nie widzę powodu, żeby to ukrywać.
+z AI - i ten projekt traktuje to poważnie: cztery różne modele recenzowały nawzajem swoją
+pracę w sześciu rundach, a drugi Mac audytował instalację pierwszego. Tutaj to człowiek
+decydował, weryfikował i brał ryzyko; AI napisało Swifta - metoda human-in-the-loop. Dlatego
+nie widzę powodu, żeby to ukrywać.
 
 ## Postaw mi podwójne espresso ☕︎
 
