@@ -94,6 +94,10 @@ if [ -d "$SRC/branding" ]; then
   cp "$SRC/branding/"*.png "$BASE/" 2>/dev/null && echo "  ✅ logotypy (naglowek + stopka) skopiowane"
 fi
 
+# uslugu uznajemy za dzialajaca TYLKO gdy ma PID — "wczytana" to za malo
+# (znalezisko z Neo: pasek byl wyliczony bez PID, a instalator raportowal sukces)
+ma_pid() { launchctl list | awk -v l="$1" '$3==l && $1 != "-" {found=1} END {exit !found}'; }
+
 # 4. LaunchAgent (demon)
 sed "s|__HOME__|$HOME|g" "$SRC/pl.pawel.thermal-guard.plist" > "$PLIST"
 launchctl bootout "gui/$UID/$AGENT" 2>/dev/null
@@ -101,9 +105,9 @@ sleep 3   # bootout jest asynchroniczny — bez tego bootstrap zwraca I/O error
 for _ in 1 2 3; do
   launchctl bootstrap "gui/$UID" "$PLIST" 2>/dev/null || launchctl load "$PLIST" 2>/dev/null
   sleep 3
-  launchctl list | grep -q "$AGENT" && break
+  ma_pid "$AGENT" && break
 done
-if launchctl list | grep -q "$AGENT"; then
+if ma_pid "$AGENT"; then
   echo "  ✅ demon wystartował i wstaje po każdym logowaniu"
 else
   echo "  ❌ demon nie wstał — sprawdź $BASE/stderr.log"
@@ -114,12 +118,18 @@ if [ -x "$BIN/heatbar" ] && [ -f "$SRC/pl.pawel.heatbar.plist" ]; then
   HB="$HOME/Library/LaunchAgents/pl.pawel.heatbar.plist"
   sed "s|__HOME__|$HOME|g" "$SRC/pl.pawel.heatbar.plist" > "$HB"
   launchctl bootout "gui/$UID/pl.pawel.heatbar" 2>/dev/null
-  sleep 2
-  launchctl bootstrap "gui/$UID" "$HB" 2>/dev/null || launchctl load "$HB" 2>/dev/null
-  sleep 2
-  launchctl list | grep -q "pl.pawel.heatbar" \
+  sleep 3   # bootout jest asynchroniczny — jak przy demonie
+  for _ in 1 2 3; do
+    launchctl bootstrap "gui/$UID" "$HB" 2>/dev/null || launchctl load "$HB" 2>/dev/null
+    sleep 3
+    ma_pid "pl.pawel.heatbar" && break
+    launchctl kickstart "gui/$UID/pl.pawel.heatbar" 2>/dev/null
+    sleep 2
+    ma_pid "pl.pawel.heatbar" && break
+  done
+  ma_pid "pl.pawel.heatbar" \
     && echo "  ✅ pasek menu działa (🌡 w prawym górnym rogu)" \
-    || echo "  ⚠️  pasek menu nie wstał — sprawdź $BASE/heatbar.err"
+    || echo "  ⚠️  pasek menu nie wstał — sprawdź $BASE/heatbar.err i: launchctl kickstart gui/$UID/pl.pawel.heatbar"
 fi
 
 echo
