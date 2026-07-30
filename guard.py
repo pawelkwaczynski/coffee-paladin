@@ -435,6 +435,23 @@ def run(cmd, timeout=10):
 
 _last_notify = {}
 
+# Krotko zyjace procesy pomocnicze (osascript/afplay/curl). Trzymamy referencje
+# i zbieramy zwloki co cykl — bez tego kazdy alert zostawal zombie az do sprzatania
+# wewnatrz modulu subprocess (znalezisko z niezaleznej recenzji Codex, 30.07.2026).
+_bg_procs = []
+
+
+def popen_bg(cmd):
+    try:
+        _bg_procs.append(subprocess.Popen(cmd, stdout=subprocess.DEVNULL,
+                                          stderr=subprocess.DEVNULL))
+    except Exception:
+        pass
+
+
+def reap_bg():
+    _bg_procs[:] = [p for p in _bg_procs if p.poll() is None]
+
 
 SOUNDS = {
     "pause": "Basso",      # goraco — niski, powazny
@@ -452,8 +469,7 @@ def play_sound(cfg, key):
     name = SOUNDS.get(key, "Ping")
     path = "/System/Library/Sounds/%s.aiff" % name
     if os.path.exists(path):
-        subprocess.Popen(["afplay", path],
-                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        popen_bg(["afplay", path])
 
 
 def push(cfg, title, text):
@@ -462,10 +478,9 @@ def push(cfg, title, text):
     topic = (cfg.get("ntfy_topic") or "").strip()
     if not topic:
         return
-    subprocess.Popen(["curl", "-s", "-m", "10",
-                      "-H", "Title: %s" % title.replace("\n", " "),
-                      "-d", text, "https://ntfy.sh/%s" % topic],
-                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    popen_bg(["curl", "-s", "-m", "10",
+              "-H", "Title: %s" % title.replace("\n", " "),
+              "-d", text, "https://ntfy.sh/%s" % topic])
 
 
 def notify(cfg, title, text, key="default"):
@@ -478,8 +493,7 @@ def notify(cfg, title, text, key="default"):
     play_sound(cfg, key)
     script = 'display notification %s with title %s' % (
         json.dumps(text), json.dumps(title))
-    subprocess.Popen(["osascript", "-e", script],
-                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    popen_bg(["osascript", "-e", script])
     # ten sam odstep czasowy co powiadomienie — telefon nie moze dostawac wiecej niz ekran
     push(cfg, title, text)
 
@@ -503,8 +517,7 @@ def banner(cfg, title, text):
     _last_banner["t"] = t
     script = 'display alert %s message %s as critical giving up after %d' % (
         json.dumps(title), json.dumps(text), int(gap))
-    subprocess.Popen(["osascript", "-e", script],
-                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    popen_bg(["osascript", "-e", script])
     push(cfg, title, text)
 
 
@@ -1325,7 +1338,11 @@ def keep_awake_update(cfg, targets, lvl, st=None):
             proc.terminate()
             proc.wait(timeout=3)      # bez wait() kazdy cykl start/stop zostawialby zombie
         except Exception:
-            pass
+            try:
+                proc.kill()           # oporny caffeinate (nierealne, ale za darmo)
+                proc.wait(timeout=1)
+            except Exception:
+                pass
         _caff["proc"] = None
         log("KEEP-AWAKE stop (job done, hot, or disabled)")
     return _caff["proc"] is not None and _caff["proc"].poll() is None
@@ -1522,6 +1539,7 @@ def main():
     while not stop["flag"]:
         try:
             cfg = load_cfg()
+            reap_bg()
             state, temp, speed, load, targets, lvl, why, soc, soc_t, ac, pct = snapshot(cfg)
             fan_alarm(cfg, soc, soc_t, st)
             obsluz_rozkaz(cfg, st, targets)

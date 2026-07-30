@@ -280,6 +280,19 @@ def guard_paused(pid):
         return False
 
 
+def guard_hot():
+    """Czy guard publikuje poziom >=2 (goraco)? Wtedy wznowienie nalezy do guarda.
+
+    Domyka szczatkowy wyscig: guard mogl wyslac SIGSTOP, ale jeszcze nie zapisac
+    state.json — sam poziom w status.json wystarcza, zeby limiter nie budzil grupy.
+    """
+    try:
+        with open(os.path.join(BASE, "status.json")) as f:
+            return (json.load(f).get("level") or 0) >= 2
+    except Exception:
+        return False
+
+
 def limited_wait(proc, pct, deadline):
     """Czeka na koniec zadania, wymuszajac limit CPU mikropauzami calej grupy.
 
@@ -299,15 +312,17 @@ def limited_wait(proc, pct, deadline):
         if stop_t < 0.02 or guard_paused(proc.pid):
             time.sleep(2)
             continue
-        time.sleep(run_t)
+        # zaden sleep nie moze przespac budzetu czasu (max przekroczenie: 50 ms)
+        time.sleep(min(run_t, max(deadline - time.time(), 0.05)))
         if proc.poll() is not None or guard_paused(proc.pid):
             continue
         try:
             os.killpg(proc.pid, signal.SIGSTOP)
-            time.sleep(stop_t)
+            time.sleep(min(stop_t, max(deadline - time.time(), 0.05)))
         finally:
-            # nie budzimy zadania, ktore W MIEDZYCZASIE zamrozil guard
-            if not guard_paused(proc.pid):
+            # nie budzimy zadania, ktore zamrozil guard ANI gdy guard publikuje "goraco"
+            # (poziom >=2) — wtedy wznowienie jest wylacznie decyzja bezpiecznika
+            if not guard_paused(proc.pid) and not guard_hot():
                 try:
                     os.killpg(proc.pid, signal.SIGCONT)
                 except Exception:
