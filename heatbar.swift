@@ -107,6 +107,7 @@ let PL: [String: String] = [
     "Name this Mac in the fleet...": "Nazwij tego Maca we flocie...",
     "With five identical MacBooks the system hostname says nothing. This name shows in the fleet table and menu on every machine. Empty = system hostname.":
         "Przy pięciu identycznych MacBookach nazwa systemowa nic nie mówi. Ta nazwa pokazuje się w tabeli floty i w menu na każdej maszynie. Puste = nazwa systemowa.",
+    "Buy me a double espresso...": "Postaw mi podwójne espresso...",
     "Apple fleet": "Flota Apple",
     "STALE - not reporting": "NIE RAPORTUJE",
     "no fleet folder - run: fleet --setup": "brak folderu floty — uruchom: fleet --setup",
@@ -264,6 +265,7 @@ let RU: [String: String] = [
     "Name this Mac in the fleet...": "Имя этого Mac в парке...",
     "With five identical MacBooks the system hostname says nothing. This name shows in the fleet table and menu on every machine. Empty = system hostname.":
         "Когда MacBook пять одинаковых, системное имя ничего не говорит. Это имя видно в таблице парка и в меню на каждой машине. Пустое = системное имя.",
+    "Buy me a double espresso...": "Угостить двойным эспрессо...",
     "Apple fleet": "Парк Apple",
     "STALE - not reporting": "НЕ ОТЧИТЫВАЕТСЯ",
     "no fleet folder - run: fleet --setup": "нет папки парка - выполните: fleet --setup",
@@ -390,6 +392,7 @@ let ZH: [String: String] = [
     "Name this Mac in the fleet...": "为此 Mac 设置机群名称...",
     "With five identical MacBooks the system hostname says nothing. This name shows in the fleet table and menu on every machine. Empty = system hostname.":
         "五台一样的 MacBook,系统主机名毫无意义。此名称会显示在每台机器的机群表和菜单中。留空 = 系统主机名。",
+    "Buy me a double espresso...": "请我喝双份浓缩咖啡...",
     "Apple fleet": "Apple 机群",
     "STALE - not reporting": "未上报",
     "no fleet folder - run: fleet --setup": "没有机群文件夹 - 运行: fleet --setup",
@@ -524,6 +527,7 @@ let ES: [String: String] = [
     "now": "ahora",
     "%d min ago": "hace %d min",
     "%d h ago": "hace %d h",
+    "Buy me a double espresso...": "Invítame a un espresso doble...",
     "Load info": "Información de carga",
     "Keep awake": "Mantener el Mac despierto",
     "Off": "Apagar",
@@ -1719,6 +1723,10 @@ final class Bar: NSObject, NSMenuDelegate {
         m.addItem(.separator())
         m.addItem(withTitle: T("Report a problem (GitHub)..."), action: #selector(openIssues), keyEquivalent: "").target = self
         m.addItem(withTitle: T("Write to the author..."), action: #selector(mailAuthor), keyEquivalent: "").target = self
+        let coffee = m.addItem(withTitle: T("Buy me a double espresso..."),
+                               action: #selector(buyCoffee), keyEquivalent: "")
+        coffee.target = self
+        coffee.image = img(MUG_FILL)
 
         // autostart przy logowaniu — default ON (tak instaluje install.sh)
         let auto = m.addItem(withTitle: T("Start at login"), action: #selector(toggleAutostart), keyEquivalent: "")
@@ -1897,6 +1905,10 @@ Remember to switch it off afterwards: in this mode nothing protects the Mac.
 
     @objc func openIssues() {
         NSWorkspace.shared.open(URL(string: "https://github.com/pawelkwaczynski/thermal-guard/issues")!)
+    }
+
+    @objc func buyCoffee() {
+        NSWorkspace.shared.open(URL(string: "https://suppi.pl/panbookovsky")!)
     }
 
     @objc func mailAuthor() {
