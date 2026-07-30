@@ -324,6 +324,19 @@ only battery temperature reacts long after the damage window has opened.
 
 ## Tests
 
+This code went through an unusual review process, and it is worth describing because it
+found bugs no single reviewer would have caught. Every risky area (signal handling on
+process groups, the CPU limiter, sleep-lock management, the crash detector) was reviewed
+by **four different AI models independently** - two local ones, GPT and Claude - across six
+review rounds, with every claim verified by hand against the actual code before anything
+was changed. On top of that, **a second Mac audited the first one's install**: a fanless
+8 GB machine exercised code paths a well-cooled 14-core machine never would. The
+cross-machine audits caught, among ~40 fixes in one day: a UI checkbox that reported
+protection as armed while the daemon only observed, an installer that declared success
+while the menu bar never started, and a timezone bug that could silence a genuine crash
+in the evidence file (a pulse written in Warsaw, read after "flying" to New York, parsed
+as the future). Agreement between reviewers proves little; the divergence is the signal.
+
 The hard-crash detector - the code that writes warranty evidence - ships with its own test
 matrix: 16 cases covering clean/dirty shutdowns, backup artifacts, garbage content and
 timezone changes (a pulse written in Warsaw must still prove a crash after booting in New
@@ -692,6 +705,19 @@ na swojej maszynie: `fleet` (tabela + problemy), `fleet --watch` (odświeżanie)
 (pod automaty i dashboardy). Host bez raportu od 5 minut dostaje flagę `NIE RAPORTUJE`.
 
 ## Testy
+
+Ten kod przeszedł nietypowy proces przeglądu - i warto go opisać, bo wyłapał błędy, których
+żaden pojedynczy recenzent by nie znalazł. Każdy ryzykowny obszar (sygnały na grupach
+procesów, limiter CPU, blokady snu, detektor padu) recenzowały **cztery różne modele AI
+niezależnie** - dwa lokalne, GPT i Claude - w sześciu rundach, a każde twierdzenie było
+weryfikowane ręcznie w kodzie, zanim cokolwiek zmieniono. Do tego **drugi Mac audytował
+instalację pierwszego**: bezwentylatorowa maszyna z 8 GB przeszła ścieżki kodu, których
+dobrze chłodzona 14-rdzeniówka nigdy by nie dotknęła. Audyty krzyżowe złapały - wśród
+~40 poprawek jednego dnia - m.in.: checkbox, który pokazywał ochronę jako włączoną, gdy
+demon tylko obserwował; instalator raportujący sukces, gdy pasek menu nigdy nie wstał;
+i błąd strefy czasowej, który potrafił wyciszyć prawdziwy pad w pliku dowodowym (puls
+zapisany w Warszawie, odczytany po „przelocie" do Nowego Jorku, parsował się jako
+przyszłość). Zgoda recenzentów niewiele dowodzi - sygnałem jest rozbieżność.
 
 Detektor twardego padu (kod piszący dowody gwarancyjne) ma własną matrycę 16 przypadków -
 łącznie ze zmianami stref czasowych i artefaktami z backupów. Jedno polecenie, izolowany HOME,
