@@ -1501,9 +1501,15 @@ final class Bar: NSObject, NSMenuDelegate {
         m.addItem(.separator())
         m.addItem(withTitle: T("Report a problem (GitHub)..."), action: #selector(openIssues), keyEquivalent: "").target = self
         m.addItem(withTitle: T("Write to the author..."), action: #selector(mailAuthor), keyEquivalent: "").target = self
+
+        // autostart przy logowaniu — default ON (tak instaluje install.sh)
+        let auto = m.addItem(withTitle: T("Start at login"), action: #selector(toggleAutostart), keyEquivalent: "")
+        auto.target = self
+        auto.image = img("power")
+        auto.state = Autostart.enabled() ? .on : .off
         m.addItem(.separator())
 
-        // STOPKA: kolorowe logo firmowe, sygnatura, autostart i wysrodkowane Zamknij
+        // STOPKA: kolorowe logo firmowe, sygnatura i wysrodkowane Zamknij
         if let footer = FooterLogoRow.make() {
             let fi = NSMenuItem()
             fi.view = footer
@@ -1518,12 +1524,6 @@ final class Bar: NSObject, NSMenuDelegate {
                          .foregroundColor: NSColor.secondaryLabelColor])
         sig.isEnabled = false
         m.addItem(sig)
-
-        // autostart przy logowaniu — default ON (tak instaluje install.sh)
-        let auto = m.addItem(withTitle: T("Start at login"), action: #selector(toggleAutostart), keyEquivalent: "")
-        auto.target = self
-        auto.image = img("power")
-        auto.state = Autostart.enabled() ? .on : .off
 
         let quitIt = NSMenuItem(title: "", action: #selector(quit), keyEquivalent: "q")
         quitIt.target = self
