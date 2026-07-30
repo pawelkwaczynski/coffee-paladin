@@ -353,6 +353,19 @@ The language switch (EN · PL · RU · 中文 · ES) sits as a row of buttons ri
 **About my Mac** shows the detected hardware, and **Start at login** toggles autostart of both
 agents (on by default).
 
+**Apple fleet** in the menu shows every Mac publishing to your shared fleet folder — chip
+temperature, fans, watts, RAM, state, paused jobs and last-seen age per host, with a
+`STALE - not reporting` marker after 5 minutes of silence. It reads the same files as the
+`fleet` CLI, refreshed by a background cache every ~30 s, so opening the menu never blocks on
+iCloud/SMB. "Live" here means the agent's ~1-minute publishing rhythm plus your folder's sync
+delay — perfect for a glance, not for second-by-second monitoring (that is what a future HTTP
+collector would be for).
+
+**Branding:** the menu header and footer render `~/.thermal-guard/logo.png` (black-on-transparent,
+theme-aware template) and `logo_footer.png` (+ optional `logo_footer_dark.png` for dark mode;
+a click opens `footer_logo_url` from the config). The installer copies the logos shipped in
+`branding/` — swap those files for your own to rebrand your install.
+
 The menu adds a block-character temperature graph, a trend and forecast ("rising 2.1 °C/min —
 about 4 minutes to pause"), **what is heating the machine right now** (top 3 by CPU — the best
 per-process proxy for heat there is) and **what is eating the RAM** (top 3 by resident memory),
@@ -589,8 +602,9 @@ bash install.sh
 - `safe-run --hours 8 --name render -- <polecenie>` — tak uruchamiaj ciężkie zadania
 - `heatbar` — pasek menu: chip, GPU, bateria, obroty, waty, RAM i dysk (wybierasz checkboxami
   w „Pokaż na pasku"), wykres, prognoza, listy „co grzeje" (top 3 po CPU — najlepsze dostępne
-  przybliżenie ciepła per proces) i „co zjada RAM" (top 3 po pamięci), ręczne zamrażanie
-  i eksport raportu
+  przybliżenie ciepła per proces) i „co zjada RAM" (top 3 po pamięci), ręczne zamrażanie,
+  eksport raportu oraz **Flota Apple** — wszystkie Twoje Maki z parametrami i znacznikiem
+  „NIE RAPORTUJE" (cache w tle, otwarcie menu nigdy nie czeka na iCloud/SMB)
 - `thermal-report --dni 14` — raport dowodowy dla serwisu
 
 Progi w `~/.thermal-guard/config.json`. **Nie ustawiaj progu chipa na 45 °C** — bezczynny M4 Pro

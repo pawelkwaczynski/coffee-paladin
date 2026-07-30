@@ -76,6 +76,12 @@ else
   echo "  ℹ️  config.json już istnieje — zostawiam"
 fi
 
+# 3b. branding (opcjonalny): logo do naglowka i stopki menu. Katalog branding/ nie jest
+# czescia publicznego repo — jesli istnieje (paczka prywatna), kopiujemy logotypy.
+if [ -d "$SRC/branding" ]; then
+  cp "$SRC/branding/"*.png "$BASE/" 2>/dev/null && echo "  ✅ logotypy (naglowek + stopka) skopiowane"
+fi
+
 # 4. LaunchAgent (demon)
 sed "s|__HOME__|$HOME|g" "$SRC/pl.pawel.thermal-guard.plist" > "$PLIST"
 launchctl bootout "gui/$UID/$AGENT" 2>/dev/null

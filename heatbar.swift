@@ -103,6 +103,14 @@ let PL: [String: String] = [
     "Watch only, never touch processes (dry run)": "Tylko obserwuj, nie ruszaj procesów (dry run)",
     "Language": "Język",
     "Sounds": "Dźwięki",
+    "Apple fleet": "Flota Apple",
+    "STALE - not reporting": "NIE RAPORTUJE",
+    "no fleet folder - run: fleet --setup": "brak folderu floty — uruchom: fleet --setup",
+    "no agent snapshots yet (agents publish about once a minute)":
+        "brak migawek agentów (agenty publikują mniej więcej co minutę)",
+    "now": "teraz",
+    "%d min ago": "%d min temu",
+    "%d h ago": "%d h temu",
     "Load info": "Informacje o obciążeniu",
     "Keep awake": "Nie usypiaj Maca",
     "Off": "Wyłącz",
@@ -249,6 +257,14 @@ let RU: [String: String] = [
     "Enable protection (pause heavy jobs when hot)": "Включить защиту (пауза тяжёлых задач при нагреве)",
     "Language": "Язык",
     "Sounds": "Звуки",
+    "Apple fleet": "Парк Apple",
+    "STALE - not reporting": "НЕ ОТЧИТЫВАЕТСЯ",
+    "no fleet folder - run: fleet --setup": "нет папки парка - выполните: fleet --setup",
+    "no agent snapshots yet (agents publish about once a minute)":
+        "нет снимков агентов (агенты публикуют примерно раз в минуту)",
+    "now": "сейчас",
+    "%d min ago": "%d мин назад",
+    "%d h ago": "%d ч назад",
     "Load info": "Сведения о нагрузке",
     "Keep awake": "Не давать Mac спать",
     "Off": "Выключить",
@@ -364,6 +380,14 @@ let ZH: [String: String] = [
     "Enable protection (pause heavy jobs when hot)": "启用保护（过热时暂停繁重任务）",
     "Language": "语言",
     "Sounds": "提示音",
+    "Apple fleet": "Apple 机群",
+    "STALE - not reporting": "未上报",
+    "no fleet folder - run: fleet --setup": "没有机群文件夹 - 运行: fleet --setup",
+    "no agent snapshots yet (agents publish about once a minute)":
+        "还没有代理快照(代理约每分钟发布一次)",
+    "now": "现在",
+    "%d min ago": "%d 分钟前",
+    "%d h ago": "%d 小时前",
     "Load info": "负载信息",
     "Keep awake": "保持 Mac 唤醒",
     "Off": "关闭",
@@ -479,6 +503,14 @@ let ES: [String: String] = [
     "Enable protection (pause heavy jobs when hot)": "Activar la protección (pausar tareas pesadas al calentarse)",
     "Language": "Idioma",
     "Sounds": "Sonidos",
+    "Apple fleet": "Flota Apple",
+    "STALE - not reporting": "SIN REPORTAR",
+    "no fleet folder - run: fleet --setup": "sin carpeta de flota - ejecuta: fleet --setup",
+    "no agent snapshots yet (agents publish about once a minute)":
+        "aún no hay instantáneas de agentes (publican una vez por minuto)",
+    "now": "ahora",
+    "%d min ago": "hace %d min",
+    "%d h ago": "hace %d h",
     "Load info": "Información de carga",
     "Keep awake": "Mantener el Mac despierto",
     "Off": "Apagar",
@@ -559,6 +591,71 @@ func customLogo() -> NSImage? {
     guard let img = NSImage(contentsOfFile: base + "/logo.png") else { return nil }
     img.isTemplate = true
     return img
+}
+
+// MARK: - fleet (wspolny folder, te same pliki co CLI `fleet`)
+
+struct FleetHost {
+    let name: String
+    let age: TimeInterval
+    let chip: Double?
+    let fans: Int?
+    let watts: Double?
+    let ramPct: Int?
+    let level: Int
+    let paused: [String]
+    let onAC: Bool
+    let battPct: Int?
+}
+
+/// Migawki hostow z folderu floty. nil = folder nieskonfigurowany/nieczytelny;
+/// pusta lista = folder jest, ale nikt jeszcze nie publikuje.
+func fleetHosts() -> [FleetHost]? {
+    let raw = GuardCfg.string("fleet_dir", "")
+    guard !raw.isEmpty else { return nil }
+    let dir = NSString(string: raw).expandingTildeInPath
+    guard let items = try? FileManager.default.contentsOfDirectory(atPath: dir) else { return nil }
+    var out: [FleetHost] = []
+    for fname in items.sorted() {
+        // plik zewinkowany przez iCloud (".<host>.json.icloud") — host ISTNIEJE, ale danych
+        // nie ma pod reka: pokazujemy go jako nieraportujacego zamiast po cichu ukrywac
+        if fname.hasSuffix(".json.icloud") {
+            var base = fname
+            if base.hasPrefix(".") { base.removeFirst() }
+            base = String(base.dropLast(".json.icloud".count))
+            out.append(FleetHost(name: base, age: 1e9, chip: nil, fans: nil, watts: nil,
+                                 ramPct: nil, level: 0, paused: [], onAC: true, battPct: nil))
+            continue
+        }
+        guard fname.hasSuffix(".json"), !fname.hasPrefix(".") else { continue }
+        let path = dir + "/" + fname
+        guard let d = FileManager.default.contents(atPath: path),
+              let j = try? JSONSerialization.jsonObject(with: d) as? [String: Any] else { continue }
+        let mtime = (try? FileManager.default.attributesOfItem(atPath: path)[.modificationDate]) as? Date
+        let ru = j["ram_used_gb"] as? Double
+        let rt = j["ram_total_gb"] as? Double
+        out.append(FleetHost(
+            name: (j["host"] as? String) ?? String(fname.dropLast(5)),
+            // max(0,...): mtime z przyszlosci (rozjazd zegarow na SMB) nie moze dawac
+            // ujemnego wieku — host wygladalby na wiecznie swiezy
+            age: mtime.map { max(0, Date().timeIntervalSince($0)) } ?? 1e9,
+            chip: j["chip_c"] as? Double,
+            fans: (j["fans"] as? [Int])?.max(),
+            watts: j["watts"] as? Double,
+            ramPct: (ru != nil && (rt ?? 0) > 0) ? Int(100 * ru! / rt!) : nil,
+            level: (j["level"] as? Int) ?? 0,
+            paused: (j["paused"] as? [String]) ?? [],
+            onAC: (j["on_ac"] as? Bool) ?? true,
+            battPct: j["battery_pct"] as? Int))
+    }
+    return out
+}
+
+func fleetAge(_ s: TimeInterval) -> String {
+    // podloga, nie zaokraglenie: 95 s to "1 min temu", nie "2 min temu"
+    if s < 60 { return T("now") }
+    if s < 7200 { return String(format: T("%d min ago"), max(1, Int(s / 60))) }
+    return String(format: T("%d h ago"), Int(s / 3600))
 }
 
 /// Stopka: kolorowe logo z ~/.thermal-guard/logo_footer.png (w ciemnym motywie wariant
@@ -1064,6 +1161,11 @@ final class Bar: NSObject, NSMenuDelegate {
     let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     let menu = NSMenu()
     var timer: Timer?
+    // cache floty: I/O po folderze wspolnym (iCloud/SMB) NIE moze biec w watku glownym
+    // przy otwieraniu menu — czkawka sieci blokowalaby cale menu (uwaga z recenzji Codex)
+    var fleetCache: [FleetHost]?
+    var fleetCacheAt = Date.distantPast
+    private var tick = 0
 
     override init() {
         super.init()
@@ -1073,7 +1175,23 @@ final class Bar: NSObject, NSMenuDelegate {
         menu.delegate = self
         item.menu = menu
         refresh()
-        timer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in self?.refresh() }
+        refreshFleet()
+        timer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
+            guard let self = self else { return }
+            self.refresh()
+            self.tick += 1
+            if self.tick % 6 == 0 { self.refreshFleet() }   // flota co ~30 s, w tle
+        }
+    }
+
+    func refreshFleet() {
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            let hosts = fleetHosts()
+            DispatchQueue.main.async {
+                self?.fleetCache = hosts
+                self?.fleetCacheAt = Date()
+            }
+        }
     }
 
     /// Colour follows the guard's level, not a raw number - the bar must say the same thing
@@ -1512,6 +1630,48 @@ final class Bar: NSObject, NSMenuDelegate {
         let logIt = m.addItem(withTitle: T("Show the guard log"), action: #selector(openLog), keyEquivalent: "")
         logIt.target = self
         logIt.image = img("text.alignleft")
+
+        // FLOTA APPLE: wszystkie Maki publikujace do wspolnego folderu — te same pliki,
+        // ktore czyta CLI `fleet`. "Live" w rytmie ~1 min (takt agenta + sync folderu).
+        let fleetIt = NSMenuItem(title: T("Apple fleet"), action: nil, keyEquivalent: "")
+        fleetIt.image = img("laptopcomputer")
+        let fmenu = NSMenu()
+        fmenu.autoenablesItems = false
+        func frow(_ t: String) { fmenu.addItem(NSMenuItem(title: t, action: nil, keyEquivalent: "")) }
+        // menu czyta MIGAWKE z cache (zero I/O w watku glownym); wiek dolicza od chwili odczytu
+        let cacheDrift = max(0, Date().timeIntervalSince(fleetCacheAt))
+        if let hosts = fleetCache {
+            if hosts.isEmpty {
+                frow(T("no agent snapshots yet (agents publish about once a minute)"))
+            }
+            for h0 in hosts {
+                let h = FleetHost(name: h0.name, age: h0.age + cacheDrift, chip: h0.chip,
+                                  fans: h0.fans, watts: h0.watts, ramPct: h0.ramPct,
+                                  level: h0.level, paused: h0.paused, onAC: h0.onAC,
+                                  battPct: h0.battPct)
+                if h.age > 300 {
+                    frow("⚠️ \(h.name) — " + T("STALE - not reporting") + "  (" + fleetAge(h.age) + ")")
+                    continue
+                }
+                var bits: [String] = []
+                if let c = h.chip { bits.append(String(format: "%.0f °C", c)) }
+                if let f = h.fans {
+                    bits.append(f >= 1000 ? String(format: "🌀%.1fk", Double(f) / 1000.0) : "🌀\(f)")
+                }
+                if let w = h.watts { bits.append(String(format: "%.0f W", w)) }
+                if let r = h.ramPct { bits.append("RAM \(r)%") }
+                if !h.onAC, let b = h.battPct { bits.append("🔋\(b)%") }
+                let names = [T("calm"), T("warm"), T("HOT - paused"), T("CRITICAL")]
+                bits.append(names[min(max(h.level, 0), 3)])
+                if !h.paused.isEmpty { bits.append("⏸ " + h.paused.joined(separator: ",")) }
+                bits.append(fleetAge(h.age))
+                frow("\(h.name):   " + bits.joined(separator: "  ·  "))
+            }
+        } else {
+            frow(T("no fleet folder - run: fleet --setup"))
+        }
+        fleetIt.submenu = fmenu
+        m.addItem(fleetIt)
 
         m.addItem(.separator())
         m.addItem(withTitle: T("Report a problem (GitHub)..."), action: #selector(openIssues), keyEquivalent: "").target = self
