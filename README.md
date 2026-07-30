@@ -546,9 +546,9 @@ is why I see no reason to hide it.
 
 ## Buy me a double espresso ☕︎
 
-This project literally runs on the stuff - the release codename is "Double Espresso" and the
-keep-awake fuse is our answer to Caffeine. If thermal-guard saved your Mac (or your render):
-**https://suppi.pl/panbookovsky**
+This project literally runs on coffee - the release codename is "Double Espresso" and the
+keep-awake fuse is my answer to Caffeine. If thermal-guard saved your Mac (or your render),
+buy me a coffee: **https://suppi.pl/panbookovsky**
 
 ## License
 
@@ -788,9 +788,9 @@ nie widzę powodu, żeby to ukrywać.
 
 ## Postaw mi podwójne espresso ☕︎
 
-Ten projekt dosłownie na tym jeździ - kodowa nazwa wydania to „Double Espresso", a bezpiecznik
-keep-awake to nasza odpowiedź na Caffeine. Jeśli thermal-guard uratował Ci Maca (albo render):
-**https://suppi.pl/panbookovsky**
+Ten projekt dosłownie opiera się na kawie - kodowa nazwa wydania to „Double Espresso",
+a bezpiecznik keep-awake to moja odpowiedź na Caffeine. Jeśli thermal-guard uratował Ci Maca
+(albo render), postaw mi kawę: **https://suppi.pl/panbookovsky**
 
 ## Licencja
 
