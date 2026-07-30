@@ -382,7 +382,7 @@ Make sure `~/.local/bin` is on your `PATH`.
 ### `heat` - one-shot status
 
 ```
-🟢 thermal state: nominal   chip: 53.5 °C   battery: 30.6 °C   CPU available: 100%   load: 4.29
+[OK] thermal state: nominal   chip: 53.5 °C   battery: 30.6 °C   CPU available: 100%   load: 4.29
    fans: 4500 rpm, 4831 rpm
    power: AC adapter   draw: 32.6 W
    thermal-guard: running ✅
@@ -407,8 +407,8 @@ so they never depend on name matching.
 C67°  G64°  B33°  ·  3.3k rpm  ·  42W  ·  throttled  ·  paused
 ```
 
-chip / GPU / battery / fan rpm / power draw / RAM used / disk used, plus `⚡` when macOS is
-throttling and `⏸` when something is paused. a fan reading of 0 with a warning mark means the fans are stopped while the chip is
+chip / GPU / battery / fan rpm / power draw / RAM used / disk used, plus a throttling marker when macOS is
+limiting the CPU and a pause marker when something is frozen. a fan reading of 0 with a warning mark means the fans are stopped while the chip is
 hot; a RAM warning means memory is 62 % used **and** the machine has started swapping.
 
 Everything on the bar is optional - **Show in the bar** gives you a checkbox per element and the
