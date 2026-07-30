@@ -278,6 +278,9 @@ PL = {
         "Mac jest krytycznie gorący (%s). Ciężkie zadania są zatrzymywane.",
     "The Mac is critically hot (%s). Watch-only mode - nothing is being stopped.":
         "Mac jest krytycznie gorący (%s). Tryb obserwacji - nic nie jest zatrzymywane.",
+    "thermal-guard: watch-only mode": "thermal-guard: tryb obserwacji",
+    "Measuring and alerting only - nothing is paused. Enable protection in the menu bar (one click).":
+        "Tylko mierzę i alarmuję - nic nie jest wstrzymywane. Włącz ochronę w menu paska (jeden klik).",
 }
 
 # Powiadomienia i alerty w pozostalych jezykach paska (ru/zh/es). Tlumaczymy to, co widzi
@@ -318,6 +321,9 @@ RU = {
         "Mac критически горячий (%s). Тяжёлые задачи останавливаются.",
     "The Mac is critically hot (%s). Watch-only mode - nothing is being stopped.":
         "Mac критически горячий (%s). Режим наблюдения - ничего не останавливается.",
+    "thermal-guard: watch-only mode": "thermal-guard: режим наблюдения",
+    "Measuring and alerting only - nothing is paused. Enable protection in the menu bar (one click).":
+        "Только измеряю и предупреждаю - ничего не приостанавливается. Включите защиту в меню (один клик).",
 }
 
 ZH = {
@@ -355,6 +361,9 @@ ZH = {
         "Mac 已严重过热(%s)。正在停止繁重任务。",
     "The Mac is critically hot (%s). Watch-only mode - nothing is being stopped.":
         "Mac 已严重过热(%s)。仅观察模式 - 不停止任何任务。",
+    "thermal-guard: watch-only mode": "thermal-guard:仅观察模式",
+    "Measuring and alerting only - nothing is paused. Enable protection in the menu bar (one click).":
+        "只测量和提醒 - 不暂停任何任务。请在菜单栏启用保护(一键)。",
 }
 
 ES = {
@@ -393,6 +402,9 @@ ES = {
         "El Mac está críticamente caliente (%s). Se están deteniendo las tareas pesadas.",
     "The Mac is critically hot (%s). Watch-only mode - nothing is being stopped.":
         "El Mac está críticamente caliente (%s). Modo observación: no se detiene nada.",
+    "thermal-guard: watch-only mode": "thermal-guard: modo observación",
+    "Measuring and alerting only - nothing is paused. Enable protection in the menu bar (one click).":
+        "Solo mido y aviso: no se pausa nada. Activa la protección en la barra de menús (un clic).",
 }
 
 DICTS = {"pl": PL, "ru": RU, "zh": ZH, "es": ES}
@@ -1221,9 +1233,29 @@ def auto_calibrate(cfg, hw):
     swiadome, reczne progi uzytkownika sa swiete.
     """
     tag = "%s|%s|fans=%s" % (hw.get("model_id"), hw.get("chip"), hw.get("fan_count"))
+    try:
+        with open(CFG_PATH) as f:
+            _na_dysku = json.load(f)
+    except Exception:
+        _na_dysku = {}
+    dry_ukryty = "dry_run" not in _na_dysku
     if cfg.get("calibrated_for") == tag:
-        return
+        if not dry_ukryty:
+            return None
+        # sprzet znany, ale klucz dry_run niejawny (config sprzed v1.3) — dopisz go jawnie
+        _na_dysku["dry_run"] = True
+        try:
+            tmp = CFG_PATH + ".tmp"
+            with open(tmp, "w") as f:
+                json.dump(_na_dysku, f, indent=2, ensure_ascii=False, sort_keys=True)
+            os.replace(tmp, CFG_PATH)
+        except Exception:
+            pass
+        log("MIGRATION: dry_run was implicit - written explicitly as true (watch-only)")
+        return "watchonly"
     changes = {"calibrated_for": tag}
+    if dry_ukryty:
+        changes["dry_run"] = True
     untouched = (cfg.get("soc_pause_c") == DEFAULTS["soc_pause_c"]
                  and cfg.get("soc_resume_c") == DEFAULTS["soc_resume_c"])
     if hw.get("fan_count") == 0 and hw.get("chip_sensor"):
@@ -1250,6 +1282,7 @@ def auto_calibrate(cfg, hw):
         os.replace(tmp, CFG_PATH)
     except Exception:
         pass
+    return "watchonly" if dry_ukryty else None
 
 
 # ---------------------------------------------------------------- reczny keep-awake
@@ -1552,8 +1585,12 @@ def main():
     # sprzet + kalibracja per Mac: raz przy starcie (system_profiler jest wolny)
     try:
         hw = hardware_info()
-        auto_calibrate(cfg, hw)
+        wynik_kalibracji = auto_calibrate(cfg, hw)
         cfg = load_cfg()          # kalibracja mogla dopisac progi
+        if wynik_kalibracji == "watchonly" and cfg.get("dry_run"):
+            notify(cfg, T("thermal-guard: watch-only mode"),
+                   T("Measuring and alerting only - nothing is paused. Enable protection in the menu bar (one click)."),
+                   key="dryinfo")
     except Exception as e:
         log("CALIBRATION skipped: %r" % (e,))
 
