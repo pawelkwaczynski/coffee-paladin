@@ -16,8 +16,15 @@ Usage:
   safe-run -- ffmpeg -i in.mp4 ...
   safe-run --hours 3 --name scan -- python scan.py 6 1000000
   safe-run --allow-hot -- ...      # start even though the Mac is warm (deliberately)
-  safe-run --normal -- ...         # keep normal priority (short, interactive job)
+  safe-run --normal -- ...         # all cores, normal priority (overrides job_cores_mode)
+  safe-run --efficiency -- ...     # efficiency cores only (overrides job_cores_mode)
+  safe-run --cpu-limit 80 -- ...   # cap the job at 80% duty (overrides job_cpu_percent)
   safe-run --allow-sleep -- ...    # do not hold the Mac awake for this job
+
+Defaults come from ~/.thermal-guard/config.json: job_cores_mode ("efficiency" or "all")
+and job_cpu_percent (95 = full speed with a sliver of headroom; below 100 the whole
+process group gets cpulimit-style micro-pauses, so it also works for tools that ignore
+thread options). The temperature itself is always the guard's job.
 
 Language: TG_LANG=en|pl, or "lang" in ~/.thermal-guard/config.json. Default: en.
 """
@@ -78,6 +85,9 @@ PL = {
     "failed": "nieudane",
     "n/a": "n/d",
     "terminated by the time budget": "ubite przez limit czasu",
+    "safe-run: cores=%s, CPU limit=%d%%": "safe-run: rdzenie=%s, limit CPU=%d%%",
+    "all": "wszystkie",
+    "efficiency only": "tylko energooszczedne (E)",
 }
 
 RU = {
@@ -101,6 +111,9 @@ RU = {
     "failed": "неудачно",
     "n/a": "н/д",
     "terminated by the time budget": "завершено по лимиту времени",
+    "safe-run: cores=%s, CPU limit=%d%%": "safe-run: ядра=%s, лимит CPU=%d%%",
+    "all": "все",
+    "efficiency only": "только энергоэффективные (E)",
 }
 
 ZH = {
@@ -124,6 +137,9 @@ ZH = {
     "failed": "失败",
     "n/a": "无",
     "terminated by the time budget": "因时间预算终止",
+    "safe-run: cores=%s, CPU limit=%d%%": "safe-run: 核心=%s, CPU 限制=%d%%",
+    "all": "全部",
+    "efficiency only": "仅能效核心 (E)",
 }
 
 ES = {
@@ -147,6 +163,9 @@ ES = {
     "failed": "fallida",
     "n/a": "n/d",
     "terminated by the time budget": "terminada por el límite de tiempo",
+    "safe-run: cores=%s, CPU limit=%d%%": "safe-run: núcleos=%s, límite de CPU=%d%%",
+    "all": "todos",
+    "efficiency only": "solo los de eficiencia (E)",
 }
 
 DICTS = {"pl": PL, "ru": RU, "zh": ZH, "es": ES}
@@ -206,8 +225,12 @@ def start_guard():
 
 def parse():
     args = sys.argv[1:]
+    c = cfg()
     opt = {"hours": float(os.environ.get("SAFE_RUN_HOURS", 6)), "name": None,
-           "allow_hot": False, "normal": False, "allow_sleep": False}
+           "allow_hot": False, "allow_sleep": False,
+           # defaulty z config.json — pasek menu ustawia je przelacznikami
+           "normal": (c.get("job_cores_mode") or "efficiency") == "all",
+           "cpu_limit": float(c.get("job_cpu_percent") or 100)}
     i = 0
     while i < len(args):
         a = args[i]
@@ -218,10 +241,14 @@ def parse():
             opt["hours"] = float(args[i + 1]); i += 2
         elif a == "--name" and i + 1 < len(args):
             opt["name"] = args[i + 1]; i += 2
+        elif a == "--cpu-limit" and i + 1 < len(args):
+            opt["cpu_limit"] = float(args[i + 1]); i += 2
         elif a == "--allow-hot":
             opt["allow_hot"] = True; i += 1
         elif a == "--normal":
             opt["normal"] = True; i += 1
+        elif a == "--efficiency":
+            opt["normal"] = False; i += 1
         elif a == "--allow-sleep":
             opt["allow_sleep"] = True; i += 1
         elif a in ("-h", "--help"):
@@ -235,7 +262,55 @@ def parse():
         print(__doc__)
         sys.exit(2)
     opt["name"] = opt["name"] or os.path.basename(cmd[0])
+    opt["cpu_limit"] = min(max(opt["cpu_limit"], 10.0), 100.0)
     return opt, cmd
+
+
+def guard_paused(pid):
+    """Czy TEN pid jest aktualnie wstrzymany przez guarda (state.json)?
+
+    Limiter nie moze wyslac SIGCONT zadaniu, ktore zamrozil bezpiecznik —
+    o pauzie termicznej decyduje wylacznie guard.
+    """
+    try:
+        with open(os.path.join(BASE, "state.json")) as f:
+            return str(pid) in (json.load(f).get("paused") or {})
+    except Exception:
+        return False
+
+
+def limited_wait(proc, pct, deadline):
+    """Czeka na koniec zadania, wymuszajac limit CPU mikropauzami calej grupy.
+
+    Okno 2 s: przy pct=95 grupa dostaje SIGSTOP na 100 ms i SIGCONT z powrotem —
+    dziala dla kazdego programu, takze takiego, ktory ignoruje opcje watkow.
+    Przy pct>=100 zwykle czekanie. Zwraca (rc, killed_by_time).
+    """
+    window = 2.0
+    run_t = window * pct / 100.0
+    stop_t = window - run_t
+    while True:
+        rc = proc.poll()
+        if rc is not None:
+            return rc, False
+        if time.time() > deadline:
+            return None, True
+        if stop_t < 0.02 or guard_paused(proc.pid):
+            time.sleep(2)
+            continue
+        time.sleep(run_t)
+        if proc.poll() is not None or guard_paused(proc.pid):
+            continue
+        try:
+            os.killpg(proc.pid, signal.SIGSTOP)
+            time.sleep(stop_t)
+        finally:
+            # nie budzimy zadania, ktore W MIEDZYCZASIE zamrozil guard
+            if not guard_paused(proc.pid):
+                try:
+                    os.killpg(proc.pid, signal.SIGCONT)
+                except Exception:
+                    pass
 
 
 def max_temp_since(t0):
@@ -266,10 +341,12 @@ def main():
             os.makedirs(d, 0o755)
 
     state, temp = thermal_state(), batt_temp()
-    limit = cfg()["batt_pause_c"]
+    limit = cfg().get("batt_pause_c", 40.0)
     hot = state in HOT or (temp is not None and temp >= limit - 2)
     print(T("safe-run: thermal state=%s, battery=%s, time budget=%.1f h") % (
         state, ("%.1f C" % temp) if temp else T("n/a"), opt["hours"]))
+    print(T("safe-run: cores=%s, CPU limit=%d%%") % (
+        T("all") if opt["normal"] else T("efficiency only"), int(opt["cpu_limit"])))
     if hot and not opt["allow_hot"]:
         print(T("safe-run: REFUSING TO START - the Mac is already hot. Let it cool down or pass --allow-hot."))
         return 3
@@ -316,32 +393,24 @@ def main():
     signal.signal(signal.SIGTERM, forward)
 
     deadline = t0 + opt["hours"] * 3600
-    rc = None
-    killed_by_time = False
-    while True:
-        rc = proc.poll()
-        if rc is not None:
-            break
-        if time.time() > deadline:
-            killed_by_time = True
-            print(T("safe-run: TIME BUDGET %.1f h reached - terminating the job (SIGTERM)") % opt["hours"])
+    rc, killed_by_time = limited_wait(proc, opt["cpu_limit"], deadline)
+    if killed_by_time:
+        print(T("safe-run: TIME BUDGET %.1f h reached - terminating the job (SIGTERM)") % opt["hours"])
+        try:
+            os.killpg(proc.pid, signal.SIGCONT)
+            os.killpg(proc.pid, signal.SIGTERM)
+        except Exception:
+            pass
+        for _ in range(30):
+            if proc.poll() is not None:
+                break
+            time.sleep(1)
+        if proc.poll() is None:
             try:
-                os.killpg(proc.pid, signal.SIGCONT)
-                os.killpg(proc.pid, signal.SIGTERM)
+                os.killpg(proc.pid, signal.SIGKILL)
             except Exception:
                 pass
-            for _ in range(30):
-                if proc.poll() is not None:
-                    break
-                time.sleep(1)
-            if proc.poll() is None:
-                try:
-                    os.killpg(proc.pid, signal.SIGKILL)
-                except Exception:
-                    pass
-            rc = proc.wait()
-            break
-        time.sleep(2)
+        rc = proc.wait()
 
     try:
         os.unlink(reg)

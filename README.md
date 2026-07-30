@@ -1,4 +1,4 @@
-# thermal-guard v1.5
+# thermal-guard v1.6
 
 **A thermal and power safety net for Apple Silicon Macs — from one laptop to a whole fleet.**
 It watches the chip temperature, the battery, the fans and the power source, and it *freezes*
@@ -92,18 +92,42 @@ So thermal-guard:
 
 `safe-run` holds a sleep block (`caffeinate`) for exactly as long as the job runs, and the daemon
 can do the same automatically for any heavy job it sees (*Keep the Mac awake while heavy jobs
-run* in Settings — off by default). The difference from Caffeine/Amphetamine is the **fuse**:
-the wake lock is held **only while the machine is cool**. The moment the guard pauses jobs for
-heat, the lock is released — sleep is the fastest cooler there is — and an unconditional
-keep-awake in a backpack is precisely how MacBooks get cooked. When the job ends, the Mac goes
-back to sleeping normally. A cup icon on the bar shows when the lock is held.
+run* in Settings — off by default). The menu bar also offers the full Amphetamine-style set of
+**manual modes**: a timer (15 min to 12 h), *indefinitely*, *while an app is running* (pick from
+the list of running apps) and *while downloading* (network activity, with a 2-minute grace gap
+between files). The difference from Caffeine/Amphetamine is the **fuse**: every one of these
+modes holds the wake lock **only while the machine is cool**. The moment the guard pauses jobs
+for heat, the lock is released — sleep is the fastest cooler there is — and an unconditional
+keep-awake in a backpack is precisely how MacBooks get cooked. When the job ends (or the timer
+runs out), the Mac goes back to sleeping normally. A cup icon on the bar shows when the lock is
+held.
+
+### 4b. It controls how hard heavy jobs are allowed to push
+
+Two knobs in Settings, both consumed by `safe-run` as defaults: **which cores** heavy jobs run on
+(*efficiency cores only* — cool and quiet, or *all cores* — fast, with the guard still watching
+the temperature) and a **CPU limit** (50–100 %, default 95). Below 100 % the whole process group
+gets cpulimit-style micro-pauses (SIGSTOP for ~100 ms in every 2 s window), so the cap works for
+any program — including ones that ignore thread-count options. Per-run overrides: `--normal`
+(all cores), `--efficiency`, `--cpu-limit 80`.
+
+### 4c. It adapts itself to the Mac it lands on
+
+On first start the daemon detects the hardware — chip, performance/efficiency core split, RAM,
+fan count, battery health — writes it to `hardware.json` (shown in **About my Mac** in the menu
+bar) and calibrates the defaults: a fanless Mac (Air) gets lower chip thresholds (78/70/88) and
+its always-false fan alarm disabled. Calibration runs once per machine and **never overrides
+thresholds you set yourself**.
 
 ### 5. It escalates so you cannot miss it
 
 Notification with a distinct sound at pause, resume and kill — and at the **critical** level
 additionally a **system alert on top of everything** (`critical_banner`, its own 3-minute gap,
 self-dismissing). A notification is easy to miss under Focus or a full-screen app; the critical
-banner is not.
+banner is not. And when you are not at the machine at all: set a secret topic under **Settings >
+Phone push (ntfy.sh)**, install the free [ntfy](https://ntfy.sh) app and subscribe to the same
+topic — pauses, kills, cooling failures and hard-shutdown reports arrive on your phone. No
+account, no server of ours; leave the field empty and nothing is ever sent.
 
 ### 6. It keeps evidence (the black box)
 
@@ -319,6 +343,9 @@ hot; `🧠62%⚠︎` means RAM is 62 % used **and** the machine has started swap
 
 Everything on the bar is optional — **Show in the bar** gives you a checkbox per element and the
 choice is remembered in `~/.thermal-guard/heatbar.json`. RAM and disk are off by default.
+The language switch (EN · PL · RU · 中文 · ES) sits as a row of buttons right on the main menu,
+**About my Mac** shows the detected hardware, and **Start at login** toggles autostart of both
+agents (on by default).
 
 The menu adds a block-character temperature graph, a trend and forecast ("rising 2.1 °C/min —
 about 4 minutes to pause"), **what is heating the machine right now** (top 3 by CPU — the best
@@ -378,6 +405,11 @@ set. That is exactly what the slider is for.
 | `dry_run` | **`true`** | watch-only: log and alert, never signal (disable to arm the guard) |
 | `critical_banner` | `true` | modal system alert at the critical level (own 180 s gap, self-dismissing) |
 | `keep_awake_auto` | `false` | hold a sleep block while a heavy job runs **and** the machine is cool |
+| `job_cores_mode` | `"efficiency"` | default cores for `safe-run` jobs: `"efficiency"` or `"all"` |
+| `job_cpu_percent` | `95` | duty-cycle CPU cap for `safe-run` jobs (50–100) |
+| `ntfy_topic` | `""` | secret ntfy.sh topic for phone push (empty = off) |
+| `download_kbps` | `500` | network-activity threshold for the *while downloading* keep-awake mode |
+| `calibrated_for` | set by the daemon | hardware tag; delete it to re-run auto-calibration |
 | `sound` | `true` | distinct system sound per event (pause / resume / kill) |
 | `fleet_dir` | `""` | shared folder for fleet snapshots (see the fleet section) |
 
@@ -466,10 +498,22 @@ Osobno ostrzega, gdy chip przekracza 70 °C, a wentylatory stoją.
 
 **Trzyma Maca w czuwaniu — ale z bezpiecznikiem.** `safe-run` blokuje sen dokładnie na czas
 zadania (`caffeinate`), a demon umie robić to sam dla każdego ciężkiego zadania (opcja w
-Ustawieniach, domyślnie wyłączona). Różnica względem Caffeine/Amphetamine: blokada czuwania
-trzymana jest **tylko póki maszyna jest chłodna** — przy przegrzaniu guard ją zwalnia, bo sen
-chłodzi najszybciej. Bezwarunkowy keep-awake w plecaku to klasyczna droga do ugotowania laptopa.
-Kubek na pasku pokazuje, kiedy blokada jest trzymana.
+Ustawieniach, domyślnie wyłączona). Z paska menu dostępne są też tryby ręczne jak w Amphetamine:
+timer (15 min – 12 h), bezterminowo, „dopóki działa aplikacja" (wybór z listy uruchomionych)
+i „dopóki trwa pobieranie" (aktywność sieci). Różnica względem Caffeine/Amphetamine: każdy z tych
+trybów trzyma blokadę czuwania **tylko póki maszyna jest chłodna** — przy przegrzaniu guard ją
+zwalnia, bo sen chłodzi najszybciej. Bezwarunkowy keep-awake w plecaku to klasyczna droga do
+ugotowania laptopa. Kubek na pasku pokazuje, kiedy blokada jest trzymana.
+
+**Steruje mocą ciężkich zadań i dopasowuje się do maszyny.** W Ustawieniach wybierasz, na jakich
+rdzeniach chodzą zadania z `safe-run` (tylko energooszczędne E albo wszystkie — temperatury i tak
+pilnuje guard) i limit CPU 50–100 % (mikropauzy całej grupy procesów, działa z każdym programem).
+Przy pierwszym starcie demon sam wykrywa sprzęt (chip, podział rdzeni P/E, RAM, wentylatory,
+zdrowie baterii — zakładka **O moim Macu**) i kalibruje progi: Mac bez wentylatorów dostaje
+niższe (78/70/88) i wyłączony alarm wentylatorów. Ręcznie ustawionych progów kalibracja nigdy
+nie nadpisuje. Push na telefon: **Ustawienia > Push na telefon (ntfy.sh)** + darmowa aplikacja
+ntfy z tym samym tematem. Przełącznik **Uruchamiaj przy starcie komputera** (domyślnie włączony)
+i wybór języka guzikami wprost na głównej karcie menu.
 
 **Alarmuje tak, że nie da się przeoczyć.** Powiadomienie z osobnym dźwiękiem przy pauzie,
 wznowieniu i ubiciu — a przy poziomie **krytycznym** dodatkowo **modalny alert systemowy na

@@ -46,6 +46,8 @@ HEARTBEAT_PATH = os.path.join(BASE, "heartbeat")  # zywy puls — po twardym pad
 CLEAN_STOP_PATH = os.path.join(BASE, "clean_stop")
 EVENTS_PATH = os.path.join(BASE, "events.log")    # czarna skrzynka: pady, alarmy
 COMMAND_PATH = os.path.join(BASE, "command")      # rozkazy z paska menu
+AWAKE_PATH = os.path.join(BASE, "awake.json")     # reczny keep-awake z paska (timer/app/download)
+HW_PATH = os.path.join(BASE, "hardware.json")     # wykryty sprzet (dla About my Mac i kalibracji)
 MANAGED_DIR = os.path.join(BASE, "managed")   # pliki <pid>.json od safe-run
 MAX_LOG_BYTES = 5 * 1024 * 1024
 
@@ -96,6 +98,18 @@ DEFAULTS = {
     # Osobny odstep, bo to najwyzszy kaliber alarmu i nie moze spamowac.
     "critical_banner": True,
     "critical_banner_gap_s": 180,
+    # PUSH NA TELEFON (ntfy.sh, darmowe, bez konta): wpisz wlasny sekretny temat, zainstaluj
+    # aplikacje ntfy i zasubskrybuj ten sam temat — pauzy, ubicia, awarie chlodzenia i twarde
+    # pady przychodza jako push. Pusty = wylaczone.
+    "ntfy_topic": "",
+    # CIEZKIE ZADANIA (safe-run): na jakich rdzeniach i z jakim limitem CPU.
+    # "efficiency" = tylko rdzenie E (chlodno, wolno), "all" = wszystkie (szybko, cieplej —
+    # temperature i tak pilnuje guard). Limit w % realizowany mikropauzami calej grupy
+    # procesow (jak cpulimit); 95 = praktycznie pelna predkosc z odrobina oddechu dla UI.
+    "job_cores_mode": "efficiency",
+    "job_cpu_percent": 95,
+    # prog aktywnosci sieci dla keep-awake "dopoki trwa pobieranie" (KB/s)
+    "download_kbps": 500,
     # dzwieki systemowe przy zdarzeniach (afplay — dziala nawet gdy powiadomienia sa
     # wyciszone przez Skupienie). Rozne zdarzenia maja rozne dzwieki, zeby dalo sie
     # rozpoznac bez patrzenia: pauza=nisko, wznowienie=szklo, ubicie/pad=powaznie.
@@ -442,6 +456,18 @@ def play_sound(cfg, key):
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
+def push(cfg, title, text):
+    """Push na telefon przez ntfy.sh — dziala wszedzie, gdzie stoi aplikacja ntfy z tym
+    samym tematem. Popen + limit czasu: brak internetu nie moze zatrzymac petli."""
+    topic = (cfg.get("ntfy_topic") or "").strip()
+    if not topic:
+        return
+    subprocess.Popen(["curl", "-s", "-m", "10",
+                      "-H", "Title: %s" % title.replace("\n", " "),
+                      "-d", text, "https://ntfy.sh/%s" % topic],
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
 def notify(cfg, title, text, key="default"):
     if not cfg["notify"]:
         return
@@ -454,6 +480,8 @@ def notify(cfg, title, text, key="default"):
         json.dumps(text), json.dumps(title))
     subprocess.Popen(["osascript", "-e", script],
                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    # ten sam odstep czasowy co powiadomienie — telefon nie moze dostawac wiecej niz ekran
+    push(cfg, title, text)
 
 
 _last_banner = {"t": 0.0}
@@ -477,6 +505,7 @@ def banner(cfg, title, text):
         json.dumps(title), json.dumps(text), int(gap))
     subprocess.Popen(["osascript", "-e", script],
                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    push(cfg, title, text)
 
 
 # ---------------------------------------------------------------- czujniki
@@ -1107,6 +1136,149 @@ def zadania_saferun():
     return out
 
 
+# ---------------------------------------------------------------- sprzet i kalibracja
+
+def hardware_info():
+    """Wykrywa sprzet tego Maca i zapisuje do hardware.json (About my Mac + kalibracja).
+
+    Wolne odczyty (system_profiler ~2 s) robimy RAZ przy starcie — plik jest cache'em.
+    """
+    def sysctl(k):
+        return run(["sysctl", "-n", k]).strip()
+
+    hw = {
+        "chip": sysctl("machdep.cpu.brand_string") or "Apple Silicon",
+        "model_id": sysctl("hw.model"),
+        "p_cores": int(sysctl("hw.perflevel0.physicalcpu") or 0),
+        "e_cores": int(sysctl("hw.perflevel1.physicalcpu") or 0),
+        "cores": int(sysctl("hw.ncpu") or 0),
+        "ram_gb": round(int(sysctl("hw.memsize") or 0) / 1024.0 ** 3),
+        "macos": run(["sw_vers", "-productVersion"]).strip(),
+    }
+    prof = run(["system_profiler", "SPHardwareDataType"], timeout=30)
+    m = re.search(r"Model Name:\s*(.+)", prof)
+    hw["model_name"] = m.group(1).strip() if m else hw["model_id"]
+    m = re.search(r"Serial Number.*?:\s*(\S+)", prof)
+    hw["serial"] = m.group(1) if m else ""
+    ioreg = run(["ioreg", "-r", "-c", "AppleSmartBattery", "-d", "1", "-w", "0"], timeout=15)
+    m = re.search(r'"CycleCount"\s*=\s*(\d+)', ioreg)
+    hw["battery_cycles"] = int(m.group(1)) if m else None
+    m = re.search(r'"PermanentFailureStatus"\s*=\s*(\d+)', ioreg)
+    hw["battery_failure"] = bool(int(m.group(1))) if m else None
+    s = soc_sensors()
+    hw["fan_count"] = len((s or {}).get("fans") or [])
+    hw["chip_sensor"] = bool(s)
+    try:
+        with open(HW_PATH, "w") as f:
+            json.dump(hw, f, ensure_ascii=False, indent=1)
+    except Exception:
+        pass
+    return hw
+
+
+def auto_calibrate(cfg, hw):
+    """Dopasowanie progow do TEGO Maca — raz na sprzet, nigdy po recznej zmianie progow.
+
+    Zasada: nie ma jednego slusznego progu. Mac z wentylatorami znosi 85-95 C bez klopotu;
+    Mac bezwentylatorowy (Air) oddaje cieplo obudowa i trzeba go ciac wczesniej, a alarm
+    "wentylatory stoja" jest na nim bez sensu. Znacznik calibrated_for pilnuje, zeby
+    kalibracja odpalila sie tylko przy pierwszym uruchomieniu na danym sprzecie —
+    swiadome, reczne progi uzytkownika sa swiete.
+    """
+    tag = "%s|%s|fans=%s" % (hw.get("model_id"), hw.get("chip"), hw.get("fan_count"))
+    if cfg.get("calibrated_for") == tag:
+        return
+    changes = {"calibrated_for": tag}
+    untouched = (cfg.get("soc_pause_c") == DEFAULTS["soc_pause_c"]
+                 and cfg.get("soc_resume_c") == DEFAULTS["soc_resume_c"])
+    if hw.get("fan_count") == 0 and hw.get("chip_sensor"):
+        changes["fan_check"] = False          # alarm wentylatorow na Airze = zawsze falszywy
+        if untouched:
+            changes.update({"soc_pause_c": 78.0, "soc_resume_c": 70.0, "soc_kill_c": 88.0})
+            log("CALIBRATION: fanless Mac detected (%s) - chip thresholds 78/70/88"
+                % hw.get("model_name"))
+    else:
+        log("CALIBRATION: %s, %s (%dP+%dE), %d GB RAM, fans: %s - thresholds %s"
+            % (hw.get("model_name"), hw.get("chip"), hw.get("p_cores", 0),
+               hw.get("e_cores", 0), hw.get("ram_gb", 0), hw.get("fan_count"),
+               "left as user set them" if not untouched else "defaults OK"))
+    try:
+        with open(CFG_PATH) as f:
+            disk_cfg = json.load(f)
+    except Exception:
+        disk_cfg = {}
+    disk_cfg.update(changes)
+    try:
+        tmp = CFG_PATH + ".tmp"
+        with open(tmp, "w") as f:
+            json.dump(disk_cfg, f, indent=2, ensure_ascii=False, sort_keys=True)
+        os.replace(tmp, CFG_PATH)
+    except Exception:
+        pass
+
+
+# ---------------------------------------------------------------- reczny keep-awake
+
+_net = {"t": 0.0, "bytes": 0, "last_active": 0.0}
+
+
+def network_active(threshold_kbps=500):
+    """Czy trwa transfer sieciowy (pobieranie/wysylka)? Delta bajtow z netstat -ib.
+
+    Histereza 120 s: chwilowa cisza miedzy plikami nie zwalnia blokady snu.
+    """
+    out = run(["netstat", "-ib"], timeout=10)
+    total = 0
+    for line in out.splitlines()[1:]:
+        p = line.split()
+        if len(p) >= 10 and not p[0].startswith("lo") and "<Link" in line:
+            try:
+                total += int(p[6]) + int(p[9])
+            except (ValueError, IndexError):
+                pass
+    t = now()
+    prev_t, prev_b = _net["t"], _net["bytes"]
+    _net["t"], _net["bytes"] = t, total
+    if prev_t and total >= prev_b:
+        kbps = (total - prev_b) / 1024.0 / max(t - prev_t, 1.0)
+        if kbps >= threshold_kbps:
+            _net["last_active"] = t
+    return t - _net["last_active"] < 120
+
+
+def manual_awake(cfg):
+    """Reczny keep-awake ustawiony z paska (awake.json): timer / aplikacja / pobieranie.
+
+    Zwraca (aktywny, opis). Wygasly timer sprzata sam po sobie, zeby pasek nie pokazywal
+    martwego stanu. Bezpiecznik termiczny jest NADRZEDNY — o tym decyduje petla, nie my.
+    """
+    try:
+        with open(AWAKE_PATH) as f:
+            a = json.load(f)
+    except Exception:
+        return False, None
+    mode = a.get("mode")
+    if mode == "timer":
+        until = float(a.get("until") or 0)
+        if now() < until:
+            return True, a
+        try:
+            os.remove(AWAKE_PATH)
+        except Exception:
+            pass
+        return False, None
+    if mode == "forever":
+        return True, a
+    if mode == "app":
+        app = (a.get("app") or "").strip()
+        if app and run(["pgrep", "-if", app]).strip():
+            return True, a
+        return False, a
+    if mode == "download":
+        return network_active(cfg.get("download_kbps", 500)), a
+    return False, None
+
+
 _hostname_cache = {"v": None}
 
 
@@ -1123,16 +1295,23 @@ def hostname():
 _caff = {"proc": None}
 
 
-def keep_awake_update(cfg, targets, lvl):
+def keep_awake_update(cfg, targets, lvl, st=None):
     """Utrzymuje/zwalnia blokade snu przez systemowy caffeinate.
 
-    Warunek trzymania: opcja wlaczona ORAZ dziala ciezkie zadanie ORAZ poziom < 2 (chlodno).
-    Kazde inne polaczenie = blokada w dol. To jest cala roznica wzgledem Caffeine:
-    tam czlowiek musi pamietac o wylaczeniu, tu wylacza fizyka.
+    Warunek trzymania: (tryb automatyczny z ciezkim zadaniem LUB reczny tryb z paska —
+    timer / dopoki dziala aplikacja / dopoki trwa pobieranie) ORAZ poziom < 2 (chlodno).
+    Kazde inne polaczenie = blokada w dol. To jest cala roznica wzgledem
+    Caffeine/Amphetamine: tam czlowiek musi pamietac o wylaczeniu, tu wylacza fizyka.
     """
+    manual, adesc = manual_awake(cfg)
+    if st is not None:
+        st["_awake_mode"] = (adesc or {}).get("mode") if manual else None
+        st["_awake_until"] = (adesc or {}).get("until") if manual else None
+        st["_awake_app"] = (adesc or {}).get("app") if manual else None
     proc = _caff["proc"]
     zywy = proc is not None and proc.poll() is None
-    chcemy = bool(cfg.get("keep_awake_auto")) and bool(targets) and lvl < 2
+    auto = bool(cfg.get("keep_awake_auto")) and bool(targets)
+    chcemy = (auto or manual) and lvl < 2
     if chcemy and not zywy:
         try:
             _caff["proc"] = subprocess.Popen(
@@ -1161,7 +1340,7 @@ def fleet_write(cfg, status):
             os.makedirs(d, 0o755)
         out = dict(status)
         out["host"] = hostname()
-        out["guard_version"] = "1.5"
+        out["guard_version"] = "1.6"
         tmp = os.path.join(d, ".%s.tmp" % hostname())
         with open(tmp, "w") as f:
             json.dump(out, f, ensure_ascii=False)
@@ -1196,6 +1375,9 @@ def status_write(state, temp, soc, soc_t, ac, pct, speed, load, lvl, why, target
         "manual_pause": bool(st.get("reczna_pauza")),
         "dry_run": bool(st.get("_dry")),
         "keep_awake": bool(st.get("_awake")),
+        "awake_mode": st.get("_awake_mode"),
+        "awake_until": st.get("_awake_until"),
+        "awake_app": st.get("_awake_app"),
         "trend_c_min": st.get("_trend_c_min"),
         "eta_pause_min": st.get("_eta_min"),
         "jobs": st.get("_zadania", []),
@@ -1317,6 +1499,14 @@ def main():
     except Exception:
         pass
 
+    # sprzet + kalibracja per Mac: raz przy starcie (system_profiler jest wolny)
+    try:
+        hw = hardware_info()
+        auto_calibrate(cfg, hw)
+        cfg = load_cfg()          # kalibracja mogla dopisac progi
+    except Exception as e:
+        log("CALIBRATION skipped: %r" % (e,))
+
     czujnik_chipa = T("yes") if soc_temp_c() is not None else T("NO (macmon missing - running on battery temperature only)")
     log(T("thermal-guard start | chip: pause>=%.0fC resume<=%.0fC kill>=%.0fC (sensor: %s)"
           " | battery: pause>=%.0fC kill>=%.0fC | state>=%s | battery gate: <=%d%% on battery")
@@ -1338,7 +1528,7 @@ def main():
             # dane pomocnicze dla paska (trend, zadania, licznik dnia)
             st["_trend_c_min"], st["_eta_min"] = trend_i_prognoza(cfg, soc_t)
             st["_dry"] = bool(cfg.get("dry_run"))
-            st["_awake"] = keep_awake_update(cfg, targets, lvl)
+            st["_awake"] = keep_awake_update(cfg, targets, lvl, st)
             st["_prog_pauza"] = cfg.get("soc_pause_c")
             st["_prog_ubicie"] = cfg.get("soc_kill_c")
             if tick % 4 == 0:                      # rzadziej — to czytanie z dysku

@@ -16,7 +16,7 @@
 
 import Cocoa
 
-let VERSION = "1.5"
+let VERSION = "1.6"
 let SIGNATURE = "thermal-guard v\(VERSION)  ·  FOCUS FRAME 2026"
 
 let base = NSString(string: "~/.thermal-guard").expandingTildeInPath
@@ -103,6 +103,41 @@ let PL: [String: String] = [
     "Watch only, never touch processes (dry run)": "Tylko obserwuj, nie ruszaj procesów (dry run)",
     "Language": "Język",
     "Sounds": "Dźwięki",
+    "Keep awake": "Nie usypiaj Maca",
+    "Off": "Wyłącz",
+    "%d min": "%d min",
+    "%d h": "%d h",
+    "Indefinitely": "Bezterminowo",
+    "While an app is running": "Dopóki działa aplikacja",
+    "While downloading (network active)": "Dopóki trwa pobieranie (aktywna sieć)",
+    "released automatically when the Mac gets hot": "zwalniane samo, gdy Mac się grzeje",
+    "Keep-awake: %@ left": "Czuwanie: zostało %@",
+    "Keep-awake: while %@ is running": "Czuwanie: dopóki działa %@",
+    "Keep-awake: while downloading": "Czuwanie: dopóki trwa pobieranie",
+    "Keep-awake: indefinitely": "Czuwanie: bezterminowo",
+    "Heavy jobs (safe-run)": "Ciężkie zadania (safe-run)",
+    "Efficiency cores only (cool and quiet)": "Tylko rdzenie energooszczędne (chłodno i cicho)",
+    "All cores (fast - the guard still watches the temperature)":
+        "Wszystkie rdzenie (szybko — temperatury i tak pilnuje guard)",
+    "CPU limit for heavy jobs": "Limit CPU dla ciężkich zadań",
+    "below 100% the whole job gets tiny micro-pauses (works for any program)":
+        "poniżej 100% całe zadanie dostaje mikropauzy (działa z każdym programem)",
+    "Start at login": "Uruchamiaj przy starcie komputera",
+    "About my Mac": "O moim Macu",
+    "Phone push (ntfy.sh)...": "Push na telefon (ntfy.sh)...",
+    "Enter a secret topic name. Install the ntfy app on your phone and subscribe to the same topic - pauses, kills and alarms will arrive as push notifications. Leave empty to disable.":
+        "Wpisz sekretną nazwę tematu. Zainstaluj na telefonie aplikację ntfy i zasubskrybuj ten sam temat — pauzy, ubicia i alarmy przyjdą jako push. Puste pole wyłącza.",
+    "Model:  %@": "Model:  %@",
+    "Chip:  %@": "Chip:  %@",
+    "Cores:  %d performance + %d efficiency": "Rdzenie:  %d wydajnościowych + %d energooszczędnych",
+    "RAM:  %d GB": "RAM:  %d GB",
+    "Fans:  %d": "Wentylatory:  %d",
+    "macOS:  %@": "macOS:  %@",
+    "Serial:  %@": "Nr seryjny:  %@",
+    "Battery cycles:  %@": "Cykle baterii:  %@",
+    "Chip sensor (macmon):  %@": "Czujnik chipa (macmon):  %@",
+    "yes": "tak",
+    "no": "nie",
     "Keep the Mac awake while heavy jobs run": "Nie usypiaj Maca, gdy działają ciężkie zadania",
     "Keeping the Mac awake (heavy job running)": "Trzymam Maca w czuwaniu (działa ciężkie zadanie)",
     "resume at %.0f C, terminate at %.0f C": "wznowienie przy %.0f C, ubicie przy %.0f C",
@@ -209,6 +244,41 @@ let RU: [String: String] = [
     "Enable protection (pause heavy jobs when hot)": "Включить защиту (пауза тяжёлых задач при нагреве)",
     "Language": "Язык",
     "Sounds": "Звуки",
+    "Keep awake": "Не давать Mac спать",
+    "Off": "Выключить",
+    "%d min": "%d мин",
+    "%d h": "%d ч",
+    "Indefinitely": "Бессрочно",
+    "While an app is running": "Пока работает приложение",
+    "While downloading (network active)": "Пока идёт загрузка (сеть активна)",
+    "released automatically when the Mac gets hot": "снимается само, когда Mac нагревается",
+    "Keep-awake: %@ left": "Бодрствование: осталось %@",
+    "Keep-awake: while %@ is running": "Бодрствование: пока работает %@",
+    "Keep-awake: while downloading": "Бодрствование: пока идёт загрузка",
+    "Keep-awake: indefinitely": "Бодрствование: бессрочно",
+    "Heavy jobs (safe-run)": "Тяжёлые задачи (safe-run)",
+    "Efficiency cores only (cool and quiet)": "Только энергоэффективные ядра (холодно и тихо)",
+    "All cores (fast - the guard still watches the temperature)":
+        "Все ядра (быстро — за температурой всё равно следит guard)",
+    "CPU limit for heavy jobs": "Лимит CPU для тяжёлых задач",
+    "below 100% the whole job gets tiny micro-pauses (works for any program)":
+        "ниже 100% вся задача получает микропаузы (работает с любой программой)",
+    "Start at login": "Запускать при входе в систему",
+    "About my Mac": "Об этом Mac",
+    "Phone push (ntfy.sh)...": "Push на телефон (ntfy.sh)...",
+    "Enter a secret topic name. Install the ntfy app on your phone and subscribe to the same topic - pauses, kills and alarms will arrive as push notifications. Leave empty to disable.":
+        "Введите секретное имя темы. Установите приложение ntfy на телефон и подпишитесь на ту же тему - паузы, завершения и тревоги придут как push. Пустое поле отключает.",
+    "Model:  %@": "Модель:  %@",
+    "Chip:  %@": "Чип:  %@",
+    "Cores:  %d performance + %d efficiency": "Ядра:  %d производительных + %d энергоэффективных",
+    "RAM:  %d GB": "RAM:  %d ГБ",
+    "Fans:  %d": "Вентиляторы:  %d",
+    "macOS:  %@": "macOS:  %@",
+    "Serial:  %@": "Серийный номер:  %@",
+    "Battery cycles:  %@": "Циклы батареи:  %@",
+    "Chip sensor (macmon):  %@": "Датчик чипа (macmon):  %@",
+    "yes": "да",
+    "no": "нет",
 ]
 
 let ZH: [String: String] = [
@@ -284,6 +354,41 @@ let ZH: [String: String] = [
     "Enable protection (pause heavy jobs when hot)": "启用保护（过热时暂停繁重任务）",
     "Language": "语言",
     "Sounds": "提示音",
+    "Keep awake": "保持 Mac 唤醒",
+    "Off": "关闭",
+    "%d min": "%d 分钟",
+    "%d h": "%d 小时",
+    "Indefinitely": "无限期",
+    "While an app is running": "当某个应用运行时",
+    "While downloading (network active)": "下载期间(网络活跃)",
+    "released automatically when the Mac gets hot": "Mac 变热时自动解除",
+    "Keep-awake: %@ left": "保持唤醒:剩余 %@",
+    "Keep-awake: while %@ is running": "保持唤醒:%@ 运行期间",
+    "Keep-awake: while downloading": "保持唤醒:下载期间",
+    "Keep-awake: indefinitely": "保持唤醒:无限期",
+    "Heavy jobs (safe-run)": "繁重任务(safe-run)",
+    "Efficiency cores only (cool and quiet)": "仅能效核心(凉爽安静)",
+    "All cores (fast - the guard still watches the temperature)":
+        "全部核心(快 - 温度仍由 guard 监控)",
+    "CPU limit for heavy jobs": "繁重任务的 CPU 限制",
+    "below 100% the whole job gets tiny micro-pauses (works for any program)":
+        "低于 100% 时整个任务会得到微暂停(适用于任何程序)",
+    "Start at login": "登录时启动",
+    "About my Mac": "关于我的 Mac",
+    "Phone push (ntfy.sh)...": "手机推送(ntfy.sh)...",
+    "Enter a secret topic name. Install the ntfy app on your phone and subscribe to the same topic - pauses, kills and alarms will arrive as push notifications. Leave empty to disable.":
+        "输入一个保密的主题名。在手机上安装 ntfy 应用并订阅同一主题 - 暂停、终止和警报会以推送形式送达。留空则禁用。",
+    "Model:  %@": "型号:  %@",
+    "Chip:  %@": "芯片:  %@",
+    "Cores:  %d performance + %d efficiency": "核心:  %d 性能 + %d 能效",
+    "RAM:  %d GB": "内存:  %d GB",
+    "Fans:  %d": "风扇:  %d",
+    "macOS:  %@": "macOS:  %@",
+    "Serial:  %@": "序列号:  %@",
+    "Battery cycles:  %@": "电池循环:  %@",
+    "Chip sensor (macmon):  %@": "芯片传感器(macmon):  %@",
+    "yes": "是",
+    "no": "否",
 ]
 
 let ES: [String: String] = [
@@ -359,6 +464,41 @@ let ES: [String: String] = [
     "Enable protection (pause heavy jobs when hot)": "Activar la protección (pausar tareas pesadas al calentarse)",
     "Language": "Idioma",
     "Sounds": "Sonidos",
+    "Keep awake": "Mantener el Mac despierto",
+    "Off": "Apagar",
+    "%d min": "%d min",
+    "%d h": "%d h",
+    "Indefinitely": "Indefinidamente",
+    "While an app is running": "Mientras corra una aplicación",
+    "While downloading (network active)": "Mientras se descarga (red activa)",
+    "released automatically when the Mac gets hot": "se libera solo cuando el Mac se calienta",
+    "Keep-awake: %@ left": "Despierto: quedan %@",
+    "Keep-awake: while %@ is running": "Despierto: mientras corre %@",
+    "Keep-awake: while downloading": "Despierto: mientras se descarga",
+    "Keep-awake: indefinitely": "Despierto: indefinidamente",
+    "Heavy jobs (safe-run)": "Tareas pesadas (safe-run)",
+    "Efficiency cores only (cool and quiet)": "Solo núcleos de eficiencia (frío y silencioso)",
+    "All cores (fast - the guard still watches the temperature)":
+        "Todos los núcleos (rápido - el guard sigue vigilando la temperatura)",
+    "CPU limit for heavy jobs": "Límite de CPU para tareas pesadas",
+    "below 100% the whole job gets tiny micro-pauses (works for any program)":
+        "por debajo del 100% la tarea recibe micropausas (funciona con cualquier programa)",
+    "Start at login": "Iniciar al iniciar sesión",
+    "About my Mac": "Acerca de mi Mac",
+    "Phone push (ntfy.sh)...": "Push al teléfono (ntfy.sh)...",
+    "Enter a secret topic name. Install the ntfy app on your phone and subscribe to the same topic - pauses, kills and alarms will arrive as push notifications. Leave empty to disable.":
+        "Escribe un nombre de tema secreto. Instala la app ntfy en el teléfono y suscríbete al mismo tema: pausas, terminaciones y alarmas llegarán como push. Vacío = desactivado.",
+    "Model:  %@": "Modelo:  %@",
+    "Chip:  %@": "Chip:  %@",
+    "Cores:  %d performance + %d efficiency": "Núcleos:  %d de rendimiento + %d de eficiencia",
+    "RAM:  %d GB": "RAM:  %d GB",
+    "Fans:  %d": "Ventiladores:  %d",
+    "macOS:  %@": "macOS:  %@",
+    "Serial:  %@": "Número de serie:  %@",
+    "Battery cycles:  %@": "Ciclos de batería:  %@",
+    "Chip sensor (macmon):  %@": "Sensor del chip (macmon):  %@",
+    "yes": "sí",
+    "no": "no",
 ]
 
 let DICTS: [String: [String: String]] = ["pl": PL, "ru": RU, "zh": ZH, "es": ES]
@@ -462,6 +602,68 @@ enum GuardCfg {
 }
 
 extension Double { var nonZero: Double? { self == 0 ? nil : self } }
+
+let awakePath = base + "/awake.json"
+let hwPath = base + "/hardware.json"
+
+@discardableResult
+func shell(_ args: [String]) -> String {
+    let p = Process()
+    p.executableURL = URL(fileURLWithPath: args[0])
+    p.arguments = Array(args.dropFirst())
+    let pipe = Pipe()
+    p.standardOutput = pipe
+    p.standardError = Pipe()
+    do { try p.run() } catch { return "" }
+    p.waitUntilExit()
+    return String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+}
+
+/// Reczny keep-awake: pasek tylko ZAPISUJE zyczenie do awake.json, wykonuje je demon
+/// (caffeinate) — z nadrzednym bezpiecznikiem termicznym. Jedna instancja decyduje.
+enum Awake {
+    static func read() -> [String: Any] {
+        guard let d = FileManager.default.contents(atPath: awakePath),
+              let j = try? JSONSerialization.jsonObject(with: d) as? [String: Any] else { return [:] }
+        return j
+    }
+    static func set(_ v: [String: Any]?) {
+        guard let v = v else {
+            try? FileManager.default.removeItem(atPath: awakePath)
+            return
+        }
+        if let d = try? JSONSerialization.data(withJSONObject: v, options: [.prettyPrinted]) {
+            try? d.write(to: URL(fileURLWithPath: awakePath))
+        }
+    }
+}
+
+/// Sprzet wykryty przez guarda przy starcie (hardware.json) — zrodlo zakladki About my Mac.
+func hardwareInfo() -> [String: Any] {
+    guard let d = FileManager.default.contents(atPath: hwPath),
+          let j = try? JSONSerialization.jsonObject(with: d) as? [String: Any] else { return [:] }
+    return j
+}
+
+/// Autostart przy logowaniu: sterujemy stanem enable/disable obu LaunchAgentow.
+/// `launchctl disable` nie zabija dzialajacej instancji — wylacza tylko start przy logowaniu,
+/// dokladnie tak, jak obiecuje przelacznik.
+enum Autostart {
+    static let services = ["pl.pawel.thermal-guard", "pl.pawel.heatbar"]
+    static func enabled() -> Bool {
+        let out = shell(["/bin/launchctl", "print-disabled", "gui/\(getuid())"])
+        // brak wpisu = wlaczone; "service" => disabled/true = wylaczone
+        for line in out.split(separator: "\n") where line.contains(services[0]) {
+            if line.contains("disabled") || line.contains("true") { return false }
+        }
+        return true
+    }
+    static func set(_ on: Bool) {
+        for s in services {
+            shell(["/bin/launchctl", on ? "enable" : "disable", "gui/\(getuid())/\(s)"])
+        }
+    }
+}
 
 /// Ostrzezenie dobrane do wartosci suwaka. Sens: uzytkownik ma zobaczyc konsekwencje ZANIM
 /// ustawi absurd. Najczestszy blad to przenoszenie progu baterii (45 C) na chip — przy 45 C
@@ -679,6 +881,53 @@ func sparkline(limit: Int = 40) -> (String, Double, Double)? {
     return (String(line), lo, hi)
 }
 
+/// "1 h 23 min" z liczby minut — do wiersza pozostalego czasu czuwania.
+func fmtDur(_ minutes: Int) -> String {
+    if minutes >= 60 {
+        let h = minutes / 60, m = minutes % 60
+        return m == 0 ? String(format: T("%d h"), h)
+                      : String(format: T("%d h"), h) + " " + String(format: T("%d min"), m)
+    }
+    return String(format: T("%d min"), max(minutes, 1))
+}
+
+/// Wiersz wyboru jezyka na glownej karcie menu — piec przyciskow zamiast podmenu
+/// zakopanego w Ustawieniach. Klik = zapis "lang" do config.json i restart paska
+/// (launchd podnosi go z powrotem dzieki KeepAlive.SuccessfulExit=false).
+final class LangRow: NSView {
+    private let codes = ["en", "pl", "ru", "zh", "es"]
+    private let labels = ["EN", "PL", "RU", "中文", "ES"]
+
+    init() {
+        super.init(frame: NSRect(x: 0, y: 0, width: 400, height: 30))
+        let w: CGFloat = 66, gap: CGFloat = 6
+        var x: CGFloat = 16
+        for (i, code) in codes.enumerated() {
+            let b = NSButton(title: labels[i], target: self, action: #selector(pick(_:)))
+            b.bezelStyle = .rounded
+            b.controlSize = .small
+            b.font = .systemFont(ofSize: 11, weight: code == lang ? .bold : .regular)
+            b.tag = i
+            if code == lang {
+                b.bezelColor = .controlAccentColor
+                b.contentTintColor = .white
+            }
+            b.frame = NSRect(x: x, y: 3, width: w, height: 22)
+            addSubview(b)
+            x += w + gap
+        }
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    @objc private func pick(_ sender: NSButton) {
+        let code = codes[sender.tag]
+        guard code != lang else { return }
+        GuardCfg.set(["lang": code])
+        exit(1)
+    }
+}
+
 final class Bar: NSObject, NSMenuDelegate {
     let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     let menu = NSMenu()
@@ -807,7 +1056,22 @@ final class Bar: NSObject, NSMenuDelegate {
                    s.onAC ? T("AC adapter")
                           : String(format: T("battery %@"), s.pct.map { "\($0)%" } ?? "?")))
         row(String(format: T("Load:  %.2f    CPU available: %d%%"), s.load, s.cpuLimit))
-        if s.keepAwake { row(T("Keeping the Mac awake (heavy job running)")) }
+        if s.keepAwake {
+            let a = Awake.read()
+            switch a["mode"] as? String {
+            case "timer":
+                let left = max(0, (a["until"] as? Double ?? 0) - Date().timeIntervalSince1970)
+                row(String(format: T("Keep-awake: %@ left"), fmtDur(Int(left / 60))))
+            case "forever":
+                row(T("Keep-awake: indefinitely"))
+            case "app":
+                row(String(format: T("Keep-awake: while %@ is running"), (a["app"] as? String) ?? "?"))
+            case "download":
+                row(T("Keep-awake: while downloading"))
+            default:
+                row(T("Keeping the Mac awake (heavy job running)"))
+            }
+        }
 
         if let (line, lo, hi) = sparkline() {
             m.addItem(.separator())
@@ -858,15 +1122,88 @@ final class Bar: NSObject, NSMenuDelegate {
         addTail(m, paused: !s.paused.isEmpty)
     }
 
+    /// Ikona SF Symbol dla pozycji menu — szablonowa, wiec przyjmuje kolor systemu.
+    func img(_ name: String) -> NSImage? {
+        let i = NSImage(systemSymbolName: name, accessibilityDescription: nil)
+        i?.isTemplate = true
+        return i
+    }
+
     func addTail(_ m: NSMenu, paused: Bool) {
         m.addItem(.separator())
         if paused {
-            m.addItem(withTitle: T("Resume paused jobs"),
-                      action: #selector(resume), keyEquivalent: "").target = self
+            let it = m.addItem(withTitle: T("Resume paused jobs"),
+                               action: #selector(resume), keyEquivalent: "")
+            it.target = self
+            it.image = img("play.circle")
         } else {
-            m.addItem(withTitle: T("Freeze all heavy jobs now"),
-                      action: #selector(freeze), keyEquivalent: "").target = self
+            let it = m.addItem(withTitle: T("Freeze all heavy jobs now"),
+                               action: #selector(freeze), keyEquivalent: "")
+            it.target = self
+            it.image = img("pause.circle")
         }
+
+        // KEEP AWAKE jak w Amphetamine — tyle ze kazdy z tych trybow ma nadrzedny
+        // bezpiecznik termiczny: przy przegrzaniu demon i tak zwalnia blokade snu.
+        let ka = NSMenuItem(title: T("Keep awake"), action: nil, keyEquivalent: "")
+        ka.image = img("cup.and.saucer")
+        let km = NSMenu()
+        km.autoenablesItems = false
+        let cur = Awake.read()
+        let curMode = cur["mode"] as? String
+
+        let off = NSMenuItem(title: T("Off"), action: #selector(awakeOff), keyEquivalent: "")
+        off.target = self
+        off.state = curMode == nil ? .on : .off
+        km.addItem(off)
+        km.addItem(.separator())
+        for min in [15, 30, 45, 60, 120, 180, 300, 480, 720] {
+            let it = NSMenuItem(title: fmtDur(min), action: #selector(awakeTimer(_:)), keyEquivalent: "")
+            it.target = self
+            it.representedObject = min
+            if curMode == "timer", let until = cur["until"] as? Double,
+               abs(until - (cur["set_at"] as? Double ?? 0) - Double(min * 60)) < 1 {
+                it.state = .on
+            }
+            km.addItem(it)
+        }
+        let forever = NSMenuItem(title: T("Indefinitely"), action: #selector(awakeForever), keyEquivalent: "")
+        forever.target = self
+        forever.state = curMode == "forever" ? .on : .off
+        km.addItem(forever)
+        km.addItem(.separator())
+
+        // "dopoki dziala aplikacja": lista realnie uruchomionych aplikacji okienkowych
+        let appItem = NSMenuItem(title: T("While an app is running"), action: nil, keyEquivalent: "")
+        let am = NSMenu()
+        am.autoenablesItems = false
+        let running = NSWorkspace.shared.runningApplications
+            .filter { $0.activationPolicy == .regular }
+            .compactMap { $0.localizedName }
+            .sorted { $0.lowercased() < $1.lowercased() }
+        for name in running.prefix(20) {
+            let it = NSMenuItem(title: name, action: #selector(awakeApp(_:)), keyEquivalent: "")
+            it.target = self
+            it.representedObject = name
+            it.state = (curMode == "app" && (cur["app"] as? String) == name) ? .on : .off
+            am.addItem(it)
+        }
+        appItem.submenu = am
+        appItem.state = curMode == "app" ? .on : .off
+        km.addItem(appItem)
+
+        let dl = NSMenuItem(title: T("While downloading (network active)"),
+                            action: #selector(awakeDownload), keyEquivalent: "")
+        dl.target = self
+        dl.state = curMode == "download" ? .on : .off
+        km.addItem(dl)
+        km.addItem(.separator())
+        let note = NSMenuItem(title: T("released automatically when the Mac gets hot"),
+                              action: nil, keyEquivalent: "")
+        note.isEnabled = false
+        km.addItem(note)
+        ka.submenu = km
+        m.addItem(ka)
 
         // checkboxes deciding what appears in the bar; state kept in heatbar.json
         let showItem = NSMenuItem(title: T("Show in the bar"), action: nil, keyEquivalent: "")
@@ -912,6 +1249,31 @@ final class Bar: NSObject, NSMenuDelegate {
         ss.addItem(battRow)
         ss.addItem(.separator())
 
+        // CIEZKIE ZADANIA: typ rdzeni + limit CPU (defaulty dla safe-run; zapis do config.json)
+        let jobsHdr = NSMenuItem(title: T("Heavy jobs (safe-run)"), action: nil, keyEquivalent: "")
+        jobsHdr.isEnabled = false
+        ss.addItem(jobsHdr)
+        let mode = GuardCfg.string("job_cores_mode", "efficiency")
+        let eff = NSMenuItem(title: T("Efficiency cores only (cool and quiet)"),
+                             action: #selector(coresEfficiency), keyEquivalent: "")
+        eff.target = self
+        eff.state = mode == "all" ? .off : .on
+        ss.addItem(eff)
+        let allc = NSMenuItem(title: T("All cores (fast - the guard still watches the temperature)"),
+                              action: #selector(coresAll), keyEquivalent: "")
+        allc.target = self
+        allc.state = mode == "all" ? .on : .off
+        ss.addItem(allc)
+        let cpuRow = NSMenuItem()
+        cpuRow.view = SliderRow(
+            title: T("CPU limit for heavy jobs"), min: 50, max: 100,
+            current: GuardCfg.double("job_cpu_percent", 95), unit: "%",
+            describe: { _ in (T("below 100% the whole job gets tiny micro-pauses (works for any program)"), "") }) { v in
+            GuardCfg.set(["job_cpu_percent": Int(v)])
+        }
+        ss.addItem(cpuRow)
+        ss.addItem(.separator())
+
         let notif = NSMenuItem(title: T("Notifications"), action: #selector(toggleNotify), keyEquivalent: "")
         notif.target = self
         notif.state = GuardCfg.bool("notify", true) ? .on : .off
@@ -933,42 +1295,84 @@ final class Bar: NSObject, NSMenuDelegate {
         snd.state = GuardCfg.bool("sound", true) ? .on : .off
         ss.addItem(snd)
 
-        let ka = NSMenuItem(title: T("Keep the Mac awake while heavy jobs run"),
-                            action: #selector(toggleAwake), keyEquivalent: "")
-        ka.target = self
-        ka.state = GuardCfg.bool("keep_awake_auto", false) ? .on : .off
-        ss.addItem(ka)
+        let kaAuto = NSMenuItem(title: T("Keep the Mac awake while heavy jobs run"),
+                                action: #selector(toggleAwake), keyEquivalent: "")
+        kaAuto.target = self
+        kaAuto.state = GuardCfg.bool("keep_awake_auto", false) ? .on : .off
+        ss.addItem(kaAuto)
 
-        let langItem = NSMenuItem(title: T("Language"), action: nil, keyEquivalent: "")
-        let lm = NSMenu()
-        lm.autoenablesItems = false
-        for (code, name) in [("en", "English"), ("pl", "Polski"), ("ru", "Русский"),
-                             ("zh", "中文"), ("es", "Español")] {
-            let li = NSMenuItem(title: name, action: #selector(setLang(_:)), keyEquivalent: "")
-            li.target = self
-            li.representedObject = code
-            li.state = (lang == code) ? .on : .off
-            lm.addItem(li)
-        }
-        langItem.submenu = lm
-        ss.addItem(langItem)
+        let ntfy = NSMenuItem(title: T("Phone push (ntfy.sh)..."),
+                              action: #selector(ntfyDialog), keyEquivalent: "")
+        ntfy.target = self
+        ntfy.state = GuardCfg.string("ntfy_topic", "").isEmpty ? .off : .on
+        ss.addItem(ntfy)
 
         setItem.submenu = ss
         m.addItem(setItem)
 
+        // ABOUT MY MAC: sprzet wykryty przez guarda + zdrowie baterii + progi
+        let about = NSMenuItem(title: T("About my Mac"), action: nil, keyEquivalent: "")
+        about.image = img("info.circle")
+        let abm = NSMenu()
+        abm.autoenablesItems = false
+        let hw = hardwareInfo()
+        func arow(_ t: String) {
+            let it = NSMenuItem(title: t, action: nil, keyEquivalent: "")
+            abm.addItem(it)
+        }
+        if hw.isEmpty {
+            arow(T("no data - is thermal-guard running?"))
+        } else {
+            arow(String(format: T("Model:  %@"), (hw["model_name"] as? String) ?? "?"))
+            arow(String(format: T("Chip:  %@"), (hw["chip"] as? String) ?? "?"))
+            arow(String(format: T("Cores:  %d performance + %d efficiency"),
+                        (hw["p_cores"] as? Int) ?? 0, (hw["e_cores"] as? Int) ?? 0))
+            arow(String(format: T("RAM:  %d GB"), (hw["ram_gb"] as? Int) ?? 0))
+            arow(String(format: T("Fans:  %d"), (hw["fan_count"] as? Int) ?? 0))
+            arow(String(format: T("macOS:  %@"), (hw["macos"] as? String) ?? "?"))
+            if let ser = hw["serial"] as? String, !ser.isEmpty {
+                arow(String(format: T("Serial:  %@"), ser))
+            }
+            if let cyc = hw["battery_cycles"] as? Int {
+                let warn = (hw["battery_failure"] as? Bool) == true ? "  ⚠️" : ""
+                arow(String(format: T("Battery cycles:  %@"), "\(cyc)\(warn)"))
+            }
+            arow(String(format: T("Chip sensor (macmon):  %@"),
+                        (hw["chip_sensor"] as? Bool) == true ? T("yes") : T("no")))
+            let sp = GuardCfg.double("soc_pause_c", 85), sk = GuardCfg.double("soc_kill_c", 90)
+            arow(String(format: T("Chip thresholds:  pause %.0f C, kill %.0f C"), sp, sk))
+        }
+        about.submenu = abm
+        m.addItem(about)
+
         // eksport: uzytkownik wybiera format, nie my
         let rep = NSMenuItem(title: T("Export report for a repair shop"), action: nil, keyEquivalent: "")
+        rep.image = img("wrench.and.screwdriver")
         let rm = NSMenu()
         rm.autoenablesItems = false
         rm.addItem(withTitle: T("As PDF..."), action: #selector(reportPDF), keyEquivalent: "").target = self
         rm.addItem(withTitle: T("As plain text (TXT)..."), action: #selector(reportTXT), keyEquivalent: "").target = self
         rep.submenu = rm
         m.addItem(rep)
-        m.addItem(withTitle: T("Show the guard log"), action: #selector(openLog), keyEquivalent: "").target = self
+        let logIt = m.addItem(withTitle: T("Show the guard log"), action: #selector(openLog), keyEquivalent: "")
+        logIt.target = self
+        logIt.image = img("text.alignleft")
+
+        // autostart przy logowaniu — default ON (tak instaluje install.sh)
+        let auto = m.addItem(withTitle: T("Start at login"), action: #selector(toggleAutostart), keyEquivalent: "")
+        auto.target = self
+        auto.image = img("power")
+        auto.state = Autostart.enabled() ? .on : .off
+
         m.addItem(.separator())
         m.addItem(withTitle: T("Report a problem (GitHub)..."), action: #selector(openIssues), keyEquivalent: "").target = self
         m.addItem(withTitle: T("Write to the author..."), action: #selector(mailAuthor), keyEquivalent: "").target = self
         m.addItem(.separator())
+
+        // jezyk na glownej karcie — piec przyciskow, bez szukania po Ustawieniach
+        let langRow = NSMenuItem()
+        langRow.view = LangRow()
+        m.addItem(langRow)
 
         // nazwa, wersja i sygnatura autora — pozycja nieaktywna, sama informacja
         let sig = NSMenuItem(title: SIGNATURE, action: nil, keyEquivalent: "")
@@ -976,6 +1380,51 @@ final class Bar: NSObject, NSMenuDelegate {
         m.addItem(sig)
         m.addItem(withTitle: T("Quit heatbar"), action: #selector(quit), keyEquivalent: "q").target = self
     }
+
+    // --- keep awake (zapis zyczenia; wykonuje demon, bezpiecznik termiczny nadrzedny)
+
+    @objc func awakeOff() { Awake.set(nil) }
+
+    @objc func awakeTimer(_ sender: NSMenuItem) {
+        guard let min = sender.representedObject as? Int else { return }
+        let t = Date().timeIntervalSince1970
+        Awake.set(["mode": "timer", "until": t + Double(min * 60), "set_at": t])
+    }
+
+    @objc func awakeForever() { Awake.set(["mode": "forever"]) }
+
+    @objc func awakeApp(_ sender: NSMenuItem) {
+        guard let app = sender.representedObject as? String else { return }
+        Awake.set(["mode": "app", "app": app])
+    }
+
+    @objc func awakeDownload() { Awake.set(["mode": "download"]) }
+
+    // --- ciezkie zadania
+
+    @objc func coresEfficiency() { GuardCfg.set(["job_cores_mode": "efficiency"]) }
+    @objc func coresAll() { GuardCfg.set(["job_cores_mode": "all"]) }
+
+    // --- push na telefon
+
+    @objc func ntfyDialog() {
+        let a = NSAlert()
+        a.messageText = T("Phone push (ntfy.sh)...")
+        a.informativeText = T("Enter a secret topic name. Install the ntfy app on your phone and subscribe to the same topic - pauses, kills and alarms will arrive as push notifications. Leave empty to disable.")
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24))
+        field.stringValue = GuardCfg.string("ntfy_topic", "")
+        field.placeholderString = "np. moj-mac-7f3k9"
+        a.accessoryView = field
+        a.addButton(withTitle: "OK")
+        a.addButton(withTitle: "Cancel")
+        if a.runModal() == .alertFirstButtonReturn {
+            GuardCfg.set(["ntfy_topic": field.stringValue.trimmingCharacters(in: .whitespaces)])
+        }
+    }
+
+    // --- autostart
+
+    @objc func toggleAutostart() { Autostart.set(!Autostart.enabled()) }
 
     /// Tryb "tylko obserwuj" bywa niezrozumialy, a to najwazniejsza opcja dla kogos, kto boi sie
     /// oddac narzedziu wladze nad swoimi procesami — wiec tlumaczymy go wprost.
