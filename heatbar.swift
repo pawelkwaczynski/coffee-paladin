@@ -1018,7 +1018,8 @@ final class LangRow: NSView {
     init() {
         super.init(frame: NSRect(x: 0, y: 0, width: 400, height: 30))
         let w: CGFloat = 66, gap: CGFloat = 6
-        var x: CGFloat = 16
+        // wysrodkowane: 5 przyciskow + 4 odstepy w osi karty
+        var x: CGFloat = (400 - (5 * w + 4 * gap)) / 2
         for (i, code) in codes.enumerated() {
             let b = NSButton(title: labels[i], target: self, action: #selector(pick(_:)))
             b.bezelStyle = .rounded
