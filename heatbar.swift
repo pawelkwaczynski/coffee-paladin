@@ -566,9 +566,9 @@ final class HeaderRow: NSView {
         if let logo = customLogo() {
             // znak poziomy (wordmark): srodek, wysokosc 22, szerokosc wg proporcji
             let ratio = logo.size.width / max(logo.size.height, 1)
-            let h: CGFloat = 22
-            let w = min(h * ratio, 220)
-            let iv = NSImageView(frame: NSRect(x: (W - w) / 2, y: 26, width: w, height: h))
+            let h: CGFloat = 24
+            let w = min(h * ratio, 330)
+            let iv = NSImageView(frame: NSRect(x: (W - w) / 2, y: 25, width: w, height: h))
             iv.image = logo
             iv.imageScaling = .scaleProportionallyUpOrDown
             iv.contentTintColor = .labelColor
