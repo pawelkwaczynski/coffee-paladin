@@ -294,6 +294,19 @@ only battery temperature reacts long after the damage window has opened.
 
 ---
 
+## Tests
+
+The hard-crash detector — the code that writes warranty evidence — ships with its own test
+matrix: 16 cases covering clean/dirty shutdowns, backup artifacts, garbage content and
+timezone changes (a pulse written in Warsaw must still prove a crash after booting in New
+York). It runs in one command against an isolated HOME and never touches your real black box:
+
+```bash
+T=$(mktemp -d) && python3 tests/test_wykryj_twardy_pad.py "$T"; rm -rf "$T"
+```
+
+---
+
 ## Install
 
 Requires macOS on Apple Silicon, Xcode command line tools (`xcode-select --install`) for `swiftc`,
@@ -610,6 +623,13 @@ ręcznie — jeden klucz na każdej maszynie: `"fleet_dir": "<ścieżka folderu>
 `~/.thermal-guard/config.json` — bez restartu, agent zacznie publikować w ciągu minuty. Potem
 na swojej maszynie: `fleet` (tabela + problemy), `fleet --watch` (odświeżanie), `fleet --json`
 (pod automaty i dashboardy). Host bez raportu od 5 minut dostaje flagę `NIE RAPORTUJE`.
+
+## Testy
+
+Detektor twardego padu (kod piszący dowody gwarancyjne) ma własną matrycę 16 przypadków —
+łącznie ze zmianami stref czasowych i artefaktami z backupów. Jedno polecenie, izolowany HOME,
+prawdziwa czarna skrzynka nietknięta:
+`T=$(mktemp -d) && python3 tests/test_wykryj_twardy_pad.py "$T"; rm -rf "$T"`
 
 ## Instalacja i użycie
 
