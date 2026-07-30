@@ -131,8 +131,9 @@ account, no server of ours; leave the field empty and nothing is ever sent.
 
 **The topic name is the whole secret.** Public ntfy.sh topics have no other access control:
 anyone who knows (or guesses) the name can read your alerts *and* send fake ones. Do not use
-a guessable name like `mac-guard` — append something random, e.g. `mbp-guard-x7kq93w2`. The
-messages themselves contain process names and temperatures, nothing more.
+a guessable name like `mac-guard` — the settings dialog **suggests a random, unguessable name**
+(e.g. `mac-guard-x7kq93w2`) whenever the field is empty; take it, or bring your own long random
+one. The messages themselves contain process names and temperatures, nothing more.
 
 ### 6. It keeps evidence (the black box)
 

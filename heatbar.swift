@@ -128,6 +128,8 @@ let PL: [String: String] = [
     "Phone push (ntfy.sh)...": "Push na telefon (ntfy.sh)...",
     "Enter a secret topic name. Install the ntfy app on your phone and subscribe to the same topic - pauses, kills and alarms will arrive as push notifications. Leave empty to disable.":
         "Wpisz sekretną nazwę tematu. Zainstaluj na telefonie aplikację ntfy i zasubskrybuj ten sam temat — pauzy, ubicia i alarmy przyjdą jako push. Puste pole wyłącza.",
+    "The topic name is the ONLY protection: anyone who knows or guesses it can read your alerts and send fake ones. Use the suggested random name (or your own - long and random). Install the ntfy app on your phone and subscribe to the same topic. Leave empty to disable.":
+        "Nazwa tematu to JEDYNE zabezpieczenie: kto ją zna lub zgadnie, widzi Twoje alerty i może wysyłać fałszywe. Użyj podpowiedzianej losowej nazwy (albo własnej — długiej i losowej). Zainstaluj na telefonie aplikację ntfy i zasubskrybuj ten sam temat. Puste pole wyłącza.",
     "Model:  %@": "Model:  %@",
     "Chip:  %@": "Chip:  %@",
     "Cores:  %d performance + %d efficiency": "Rdzenie:  %d wydajnościowych + %d energooszczędnych",
@@ -270,6 +272,8 @@ let RU: [String: String] = [
     "Phone push (ntfy.sh)...": "Push на телефон (ntfy.sh)...",
     "Enter a secret topic name. Install the ntfy app on your phone and subscribe to the same topic - pauses, kills and alarms will arrive as push notifications. Leave empty to disable.":
         "Введите секретное имя темы. Установите приложение ntfy на телефон и подпишитесь на ту же тему - паузы, завершения и тревоги придут как push. Пустое поле отключает.",
+    "The topic name is the ONLY protection: anyone who knows or guesses it can read your alerts and send fake ones. Use the suggested random name (or your own - long and random). Install the ntfy app on your phone and subscribe to the same topic. Leave empty to disable.":
+        "Имя темы - ЕДИНСТВЕННАЯ защита: кто его знает или угадает, видит ваши оповещения и может слать поддельные. Используйте предложенное случайное имя (или своё - длинное и случайное). Установите приложение ntfy на телефон и подпишитесь на ту же тему. Пустое поле отключает.",
     "Model:  %@": "Модель:  %@",
     "Chip:  %@": "Чип:  %@",
     "Cores:  %d performance + %d efficiency": "Ядра:  %d производительных + %d энергоэффективных",
@@ -381,6 +385,8 @@ let ZH: [String: String] = [
     "Phone push (ntfy.sh)...": "手机推送(ntfy.sh)...",
     "Enter a secret topic name. Install the ntfy app on your phone and subscribe to the same topic - pauses, kills and alarms will arrive as push notifications. Leave empty to disable.":
         "输入一个保密的主题名。在手机上安装 ntfy 应用并订阅同一主题 - 暂停、终止和警报会以推送形式送达。留空则禁用。",
+    "The topic name is the ONLY protection: anyone who knows or guesses it can read your alerts and send fake ones. Use the suggested random name (or your own - long and random). Install the ntfy app on your phone and subscribe to the same topic. Leave empty to disable.":
+        "主题名是唯一的保护:知道或猜到它的人都能看到你的警报并发送伪造消息。请使用建议的随机名称(或自己起一个又长又随机的)。在手机上安装 ntfy 应用并订阅同一主题。留空则禁用。",
     "Model:  %@": "型号:  %@",
     "Chip:  %@": "芯片:  %@",
     "Cores:  %d performance + %d efficiency": "核心:  %d 性能 + %d 能效",
@@ -492,6 +498,8 @@ let ES: [String: String] = [
     "Phone push (ntfy.sh)...": "Push al teléfono (ntfy.sh)...",
     "Enter a secret topic name. Install the ntfy app on your phone and subscribe to the same topic - pauses, kills and alarms will arrive as push notifications. Leave empty to disable.":
         "Escribe un nombre de tema secreto. Instala la app ntfy en el teléfono y suscríbete al mismo tema: pausas, terminaciones y alarmas llegarán como push. Vacío = desactivado.",
+    "The topic name is the ONLY protection: anyone who knows or guesses it can read your alerts and send fake ones. Use the suggested random name (or your own - long and random). Install the ntfy app on your phone and subscribe to the same topic. Leave empty to disable.":
+        "El nombre del tema es la ÚNICA protección: quien lo conozca o adivine verá tus alertas y podrá enviar falsas. Usa el nombre aleatorio sugerido (o el tuyo, largo y aleatorio). Instala la app ntfy en el teléfono y suscríbete al mismo tema. Vacío = desactivado.",
     "Model:  %@": "Modelo:  %@",
     "Chip:  %@": "Chip:  %@",
     "Cores:  %d performance + %d efficiency": "Núcleos:  %d de rendimiento + %d de eficiencia",
@@ -511,11 +519,59 @@ func T(_ s: String) -> String { DICTS[lang]?[s] ?? s }
 
 // MARK: - icons
 
-/// Kubek: preferujemy natywny "mug" (SF Symbols 5, macOS 14+); starsze systemy dostaja filizanke.
-let MUG: String = NSImage(systemSymbolName: "mug", accessibilityDescription: nil) != nil
-    ? "mug" : "cup.and.saucer"
-let MUG_FILL: String = NSImage(systemSymbolName: "mug.fill", accessibilityDescription: nil) != nil
-    ? "mug.fill" : "cup.and.saucer.fill"
+// Kawa = filizanka (cup.and.saucer) — swiadomy wybor Pawla po probie z "mug".
+let MUG = "cup.and.saucer"
+let MUG_FILL = "cup.and.saucer.fill"
+
+/// Male logo "app-icon style" rysowane w locie: squircle z gradientem i bialym termometrem.
+/// Zadnych plikow zasobow — pasek zostaje jednym samowystarczalnym plikiem Swift.
+func makeLogo(_ size: CGFloat = 22) -> NSImage {
+    let img = NSImage(size: NSSize(width: size, height: size))
+    img.lockFocus()
+    let rect = NSRect(x: 0, y: 0, width: size, height: size)
+    let path = NSBezierPath(roundedRect: rect, xRadius: size * 0.24, yRadius: size * 0.24)
+    NSGradient(starting: NSColor(calibratedRed: 1.00, green: 0.45, blue: 0.20, alpha: 1),
+               ending: NSColor(calibratedRed: 0.82, green: 0.10, blue: 0.16, alpha: 1))?
+        .draw(in: path, angle: -90)
+    if let sym = NSImage(systemSymbolName: "thermometer.medium", accessibilityDescription: nil) {
+        let cfg = NSImage.SymbolConfiguration(pointSize: size * 0.60, weight: .semibold)
+            .applying(NSImage.SymbolConfiguration(paletteColors: [.white]))
+        let s = sym.withSymbolConfiguration(cfg) ?? sym
+        let sz = s.size
+        s.draw(in: NSRect(x: (size - sz.width) / 2, y: (size - sz.height) / 2,
+                          width: sz.width, height: sz.height))
+    }
+    img.unlockFocus()
+    return img
+}
+
+/// Naglowek menu: logo + nazwa + wersja. Sekcja czysto informacyjna, nad wyborem jezyka.
+final class HeaderRow: NSView {
+    init() {
+        super.init(frame: NSRect(x: 0, y: 0, width: 400, height: 34))
+        let iv = NSImageView(frame: NSRect(x: 16, y: 6, width: 22, height: 22))
+        iv.image = makeLogo(22)
+        addSubview(iv)
+        let name = NSTextField(labelWithString: "thermal-guard")
+        name.font = .systemFont(ofSize: 13, weight: .semibold)
+        name.textColor = .labelColor
+        name.frame = NSRect(x: 46, y: 15, width: 220, height: 16)
+        addSubview(name)
+        let sub = NSTextField(labelWithString: "v\(VERSION) · FOCUS FRAME")
+        sub.font = .systemFont(ofSize: 10)
+        sub.textColor = .secondaryLabelColor
+        sub.frame = NSRect(x: 46, y: 3, width: 220, height: 12)
+        addSubview(sub)
+    }
+    required init?(coder: NSCoder) { fatalError() }
+}
+
+/// Losowa, niezgadywalna nazwa tematu ntfy — bo nazwa jest jedynym zabezpieczeniem.
+func randomTopic() -> String {
+    let chars = Array("abcdefghjkmnpqrstuvwxyz23456789")
+    let suffix = String((0..<10).map { _ in chars[Int(arc4random_uniform(UInt32(chars.count)))] })
+    return "mac-guard-" + suffix
+}
 
 /// Ikony na pasku to SF Symbols, nie emoji. Powody sa praktyczne: emoji maja wlasny, staly kolor
 /// (wiec w ciemnym motywie odcinaja sie jak naklejki), roznia sie szerokoscia miedzy wersjami
@@ -1031,7 +1087,12 @@ final class Bar: NSObject, NSMenuDelegate {
 
     func menuNeedsUpdate(_ m: NSMenu) {
         m.removeAllItems()
-        // jezyk na samej gorze — osobna, elegancko odseparowana sekcja
+        // sekcja marki: logo + nazwa, nad nia nic — to jest "twarz" narzedzia
+        let head = NSMenuItem()
+        head.view = HeaderRow()
+        m.addItem(head)
+        m.addItem(.separator())
+        // jezyk zaraz pod marka — osobna, elegancko odseparowana sekcja
         let langTop = NSMenuItem()
         langTop.view = LangRow()
         m.addItem(langTop)
@@ -1439,10 +1500,11 @@ final class Bar: NSObject, NSMenuDelegate {
     @objc func ntfyDialog() {
         let a = NSAlert()
         a.messageText = T("Phone push (ntfy.sh)...")
-        a.informativeText = T("Enter a secret topic name. Install the ntfy app on your phone and subscribe to the same topic - pauses, kills and alarms will arrive as push notifications. Leave empty to disable.")
-        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24))
-        field.stringValue = GuardCfg.string("ntfy_topic", "")
-        field.placeholderString = "np. moj-mac-7f3k9"
+        a.informativeText = T("The topic name is the ONLY protection: anyone who knows or guesses it can read your alerts and send fake ones. Use the suggested random name (or your own - long and random). Install the ntfy app on your phone and subscribe to the same topic. Leave empty to disable.")
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 280, height: 24))
+        let current = GuardCfg.string("ntfy_topic", "")
+        // pusty config = od razu podpowiadamy niezgadywalna nazwe zamiast kusic "mac-guard"
+        field.stringValue = current.isEmpty ? randomTopic() : current
         a.accessoryView = field
         a.addButton(withTitle: "OK")
         a.addButton(withTitle: "Cancel")
