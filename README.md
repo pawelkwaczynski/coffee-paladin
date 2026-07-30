@@ -629,11 +629,19 @@ Sama bateria nie wystarcza: pomiar z czasu pisania tego pliku to **chip 53,5 °C
 ## Czym to się różni od Stats / iStat / TG Pro
 
 Tamte narzędzia **pokazują** liczby albo podkręcają wentylatory. Żadne nie dotyka samej pracy.
-thermal-guard jako jedyny: **wstrzymuje obciążenie bezstratnie** (SIGSTOP - proces wraca do tej
-samej instrukcji; zmierzone 89,3 → 60,2 °C w 19 s bez utraty obliczeń), **widzi orkiestratory**
-rozsiewające sekundowe procesy (liczy CPU całego drzewa), **zbiera dowody** sprzed twardego padu
-do reklamacji, **pilnuje baterii** przy wielodniowych obliczeniach i **składa całą flotę w jedną
-tabelę** bez żadnego serwera.
+Gdy chip dobija do 90 °C o trzeciej w nocy, wykres tego faktu nie jest żadną ochroną.
+
+| | Monitoring (Stats, iStat) | Sterowniki wentylatorów (TG Pro, MFC) | **thermal-guard** |
+|---|---|---|---|
+| Pokazuje temperatury | tak | tak | tak |
+| Steruje wentylatorami | - | tak | nie (robi to macOS) |
+| **Wstrzymuje samą pracę, bezstratnie** | - | - | **tak - SIGSTOP/SIGCONT, zmierzone 89,3 → 60,2 °C w 19 s** |
+| Widzi orkiestratory rozsiewające sekundowe procesy | - | - | **tak - CPU całego drzewa procesów** |
+| Trzyma pomiary sprzed padu do reklamacji | - | - | **tak - czarna skrzynka + raport** |
+| Chroni długie obliczenia przed rozładowaniem | - | - | **tak - bramka baterii** |
+| Keep-awake trzymany **tylko gdy chłodno** | - | - | **tak - bezpiecznik termiczny** |
+| Cała flota w jednej tabeli, bez serwera | - | - | **tak - wspólny folder** |
+| Wymaga sudo / kextów / kont | różnie | często | **nie** |
 
 ## Flota: wszystkie Maki w jednej tabeli
 
