@@ -545,23 +545,41 @@ func makeLogo(_ size: CGFloat = 22) -> NSImage {
     return img
 }
 
-/// Naglowek menu: logo + nazwa + wersja. Sekcja czysto informacyjna, nad wyborem jezyka.
+/// Wlasne logo uzytkownika: ~/.thermal-guard/logo.png (czarny znak na przezroczystym tle).
+/// isTemplate sprawia, ze macOS sam przebarwia je na kolor motywu (jasny/ciemny).
+func customLogo() -> NSImage? {
+    guard let img = NSImage(contentsOfFile: base + "/logo.png") else { return nil }
+    img.isTemplate = true
+    return img
+}
+
+/// Naglowek menu: logo + nazwa + wersja, wszystko WYSRODKOWANE. Gdy w ~/.thermal-guard
+/// lezy logo.png (u Pawla: znak AIrON), pokazujemy je; bez pliku rysujemy wlasny squircle.
 final class HeaderRow: NSView {
     init() {
-        super.init(frame: NSRect(x: 0, y: 0, width: 400, height: 34))
-        let iv = NSImageView(frame: NSRect(x: 16, y: 6, width: 22, height: 22))
-        iv.image = makeLogo(22)
-        addSubview(iv)
-        let name = NSTextField(labelWithString: "thermal-guard")
-        name.font = .systemFont(ofSize: 13, weight: .semibold)
-        name.textColor = .labelColor
-        name.frame = NSRect(x: 46, y: 15, width: 220, height: 16)
+        super.init(frame: NSRect(x: 0, y: 0, width: 400, height: 56))
+        let W: CGFloat = 400
+        if let logo = customLogo() {
+            // znak poziomy (wordmark): srodek, wysokosc 22, szerokosc wg proporcji
+            let ratio = logo.size.width / max(logo.size.height, 1)
+            let h: CGFloat = 22
+            let w = min(h * ratio, 220)
+            let iv = NSImageView(frame: NSRect(x: (W - w) / 2, y: 26, width: w, height: h))
+            iv.image = logo
+            iv.imageScaling = .scaleProportionallyUpOrDown
+            iv.contentTintColor = .labelColor
+            addSubview(iv)
+        } else {
+            let iv = NSImageView(frame: NSRect(x: (W - 22) / 2, y: 26, width: 22, height: 22))
+            iv.image = makeLogo(22)
+            addSubview(iv)
+        }
+        let name = NSTextField(labelWithString: "thermal-guard  ·  v\(VERSION)")
+        name.font = .systemFont(ofSize: 11, weight: .semibold)
+        name.textColor = .secondaryLabelColor
+        name.alignment = .center
+        name.frame = NSRect(x: 0, y: 6, width: W, height: 14)
         addSubview(name)
-        let sub = NSTextField(labelWithString: "v\(VERSION) · FOCUS FRAME")
-        sub.font = .systemFont(ofSize: 10)
-        sub.textColor = .secondaryLabelColor
-        sub.frame = NSRect(x: 46, y: 3, width: 220, height: 12)
-        addSubview(sub)
     }
     required init?(coder: NSCoder) { fatalError() }
 }
@@ -1456,15 +1474,18 @@ final class Bar: NSObject, NSMenuDelegate {
         m.addItem(withTitle: T("Write to the author..."), action: #selector(mailAuthor), keyEquivalent: "").target = self
         m.addItem(.separator())
 
-        // nazwa, wersja i sygnatura autora — pozycja nieaktywna, sama informacja
-        let sig = NSMenuItem(title: SIGNATURE, action: nil, keyEquivalent: "")
-        sig.isEnabled = false
-        m.addItem(sig)
-        // "Zamknij heatbar" wysrodkowane — zamyka menu wizualnie jak stopka
-        let quitIt = NSMenuItem(title: "", action: #selector(quit), keyEquivalent: "q")
-        quitIt.target = self
+        // stopka: sygnatura i "Zamknij heatbar" WYSRODKOWANE — domykaja menu wizualnie
         let center = NSMutableParagraphStyle()
         center.alignment = .center
+        let sig = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+        sig.attributedTitle = NSAttributedString(
+            string: SIGNATURE,
+            attributes: [.paragraphStyle: center, .font: NSFont.systemFont(ofSize: 11),
+                         .foregroundColor: NSColor.secondaryLabelColor])
+        sig.isEnabled = false
+        m.addItem(sig)
+        let quitIt = NSMenuItem(title: "", action: #selector(quit), keyEquivalent: "q")
+        quitIt.target = self
         quitIt.attributedTitle = NSAttributedString(
             string: T("Quit heatbar"),
             attributes: [.paragraphStyle: center, .font: NSFont.menuFont(ofSize: 13)])
