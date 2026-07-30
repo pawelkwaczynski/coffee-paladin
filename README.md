@@ -1,4 +1,4 @@
-# thermal-guard v1.6
+# thermal-guard v1.7
 
 **A thermal and power safety net for Apple Silicon Macs — from one laptop to a whole fleet.**
 It watches the chip temperature, the battery, the fans and the power source, and it *freezes*
@@ -354,7 +354,10 @@ The language switch (EN · PL · RU · 中文 · ES) sits as a row of buttons ri
 agents (on by default).
 
 **Apple fleet** in the menu shows every Mac publishing to your shared fleet folder — chip
-temperature, fans, watts, RAM, state, paused jobs and last-seen age per host, with a
+temperature, fans, watts, RAM, state, paused jobs and last-seen age per host — each under its
+own custom name (*Settings > Name this Mac in the fleet*; with five identical MacBooks the
+hostname tells you nothing), with the model shown inline and the serial number in the tooltip,
+and a
 `STALE - not reporting` marker after 5 minutes of silence. It reads the same files as the
 `fleet` CLI, refreshed by a background cache every ~30 s, so opening the menu never blocks on
 iCloud/SMB. "Live" here means the agent's ~1-minute publishing rhythm plus your folder's sync
@@ -603,7 +606,9 @@ bash install.sh
 - `heatbar` — pasek menu: chip, GPU, bateria, obroty, waty, RAM i dysk (wybierasz checkboxami
   w „Pokaż na pasku"), wykres, prognoza, listy „co grzeje" (top 3 po CPU — najlepsze dostępne
   przybliżenie ciepła per proces) i „co zjada RAM" (top 3 po pamięci), ręczne zamrażanie,
-  eksport raportu oraz **Flota Apple** — wszystkie Twoje Maki z parametrami i znacznikiem
+  eksport raportu oraz **Flota Apple** — wszystkie Twoje Maki z parametrami, własnymi nazwami
+  (Ustawienia > „Nazwij tego Maca we flocie" — przy pięciu identycznych MacBookach nazwa
+  systemowa nic nie mówi), modelem w wierszu i numerem seryjnym w podpowiedzi, ze znacznikiem
   „NIE RAPORTUJE" (cache w tle, otwarcie menu nigdy nie czeka na iCloud/SMB)
 - `thermal-report --dni 14` — raport dowodowy dla serwisu
 
