@@ -103,6 +103,9 @@ let PL: [String: String] = [
     "Watch only, never touch processes (dry run)": "Tylko obserwuj, nie ruszaj procesów (dry run)",
     "Language": "Język",
     "Sounds": "Dźwięki",
+    "Name this Mac in the fleet...": "Nazwij tego Maca we flocie...",
+    "With five identical MacBooks the system hostname says nothing. This name shows in the fleet table and menu on every machine. Empty = system hostname.":
+        "Przy pięciu identycznych MacBookach nazwa systemowa nic nie mówi. Ta nazwa pokazuje się w tabeli floty i w menu na każdej maszynie. Puste = nazwa systemowa.",
     "Apple fleet": "Flota Apple",
     "STALE - not reporting": "NIE RAPORTUJE",
     "no fleet folder - run: fleet --setup": "brak folderu floty — uruchom: fleet --setup",
@@ -257,6 +260,9 @@ let RU: [String: String] = [
     "Enable protection (pause heavy jobs when hot)": "Включить защиту (пауза тяжёлых задач при нагреве)",
     "Language": "Язык",
     "Sounds": "Звуки",
+    "Name this Mac in the fleet...": "Имя этого Mac в парке...",
+    "With five identical MacBooks the system hostname says nothing. This name shows in the fleet table and menu on every machine. Empty = system hostname.":
+        "Когда MacBook пять одинаковых, системное имя ничего не говорит. Это имя видно в таблице парка и в меню на каждой машине. Пустое = системное имя.",
     "Apple fleet": "Парк Apple",
     "STALE - not reporting": "НЕ ОТЧИТЫВАЕТСЯ",
     "no fleet folder - run: fleet --setup": "нет папки парка - выполните: fleet --setup",
@@ -380,6 +386,9 @@ let ZH: [String: String] = [
     "Enable protection (pause heavy jobs when hot)": "启用保护（过热时暂停繁重任务）",
     "Language": "语言",
     "Sounds": "提示音",
+    "Name this Mac in the fleet...": "为此 Mac 设置机群名称...",
+    "With five identical MacBooks the system hostname says nothing. This name shows in the fleet table and menu on every machine. Empty = system hostname.":
+        "五台一样的 MacBook,系统主机名毫无意义。此名称会显示在每台机器的机群表和菜单中。留空 = 系统主机名。",
     "Apple fleet": "Apple 机群",
     "STALE - not reporting": "未上报",
     "no fleet folder - run: fleet --setup": "没有机群文件夹 - 运行: fleet --setup",
@@ -503,6 +512,9 @@ let ES: [String: String] = [
     "Enable protection (pause heavy jobs when hot)": "Activar la protección (pausar tareas pesadas al calentarse)",
     "Language": "Idioma",
     "Sounds": "Sonidos",
+    "Name this Mac in the fleet...": "Nombra este Mac en la flota...",
+    "With five identical MacBooks the system hostname says nothing. This name shows in the fleet table and menu on every machine. Empty = system hostname.":
+        "Con cinco MacBooks idénticos el nombre del sistema no dice nada. Este nombre aparece en la tabla de flota y el menú de cada máquina. Vacío = nombre del sistema.",
     "Apple fleet": "Flota Apple",
     "STALE - not reporting": "SIN REPORTAR",
     "no fleet folder - run: fleet --setup": "sin carpeta de flota - ejecuta: fleet --setup",
@@ -597,6 +609,8 @@ func customLogo() -> NSImage? {
 
 struct FleetHost {
     let name: String
+    var model: String = ""
+    var serial: String = ""
     let age: TimeInterval
     let chip: Double?
     let fans: Int?
@@ -623,7 +637,7 @@ func fleetHosts() -> [FleetHost]? {
             var base = fname
             if base.hasPrefix(".") { base.removeFirst() }
             base = String(base.dropLast(".json.icloud".count))
-            out.append(FleetHost(name: base, age: 1e9, chip: nil, fans: nil, watts: nil,
+            out.append(FleetHost(name: base, model: "", serial: "", age: 1e9, chip: nil, fans: nil, watts: nil,
                                  ramPct: nil, level: 0, paused: [], onAC: true, battPct: nil))
             continue
         }
@@ -636,6 +650,8 @@ func fleetHosts() -> [FleetHost]? {
         let rt = num(j["ram_total_gb"])
         out.append(FleetHost(
             name: (j["host"] as? String) ?? String(fname.dropLast(5)),
+            model: (j["model"] as? String) ?? "",
+            serial: (j["serial"] as? String) ?? "",
             // max(0,...): mtime z przyszlosci (rozjazd zegarow na SMB) nie moze dawac
             // ujemnego wieku — host wygladalby na wiecznie swiezy
             age: mtime.map { max(0, Date().timeIntervalSince($0)) } ?? 1e9,
@@ -1592,6 +1608,12 @@ final class Bar: NSObject, NSMenuDelegate {
         ntfy.state = GuardCfg.string("ntfy_topic", "").isEmpty ? .off : .on
         ss.addItem(ntfy)
 
+        let flabel = NSMenuItem(title: T("Name this Mac in the fleet..."),
+                                action: #selector(fleetNameDialog), keyEquivalent: "")
+        flabel.target = self
+        flabel.state = GuardCfg.string("fleet_label", "").isEmpty ? .off : .on
+        ss.addItem(flabel)
+
         setItem.submenu = ss
         m.addItem(setItem)
 
@@ -1657,7 +1679,8 @@ final class Bar: NSObject, NSMenuDelegate {
                 frow(T("no agent snapshots yet (agents publish about once a minute)"))
             }
             for h0 in hosts {
-                let h = FleetHost(name: h0.name, age: h0.age + cacheDrift, chip: h0.chip,
+                let h = FleetHost(name: h0.name, model: h0.model, serial: h0.serial,
+                                  age: h0.age + cacheDrift, chip: h0.chip,
                                   fans: h0.fans, watts: h0.watts, ramPct: h0.ramPct,
                                   level: h0.level, paused: h0.paused, onAC: h0.onAC,
                                   battPct: h0.battPct)
@@ -1677,7 +1700,14 @@ final class Bar: NSObject, NSMenuDelegate {
                 bits.append(names[min(max(h.level, 0), 3)])
                 if !h.paused.isEmpty { bits.append("⏸ " + h.paused.joined(separator: ",")) }
                 bits.append(fleetAge(h.age))
-                frow("\(h.name):   " + bits.joined(separator: "  ·  "))
+                let tytul = h.model.isEmpty ? h.name : "\(h.name)  [\(h.model)]"
+                let it = NSMenuItem(title: tytul + ":   " + bits.joined(separator: "  ·  "),
+                                    action: nil, keyEquivalent: "")
+                if !h.serial.isEmpty || !h.model.isEmpty {
+                    it.toolTip = [h.model, h.serial.isEmpty ? "" : "SN " + h.serial]
+                        .filter { !$0.isEmpty }.joined(separator: "  ·  ")
+                }
+                fmenu.addItem(it)
             }
         } else {
             frow(T("no fleet folder - run: fleet --setup"))
@@ -1772,6 +1802,23 @@ final class Bar: NSObject, NSMenuDelegate {
         ntfyField = nil
         if result == .alertFirstButtonReturn {
             GuardCfg.set(["ntfy_topic": field.stringValue.trimmingCharacters(in: .whitespaces)])
+        }
+    }
+
+    // --- nazwa we flocie
+
+    @objc func fleetNameDialog() {
+        let a = NSAlert()
+        a.messageText = T("Name this Mac in the fleet...")
+        a.informativeText = T("With five identical MacBooks the system hostname says nothing. This name shows in the fleet table and menu on every machine. Empty = system hostname.")
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 280, height: 24))
+        field.stringValue = GuardCfg.string("fleet_label", "")
+        field.placeholderString = "np. render-01, Neo, MBP-Pawel"
+        a.accessoryView = field
+        a.addButton(withTitle: "OK")
+        a.addButton(withTitle: "Cancel")
+        if a.runModal() == .alertFirstButtonReturn {
+            GuardCfg.set(["fleet_label": field.stringValue.trimmingCharacters(in: .whitespaces)])
         }
     }
 

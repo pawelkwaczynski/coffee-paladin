@@ -126,6 +126,9 @@ DEFAULTS = {
     # zaufanie przy pierwszym falszywym alarmie; narzedzie, ktore najpierw pokazuje, CO by
     # zrobilo, zdobywa je.
     "dry_run": True,
+    # WLASNA NAZWA tego Maca we flocie (tabela fleet + menu). Pusta = nazwa systemowa.
+    # Przy 5 maszynach "MacBook Pro (3)" nic nie mowi — "render-01" albo "Neo" mowi wszystko.
+    "fleet_label": "",
     # FLOTA: sciezka wspolnego folderu (iCloud/Dropbox/SMB/SharePoint). Gdy ustawiona,
     # guard publikuje tam migawke <hostname>.json — narzedzie `fleet` sklada z nich
     # tabele calej floty. Celowo folder, nie serwer: kazda firma jakis wspolny dysk juz ma.
@@ -1403,6 +1406,24 @@ def keep_awake_update(cfg, targets, lvl, st=None):
     return _caff["proc"] is not None and _caff["proc"].poll() is None
 
 
+_hw_fleet = {"v": None}
+
+
+def _hw_cache_fleet():
+    """Model i serial z hardware.json — czytane raz, do migawki floty."""
+    if _hw_fleet["v"] is None:
+        d = {}
+        try:
+            with open(HW_PATH) as f:
+                j = json.load(f)
+            d = {"model": "%s · %s" % (j.get("model_name", "?"), j.get("chip", "?")),
+                 "serial": j.get("serial", "")}
+        except Exception:
+            pass
+        _hw_fleet["v"] = d
+    return _hw_fleet["v"]
+
+
 def fleet_write(cfg, status):
     """Migawka hosta do wspolnego folderu floty (jesli skonfigurowany)."""
     d = os.path.expanduser(cfg.get("fleet_dir") or "")
@@ -1412,8 +1433,11 @@ def fleet_write(cfg, status):
         if not os.path.isdir(d):
             os.makedirs(d, 0o755)
         out = dict(status)
-        out["host"] = hostname()
-        out["guard_version"] = "1.6"
+        out["host"] = (cfg.get("fleet_label") or "").strip() or hostname()
+        hw = _hw_cache_fleet()
+        out["model"] = hw.get("model")
+        out["serial"] = hw.get("serial")
+        out["guard_version"] = "1.7"
         tmp = os.path.join(d, ".%s.tmp" % hostname())
         with open(tmp, "w") as f:
             json.dump(out, f, ensure_ascii=False)

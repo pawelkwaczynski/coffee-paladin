@@ -267,7 +267,7 @@ def render(d):
 
     print(T("FLEET: %d machine(s), folder %s") % (len(hosts), d))
     print()
-    hdr = (T("HOST"), T("CHIP"), T("FAN"), T("POWER"), T("RAM"), T("DISK"),
+    hdr = (T("HOST"), "MODEL", T("CHIP"), T("FAN"), T("POWER"), T("RAM"), T("DISK"),
            T("STATE"), T("TODAY"), T("SEEN"), T("ISSUES"))
     rows = []
     attention = []
@@ -282,6 +282,7 @@ def render(d):
             today += " %dk" % stats["kills"]
         rows.append((
             h["host"][:18],
+            (h.get("model") or "-")[:22],
             "-" if stale or h.get("chip_c") is None else "%.0fC" % h["chip_c"],
             "-" if stale or not fans else ("0!" if max(fans) == 0 and (h.get("chip_c") or 0) >= 70
                                           else "%.1fk" % (max(fans) / 1000.0) if max(fans) >= 1000
