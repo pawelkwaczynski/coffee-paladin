@@ -27,7 +27,7 @@ import os
 import sys
 import time
 
-BASE = os.path.expanduser("~/.thermal-guard")
+BASE = os.path.expanduser(os.environ.get("TG_BASE") or "~/.thermal-guard")
 
 
 SUPPORTED_LANGS = ("en", "pl", "ru", "zh", "es")

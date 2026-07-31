@@ -1,4 +1,9 @@
-# thermal-guard v1.7.5
+# thermal-guard v1.9.0
+
+<p align="center">
+  <img src="branding/paladin.gif" alt="coffee-paladin - the project mascot" width="260">
+</p>
+<p align="center"><em>Shield the Process, Sip the Coffee</em></p>
 
 **A thermal and power safety net for Apple Silicon Macs - from one laptop to a whole fleet.**
 It watches the chip temperature, the battery, the fans and the power source, and it *freezes*
@@ -11,6 +16,8 @@ available to a normal user process.
 
 *(Polska wersja poniżej - [przejdź do opisu po polsku](#po-polsku).)*
 
+**Other languages:** [中文](README.zh.md) · [Русский](README.ru.md) · [Español](README.es.md) - short versions; this file is the complete one.
+
 ```
 C67°  G64°  B33°  ·  3.3k rpm  ·  42W  ·  RAM 62%  ·  disk 46%
 ```
@@ -19,6 +26,15 @@ chip · GPU · battery · fan rpm · power draw · RAM used · disk used - and y
 those appear, with checkboxes under **Show in the bar**. The menu bar, the notifications and all
 CLI tools speak **five languages** - English (default), Polish, Russian, Chinese and Spanish -
 switched from the menu bar (*Settings > Language*), with `TG_LANG` or `"lang"` in the config.
+
+<p align="center">
+  <img src="docs/screens/menu_en.webp" alt="coffee-paladin menu bar" width="360">
+</p>
+
+<p align="center">
+  <img src="docs/screens/languages.webp" alt="The same menu in English, Polish, Russian, Chinese and Spanish" width="820">
+</p>
+<p align="center"><sub>The same menu in five languages - one click in <em>Settings &gt; Language</em>.</sub></p>
 
 ---
 
@@ -86,6 +102,11 @@ So thermal-guard:
 - protects a hard "never touch" list: the system, WindowServer, Finder, your terminal, SSH, and
   Apple background daemons that either refuse `SIGSTOP` or misbehave when frozen.
 
+<p align="center">
+  <img src="docs/screens/load_info.webp" alt="Load info: what is heating the Mac and what is eating RAM" width="420">
+</p>
+<p align="center"><sub><em>Load info</em>: the actual culprits, the thresholds in force, and today's pause count.</sub></p>
+
 ### 3. It watches power, not just heat
 
 - **Battery gate** - if you are on battery and drop to 10 %, long jobs are paused and only resume
@@ -108,6 +129,11 @@ for heat, the lock is released - sleep is the fastest cooler there is - and an u
 keep-awake in a backpack is precisely how MacBooks get cooked. When the job ends (or the timer
 runs out), the Mac goes back to sleeping normally. A cup icon on the bar shows when the lock is
 held.
+
+<p align="center">
+  <img src="docs/screens/keep_awake.webp" alt="Keep-awake modes with a thermal fuse" width="420">
+</p>
+<p align="center"><sub>Every mode here is released the moment the Mac runs hot.</sub></p>
 
 **I used Amphetamine for years.** Great app, rich triggers - and that is exactly the trap:
 it will faithfully hold your Mac awake while the machine is hot, in a bag, on a pillow, wherever.
@@ -146,6 +172,11 @@ any program - including ones that ignore thread-count options. Per-run overrides
 
 ### 4c. It adapts itself to the Mac it lands on
 
+<p align="center">
+  <img src="docs/screens/about_my_mac.webp" alt="About my Mac: what the guard measured on this machine" width="330">
+</p>
+<p align="center"><sub>What the guard knows about the machine it is protecting - and the thresholds it chose for it.</sub></p>
+
 On first start the daemon detects the hardware - chip, performance/efficiency core split, RAM,
 fan count, battery health - writes it to `hardware.json` (shown in **About my Mac** in the menu
 bar) and calibrates the defaults: a fanless Mac (Air) gets lower chip thresholds (78/70/88) and
@@ -162,6 +193,15 @@ Phone push (ntfy.sh)**, install the free [ntfy](https://ntfy.sh) app and subscri
 topic - pauses, kills, cooling failures and hard-shutdown reports arrive on your phone. No
 account, no server of ours; leave the field empty and nothing is ever sent.
 
+This works from anywhere - it is internet push, not local networking. The Mac and the phone
+do NOT need to share a WiFi network (and Bluetooth plays no part): the daemon posts over
+HTTPS to ntfy.sh, and the phone receives it through normal system push wherever it has any
+connection - LTE on a train, hotel WiFi, another country. Leave the Mac rendering at the
+office, get the 90 °C pause on your phone at home, seconds later. Two honest edge cases:
+if the MAC loses internet, pushes stop (protection itself keeps working locally - sounds
+and the critical banner are a separate layer); if the PHONE is briefly offline, ntfy.sh
+buffers messages (about 12 h) and delivers when it is back.
+
 **The topic name is the whole secret.** Public ntfy.sh topics have no other access control:
 anyone who knows (or guesses) the name can read your alerts *and* send fake ones. Do not use
 a guessable name like `mac-guard` - the settings dialog **suggests a random, unguessable name**
@@ -169,6 +209,16 @@ a guessable name like `mac-guard` - the settings dialog **suggests a random, ung
 one. The messages themselves contain process names and temperatures, nothing more.
 
 ### 6. It keeps evidence (the black box)
+
+<p align="center">
+  <img src="docs/screens/guard_log.webp" alt="guard.log with a real cooling-failure alert" width="620">
+</p>
+<p align="center"><sub>A real entry from this log: <code>!!! COOLING FAILURE? chip 75.0 C and both fans at 0 rpm</code>.</sub></p>
+
+<p align="center">
+  <img src="docs/screens/export_report.webp" alt="Export a report for a repair shop: PDF or plain text" width="420">
+</p>
+<p align="center"><sub>One click turns the black box into something a repair shop will accept.</sub></p>
 
 The daemon writes a heartbeat on every cycle and a marker on clean shutdown. After a restart it
 compares those against `kern.boottime`. If the machine went down without warning, it records the
@@ -206,7 +256,59 @@ the same instruction. Measured live: 89.3 °C → 60.2 °C in 19 seconds, comput
 
 ---
 
+---
+
+## Your AI agent can talk to it
+
+Coding agents are now a normal source of load on a laptop: they run builds, encode video,
+start model inference, launch a dozen things in parallel. They are also, in practice, the
+worst offenders - because an agent does not feel the fan and does not notice the machine
+getting hot. That is the failure this project was written for, and it deserves a better
+answer than "the guard will pause it eventually".
+
+So coffee-paladin ships a **skill for AI agents**. `install.sh` drops it into
+`~/.claude/skills/coffee-paladin/` (Claude Code picks it up automatically; the file is plain
+Markdown, so any agent that reads skills can use it). It is not documentation *about* the
+tool - it is instructions *for the agent*, and it teaches four things:
+
+- **Look before you start.** `~/.thermal-guard/status.json` is machine-readable and refreshed
+  every ~15 s. One field decides everything: `level` - `0` start the job, `1` start but do not
+  parallelise, `2` finish what is running and start nothing new, `3` stop and tell the human.
+  Also `dry_run` (protection may be off!) and `unpausable` (protection is incomplete right now).
+- **Start heavy work through `safe-run`.** Own process group, registered with the daemon,
+  refuses to start on an already-hot Mac. And `--allow-hot` is a human's decision, not the
+  agent's.
+- **Never fight the pause.** No `SIGCONT` on a process the guard froze. No relaunching a job
+  that "hung" before checking `paused`. No editing thresholds in `config.json` to push a job
+  through. These are the three things an agent does when it mistakes protection for a bug.
+- **Do not create the heat in the first place.** No background task without a timeout and a
+  cleanup; no recursive search across iCloud-backed folders. That second rule came from a real
+  incident: a `grep` that used 13 seconds of CPU in 1 h 42 min held a fanless Mac at 90 °C,
+  because it kept `fileproviderd` and `cloudd` busy materialising files from the cloud. The
+  CPU column showed almost nothing. Nobody guesses that one; it has to be written down.
+
+The skill also treats `status.json` as a **heartbeat**: if its timestamp is older than 60 s
+the daemon is not running, and the agent is told to say so and behave as if the Mac were
+unprotected. An agent that reads a stale file and reports "level 0, all good" is worse than
+one that never looked.
+
+The agent itself is protected in return: `claude`, `codex`, `node`, `hermes`, `tmux`, `vim`
+and anything holding a terminal's foreground are on the never-touch list. A guard that freezes
+the session driving it is not a guard. (That list has a cost, and it is worth naming: a `node`
+process doing a heavy build is protected too, so it cannot be paused. Narrowing it to *agent*
+node processes is an open item.)
+
+```bash
+cat ~/.claude/skills/coffee-paladin/SKILL.md    # what your agent was told
+```
+
+
 ## Fleets: every Mac in one table
+
+<p align="center">
+  <img src="docs/screens/fleet.webp" alt="Apple fleet: two Macs, one of them stale" width="620">
+</p>
+<p align="center"><sub>Two machines, one reporting and one silent for 9 hours - machine names redacted here.</sub></p>
 
 Companies increasingly run local AI on Macs: a Mac mini or Studio with plenty of RAM, models
 on-prem, data that never leaves the building. Those machines grind 24/7 - just like render
@@ -341,12 +443,23 @@ York). It runs in one command against an isolated HOME and never touches your re
 
 ```bash
 T=$(mktemp -d) && python3 tests/test_wykryj_twardy_pad.py "$T"; rm -rf "$T"
+python3 tests/test_paladin.py          # 15 checks: CLI, menu bar, artwork, translations
 ```
+
+**What actually runs, and what it does not.** The suites above are plain Python - no test
+framework, no fixtures to install, and they refuse to touch your real black box. On top of
+them: **semgrep** over the Python sources (`p/python` + `p/secrets`, 187 rules - currently
+0 findings) and **ruff** (`E9,F` - clean). Be sceptical of the last two, though: semgrep's
+free rule set is deep for Python and thin for shell and Swift (2 rules), so the menu bar app
+is covered by human and model review, not by a scanner. There is no fuzzing and no CI here;
+this is a tool for one platform, and the interesting failures were found by running it on two
+different Macs, not by a matrix.
 
 This project was **tested and refined with the help of AI - four heads at once** ;) and the
 process is worth describing, because it found bugs no single reviewer would have caught. Every risky area (signal handling on
 process groups, the CPU limiter, sleep-lock management, the crash detector) was reviewed
-by **four different AI models independently** - two local ones, GPT and Claude - across six
+by **four different AI models independently** - Claude (Anthropic), Codex/GPT-5.5 (OpenAI)
+and two local ones, Devstral 24B on MLX and qwen3:4b on Ollama - across six
 review rounds, with every claim verified by hand against the actual code before anything
 was changed. On top of that, **a second Mac audited the first one's install**: a fanless
 8 GB machine exercised code paths a well-cooled 14-core machine never would. The
@@ -364,7 +477,7 @@ Requires macOS on Apple Silicon, Xcode command line tools (`xcode-select --insta
 and [Homebrew](https://brew.sh) so the installer can fetch `macmon`.
 
 ```bash
-git clone https://github.com/pawelkwaczynski/thermal-guard.git
+git clone https://github.com/pawelkwaczynski/coffee-paladin.git
 cd thermal-guard
 bash install.sh
 ```
@@ -412,6 +525,16 @@ the peak temperature at the end. Jobs started this way are registered with the d
 so they never depend on name matching.
 
 ### `heatbar` - menu bar
+
+<p align="center">
+  <img src="docs/screens/show_in_bar.webp" alt="Choose what appears in the menu bar" width="420">
+</p>
+<p align="center"><sub>You choose what the bar shows - seven readings, all optional.</sub></p>
+
+<p align="center">
+  <img src="docs/screens/settings.webp" alt="Settings: thresholds, battery gate, CPU limit" width="440">
+</p>
+<p align="center"><sub>Thresholds, the battery gate and the CPU ceiling - with the reasoning printed under each slider.</sub></p>
 
 ```
 C67°  G64°  B33°  ·  3.3k rpm  ·  42W  ·  throttled  ·  paused
@@ -549,6 +672,15 @@ across six rounds, and a second Mac audited the first one's install. Here it was
 who decided, verified and took the risks; the AI wrote the Swift - human-in-the-loop. Which
 is why I see no reason to hide it.
 
+Named, because vague credit is not credit. The Swift - the menu bar, the welcome window, the
+paladin panel - was written by **Claude (Anthropic)** inside Claude Code, against my
+requirements and my review. **Codex (OpenAI, GPT-5.5)** was the adversarial reviewer: it read
+the same code independently and its job was to find what the author missed. Two **local models**
+ran alongside - **Devstral 24B** on MLX and **qwen3:4b** on Ollama - because a reviewer that
+never leaves the laptop can be asked anything, as often as you like. The paladin artwork was
+generated with **ChatGPT (OpenAI)**. Nothing here shipped because a model approved it; every
+claim was checked against the running code first.
+
 ## Buy me a double espresso ☕︎
 
 This project literally runs on coffee - the release codename is "Double Espresso" and the
@@ -559,6 +691,16 @@ buy me a coffee: **https://suppi.pl/panbookovsky**
 
 MIT - do whatever you like with it. If it saves your machine, that is satisfaction enough.
 
+<p align="center">
+  <img src="docs/screens/paladin_panel.webp" alt="The paladin panel, pinned under the menu bar" width="260">
+</p>
+<p align="center"><sub>Click the product name at the top of the menu and the paladin steps out, pinned under the bar.</sub></p>
+
+**Artwork.** The paladin - the mascot you see above, in the welcome window, in the menu header
+and in the `heat --paladin` easter egg - was **generated with ChatGPT (OpenAI)** and is used
+as the official mascot of the project. Everything else in `branding/` is derived from those two
+source files; details in [`branding/CREDITS.md`](branding/CREDITS.md).
+
 Built by Paweł Kwaczyński / FOCUS FRAME, 2026. Developed also as a project of **AIrON** -
 the student research club for computer science at AHE in Łódź (SKN Informatyki AHE w Łodzi).
 
@@ -567,6 +709,8 @@ the student research club for computer science at AHE in Łódź (SKN Informatyk
 <a name="po-polsku"></a>
 
 # Po polsku
+
+**Inne języki:** [中文](README.zh.md) · [Русский](README.ru.md) · [Español](README.es.md) — wersje skrócone.
 
 **Bezpiecznik termiczny i zasilania dla Maców na Apple Silicon - od jednego laptopa po całą
 flotę.** Pilnuje temperatury chipa, baterii, wentylatorów i zasilania, a gdy robi się gorąco -
@@ -593,6 +737,14 @@ Ten projekt odpowiada na oba problemy: *zatrzymać, zanim się ugotuje*, i *zach
 jednak pójdzie źle*.
 
 ## Co robi
+
+<p align="center">
+  <img src="docs/screens/menu_pl.webp" alt="coffee-paladin - pasek menu po polsku" width="360">
+</p>
+<p align="center">
+  <img src="docs/screens/languages.webp" alt="To samo menu w pieciu jezykach" width="820">
+</p>
+<p align="center"><sub>To samo menu w pięciu językach - jeden klik w <em>Ustawienia &gt; Język</em>.</sub></p>
 
 **Zamraża, nie zabija.** Przy przegrzaniu ciężkie procesy dostają `SIGSTOP` - proces zamiera
 w miejscu, pamięć zostaje nietknięta, a po ostygnięciu `SIGCONT` i liczy dalej od miejsca,
@@ -660,7 +812,15 @@ zdrowie baterii - zakładka **O moim Macu**) i kalibruje progi: Mac bez wentylat
 niższe (78/70/88) i wyłączony alarm wentylatorów. Ręcznie ustawionych progów kalibracja nigdy
 nie nadpisuje. Push na telefon: **Ustawienia > Push na telefon (ntfy.sh)** + darmowa aplikacja
 ntfy z tym samym tematem. **Nazwa tematu to jedyny sekret** - kto ją zna, czyta Twoje
-alerty i może wysyłać fałszywe; dialog podpowiada losową, niezgadywalną nazwę. Przełącznik **Uruchamiaj przy starcie komputera** (domyślnie włączony)
+alerty i może wysyłać fałszywe; dialog podpowiada losową, niezgadywalną nazwę. Działa
+z dowolnego miejsca na świecie - to push internetowy, nie łączność lokalna: Mac i telefon
+NIE muszą być w tej samej sieci WiFi (Bluetooth nie bierze w tym udziału) - demon wysyła
+przez HTTPS do ntfy.sh, a telefon odbiera systemowym pushem gdziekolwiek ma internet (LTE
+w pociągu, hotelowe WiFi, inny kraj). Zostawiasz Maca z renderem w biurze, pauzę przy 90 °C
+dostajesz na telefon w domu parę sekund później. Dwa uczciwe przypadki brzegowe: gdy MAC
+straci internet, pushe nie wychodzą (sama ochrona działa dalej lokalnie - dźwięki i baner
+to osobna warstwa); gdy TELEFON jest chwilowo offline, ntfy.sh buforuje wiadomości (~12 h)
+i dowozi po powrocie zasięgu. Przełącznik **Uruchamiaj przy starcie komputera** (domyślnie włączony)
 i wybór języka guzikami wprost na głównej karcie menu.
 
 **Alarmuje tak, że nie da się przeoczyć.** Powiadomienie z osobnym dźwiękiem przy pauzie,
@@ -673,6 +833,15 @@ systemu. Jeśli Mac zgasł bez uprzedzenia, zapisuje to zdarzenie razem z ośmio
 pomiarami sprzed padu. `thermal-report` składa z tego jeden plik dla serwisu: sprzęt, stan
 baterii, wykryte twarde pady z odczytami, interwencje bezpiecznika i pełną oś czasu pomiarów.
 
+
+<p align="center">
+  <img src="docs/screens/guard_log.webp" alt="guard.log z alarmem awarii chlodzenia" width="620">
+</p>
+<p align="center"><sub>Prawdziwy wpis z tego dziennika: <code>!!! AWARIA CHŁODZENIA? chip 75.0 C, a oba wentylatory 0 obr/min</code>.</sub></p>
+<p align="center">
+  <img src="docs/screens/export_report.webp" alt="Raport dla serwisu: PDF albo tekst" width="420">
+</p>
+<p align="center"><sub>Jeden klik zamienia czarną skrzynkę w dokument, który serwis przyjmie.</sub></p>
 ## Skąd biorą się dane
 
 macOS nie udostępnia temperatury chipa zwykłemu procesowi. Działające źródła:
@@ -709,7 +878,59 @@ Gdy chip dobija do 90 °C o trzeciej w nocy, wykres tego faktu nie jest żadną 
 | Cała flota w jednej tabeli, bez serwera | - | - | **tak - wspólny folder** |
 | Wymaga sudo / kextów / kont | różnie | często | **nie** |
 
+---
+
+## Twój agent AI umie z nim rozmawiać
+
+Agenty kodujące to dziś zwyczajne źródło obciążenia laptopa: budują, kodują wideo, odpalają
+modele, puszczają kilkanaście rzeczy naraz. I w praktyce są najgorszym sprawcą — bo agent nie
+słyszy wentylatora i nie zauważa, że maszyna się grzeje. To jest dokładnie ta awaria, przez
+którą ten projekt powstał, i zasługuje na lepszą odpowiedź niż „guard w końcu to wstrzyma".
+
+Dlatego coffee-paladin dowozi **skill dla agentów AI**. `install.sh` wykłada go do
+`~/.claude/skills/coffee-paladin/` (Claude Code podnosi go sam; to zwykły Markdown, więc
+poradzi sobie każdy agent, który czyta skille). To nie jest dokumentacja *o* narzędziu — to
+instrukcja *dla agenta*, i uczy czterech rzeczy:
+
+- **Popatrz, zanim odpalisz.** `~/.thermal-guard/status.json` jest do czytania przez program
+  i odświeża się co ~15 s. Jedno pole rozstrzyga wszystko: `level` — `0` startuj, `1` startuj,
+  ale nie zrównoleglaj, `2` dokończ to, co biegnie, i nie zaczynaj nic nowego, `3` stop i
+  powiedz człowiekowi. Do tego `dry_run` (ochrona może być wyłączona!) i `unpausable`
+  (ochrona jest w tej chwili niepełna).
+- **Ciężkie zadania przez `safe-run`.** Własna grupa procesów, rejestracja u demona, odmowa
+  startu na już gorącym Macu. A `--allow-hot` to decyzja człowieka, nie agenta.
+- **Nie walcz z pauzą.** Żadnego `SIGCONT` na procesie, który guard zamroził. Żadnego
+  restartu zadania, które „zawisło", zanim sprawdzisz `paused`. Żadnego podnoszenia progów
+  w `config.json`, żeby przepchnąć swoje. To są trzy rzeczy, które agent robi, gdy bierze
+  ochronę za usterkę.
+- **Nie wytwarzaj ciepła bez potrzeby.** Żadnego zadania w tle bez limitu czasu i sprzątania,
+  żadnego rekurencyjnego przeszukiwania katalogów w iCloudzie. Ta druga zasada wzięła się
+  z prawdziwego incydentu: `grep`, który zużył 13 sekund procesora w 1 h 42 min, trzymał
+  bezwentylatorowego Maca na 90 °C — bo kazał demonom `fileproviderd` i `cloudd` ściągać pliki
+  z chmury. W kolumnie CPU nie było prawie nic. Tego nikt nie zgadnie; to trzeba mieć zapisane.
+
+Skill traktuje też `status.json` jak **puls**: jeśli znacznik czasu jest starszy niż 60 s,
+demon nie działa — a agent ma to powiedzieć i zachowywać się tak, jakby Mac był bez ochrony.
+Agent, który czyta nieaktualny plik i melduje „poziom 0, wszystko gra", jest gorszy niż taki,
+który w ogóle nie zajrzał.
+
+W zamian sam agent jest chroniony: `claude`, `codex`, `node`, `hermes`, `tmux`, `vim` i
+cokolwiek trzyma pierwszy plan terminala są na liście nietykalnych. Guard, który zamraża
+sesję sterującą nim samym, nie jest guardem. (Ta lista ma swoją cenę i warto ją nazwać:
+proces `node` robiący ciężki build też jest chroniony, więc nie da się go wstrzymać.
+Zawężenie tego do node'ów *agentowych* jest pozycją otwartą.)
+
+```bash
+cat ~/.claude/skills/coffee-paladin/SKILL.md    # co dostał Twój agent
+```
+
+
 ## Flota: wszystkie Maki w jednej tabeli
+
+<p align="center">
+  <img src="docs/screens/fleet.webp" alt="Flota Apple: dwa Maki, jeden milczy" width="620">
+</p>
+<p align="center"><sub>Dwie maszyny: jedna raportuje, druga milczy od 9 godzin. Nazwy maszyn zamazane.</sub></p>
 
 Firmy coraz częściej stawiają lokalne AI na Makach: Mac mini albo Mac Studio z dużym RAM-em,
 modele on-prem, dane bez wysyłania do chmury. Te maszyny mielą 24/7 - tak samo jak farmy
@@ -748,11 +969,22 @@ Detektor twardego padu (kod piszący dowody gwarancyjne) ma własną matrycę 16
 łącznie ze zmianami stref czasowych i artefaktami z backupów. Jedno polecenie, izolowany HOME,
 prawdziwa czarna skrzynka nietknięta:
 `T=$(mktemp -d) && python3 tests/test_wykryj_twardy_pad.py "$T"; rm -rf "$T"`
+`python3 tests/test_paladin.py` - 15 sprawdzeń: CLI, pasek menu, grafika, tłumaczenia.
+
+**Co naprawdę się kręci, a co nie.** Powyższe zestawy to czysty Python - żadnego frameworka,
+nic do doinstalowania, i z założenia nie dotykają Twojej prawdziwej czarnej skrzynki. Do tego
+**semgrep** na źródłach Pythona (`p/python` + `p/secrets`, 187 reguł - na dziś 0 znalezisk)
+i **ruff** (`E9,F` - czysto). Do tych dwóch podchodź jednak sceptycznie: darmowy zestaw reguł
+semgrepa jest głęboki dla Pythona, a cienki dla basha i Swifta (2 reguły), więc aplikację
+paska pilnuje recenzja - ludzka i modelowa - a nie skaner. Nie ma tu fuzzingu ani CI; to
+narzędzie na jedną platformę, a ciekawe błędy znalazło uruchamianie go na dwóch różnych
+Makach, nie macierz konfiguracji.
 
 Ten projekt był **testowany i udoskonalany z pomocą AI - czterech głów naraz** ;) a proces
 warto opisać, bo wyłapał błędy, których żaden pojedynczy recenzent by nie znalazł. Każdy ryzykowny obszar (sygnały na grupach
 procesów, limiter CPU, blokady snu, detektor padu) recenzowały **cztery różne modele AI
-niezależnie** - dwa lokalne, GPT i Claude - w sześciu rundach, a każde twierdzenie było
+niezależnie** - Claude (Anthropic), Codex/GPT-5.5 (OpenAI) oraz dwa modele lokalne:
+Devstral 24B na MLX i qwen3:4b na Ollamie - w sześciu rundach, a każde twierdzenie było
 weryfikowane ręcznie w kodzie, zanim cokolwiek zmieniono. Do tego **drugi Mac audytował
 instalację pierwszego**: bezwentylatorowa maszyna z 8 GB przeszła ścieżki kodu, których
 dobrze chłodzona 14-rdzeniówka nigdy by nie dotknęła. Audyty krzyżowe złapały - wśród
@@ -765,7 +997,7 @@ przyszłość). Zgoda recenzentów niewiele dowodzi - sygnałem jest rozbieżno�
 ## Instalacja i użycie
 
 ```bash
-git clone https://github.com/pawelkwaczynski/thermal-guard.git
+git clone https://github.com/pawelkwaczynski/coffee-paladin.git
 cd thermal-guard
 bash install.sh
 ```
@@ -797,6 +1029,15 @@ pracę w sześciu rundach, a drugi Mac audytował instalację pierwszego. Tutaj 
 decydował, weryfikował i brał ryzyko; AI napisało Swifta - metoda human-in-the-loop. Dlatego
 nie widzę powodu, żeby to ukrywać.
 
+Z nazwiska, bo ogólnikowe podziękowanie to żadne podziękowanie. Swifta - pasek menu, okno
+powitalne, panel paladyna - napisał **Claude (Anthropic)** w Claude Code, pod moje wymagania
+i moją recenzję. **Codex (OpenAI, GPT-5.5)** był recenzentem przeciwnym: czytał ten sam kod
+niezależnie, a jego zadaniem było znaleźć to, co autorowi umknęło. Obok szły dwa **modele
+lokalne** - **Devstral 24B** na MLX i **qwen3:4b** na Ollamie - bo recenzenta, który nigdy nie
+wychodzi z laptopa, można pytać o wszystko i dowolnie często. Grafikę paladyna wygenerował
+**ChatGPT (OpenAI)**. Nic tu nie weszło dlatego, że model to zaakceptował; każda teza była
+najpierw sprawdzana w działającym kodzie.
+
 ## Postaw mi podwójne espresso ☕︎
 
 Ten projekt dosłownie opiera się na kawie - kodowa nazwa wydania to „Double Espresso",
@@ -806,6 +1047,16 @@ a bezpiecznik keep-awake to moja odpowiedź na Caffeine. Jeśli thermal-guard ur
 ## Licencja
 
 MIT. Rób z tym co chcesz. Jeśli uratuje Ci komputer, to wystarczająca satysfakcja.
+
+<p align="center">
+  <img src="docs/screens/paladin_panel.webp" alt="Panel paladyna przypiety pod paskiem" width="260">
+</p>
+<p align="center"><sub>Kliknij nazwę na górze menu, a paladyn wychodzi — przypięty pod paskiem.</sub></p>
+
+**Grafika.** Paladyn — maskotka z nagłówka, z okna powitalnego, z menu i z easter eggów
+`heat --paladin` — został **wygenerowany w ChatGPT (OpenAI)** i jest używany jako oficjalna
+maskotka projektu. Reszta plików w `branding/` to pochodne tych dwóch źródeł; szczegóły
+w [`branding/CREDITS.md`](branding/CREDITS.md).
 
 Autor: Paweł Kwaczyński / FOCUS FRAME, 2026. Projekt rozwijany także w ramach koła naukowego
 **AIrON** (SKN Informatyki AHE w Łodzi).

@@ -30,13 +30,15 @@ Language of messages: TG_LANG=en|pl, or "lang" in config.json. Default: en.
 import json
 import os
 import re
+import errno
 import signal
 import subprocess
 import sys
 import time
 
 HOME = os.path.expanduser("~")
-BASE = os.path.join(HOME, ".thermal-guard")
+BASE = os.environ.get("TG_BASE") or os.path.join(HOME, ".thermal-guard")
+BASE = os.path.expanduser(BASE)   # TG_BASE sluzy do testow w izolacji
 CFG_PATH = os.path.join(BASE, "config.json")
 STATE_PATH = os.path.join(BASE, "state.json")
 LOG_PATH = os.path.join(BASE, "guard.log")
@@ -79,6 +81,8 @@ DEFAULTS = {
     # AWARYJNY WYLAPYWACZ: lista nazw nizej zawsze bedzie dziurawa (b3core, cadical...).
     # Kazdy wlasny proces powyzej tego CPU i starszy niz tyle sekund traktujemy jak ciezkie
     # zadanie, nawet jesli nie znamy jego nazwy. never_patterns nadal go chroni.
+    # nie pauzuj procesu, ktory trzyma klawiature swojego terminala (SIGTTIN-pulapka)
+    "skip_foreground_tty": True,
     "manage_unknown_heavy": True,
     "unknown_cpu_percent": 50.0,
     "unknown_min_seconds": 120,
@@ -157,6 +161,11 @@ DEFAULTS = {
         # sie po zamrozeniu — probowanie ich tylko zasmieca log i blokuje prawdziwe cele
         "duetexpertd", "suggestd", "photoanalysisd", "mediaanalysisd", "coreaudiod",
         "bluetoothd", "powerd", "syspolicyd", "xprotect", "trustd", "nsurlsessiond",
+        # INTERAKTYWNE narzedzia i ich zaplecze: SIGSTOP na sesji terminalowej odbiera jej
+        # terminal, a SIGCONT wznawia ja JUZ W TLE -> SIGTTIN -> proces stoi na zawsze,
+        # mimo ze log mowi "RESUMED". Zamrozenie takiej sesji to jej smierc (Neo, 31.07.2026).
+        "claude", "codex", "cursor", "node", "npm", "npx", "bun", "deno",
+        "hermes", "hermes-secret", "mcp", "caffeinate", "tmux", "screen", "vim", "nvim",
     ],
 }
 
@@ -276,6 +285,17 @@ PL = {
     "AC": "AC",
     "battery %s%%": "bateria %s%%",
     "calm": "spokoj",
+    "gone before pause: %s (pid %d)": "zniknal przed pauza: %s (pid %d)",
+    "FAILED to pause %s (pid %d) - errno %d, giving up on this pid":
+        "NIE UDALO SIE wstrzymac %s (pid %d) - errno %d, rezygnuje z tego pid",
+    "STILL STOPPED after SIGCONT: %s (pid %d) - foreground terminal job, type 'fg' in its window":
+        "NADAL WSTRZYMANY po SIGCONT: %s (pid %d) - zadanie pierwszoplanowe terminala, wpisz 'fg' w jego oknie",
+    "Thermal guard: job needs your hand": "Thermal guard: zadanie wymaga Twojej reki",
+    "%s cannot resume by itself - switch to its terminal and type 'fg'.":
+        "%s nie wznowi sie samo - przejdz do jego terminala i wpisz 'fg'.",
+    "Thermal guard: PROTECTION INCOMPLETE": "Thermal guard: OCHRONA NIEPELNA",
+    "Could not pause: %s (%s). The Mac stays hot - intervene manually.":
+        "Nie udalo sie wstrzymac: %s (%s). Mac zostaje goracy - zareaguj recznie.",
     "Thermal guard: CRITICAL overheating": "Thermal guard: KRYTYCZNE przegrzanie",
     "The Mac is critically hot (%s). Heavy jobs are being stopped.":
         "Mac jest krytycznie gorący (%s). Ciężkie zadania są zatrzymywane.",
@@ -704,6 +724,26 @@ def list_procs():
     return res
 
 
+def pierwszoplanowy_na_tty(pid):
+    """Czy proces jest liderem PIERWSZOPLANOWEJ grupy swojego terminala?
+
+    Jesli pgid == tpgid, to wlasnie ten proces ma klawiature. SIGSTOP na nim sprawia,
+    ze powloka odbiera terminal; pozniejszy SIGCONT wznawia go w TLE, wiec przy pierwszej
+    probie czytania klawiatury dostaje SIGTTIN i znow staje - petla, ktorej demon nie
+    przerwie (nie moze zrobic tcsetpgrp na cudzym tty). Jedyne wyjscie to `fg` wpisane
+    przez czlowieka. Takich procesow NIE WOLNO pauzowac (Neo, 31.07.2026: 8 zabitych
+    procesow, dwie sesje Claude Code).
+    """
+    out = run(["ps", "-o", "pgid=,tpgid=", "-p", str(pid)]).split()
+    if len(out) >= 2:
+        try:
+            pgid_, tpgid_ = int(out[0]), int(out[1])
+            return tpgid_ > 0 and pgid_ == tpgid_
+        except ValueError:
+            return False
+    return False
+
+
 def full_args(pid):
     out = run(["ps", "-o", "args=", "-p", str(pid)])
     return out.strip()
@@ -858,6 +898,8 @@ def pick_targets(cfg, procs, saferun):
         args = full_args(pid).lower()
         if any(n.lower() in args for n in (cfg.get("never_arg_patterns") or [])):
             continue
+        if cfg.get("skip_foreground_tty", True) and pierwszoplanowy_na_tty(pid):
+            continue          # interaktywna sesja na pierwszym planie - patrz funkcja wyzej
         out.append((pid, cpu, comm, None))
     out.sort(key=lambda x: -x[1])
     return out
@@ -889,40 +931,68 @@ def save_state(st):
 
 
 def sig(pid, pgid, s):
-    """Wysyla sygnal do grupy procesow (gdy znana) albo do pojedynczego pid."""
-    try:
-        if pgid:
+    """Wysyla sygnal; zwraca 0 przy sukcesie albo errno bledu (ESRCH/EPERM/...).
+
+    Gdy sygnal do GRUPY odbije sie (jeden niesygnalizowalny czlonek blokuje calosc —
+    killpg jest atomowy), probujemy jeszcze pojedynczego pid: lepiej wstrzymac czesc
+    niz nic. Zwracany errno pozwala odroznic "proces juz nie zyje" (ESRCH, normalne)
+    od "brak uprawnien" (EPERM, ochrona realnie niepelna).
+    """
+    import errno as _e
+    blad = 0
+    if pgid:
+        try:
             os.killpg(pgid, s)
-        else:
-            os.kill(pid, s)
-        return True
-    except Exception:
-        return False
+            return 0
+        except OSError as ex:
+            blad = ex.errno
+    try:
+        os.kill(pid, s)
+        return 0
+    except OSError as ex:
+        return ex.errno or blad or _e.EPERM
 
 
-def do_pause(cfg, st, targets, reason, manual=False):
+_nie_da_sie = {}          # pid -> comm: procesy, ktorych NIE DA SIE wstrzymac (EPERM)
+
+
+def do_pause(cfg, st, targets, reason, manual=False, lvl_krytyczny=False):
     changed = False
+    nieudane = []
     for pid, cpu, comm, pgid in targets:
         key = str(pid)
-        if key in st["paused"]:
+        if key in st["paused"] or pid in _nie_da_sie:
             continue
         if cfg["dry_run"]:
             log(T("[DRY-RUN] would pause %s (pid %d, %.0f%% CPU) - %s") % (comm, pid, cpu, reason))
             notify(cfg, T("Thermal guard (watch-only): hot"),
                    T("Would pause %s - %s. Protection is off.") % (comm, reason), "pause")
             continue
-        if sig(pid, pgid, signal.SIGSTOP):
+        blad = sig(pid, pgid, signal.SIGSTOP)
+        if blad == 0:
             st["paused"][key] = {"since": now(), "comm": comm, "pgid": pgid, "cpu": cpu,
                                  "manual": manual}
             changed = True
             log(T("PAUSED %s (pid %d, %.0f%% CPU) - %s") % (comm, pid, cpu, reason))
+        elif blad == errno.ESRCH:
+            # proces zdazyl zniknac miedzy odczytem ps a sygnalem - to normalne, nie awaria
+            log(T("gone before pause: %s (pid %d)") % (comm, pid))
         else:
-            # Cicha porazka byla grozna: pasek pokazywal "zamrozone", a proces biegl dalej.
-            # Zwykle to demon systemowy, ktory odrzuca SIGSTOP — dopisujemy go do pominietych.
-            log(T("FAILED to pause %s (pid %d) - not permitted to send the signal") % (comm, pid))
+            # EPERM i reszta: ochrona jest REALNIE NIEPELNA - nazwa idzie do zbioru
+            # pominietych (koniec ponawiania co 15 s i zasmiecania logu) i do statusu
+            _nie_da_sie[pid] = comm
+            nieudane.append(comm)
+            log(T("FAILED to pause %s (pid %d) - errno %d, giving up on this pid")
+                % (comm, pid, blad))
+    st["_unpausable"] = sorted(set(_nie_da_sie.values()))
     if changed:
         names = ", ".join(sorted(set(v["comm"] for v in st["paused"].values())))
         notify(cfg, T("Thermal guard: hot"), T("Paused: %s (%s)") % (names, reason), "pause")
+    if nieudane and lvl_krytyczny:
+        # ochrona zawiodla przy poziomie krytycznym - uzytkownik MUSI o tym wiedziec
+        notify(cfg, T("Thermal guard: PROTECTION INCOMPLETE"),
+               T("Could not pause: %s (%s). The Mac stays hot - intervene manually.")
+               % (", ".join(sorted(set(nieudane))), reason), key="failpause")
     return changed
 
 
@@ -932,11 +1002,21 @@ def do_resume(cfg, st, reason):
     for key, info in list(st["paused"].items()):
         pid = int(key)
         if alive(pid):
-            if sig(pid, info.get("pgid"), signal.SIGCONT):
+            blad = sig(pid, info.get("pgid"), signal.SIGCONT)
+            stan = run(["ps", "-o", "stat=", "-p", str(pid)]).strip()
+            if blad == 0 and not stan.startswith("T"):
                 log(T("RESUMED %s (pid %d) - %s") % (info.get("comm", "?"), pid, reason))
+            elif stan.startswith("T"):
+                # SIGCONT poszedl, ale proces DALEJ stoi - klasyczna petla SIGTTIN
+                # (wznowiony w tle, chce czytac klawiature). Sam z tego nie wyjdzie.
+                log(T("STILL STOPPED after SIGCONT: %s (pid %d) - foreground terminal job, "
+                      "type 'fg' in its window") % (info.get("comm", "?"), pid))
+                notify(cfg, T("Thermal guard: job needs your hand"),
+                       T("%s cannot resume by itself - switch to its terminal and type 'fg'.")
+                       % info.get("comm", "?"), key="ttin")
             else:
-                log("FAILED to resume %s (pid %d) - job may still be frozen"
-                    % (info.get("comm", "?"), pid))
+                log("FAILED to resume %s (pid %d) - errno %d"
+                    % (info.get("comm", "?"), pid, blad))
         del st["paused"][key]
     notify(cfg, T("Thermal guard: cooled down"), T("Resumed paused jobs (%s)") % reason, "resume")
     return True
@@ -1479,7 +1559,7 @@ def fleet_write(cfg, status):
         hw = _hw_cache_fleet()
         out["model"] = hw.get("model")
         out["serial"] = hw.get("serial")
-        out["guard_version"] = "1.7.5"
+        out["guard_version"] = "1.9.0"
         tmp = os.path.join(d, ".%s.tmp" % hostname())
         with open(tmp, "w") as f:
             json.dump(out, f, ensure_ascii=False)
@@ -1521,6 +1601,7 @@ def status_write(state, temp, soc, soc_t, ac, pct, speed, load, lvl, why, target
         "eta_pause_min": st.get("_eta_min"),
         "jobs": st.get("_zadania", []),
         "stats": st.get("_stat", {}),
+        "unpausable": st.get("_unpausable", []),
         "top_cpu_list": st.get("_top_cpu", []),
         "top_ram_list": st.get("_top_ram", []),
         "last_hard_shutdown": st.get("_ostatni_pad"),
@@ -1736,7 +1817,7 @@ def main():
                        (T("The Mac is critically hot (%s). Watch-only mode - nothing is being stopped.")
                         if cfg.get("dry_run") else
                         T("The Mac is critically hot (%s). Heavy jobs are being stopped.")) % why)
-                do_pause(cfg, st, targets, T("CRITICAL: ") + why)
+                do_pause(cfg, st, targets, T("CRITICAL: ") + why, lvl_krytyczny=True)
                 if crit_polls >= cfg["kill_after_polls"]:
                     do_terminate(cfg, st, why)
                     crit_polls = 0
@@ -1772,6 +1853,8 @@ def main():
                 do_terminate(cfg, st, T("paused for longer than %d min") % limit_min,
                              only_keys=przeterminowane)
 
+            for _p in [p for p in _nie_da_sie if not alive(p)]:
+                del _nie_da_sie[_p]
             live = set(p[0] for p in targets)
             cpu_hist = dict((k, v) for k, v in cpu_hist.items() if k in live)
             st["demoted"] = [p for p in st["demoted"] if alive(p)]

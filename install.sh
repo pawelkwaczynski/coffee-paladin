@@ -88,10 +88,26 @@ else
   echo "  ℹ️  config.json już istnieje — zostawiam"
 fi
 
-# 3b. branding: logo do naglowka i stopki menu (branding/*.png w repo).
-# Podmien pliki na wlasne logotypy, jesli chcesz przebrandowac swoja instalacje.
+# 3b. branding: logo naglowka/stopki + paladyn (okno powitalne, ikona menu).
+# Kopiujemy TYLKO to, czego uzywa aplikacja — oryginaly w pelnej rozdzielczosci
+# (branding/paladin.png, branding/paladin.gif) zostaja w repo, nie w katalogu roboczym.
+# Podmien pliki na wlasne, jesli chcesz przebrandowac swoja instalacje.
 if [ -d "$SRC/branding" ]; then
-  cp "$SRC/branding/"*.png "$BASE/" 2>/dev/null && echo "  ✅ logotypy (naglowek + stopka) skopiowane"
+  for g in logo.png logo_footer.png logo_footer_dark.png \
+           paladin_welcome.gif paladin_welcome.png; do
+    [ -f "$SRC/branding/$g" ] && cp "$SRC/branding/$g" "$BASE/"
+  done
+  echo "  ✅ grafika (logotypy + paladyn) skopiowana"
+fi
+
+# 3c. skill dla agentow AI (Claude Code i zgodne): uczy agenta czytac stan termiczny,
+# odpalac ciezkie zadania przez safe-run i NIE walczyc z pauza guarda. To jest realny
+# problem: agent, ktory odpala osiem rownoleglych zadan i nie patrzy na temperature,
+# jest dokladnie tym, przed czym ten program ma chronic.
+if [ -f "$SRC/skills/coffee-paladin/SKILL.md" ] && [ -d "$HOME/.claude" ]; then
+  mkdir -p "$HOME/.claude/skills/coffee-paladin"
+  cp "$SRC/skills/coffee-paladin/SKILL.md" "$HOME/.claude/skills/coffee-paladin/SKILL.md"
+  echo "  ✅ skill dla Claude Code zainstalowany (agent bedzie wspolpracowal z guardem)"
 fi
 
 # uslugu uznajemy za dzialajaca TYLKO gdy ma PID — "wczytana" to za malo

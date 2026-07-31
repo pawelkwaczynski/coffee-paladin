@@ -16,11 +16,18 @@
 
 import Cocoa
 
-let VERSION = "1.7.5"
+let VERSION = "1.9.0"
+let APPNAME = "coffee-paladin"
 let CODENAME = "Double Espresso"
-let SIGNATURE = "thermal-guard v\(VERSION) \u{201E}\(CODENAME)\u{201D}  ·  FOCUS FRAME 2026"
+let SIGNATURE = "\(APPNAME) v\(VERSION) \u{201E}\(CODENAME)\u{201D}  ·  FOCUS FRAME 2026"
 
-let base = NSString(string: "~/.thermal-guard").expandingTildeInPath
+// Katalog roboczy. TG_BASE pozwala uruchomic pasek w izolacji (testy UI, demo)
+// bez ryzyka, ze klikniecie w oknie powitalnym przestawi konfiguracje zywej
+// instalacji. Uwaga: expandingTildeInPath NIE slucha podmienionego HOME -
+// dlatego potrzebna jest osobna zmienna, a nie sztuczka z katalogiem domowym.
+let base = ProcessInfo.processInfo.environment["TG_BASE"].map {
+    NSString(string: $0).expandingTildeInPath
+} ?? NSString(string: "~/.thermal-guard").expandingTildeInPath
 let statusPath = base + "/status.json"
 let historyPath = base + "/history.csv"
 let logPath = base + "/guard.log"
@@ -60,7 +67,7 @@ let PL: [String: String] = [
     "Disk:  %d / %d GB used (%d%%)": "Dysk:  %d / %d GB zajęte (%d%%)",
     "Power:  %@": "Zasilanie:  %@",
     "AC adapter": "zasilacz", "battery %@": "bateria %@",
-    "Load:  %.2f    CPU available: %d%%": "Obciążenie:  %.2f    CPU dostępne: %d%%",
+    "Load:  %.2f / %d cores    CPU available: %d%%": "Obciążenie:  %.2f / %d rdzeni    CPU dostępne: %d%%",
     "   readings: %.0f-%.0f C": "   ostatnie pomiary: %.0f-%.0f C",
     "rising %.1f C/min - about %.0f min to pause": "rośnie %.1f C/min - do pauzy ok. %.0f min",
     "rising %.1f C/min": "rośnie %.1f C/min",
@@ -76,12 +83,19 @@ let PL: [String: String] = [
     "Today: %d x pause": "Dziś: %d x pauza", ", %d x kill": ", %d x ubicie",
     "Resume paused jobs": "Wznów wstrzymane zadania",
     "Freeze all heavy jobs now": "Wstrzymaj ciężkie zadania",
+    "Pause jobs when the Mac overheats": "Włącz pauzowanie przy przegrzaniu",
+    "OFF - the Mac is only being watched": "WYŁĄCZONE — Mac jest tylko obserwowany",
     "Show in the bar": "Pokaż na pasku",
     "Export report for a repair shop": "Raport dla serwisu",
     "As PDF...": "Jako PDF...",
     "As plain text (TXT)...": "Jako tekst (TXT)...",
     "Show the guard log": "Pokaż dziennik zdarzeń",
-    "Quit heatbar": "Zamknij heatbar",
+    "Quit coffee-paladin (protection stops)": "Wyłącz coffee-paladin (ochrona przestaje działać)",
+    "Turn off thermal protection for this Mac?": "Czy chcesz wyłączyć ochronę termiczną tego Maca?",
+    "The daemon and the menu bar both stop. Nothing will pause hot jobs until you start it again.":
+        "Demon i pasek menu zostaną zatrzymane. Nic nie wstrzyma gorących zadań, dopóki nie uruchomisz programu ponownie.",
+    "Quit anyway": "Wyłącz mimo to",
+    "Cancel": "Anuluj",
     "Chip temperature": "Temperatura chipa", "GPU temperature": "Temperatura GPU",
     "Battery temperature": "Temperatura baterii", "Fan rpm": "Obroty wentylatorów",
     "Power draw (W)": "Pobór mocy (W)", "RAM used": "Zajęty RAM", "Disk used": "Zajęty dysk",
@@ -109,6 +123,8 @@ let PL: [String: String] = [
         "Przy pięciu identycznych MacBookach nazwa systemowa nic nie mówi. Ta nazwa pokazuje się w tabeli floty i w menu na każdej maszynie. Puste = nazwa systemowa.",
     "Buy me a double espresso...": "Postaw mi podwójne espresso...",
     "Apple fleet": "Flota Apple",
+    "battery": "bateria",
+    "paused": "wstrzymane",
     "STALE - not reporting": "NIE RAPORTUJE",
     "no fleet folder - run: fleet --setup": "brak folderu floty — uruchom: fleet --setup",
     "no agent snapshots yet (agents publish about once a minute)":
@@ -116,6 +132,9 @@ let PL: [String: String] = [
     "now": "teraz",
     "%d min ago": "%d min temu",
     "%d h ago": "%d h temu",
+    "The paladin stands guard. Choose how to begin:": "Paladyn staje na straży. Wybierz, jak zaczynamy:",
+    "Enable protection": "Włącz ochronę",
+    "Watch only for now": "Na razie tylko obserwuj",
     "Load info": "Informacje o obciążeniu",
     "Keep awake": "Nie usypiaj Maca",
     "Off": "Wyłącz",
@@ -207,7 +226,7 @@ let RU: [String: String] = [
     "Power:  %@": "Питание:  %@",
     "AC adapter": "адаптер питания",
     "battery %@": "батарея %@",
-    "Load:  %.2f    CPU available: %d%%": "Нагрузка:  %.2f    CPU доступно: %d%%",
+    "Load:  %.2f / %d cores    CPU available: %d%%": "Нагрузка:  %.2f / %d ядер    CPU доступно: %d%%",
     "   readings: %.0f-%.0f C": "   измерения: %.0f-%.0f C",
     "rising %.1f C/min - about %.0f min to pause": "растёт на %.1f C/мин - до паузы около %.0f мин",
     "rising %.1f C/min": "растёт на %.1f C/мин",
@@ -227,12 +246,19 @@ let RU: [String: String] = [
     ", %d x kill": ", %d x завершение",
     "Resume paused jobs": "Возобновить приостановленные задачи",
     "Freeze all heavy jobs now": "Приостановить тяжёлые задачи",
+    "Pause jobs when the Mac overheats": "Приостанавливать задачи при перегреве",
+    "OFF - the Mac is only being watched": "ВЫКЛЮЧЕНО — Mac только под наблюдением",
     "Show in the bar": "Показывать в строке меню",
     "Export report for a repair shop": "Отчёт для сервисного центра",
     "As PDF...": "В PDF...",
     "As plain text (TXT)...": "Текстом (TXT)...",
     "Show the guard log": "Показать журнал",
-    "Quit heatbar": "Завершить heatbar",
+    "Quit coffee-paladin (protection stops)": "Выключить coffee-paladin (защита прекращается)",
+    "Turn off thermal protection for this Mac?": "Отключить тепловую защиту этого Mac?",
+    "The daemon and the menu bar both stop. Nothing will pause hot jobs until you start it again.":
+        "Демон и строка меню будут остановлены. Ничто не приостановит горячие задачи, пока вы не запустите программу снова.",
+    "Quit anyway": "Всё равно выключить",
+    "Cancel": "Отмена",
     "Chip temperature": "Температура чипа",
     "GPU temperature": "Температура GPU",
     "Battery temperature": "Температура батареи",
@@ -267,6 +293,8 @@ let RU: [String: String] = [
         "Когда MacBook пять одинаковых, системное имя ничего не говорит. Это имя видно в таблице парка и в меню на каждой машине. Пустое = системное имя.",
     "Buy me a double espresso...": "Угостить двойным эспрессо...",
     "Apple fleet": "Парк Apple",
+    "battery": "батарея",
+    "paused": "приостановлено",
     "STALE - not reporting": "НЕ ОТЧИТЫВАЕТСЯ",
     "no fleet folder - run: fleet --setup": "нет папки парка - выполните: fleet --setup",
     "no agent snapshots yet (agents publish about once a minute)":
@@ -274,6 +302,9 @@ let RU: [String: String] = [
     "now": "сейчас",
     "%d min ago": "%d мин назад",
     "%d h ago": "%d ч назад",
+    "The paladin stands guard. Choose how to begin:": "Паладин заступает на стражу. С чего начнём:",
+    "Enable protection": "Включить защиту",
+    "Watch only for now": "Пока только наблюдать",
     "Load info": "Сведения о нагрузке",
     "Keep awake": "Не давать Mac спать",
     "Off": "Выключить",
@@ -334,7 +365,7 @@ let ZH: [String: String] = [
     "Power:  %@": "电源：  %@",
     "AC adapter": "电源适配器",
     "battery %@": "电池 %@",
-    "Load:  %.2f    CPU available: %d%%": "负载：  %.2f    CPU 可用：%d%%",
+    "Load:  %.2f / %d cores    CPU available: %d%%": "负载：  %.2f / %d 核    CPU 可用：%d%%",
     "   readings: %.0f-%.0f C": "   测量值：%.0f-%.0f C",
     "rising %.1f C/min - about %.0f min to pause": "每分钟上升 %.1f C - 约 %.0f 分钟后暂停",
     "rising %.1f C/min": "每分钟上升 %.1f C",
@@ -354,12 +385,19 @@ let ZH: [String: String] = [
     ", %d x kill": "，%d 次终止",
     "Resume paused jobs": "恢复已暂停的任务",
     "Freeze all heavy jobs now": "立即暂停繁重任务",
+    "Pause jobs when the Mac overheats": "过热时暂停任务",
+    "OFF - the Mac is only being watched": "已关闭 —— 仅在观察这台 Mac",
     "Show in the bar": "菜单栏显示内容",
     "Export report for a repair shop": "导出维修报告",
     "As PDF...": "PDF 格式...",
     "As plain text (TXT)...": "纯文本（TXT）...",
     "Show the guard log": "查看守护日志",
-    "Quit heatbar": "退出 heatbar",
+    "Quit coffee-paladin (protection stops)": "退出 coffee-paladin(保护将停止)",
+    "Turn off thermal protection for this Mac?": "要关闭这台 Mac 的过热保护吗？",
+    "The daemon and the menu bar both stop. Nothing will pause hot jobs until you start it again.":
+        "守护进程和菜单栏都会停止。在你再次启动之前，没有任何东西会暂停过热的任务。",
+    "Quit anyway": "仍然退出",
+    "Cancel": "取消",
     "Chip temperature": "芯片温度",
     "GPU temperature": "GPU 温度",
     "Battery temperature": "电池温度",
@@ -394,6 +432,8 @@ let ZH: [String: String] = [
         "五台一样的 MacBook,系统主机名毫无意义。此名称会显示在每台机器的机群表和菜单中。留空 = 系统主机名。",
     "Buy me a double espresso...": "请我喝双份浓缩咖啡...",
     "Apple fleet": "Apple 机群",
+    "battery": "电池",
+    "paused": "已暂停",
     "STALE - not reporting": "未上报",
     "no fleet folder - run: fleet --setup": "没有机群文件夹 - 运行: fleet --setup",
     "no agent snapshots yet (agents publish about once a minute)":
@@ -401,6 +441,9 @@ let ZH: [String: String] = [
     "now": "现在",
     "%d min ago": "%d 分钟前",
     "%d h ago": "%d 小时前",
+    "The paladin stands guard. Choose how to begin:": "圣骑士开始站岗。选择如何开始:",
+    "Enable protection": "启用保护",
+    "Watch only for now": "暂时仅观察",
     "Load info": "负载信息",
     "Keep awake": "保持 Mac 唤醒",
     "Off": "关闭",
@@ -461,7 +504,7 @@ let ES: [String: String] = [
     "Power:  %@": "Alimentación:  %@",
     "AC adapter": "adaptador de corriente",
     "battery %@": "batería %@",
-    "Load:  %.2f    CPU available: %d%%": "Carga:  %.2f    CPU disponible: %d%%",
+    "Load:  %.2f / %d cores    CPU available: %d%%": "Carga:  %.2f / %d núcleos    CPU disponible: %d%%",
     "   readings: %.0f-%.0f C": "   lecturas: %.0f-%.0f C",
     "rising %.1f C/min - about %.0f min to pause": "sube %.1f C/min - pausa en unos %.0f min",
     "rising %.1f C/min": "sube %.1f C/min",
@@ -481,12 +524,19 @@ let ES: [String: String] = [
     ", %d x kill": ", %d x terminación",
     "Resume paused jobs": "Reanudar tareas en pausa",
     "Freeze all heavy jobs now": "Pausar las tareas pesadas",
+    "Pause jobs when the Mac overheats": "Pausar tareas cuando el Mac se recalienta",
+    "OFF - the Mac is only being watched": "DESACTIVADO: el Mac solo está siendo observado",
     "Show in the bar": "Mostrar en la barra",
     "Export report for a repair shop": "Informe para el servicio técnico",
     "As PDF...": "Como PDF...",
     "As plain text (TXT)...": "Como texto (TXT)...",
     "Show the guard log": "Ver el registro",
-    "Quit heatbar": "Salir de heatbar",
+    "Quit coffee-paladin (protection stops)": "Salir de coffee-paladin (la protección se detiene)",
+    "Turn off thermal protection for this Mac?": "¿Desactivar la protección térmica de este Mac?",
+    "The daemon and the menu bar both stop. Nothing will pause hot jobs until you start it again.":
+        "El demonio y la barra de menús se detienen. Nada pausará los trabajos calientes hasta que lo vuelvas a iniciar.",
+    "Quit anyway": "Salir igualmente",
+    "Cancel": "Cancelar",
     "Chip temperature": "Temperatura del chip",
     "GPU temperature": "Temperatura de la GPU",
     "Battery temperature": "Temperatura de la batería",
@@ -520,6 +570,8 @@ let ES: [String: String] = [
     "With five identical MacBooks the system hostname says nothing. This name shows in the fleet table and menu on every machine. Empty = system hostname.":
         "Con cinco MacBooks idénticos el nombre del sistema no dice nada. Este nombre aparece en la tabla de flota y el menú de cada máquina. Vacío = nombre del sistema.",
     "Apple fleet": "Flota Apple",
+    "battery": "batería",
+    "paused": "en pausa",
     "STALE - not reporting": "SIN REPORTAR",
     "no fleet folder - run: fleet --setup": "sin carpeta de flota - ejecuta: fleet --setup",
     "no agent snapshots yet (agents publish about once a minute)":
@@ -528,6 +580,9 @@ let ES: [String: String] = [
     "%d min ago": "hace %d min",
     "%d h ago": "hace %d h",
     "Buy me a double espresso...": "Invítame a un espresso doble...",
+    "The paladin stands guard. Choose how to begin:": "El paladín monta guardia. Elige cómo empezar:",
+    "Enable protection": "Activar protección",
+    "Watch only for now": "Solo observar por ahora",
     "Load info": "Información de carga",
     "Keep awake": "Mantener el Mac despierto",
     "Off": "Apagar",
@@ -608,6 +663,135 @@ func customLogo() -> NSImage? {
     guard let img = NSImage(contentsOfFile: base + "/logo.png") else { return nil }
     img.isTemplate = true
     return img
+}
+
+
+// MARK: - powitanie paladyna (pierwsze uruchomienie)
+
+let PALADIN_FRAMES: [String] = [
+    "            \u{2584}\u{2584}                \n          \u{2584}\u{2588}\u{2588}\u{2588}\u{2588}\u{2584}              \n         \u{2588}\u{2593}\u{2593}\u{2593}\u{2593}\u{2593}\u{2593}\u{2588}             \n         \u{2588}\u{2584}\u{2588}\u{2588}\u{2588}\u{2588}\u{2584}\u{2588}             \n         \u{2588}\u{2580}\u{2580}\u{2580}\u{2580}\u{2580}\u{2580}\u{2588}      \u{2591}      \n       \u{2584}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2584} \u{2591}       \n  \u{2584}\u{2584}\u{2584}\u{2584}\u{2588}\u{2593}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2593}\u{2588}          \n  \u{2588}\u{2593}\u{2593}\u{2588}\u{2588}\u{2593}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2593}\u{2588} \u{258C}\u{2584}\u{2584}\u{2590}     \n  \u{2588}\u{2593}\u{2593}\u{2588} \u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}  \u{2588}     \n  \u{2588}\u{2593}\u{2593}\u{2588}  \u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}   \u{2580}\u{2580}\u{2580}\u{2580}     \n   \u{2580}\u{2580}    \u{2588}\u{2588}\u{2588}  \u{2588}\u{2588}\u{2588}             \n         \u{2588}\u{2588}\u{2588}  \u{2588}\u{2588}\u{2588}             \n        \u{2588}\u{2588}\u{2588}\u{2588} \u{2588}\u{2588}\u{2588}\u{2588}             \n                              \n                              \n                              ",
+    "            \u{2584}\u{2584}                \n          \u{2584}\u{2588}\u{2588}\u{2588}\u{2588}\u{2584}              \n         \u{2588}\u{2593}\u{2593}\u{2593}\u{2593}\u{2593}\u{2593}\u{2588}             \n         \u{2588}\u{2584}\u{2588}\u{2588}\u{2588}\u{2588}\u{2584}\u{2588}      \u{2591}      \n         \u{2588}\u{2580}\u{2580}\u{2580}\u{2580}\u{2580}\u{2580}\u{2588}     \u{2591}       \n       \u{2584}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2584}  \u{2591}      \n  \u{2584}\u{2584}\u{2584}\u{2584}\u{2588}\u{2593}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2593}\u{2588}          \n  \u{2588}\u{2593}\u{2593}\u{2588}\u{2588}\u{2593}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2593}\u{2588} \u{258C}\u{2584}\u{2584}\u{2590}     \n  \u{2588}\u{2593}\u{2593}\u{2588} \u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}  \u{2588}     \n  \u{2588}\u{2593}\u{2593}\u{2588}  \u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}   \u{2580}\u{2580}\u{2580}\u{2580}     \n   \u{2580}\u{2580}    \u{2588}\u{2588}\u{2588}  \u{2588}\u{2588}\u{2588}             \n         \u{2588}\u{2588}\u{2588}  \u{2588}\u{2588}\u{2588}             \n        \u{2588}\u{2588}\u{2588}\u{2588} \u{2588}\u{2588}\u{2588}\u{2588}             \n                              \n                              \n                              ",
+    "            \u{2584}\u{2584}                \n          \u{2584}\u{2588}\u{2588}\u{2588}\u{2588}\u{2584}              \n         \u{2588}\u{2593}\u{2593}\u{2593}\u{2593}\u{2593}\u{2593}\u{2588}     \u{2591}       \n         \u{2588}\u{2584}\u{2588}\u{2588}\u{2588}\u{2588}\u{2584}\u{2588}      \u{2591}      \n         \u{2588}\u{2580}\u{2580}\u{2580}\u{2580}\u{2580}\u{2580}\u{2588}     \u{2591}       \n       \u{2584}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2584}         \n  \u{2584}\u{2584}\u{2584}\u{2584}\u{2588}\u{2593}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2593}\u{2588} \u{258C}\u{2584}\u{2584}\u{2590}     \n  \u{2588}\u{2593}\u{2593}\u{2588}\u{2588}\u{2593}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2593}\u{2588}\u{2588}\u{2588}  \u{2588}     \n  \u{2588}\u{2593}\u{2593}\u{2588} \u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}  \u{2580}\u{2580}\u{2580}\u{2580}     \n  \u{2588}\u{2593}\u{2593}\u{2588}  \u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}            \n   \u{2580}\u{2580}    \u{2588}\u{2588}\u{2588}  \u{2588}\u{2588}\u{2588}             \n         \u{2588}\u{2588}\u{2588}  \u{2588}\u{2588}\u{2588}             \n        \u{2588}\u{2588}\u{2588}\u{2588} \u{2588}\u{2588}\u{2588}\u{2588}             \n                              \n                              \n                              ",
+    "            \u{2584}\u{2584}                \n          \u{2584}\u{2588}\u{2588}\u{2588}\u{2588}\u{2584}              \n         \u{2588}\u{2593}\u{2593}\u{2593}\u{2593}\u{2593}\u{2593}\u{2588}      \u{2591}      \n         \u{2588}\u{2584}\u{2588}\u{2588}\u{2588}\u{2588}\u{2584}\u{2588}     \u{2591}       \n         \u{2588}\u{2580}\u{2580}\u{2580}\u{2580}\u{2580}\u{2580}\u{2588}             \n       \u{2584}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2584}\u{258C}\u{2584}\u{2584}\u{2590}     \n  \u{2584}\u{2584}\u{2584}\u{2584}\u{2588}\u{2593}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2593}\u{2588}\u{2588}\u{2588}  \u{2588}     \n  \u{2588}\u{2593}\u{2593}\u{2588}\u{2588}\u{2593}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2593}\u{2588} \u{2580}\u{2580}\u{2580}\u{2580}     \n  \u{2588}\u{2593}\u{2593}\u{2588} \u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}           \n  \u{2588}\u{2593}\u{2593}\u{2588}  \u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}            \n   \u{2580}\u{2580}    \u{2588}\u{2588}\u{2588}  \u{2588}\u{2588}\u{2588}             \n         \u{2588}\u{2588}\u{2588}  \u{2588}\u{2588}\u{2588}             \n        \u{2588}\u{2588}\u{2588}\u{2588} \u{2588}\u{2588}\u{2588}\u{2588}             \n                              \n                              \n                              ",
+    "            \u{2584}\u{2584}         \u{2591}      \n          \u{2584}\u{2588}\u{2588}\u{2588}\u{2588}\u{2584}      \u{2591}       \n         \u{2588}\u{2593}\u{2593}\u{2593}\u{2593}\u{2593}\u{2593}\u{2588}      \u{2591}      \n         \u{2588} \u{2588}\u{2588}\u{2588}\u{2588} \u{2588}             \n         \u{2588}\u{2580}\u{2580}\u{2580}\u{2580}\u{2580}\u{2580}\u{2588}    \u{258C}\u{2584}\u{2584}\u{2590}     \n       \u{2584}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}  \u{2588}     \n  \u{2584}\u{2584}\u{2584}\u{2584}\u{2588}\u{2593}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2593}\u{2588} \u{2580}\u{2580}\u{2580}\u{2580}     \n  \u{2588}\u{2593}\u{2593}\u{2588}\u{2588}\u{2593}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2593}\u{2588}          \n  \u{2588}\u{2593}\u{2593}\u{2588} \u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}           \n  \u{2588}\u{2593}\u{2593}\u{2588}  \u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}            \n   \u{2580}\u{2580}    \u{2588}\u{2588}\u{2588}  \u{2588}\u{2588}\u{2588}             \n         \u{2588}\u{2588}\u{2588}  \u{2588}\u{2588}\u{2588}             \n        \u{2588}\u{2588}\u{2588}\u{2588} \u{2588}\u{2588}\u{2588}\u{2588}             \n                              \n                              \n                              ",
+    "            \u{2584}\u{2584}        \u{2591}       \n          \u{2584}\u{2588}\u{2588}\u{2588}\u{2588}\u{2584}       \u{2591}      \n         \u{2588}\u{2593}\u{2593}\u{2593}\u{2593}\u{2593}\u{2593}\u{2588}     \u{2591}       \n         \u{2588} \u{2588}\u{2588}\u{2588}\u{2588} \u{2588}             \n         \u{2588}\u{2580}\u{2580}\u{2580}\u{2580}\u{2580}\u{2580}\u{2588}    \u{258C}\u{2584}\u{2584}\u{2590}     \n       \u{2584}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}  \u{2588}     \n  \u{2584}\u{2584}\u{2584}\u{2584}\u{2588}\u{2593}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2593}\u{2588} \u{2580}\u{2580}\u{2580}\u{2580}     \n  \u{2588}\u{2593}\u{2593}\u{2588}\u{2588}\u{2593}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2593}\u{2588}          \n  \u{2588}\u{2593}\u{2593}\u{2588} \u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}           \n  \u{2588}\u{2593}\u{2593}\u{2588}  \u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}            \n   \u{2580}\u{2580}    \u{2588}\u{2588}\u{2588}  \u{2588}\u{2588}\u{2588}             \n         \u{2588}\u{2588}\u{2588}  \u{2588}\u{2588}\u{2588}             \n        \u{2588}\u{2588}\u{2588}\u{2588} \u{2588}\u{2588}\u{2588}\u{2588}             \n                              \n                              \n                              ",
+    "            \u{2584}\u{2584}                \n          \u{2584}\u{2588}\u{2588}\u{2588}\u{2588}\u{2584}              \n         \u{2588}\u{2593}\u{2593}\u{2593}\u{2593}\u{2593}\u{2593}\u{2588}             \n         \u{2588}\u{2584}\u{2588}\u{2588}\u{2588}\u{2588}\u{2584}\u{2588}      \u{2591}      \n         \u{2588}\u{2580}\u{2580}\u{2580}\u{2580}\u{2580}\u{2580}\u{2588}     \u{2591}       \n       \u{2584}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2584}         \n  \u{2584}\u{2584}\u{2584}\u{2584}\u{2588}\u{2593}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2593}\u{2588} \u{258C}\u{2584}\u{2584}\u{2590}     \n  \u{2588}\u{2593}\u{2593}\u{2588}\u{2588}\u{2593}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2593}\u{2588}\u{2588}\u{2588}  \u{2588}     \n  \u{2588}\u{2593}\u{2593}\u{2588} \u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}  \u{2580}\u{2580}\u{2580}\u{2580}     \n  \u{2588}\u{2593}\u{2593}\u{2588}  \u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}            \n   \u{2580}\u{2580}    \u{2588}\u{2588}\u{2588}  \u{2588}\u{2588}\u{2588}             \n         \u{2588}\u{2588}\u{2588}  \u{2588}\u{2588}\u{2588}             \n        \u{2588}\u{2588}\u{2588}\u{2588} \u{2588}\u{2588}\u{2588}\u{2588}             \n                              \n                              \n                              ",
+    "            \u{2584}\u{2584}                \n          \u{2584}\u{2588}\u{2588}\u{2588}\u{2588}\u{2584}              \n         \u{2588}\u{2593}\u{2593}\u{2593}\u{2593}\u{2593}\u{2593}\u{2588}             \n         \u{2588}\u{2584}\u{2588}\u{2588}\u{2588}\u{2588}\u{2584}\u{2588}      \u{2591}      \n         \u{2588}\u{2580}\u{2580}\u{2580}\u{2580}\u{2580}\u{2580}\u{2588}     \u{2591}       \n       \u{2584}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2584}  \u{2591}      \n  \u{2584}\u{2584}\u{2584}\u{2584}\u{2588}\u{2593}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2593}\u{2588}          \n  \u{2588}\u{2593}\u{2593}\u{2588}\u{2588}\u{2593}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2593}\u{2588} \u{258C}\u{2584}\u{2584}\u{2590}     \n  \u{2588}\u{2593}\u{2593}\u{2588} \u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}  \u{2588}     \n  \u{2588}\u{2593}\u{2593}\u{2588}  \u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}   \u{2580}\u{2580}\u{2580}\u{2580}     \n   \u{2580}\u{2580}    \u{2588}\u{2588}\u{2588}  \u{2588}\u{2588}\u{2588}             \n         \u{2588}\u{2588}\u{2588}  \u{2588}\u{2588}\u{2588}             \n        \u{2588}\u{2588}\u{2588}\u{2588} \u{2588}\u{2588}\u{2588}\u{2588}             \n                              \n                              \n                              ",
+]
+
+let MOTTO = "Shield the Process, Sip the Coffee"
+
+/// Okno powitalne: raz, przy pierwszym uruchomieniu paska. Monochromatyczny paladyn
+/// (labelColor - sam gra z jasnym/ciemnym motywem), vibrancy, wybor trybu na start.
+final class Welcome: NSObject {
+    static let shared = Welcome()
+    private var window: NSWindow?
+    private var art: NSTextField?
+    private var timer: Timer?
+    private var frame = 0
+    private var usesSprite = false
+    private let flagPath = base + "/welcomed"
+
+    func maybeShow() {
+        guard !FileManager.default.fileExists(atPath: flagPath) else { return }
+        let W: CGFloat = 440, H: CGFloat = 470
+        let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: W, height: H),
+                           styleMask: [.titled, .fullSizeContentView], backing: .buffered, defer: false)
+        win.titlebarAppearsTransparent = true
+        win.titleVisibility = .hidden
+        win.isMovableByWindowBackground = true
+        win.level = .floating
+        win.center()
+        let fx = NSVisualEffectView(frame: NSRect(x: 0, y: 0, width: W, height: H))
+        fx.material = .sidebar
+        fx.state = .active
+        win.contentView = fx
+
+        // Grafika paladyna. Trzy poziomy, od najlepszego:
+        //   1. paladin_welcome.gif  - oficjalna animacja (NSImageView odtwarza GIF sam),
+        //   2. paladin_welcome.png  - ta sama postac, klatka statyczna,
+        //   3. PALADIN_FRAMES       - klatki ASCII, gdy branding w ogole nie dojechal.
+        // Dzieki trzeciemu poziomowi okno nigdy nie jest puste.
+        let a = NSTextField(labelWithString: PALADIN_FRAMES[0])
+        a.font = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
+        a.maximumNumberOfLines = 0
+        a.cell?.wraps = false
+        let sprite = NSImage(contentsOfFile: base + "/paladin_welcome.gif")
+            ?? NSImage(contentsOfFile: base + "/paladin_welcome.png")
+        if let sprite = sprite {
+            let ratio = sprite.size.width / max(sprite.size.height, 1)
+            let ih: CGFloat = 236, iw = ih * ratio
+            let iv = NSImageView(frame: NSRect(x: (W - iw)/2, y: 206, width: iw, height: ih))
+            iv.image = sprite
+            iv.imageScaling = .scaleProportionallyUpOrDown
+            iv.animates = true          // dziala tylko dla GIF-a; dla PNG bez efektu
+            fx.addSubview(iv)
+            usesSprite = true
+        }
+        a.textColor = .labelColor
+        a.alignment = .center
+        a.frame = NSRect(x: 0, y: 208, width: W, height: 240)
+        fx.addSubview(a)
+        art = a
+
+        let name = NSTextField(labelWithString: APPNAME)
+        name.font = .systemFont(ofSize: 22, weight: .bold)
+        name.alignment = .center
+        name.frame = NSRect(x: 0, y: 172, width: W, height: 30)
+        fx.addSubview(name)
+
+        let motto = NSTextField(labelWithString: MOTTO)
+        motto.font = .systemFont(ofSize: 12, weight: .medium)
+        motto.textColor = .labelColor
+        motto.alignment = .center
+        motto.frame = NSRect(x: 20, y: 148, width: W - 40, height: 18)
+        fx.addSubview(motto)
+
+        let sub = NSTextField(labelWithString: T("The paladin stands guard. Choose how to begin:"))
+        sub.font = .systemFont(ofSize: 12)
+        sub.textColor = .secondaryLabelColor
+        sub.alignment = .center
+        sub.frame = NSRect(x: 20, y: 124, width: W - 40, height: 20)
+        fx.addSubview(sub)
+
+        let enable = NSButton(title: T("Enable protection"), target: self, action: #selector(pickEnable))
+        enable.bezelStyle = .rounded
+        enable.keyEquivalent = "\r"
+        enable.frame = NSRect(x: W/2 - 150, y: 74, width: 300, height: 34)
+        fx.addSubview(enable)
+
+        let watch = NSButton(title: T("Watch only for now"), target: self, action: #selector(pickWatch))
+        watch.bezelStyle = .rounded
+        watch.frame = NSRect(x: W/2 - 150, y: 36, width: 300, height: 32)
+        fx.addSubview(watch)
+
+        // Timer chodzi WYLACZNIE w trybie ASCII. Przy sprite'cie animacje niesie sam
+        // NSImageView, a budzenie CPU 11x/s bez powodu jest ostatnim, czego chce
+        // bezwentylatorowy Mac (uwaga z przegladu Neo).
+        if usesSprite {
+            a.isHidden = true
+        } else {
+            timer = Timer.scheduledTimer(withTimeInterval: 0.09, repeats: true) { [weak self] _ in
+                guard let s = self else { return }
+                s.frame = (s.frame + 1) % PALADIN_FRAMES.count
+                s.art?.stringValue = PALADIN_FRAMES[s.frame]
+            }
+        }
+        window = win
+        NSApp.activate(ignoringOtherApps: true)
+        win.makeKeyAndOrderFront(nil)
+    }
+
+    @objc private func pickEnable() { finish(dry: false) }
+    @objc private func pickWatch() { finish(dry: true) }
+
+    private func finish(dry: Bool) {
+        GuardCfg.set(["dry_run": dry])
+        FileManager.default.createFile(atPath: flagPath, contents: Data())
+        timer?.invalidate()
+        window?.orderOut(nil)
+        window = nil
+    }
 }
 
 // MARK: - fleet (wspolny folder, te same pliki co CLI `fleet`)
@@ -722,32 +906,238 @@ final class FooterLogoRow: NSView {
 /// lezy logo.png (u Pawla: znak AIrON), pokazujemy je; bez pliku rysujemy wlasny squircle.
 final class HeaderRow: NSView {
     init() {
-        super.init(frame: NSRect(x: 0, y: 0, width: 400, height: 56))
+        super.init(frame: NSRect(x: 0, y: 0, width: 400, height: 88))
         let W: CGFloat = 400
         if let logo = customLogo() {
             // znak poziomy (wordmark): srodek, wysokosc 22, szerokosc wg proporcji
             let ratio = logo.size.width / max(logo.size.height, 1)
             let h: CGFloat = 24
             let w = min(h * ratio, 330)
-            let iv = NSImageView(frame: NSRect(x: (W - w) / 2, y: 25, width: w, height: h))
+            let iv = NSImageView(frame: NSRect(x: (W - w) / 2, y: 58, width: w, height: h))
             iv.image = logo
             iv.imageScaling = .scaleProportionallyUpOrDown
             iv.contentTintColor = .labelColor
             addSubview(iv)
         } else {
-            let iv = NSImageView(frame: NSRect(x: (W - 22) / 2, y: 26, width: 22, height: 22))
+            let iv = NSImageView(frame: NSRect(x: (W - 22) / 2, y: 58, width: 22, height: 22))
             iv.image = makeLogo(22)
             addSubview(iv)
         }
+        // Nazwa produktu i motto: to jest "twarz" narzedzia, musi byc na gorze menu,
+        // nie dopiero w stopce (luke wykryl wzmocniony test 6).
+        // CELOWO bez miniatury paladyna obok: w 30 px szczegolowa grafika robi sie
+        // kolorowa naklejka i kloci sie z monochromatycznym wordmarkiem nad nia.
+        // Paladyna oglada sie w panelu (klikniecie nazwy) i w oknie powitalnym.
+        let app = NSTextField(labelWithString: "\(APPNAME)  ·  v\(VERSION)")
+        app.font = .systemFont(ofSize: 13, weight: .semibold)
+        app.textColor = .labelColor
+        app.alignment = .center
+        app.frame = NSRect(x: 0, y: 38, width: W, height: 18)
+        addSubview(app)
+
+        let motto = NSTextField(labelWithString: MOTTO)
+        motto.font = .systemFont(ofSize: 11, weight: .regular)
+        motto.textColor = .labelColor
+        motto.alignment = .center
+        motto.frame = NSRect(x: 0, y: 22, width: W, height: 14)
+        addSubview(motto)
+
         let name = NSTextField(labelWithString: T("A project of the AIrON student research club."))
         name.font = .systemFont(ofSize: 11)
         name.textColor = .secondaryLabelColor
         name.alignment = .center
         name.frame = NSRect(x: 0, y: 6, width: W, height: 14)
         addSubview(name)
+
+        // Nazwa produktu jest klikalna: otwiera paladyna przypietego pod paskiem.
+        // Klikalny jest sam napis, nie caly nagłówek - zeby przypadkowe klikniecie
+        // w logo albo w motto nie wywolywalo okna.
+        nazwaKlikalna = app.frame
+        addTrackingArea(NSTrackingArea(rect: app.frame,
+                                       options: [.mouseEnteredAndExited, .activeAlways, .cursorUpdate],
+                                       owner: self, userInfo: nil))
+    }
+    required init?(coder: NSCoder) { fatalError() }
+
+    private var nazwaKlikalna: NSRect = .zero
+
+    override func cursorUpdate(with event: NSEvent) {
+        NSCursor.pointingHand.set()
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        let p = convert(event.locationInWindow, from: nil)
+        guard nazwaKlikalna.contains(p) else { return }
+        // Najpierw zamykamy menu, dopiero potem pokazujemy panel - inaczej menu
+        // przechwytuje zdarzenia myszy i panelu nie da sie zamknac klikiem.
+        enclosingMenuItem?.menu?.cancelTracking()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { PaladinPanel.shared.toggle() }
+    }
+}
+
+
+/// Paladyn "na sztywno z paska": maly panel przyklejony pod ikona w pasku menu,
+/// z oficjalna animacja. Nie jest oknem aplikacji - nie zabiera fokusu, nie wchodzi
+/// do Dock/Cmd-Tab i znika przy pierwszym klikniecu obok albo po Esc.
+final class PaladinPanel: NSObject {
+    static let shared = PaladinPanel()
+    private var panel: NSPanel?
+    private var monitorLokalny: Any?
+    private var monitorGlobalny: Any?
+
+    func toggle() {
+        if panel != nil { close(); return }
+        guard let sprite = NSImage(contentsOfFile: base + "/paladin_welcome.gif")
+            ?? NSImage(contentsOfFile: base + "/paladin_welcome.png") else { return }
+
+        let ratio = sprite.size.width / max(sprite.size.height, 1)
+        let ih: CGFloat = 210
+        let W = max(210, ih * ratio + 40), H = ih + 66
+        let p = NSPanel(contentRect: NSRect(x: 0, y: 0, width: W, height: H),
+                        styleMask: [.borderless, .nonactivatingPanel],
+                        backing: .buffered, defer: false)
+        p.level = .statusBar
+        p.isOpaque = false
+        p.backgroundColor = .clear
+        p.hasShadow = true
+        p.hidesOnDeactivate = false
+        p.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+
+        let fx = NSVisualEffectView(frame: NSRect(x: 0, y: 0, width: W, height: H))
+        fx.material = .popover
+        fx.state = .active
+        fx.wantsLayer = true
+        fx.layer?.cornerRadius = 12
+        fx.layer?.masksToBounds = true
+        p.contentView = fx
+
+        let iw = ih * ratio
+        let iv = NSImageView(frame: NSRect(x: (W - iw)/2, y: 50, width: iw, height: ih))
+        iv.image = sprite
+        iv.imageScaling = .scaleProportionallyUpOrDown
+        iv.animates = true
+        fx.addSubview(iv)
+
+        let nazwa = NSTextField(labelWithString: APPNAME)
+        nazwa.font = .systemFont(ofSize: 13, weight: .semibold)
+        nazwa.alignment = .center
+        nazwa.frame = NSRect(x: 0, y: 28, width: W, height: 18)
+        fx.addSubview(nazwa)
+
+        let motto = NSTextField(labelWithString: MOTTO)
+        motto.font = .systemFont(ofSize: 11)
+        motto.textColor = .secondaryLabelColor
+        motto.alignment = .center
+        motto.frame = NSRect(x: 8, y: 10, width: W - 16, height: 14)
+        fx.addSubview(motto)
+
+        ustawPod(p, szerokosc: W, wysokosc: H)
+        p.orderFrontRegardless()
+        panel = p
+
+        // Zamkniecie: klik gdziekolwiek (tez w sam panel) albo Esc.
+        monitorGlobalny = NSEvent.addGlobalMonitorForEvents(
+            matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in self?.close() }
+        monitorLokalny = NSEvent.addLocalMonitorForEvents(
+            matching: [.leftMouseDown, .rightMouseDown, .keyDown]) { [weak self] e in
+                if e.type == .keyDown && e.keyCode != 53 { return e }   // 53 = Esc
+                self?.close(); return e
+            }
+    }
+
+    /// Kotwiczy panel pod ikona w pasku menu. Gdy ikony nie da sie zlokalizowac
+    /// (inny ekran, ukryta w Bartenderze), ladujemy w prawym gornym rogu ekranu.
+    private func ustawPod(_ p: NSPanel, szerokosc W: CGFloat, wysokosc H: CGFloat) {
+        if let b = Bar.shared?.item.button, let okno = b.window {
+            let ekranowa = okno.convertToScreen(b.convert(b.bounds, to: nil))
+            var x = ekranowa.midX - W/2
+            let y = ekranowa.minY - H - 6
+            if let vis = (okno.screen ?? NSScreen.main)?.visibleFrame {
+                x = min(max(x, vis.minX + 8), vis.maxX - W - 8)
+            }
+            p.setFrameOrigin(NSPoint(x: x, y: y))
+            return
+        }
+        if let vis = NSScreen.main?.visibleFrame {
+            p.setFrameOrigin(NSPoint(x: vis.maxX - W - 12, y: vis.maxY - H - 12))
+        }
+    }
+
+    func close() {
+        if let m = monitorGlobalny { NSEvent.removeMonitor(m); monitorGlobalny = nil }
+        if let m = monitorLokalny { NSEvent.removeMonitor(m); monitorLokalny = nil }
+        panel?.orderOut(nil)
+        panel = nil
+    }
+}
+
+
+/// Przelacznik rysowany samodzielnie. NSSwitch dziedziczy kolor akcentu systemu,
+/// a chcemy jednoznaczna informacje: zielony = pilnuje, szary = nie pilnuje.
+/// Kolory sa systemowe (systemGreen / tertiaryLabel), wiec graja z motywem jasnym i ciemnym.
+final class Przelacznik: NSControl {
+    var wlaczony: Bool { didSet { needsDisplay = true } }
+    init(on: Bool, target: AnyObject, action: Selector) {
+        self.wlaczony = on
+        super.init(frame: NSRect(x: 0, y: 0, width: 38, height: 22))
+        self.target = target
+        self.action = action
+    }
+    required init?(coder: NSCoder) { fatalError() }
+
+    override func draw(_ r: NSRect) {
+        let tor = NSRect(x: 0, y: 2, width: bounds.width, height: bounds.height - 4)
+        let sciezka = NSBezierPath(roundedRect: tor, xRadius: tor.height / 2, yRadius: tor.height / 2)
+        (wlaczony ? NSColor.systemGreen : NSColor.tertiaryLabelColor).setFill()
+        sciezka.fill()
+        let d = tor.height - 4
+        let x = wlaczony ? tor.maxX - d - 2 : tor.minX + 2
+        let knob = NSBezierPath(ovalIn: NSRect(x: x, y: tor.minY + 2, width: d, height: d))
+        NSColor.white.setFill()
+        NSGraphicsContext.saveGraphicsState()
+        let cien = NSShadow()
+        cien.shadowColor = NSColor.black.withAlphaComponent(0.25)
+        cien.shadowBlurRadius = 1.5
+        cien.shadowOffset = NSSize(width: 0, height: -0.5)
+        cien.set()
+        knob.fill()
+        NSGraphicsContext.restoreGraphicsState()
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        wlaczony.toggle()
+        if let a = action { NSApp.sendAction(a, to: target, from: self) }
+    }
+}
+
+
+/// Wiersz menu z przelacznikiem: etykieta po lewej, przelacznik po prawej.
+/// Dwie rzeczy wlaczane najczesciej - pauzowanie przy przegrzaniu i autostart -
+/// zasluguja na element, ktorego stan widac bez czytania.
+final class SwitchRow: NSView {
+    init(_ tytul: String, on: Bool, target: AnyObject, action: Selector,
+         opis: String? = nil, opisNaCzerwono: Bool = false) {
+        let W: CGFloat = 400, H: CGFloat = opis == nil ? 30 : 44
+        super.init(frame: NSRect(x: 0, y: 0, width: W, height: H))
+        let etykieta = NSTextField(labelWithString: tytul)
+        etykieta.font = .menuFont(ofSize: 13)
+        etykieta.textColor = .labelColor
+        etykieta.frame = NSRect(x: 21, y: H - 21, width: W - 90, height: 17)
+        addSubview(etykieta)
+        if let opis = opis {
+            let pod = NSTextField(labelWithString: opis)
+            pod.font = .systemFont(ofSize: 11, weight: opisNaCzerwono ? .medium : .regular)
+            pod.textColor = opisNaCzerwono ? .systemRed : .secondaryLabelColor
+            pod.frame = NSRect(x: 21, y: 6, width: W - 90, height: 14)
+            addSubview(pod)
+        }
+        let sw = Przelacznik(on: on, target: target, action: action)
+        sw.frame = NSRect(x: W - 62, y: (H - 22) / 2, width: 38, height: 22)
+        addSubview(sw)
     }
     required init?(coder: NSCoder) { fatalError() }
 }
+
 
 /// Losowa, niezgadywalna nazwa tematu ntfy — bo nazwa jest jedynym zabezpieczeniem.
 func randomTopic() -> String {
@@ -1191,6 +1581,9 @@ final class LangRow: NSView {
 }
 
 final class Bar: NSObject, NSMenuDelegate {
+    /// Jedyna instancja paska. Panel paladyna potrzebuje jej, zeby wiedziec,
+    /// pod ktora ikona sie zaczepic.
+    static weak var shared: Bar?
     let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     let menu = NSMenu()
     var timer: Timer?
@@ -1202,6 +1595,7 @@ final class Bar: NSObject, NSMenuDelegate {
 
     override init() {
         super.init()
+        Bar.shared = self
         // macOS domyslnie wygasza pozycje menu bez akcji — a u nas wiekszosc wierszy to
         // informacje, nie polecenia. Bez tej flagi caly odczyt byl szary i nieczytelny.
         menu.autoenablesItems = false
@@ -1209,6 +1603,7 @@ final class Bar: NSObject, NSMenuDelegate {
         item.menu = menu
         refresh()
         refreshFleet()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { Welcome.shared.maybeShow() }
         timer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
             guard let self = self else { return }
             self.refresh()
@@ -1348,7 +1743,9 @@ final class Bar: NSObject, NSMenuDelegate {
         row(String(format: T("Power:  %@"),
                    s.onAC ? T("AC adapter")
                           : String(format: T("battery %@"), s.pct.map { "\($0)%" } ?? "?")))
-        row(String(format: T("Load:  %.2f    CPU available: %d%%"), s.load, s.cpuLimit))
+        row(String(format: T("Load:  %.2f / %d cores    CPU available: %d%%"),
+                  s.load, ProcessInfo.processInfo.processorCount,
+                  s.cpuLimit))
         if s.keepAwake {
             let a = Awake.read()
             switch a["mode"] as? String {
@@ -1380,6 +1777,17 @@ final class Bar: NSObject, NSMenuDelegate {
         }
 
         // akcja zamrozenia TUZ POD odczytami i wykresem — tam, gdzie patrzysz, gdy jest goraco
+        m.addItem(.separator())
+        // WLACZNIK OCHRONY - najwazniejsza decyzja w calej aplikacji, wiec nie chowamy jej
+        // w Ustawieniach. Przelacznik ON = ochrona dziala (dry_run = false).
+        let obserwuje = GuardCfg.bool("dry_run", true)
+        let ochrona = NSMenuItem()
+        ochrona.view = SwitchRow(T("Pause jobs when the Mac overheats"),
+                                 on: !obserwuje,
+                                 target: self, action: #selector(toggleDry),
+                                 opis: obserwuje ? T("OFF - the Mac is only being watched") : nil,
+                                 opisNaCzerwono: obserwuje)
+        m.addItem(ochrona)
         m.addItem(.separator())
         if !s.paused.isEmpty {
             let it = m.addItem(withTitle: T("Resume paused jobs"),
@@ -1585,12 +1993,6 @@ final class Bar: NSObject, NSMenuDelegate {
         notif.state = GuardCfg.bool("notify", true) ? .on : .off
         ss.addItem(notif)
 
-        let dry = NSMenuItem(title: T("Watch only, never touch processes (dry run)"),
-                             action: #selector(toggleDry), keyEquivalent: "")
-        dry.target = self
-        dry.state = GuardCfg.bool("dry_run", true) ? .on : .off
-        ss.addItem(dry)
-
         let help = NSMenuItem(title: T("What does watch-only mode do?"), action: #selector(explainDry), keyEquivalent: "")
         help.target = self
         ss.addItem(help)
@@ -1646,7 +2048,7 @@ final class Bar: NSObject, NSMenuDelegate {
                 arow(String(format: T("Serial:  %@"), ser))
             }
             if let cyc = hw["battery_cycles"] as? Int {
-                let warn = (hw["battery_failure"] as? Bool) == true ? "  ⚠️" : ""
+                let warn = (hw["battery_failure"] as? Bool) == true ? "  (!)" : ""
                 arow(String(format: T("Battery cycles:  %@"), "\(cyc)\(warn)"))
             }
             arow(String(format: T("Chip sensor (macmon):  %@"),
@@ -1690,20 +2092,31 @@ final class Bar: NSObject, NSMenuDelegate {
                                   level: h0.level, paused: h0.paused, onAC: h0.onAC,
                                   battPct: h0.battPct)
                 if h.age > 300 {
-                    frow("⚠️ \(h.name) — " + T("STALE - not reporting") + "  (" + fleetAge(h.age) + ")")
+                    // symbol systemowy, nie emoji: emoji ma wlasny kolor i wlasna szerokosc,
+                    // wiec w ciemnym motywie odcina sie jak naklejka i rozjezdza kolumny
+                    let a = NSMutableAttributedString()
+                    a.append(icon("exclamationmark.triangle", fallback: "!"))
+                    a.append(NSAttributedString(string: "  \(h.name) — " + T("STALE - not reporting")
+                                                + "  (" + fleetAge(h.age) + ")"))
+                    let it = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+                    it.attributedTitle = a
+                    fmenu.addItem(it)
                     continue
                 }
                 var bits: [String] = []
                 if let c = h.chip { bits.append(String(format: "%.0f °C", c)) }
                 if let f = h.fans {
-                    bits.append(f >= 1000 ? String(format: "🌀%.1fk", Double(f) / 1000.0) : "🌀\(f)")
+                    bits.append(f >= 1000 ? String(format: "%.1fk rpm", Double(f) / 1000.0)
+                                          : "\(f) rpm")
                 }
                 if let w = h.watts { bits.append(String(format: "%.0f W", w)) }
                 if let r = h.ramPct { bits.append("RAM \(r)%") }
-                if !h.onAC, let b = h.battPct { bits.append("🔋\(b)%") }
+                if !h.onAC, let b = h.battPct { bits.append(T("battery") + " \(b)%") }
                 let names = [T("calm"), T("warm"), T("HOT - paused"), T("CRITICAL")]
                 bits.append(names[min(max(h.level, 0), 3)])
-                if !h.paused.isEmpty { bits.append("⏸ " + h.paused.joined(separator: ",")) }
+                if !h.paused.isEmpty {
+                    bits.append(T("paused") + ": " + h.paused.joined(separator: ", "))
+                }
                 bits.append(fleetAge(h.age))
                 let tytul = h.model.isEmpty ? h.name : "\(h.name)  [\(h.model)]"
                 let it = NSMenuItem(title: tytul + ":   " + bits.joined(separator: "  ·  "),
@@ -1729,10 +2142,10 @@ final class Bar: NSObject, NSMenuDelegate {
         coffee.image = img(MUG_FILL)
 
         // autostart przy logowaniu — default ON (tak instaluje install.sh)
-        let auto = m.addItem(withTitle: T("Start at login"), action: #selector(toggleAutostart), keyEquivalent: "")
-        auto.target = self
-        auto.image = img("power")
-        auto.state = Autostart.enabled() ? .on : .off
+        let auto = NSMenuItem()
+        auto.view = SwitchRow(T("Start at login"), on: Autostart.enabled(),
+                              target: self, action: #selector(toggleAutostart))
+        m.addItem(auto)
         m.addItem(.separator())
 
         // STOPKA: kolorowe logo firmowe, sygnatura i wysrodkowane Zamknij
@@ -1754,7 +2167,7 @@ final class Bar: NSObject, NSMenuDelegate {
         let quitIt = NSMenuItem(title: "", action: #selector(quit), keyEquivalent: "q")
         quitIt.target = self
         quitIt.attributedTitle = NSAttributedString(
-            string: T("Quit heatbar"),
+            string: T("Quit coffee-paladin (protection stops)"),
             attributes: [.paragraphStyle: center, .font: NSFont.menuFont(ofSize: 13)])
         m.addItem(quitIt)
     }
@@ -1822,7 +2235,7 @@ final class Bar: NSObject, NSMenuDelegate {
         a.informativeText = T("With five identical MacBooks the system hostname says nothing. This name shows in the fleet table and menu on every machine. Empty = system hostname.")
         let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 280, height: 24))
         field.stringValue = GuardCfg.string("fleet_label", "")
-        field.placeholderString = "np. render-01, Neo, MBP-Pawel"
+        field.placeholderString = T("e.g. render-01, studio-mini, mbp-14")
         a.accessoryView = field
         a.addButton(withTitle: "OK")
         a.addButton(withTitle: "Cancel")
@@ -1904,7 +2317,7 @@ Remember to switch it off afterwards: in this mode nothing protects the Mac.
     @objc func openLog() { NSWorkspace.shared.open(URL(fileURLWithPath: logPath)) }
 
     @objc func openIssues() {
-        NSWorkspace.shared.open(URL(string: "https://github.com/pawelkwaczynski/thermal-guard/issues")!)
+        NSWorkspace.shared.open(URL(string: "https://github.com/pawelkwaczynski/coffee-paladin/issues")!)
     }
 
     @objc func buyCoffee() {
@@ -1914,7 +2327,35 @@ Remember to switch it off afterwards: in this mode nothing protects the Mac.
     @objc func mailAuthor() {
         NSWorkspace.shared.open(URL(string: "mailto:kwaczynski.pawel@gmail.com?subject=thermal-guard%20v\(VERSION)")!)
     }
-    @objc func quit() { NSApp.terminate(nil) }
+    /// Wyjscie znaczy KONIEC PROGRAMU, nie tylko schowanie ikony: zatrzymujemy demona
+    /// i pasek. Wczesniej "Zamknij pasek" zostawialo demona przy zyciu - to bylo mylace
+    /// w druga strone (ludzie myśleli, ze wylaczyli ochronę, a ona dzialala).
+    /// Teraz etykieta i skutek sa te same, a przed nieodwracalnym krokiem pytamy.
+    @objc func quit() {
+        let a = NSAlert()
+        a.alertStyle = .critical
+        a.messageText = T("Turn off thermal protection for this Mac?")
+        a.informativeText = T("The daemon and the menu bar both stop. Nothing will pause hot jobs until you start it again.")
+        a.addButton(withTitle: T("Quit anyway"))
+        a.addButton(withTitle: T("Cancel"))
+        NSApp.activate(ignoringOtherApps: true)
+        guard a.runModal() == .alertFirstButtonReturn else { return }
+
+        // Demon idzie pierwszy - gdyby pasek zginal wczesniej, uzytkownik zostalby
+        // z dzialajaca ochrona i bez zadnego sposobu, zeby ja zobaczyc.
+        let uid = String(getuid())
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/bin/launchctl")
+        p.arguments = ["bootout", "gui/\(uid)/pl.pawel.thermal-guard"]
+        try? p.run()
+        p.waitUntilExit()
+
+        let b = Process()
+        b.executableURL = URL(fileURLWithPath: "/bin/launchctl")
+        b.arguments = ["bootout", "gui/\(uid)/pl.pawel.heatbar"]
+        try? b.run()          // nie czekamy: to polecenie ubija nas samych
+        NSApp.terminate(nil)
+    }
 }
 
 let app = NSApplication.shared
