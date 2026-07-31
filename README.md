@@ -47,9 +47,14 @@ when something goes wrong anyway*.
 
 When the chip gets too hot, heavy processes receive `SIGSTOP`. That is **not** destructive: the
 process freezes exactly where it is, its memory is untouched, and when things cool down it gets
-`SIGCONT` and continues from where it stopped. Memory and computation state survive intact;
-the honest caveat is time-sensitive I/O - network peers, watchdogs and license servers can
-notice the pause (see Known limitations).
+`SIGCONT` and continues from where it stopped. Memory and computation state survive intact -
+the stop lands between instructions, so the pause itself cannot corrupt the process's data.
+And it is nothing exotic: macOS pauses processes this way all day on its own (App Nap does it
+to background apps, every debugger does it on attach), so there is no wear on the hardware
+either - a paused process simply is not scheduled. The honest caveat is time-sensitive I/O:
+network peers, watchdogs and license servers can notice the pause (see Known limitations).
+The alternative is worse anyway: unmanaged heat means macOS throttles everything, and in the
+extreme the machine hard-shuts - which is what actually destroys work.
 
 Measured on a real job: chip at 89.3 °C → paused → **60.2 °C nineteen seconds later** → resumed.
 The computation never noticed.
@@ -591,8 +596,14 @@ jednak pójdzie źle*.
 
 **Zamraża, nie zabija.** Przy przegrzaniu ciężkie procesy dostają `SIGSTOP` - proces zamiera
 w miejscu, pamięć zostaje nietknięta, a po ostygnięciu `SIGCONT` i liczy dalej od miejsca,
-w którym stanął. Uczciwe zastrzeżenie: pauzę mogą zauważyć rzeczy wrażliwe na czas - druga
-strona połączenia sieciowego, watchdogi, serwery licencji (patrz ograniczenia). Zmierzone na żywym zadaniu: chip 89,3 °C → pauza → **60,2 °C po dziewiętnastu
+w którym stanął. Zatrzymanie następuje między instrukcjami, więc sama pauza nie może uszkodzić
+danych procesu. I nie ma w tym nic egzotycznego: macOS sam pauzuje tak procesy na okrągło
+(App Nap robi to aplikacjom w tle, każdy debugger przy podpięciu), sprzęt też nic nie traci -
+wstrzymany proces po prostu nie dostaje czasu procesora. Uczciwe zastrzeżenie: pauzę mogą
+zauważyć rzeczy wrażliwe na czas - druga strona połączenia sieciowego, watchdogi, serwery
+licencji (patrz ograniczenia). Alternatywa i tak jest gorsza: niepilnowane ciepło znaczy, że
+macOS dławi wszystko zegarami, a w skrajności komputer gaśnie twardo - i to DOPIERO niszczy
+pracę. Zmierzone na żywym zadaniu: chip 89,3 °C → pauza → **60,2 °C po dziewiętnastu
 sekundach** → wznowienie. Obliczenia niczego nie zauważyły. Ubicie (łagodnym `SIGTERM`, żeby
 zadanie zdążyło zapisać checkpoint) następuje dopiero po kilku krytycznych odczytach z rzędu.
 
