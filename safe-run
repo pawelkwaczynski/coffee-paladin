@@ -397,8 +397,11 @@ def main():
 
     reg = os.path.join(MANAGED_DIR, "%d.json" % proc.pid)
     with open(reg, "w") as f:
+        # "normal": czlowiek jawnie kazal leciec na wszystkich rdzeniach - guard
+        # nie moze 5 minut pozniej po cichu cofnac tej decyzji degradacja na E-cores
         json.dump({"pid": proc.pid, "pgid": proc.pid, "name": opt["name"],
-                   "cmd": cmd, "started": t0, "hours": opt["hours"]}, f, indent=1)
+                   "cmd": cmd, "started": t0, "hours": opt["hours"],
+                   "normal": bool(opt["normal"])}, f, indent=1)
 
     def forward(signum, frame):
         try:

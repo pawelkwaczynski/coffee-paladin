@@ -1,4 +1,4 @@
-# thermal-guard v1.9.0
+# coffee-paladin v2.0.0
 
 <p align="center">
   <img src="branding/paladin.gif" alt="coffee-paladin - the project mascot" width="260">
@@ -116,7 +116,7 @@ So thermal-guard:
 - **Fan alarm** - if the chip is above 70 °C and both fans report 0 rpm, you get a notification
   and a log entry. A seized fan is a common cause of exactly the burning smell described above.
 
-### 4. It keeps the Mac awake - with a fuse
+### 4. Keep-awake modes - an add-on to the fuse, not the point of the tool
 
 `safe-run` holds a sleep block (`caffeinate`) for exactly as long as the job runs, and the daemon
 can do the same automatically for any heavy job it sees (*Keep the Mac awake while heavy jobs
@@ -139,6 +139,11 @@ held.
 it will faithfully hold your Mac awake while the machine is hot, in a bag, on a pillow, wherever.
 I uninstalled it the day I understood that my keep-awake tool had no idea what temperature my
 Mac was. A wake lock without a thermal fuse is a promise to keep heating.
+
+> **The whole difference in one line:** every app in this category can hold a Mac awake.
+> Only this one **puts the cup down when it gets hot** - the others will faithfully keep a
+> Mac awake while it cooks in a backpack. That is not a variant of the same feature;
+> it is the opposite philosophy, and everything else here is built on top of it.
 
 | | Caffeine | Amphetamine | thermal-guard |
 |---|---|---|---|
@@ -292,11 +297,11 @@ the daemon is not running, and the agent is told to say so and behave as if the 
 unprotected. An agent that reads a stale file and reports "level 0, all good" is worse than
 one that never looked.
 
-The agent itself is protected in return: `claude`, `codex`, `node`, `hermes`, `tmux`, `vim`
-and anything holding a terminal's foreground are on the never-touch list. A guard that freezes
-the session driving it is not a guard. (That list has a cost, and it is worth naming: a `node`
-process doing a heavy build is protected too, so it cannot be paused. Narrowing it to *agent*
-node processes is an open item.)
+The agent itself is protected in return: `claude`, `codex`, `hermes`, `tmux`, `vim` and
+anything holding a terminal's foreground are on the never-touch list by name, and `node`
+processes are recognised by their **command line** - one running an agent, an MCP server or
+a language server is untouchable, while a plain `node build.js` stays pausable, which is
+exactly what a thermal guard is for. A guard that freezes the session driving it is not a guard.
 
 ```bash
 cat ~/.claude/skills/coffee-paladin/SKILL.md    # what your agent was told
@@ -406,7 +411,7 @@ processes.
 | **Fan RPM, power draw (W)** | same | Also gives per-core frequency and RAM/swap usage. |
 | **Thermal pressure** (`nominal`/`fair`/`serious`/`critical`) | `ProcessInfo.thermalState` via a tiny Swift binary | Public API, no privileges needed. |
 | **Battery temperature, cycles, cell voltages** | `ioreg -c AppleSmartBattery` | Units vary by model - see the gotcha below. |
-| **CPU throttling** | `pmset -g therm` → `CPU_Speed_Limit` | 100 = not throttled. |
+| **CPU throttling** | `pmset -g therm` → `CPU_Speed_Limit` | 100 = not throttled. Note this is available *speed*, not free capacity: a machine can be busy at 100% speed limit - which is why the menu shows this row only when actual throttling is happening. |
 | **Power source, battery %** | `pmset -g batt` | |
 | **Processes** | `ps` | Own CPU plus subtree rollup. |
 
@@ -616,6 +621,10 @@ set. That is exactly what the slider is for.
 | `batt_pause_c` / `batt_kill_c` | 40 / 45 | **battery** temperature - lithium cells degrade above ~45 °C |
 | `batt_pct_pause` | 10 | pause when on battery at or below this charge |
 | `fan_alert_temp_c` | 70 | above this the fans must be spinning |
+| `max_pause_minutes` | 45 | a job paused longer than this is **terminated with `SIGTERM`** - for an encoder without checkpoints that means losing all progress, so give long jobs `safe-run --hours N` and headroom here |
+| `max_pause_minutes_batt` | 240 | same limit when the *only* reason for the pause is a low battery (waiting for a charger is not a failure) |
+| `demote_after_minutes` | 5 | a heavy process grinding longer than this **while the chip is hot** is moved to E-cores; it returns to P-cores on its own once the chip cools to `soc_resume_c` |
+| `demote_above_c` | `soc_resume_c + 4` | demotion only happens at or above this chip temperature - a cool machine never slows anyone down |
 | `unknown_cpu_percent` | 50 | catch-all threshold for unrecognised processes |
 | `never_patterns` | see `guard.py` | never touched, overrides everything |
 | `never_extra` | `[]` | your own additions to the never-touch list (tools you do not want frozen) |
@@ -665,6 +674,9 @@ The shipped defaults are deliberately more conservative than Apple's own throttl
 ---
 
 ## Honest authorship note
+
+**Author: Paweł Kwaczyński (FOCUS FRAME).** The requirements, the decisions, the verification
+and the risk in this project are one person's - the models below wrote code against that.
 
 I work in Python. The Swift menu bar app exists only because I build Swift in a pair with
 AI - and this project takes that seriously: four different models reviewed each other's work
@@ -784,6 +796,11 @@ pułapka: wiernie trzyma czuwanie także wtedy, gdy Mac jest gorący, w torbie, 
 gdziekolwiek. Odinstalowałem ją w dniu, w którym zrozumiałem, że moje narzędzie keep-awake
 nie ma pojęcia, jaką temperaturę ma mój Mac. Blokada snu bez bezpiecznika termicznego to
 obietnica dalszego grzania.
+
+> **Cała różnica w jednym zdaniu:** każda aplikacja tej kategorii umie trzymać Maca
+> w czuwaniu. Tylko ta **odstawia kubek, gdy robi się gorąco** - pozostałe wiernie
+> podtrzymają czuwanie także wtedy, gdy Mac gotuje się w plecaku. To nie jest wariant
+> tej samej funkcji, to odwrotna filozofia - i cała reszta narzędzia stoi na niej.
 
 | | Caffeine | Amphetamine | thermal-guard |
 |---|---|---|---|
@@ -914,11 +931,11 @@ demon nie działa — a agent ma to powiedzieć i zachowywać się tak, jakby Ma
 Agent, który czyta nieaktualny plik i melduje „poziom 0, wszystko gra", jest gorszy niż taki,
 który w ogóle nie zajrzał.
 
-W zamian sam agent jest chroniony: `claude`, `codex`, `node`, `hermes`, `tmux`, `vim` i
-cokolwiek trzyma pierwszy plan terminala są na liście nietykalnych. Guard, który zamraża
-sesję sterującą nim samym, nie jest guardem. (Ta lista ma swoją cenę i warto ją nazwać:
-proces `node` robiący ciężki build też jest chroniony, więc nie da się go wstrzymać.
-Zawężenie tego do node'ów *agentowych* jest pozycją otwartą.)
+W zamian sam agent jest chroniony: `claude`, `codex`, `hermes`, `tmux`, `vim` i cokolwiek
+trzyma pierwszy plan terminala są na liście nietykalnych po nazwie, a procesy `node`
+rozpoznajemy po **linii poleceń** - ten z agentem, serwerem MCP czy language serverem jest
+nietykalny, ale zwykły `node build.js` pozostaje pauzowalny, czyli dokładnie tak, jak ma
+działać bezpiecznik termiczny. Guard, który zamraża sesję sterującą nim samym, nie jest guardem.
 
 ```bash
 cat ~/.claude/skills/coffee-paladin/SKILL.md    # co dostał Twój agent
@@ -1022,6 +1039,9 @@ językach** (angielski, polski, rosyjski, chiński, hiszpański) - przełączasz
 (*Ustawienia > Język*) albo przez `"lang"` w `~/.thermal-guard/config.json` / `TG_LANG`.
 
 ## Uczciwa notka o autorstwie
+
+**Autor: Paweł Kwaczyński (FOCUS FRAME).** Wymagania, decyzje, weryfikacja i ryzyko w tym
+projekcie należą do jednej osoby - modele niżej pisały kod pod to.
 
 Pracuję w Pythonie. Aplikacja paska w Swift istnieje tylko dlatego, że Swift buduję w parze
 z AI - i ten projekt traktuje to poważnie: cztery różne modele recenzowały nawzajem swoją

@@ -167,11 +167,12 @@ heat --paladin                # 彩蛋 ☕︎
 
 MIT。随便用。如果它救了你的机器，那就够了。
 
-**美术。** 圣骑士吉祥物由 **ChatGPT（OpenAI）生成**，作为本项目的官方形象使用；
-细节见 [`branding/CREDITS.md`](branding/CREDITS.md)。
-
 作者：Paweł Kwaczyński / FOCUS FRAME，2026。本项目同时是罗兹 AHE
 计算机科学学生科研社团 **AIrON** 的项目。
 Swift 部分由 **Claude（Anthropic）** 在 Claude Code 中编写，
 **Codex（OpenAI，GPT-5.5）** 担任对抗性评审，另有两个本地模型
 （MLX 上的 Devstral 24B 与 Ollama 上的 qwen3:4b）参与复核。
+
+**美术。** 圣骑士吉祥物由 **ChatGPT（OpenAI）生成**，作为本项目的官方形象使用；
+细节见 [`branding/CREDITS.md`](branding/CREDITS.md)。
+

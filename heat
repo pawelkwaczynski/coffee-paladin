@@ -391,6 +391,22 @@ def main():
     fans_raw = snap.get("fans")
     fans = [int(f) for f in fans_raw if _num(f) is not None] if isinstance(fans_raw, list) else []
 
+    # --json dla agentow i skryptow: pomiary WLASNE (thermalstate, ioreg, pmset, loadavg)
+    # osobno od migawki guarda - drugie, niezalezne zrodlo do weryfikacji, czy
+    # status.json nie klamie, bez sudo i bez parsowania tekstu dla ludzi (B6)
+    if "--json" in sys.argv:
+        print(json.dumps({
+            "measured": {"thermal_state": state,
+                         "battery_c": temp,
+                         "battery_lifetime_max_c": lifetime,
+                         "cpu_limit": speed,
+                         "load1": round(l1, 2), "load15": round(l15, 2), "cores": ncpu},
+            "guard_snapshot": snap or None,
+            "guard_running": AGENT in sh(["launchctl", "list"])
+                             or bool(sh(["pgrep", "-f", "guard.py"]).strip()),
+        }, ensure_ascii=False))
+        return 0
+
     print(T("%s thermal state: %s   chip: %s   battery: %s   CPU available: %d%%   load: %.2f / %.2f (%d cores)")
           % (ICON.get(state, "⚪️"), state,
              ("%.1f °C" % chip) if chip else T("n/a"),

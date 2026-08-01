@@ -16,7 +16,7 @@
 
 import Cocoa
 
-let VERSION = "1.9.0"
+let VERSION = "2.0.0"
 let APPNAME = "coffee-paladin"
 let CODENAME = "Double Espresso"
 let SIGNATURE = "\(APPNAME) v\(VERSION) \u{201E}\(CODENAME)\u{201D}  ·  FOCUS FRAME 2026"
@@ -67,7 +67,8 @@ let PL: [String: String] = [
     "Disk:  %d / %d GB used (%d%%)": "Dysk:  %d / %d GB zajęte (%d%%)",
     "Power:  %@": "Zasilanie:  %@",
     "AC adapter": "zasilacz", "battery %@": "bateria %@",
-    "Load:  %.2f / %d cores    CPU available: %d%%": "Obciążenie:  %.2f / %d rdzeni    CPU dostępne: %d%%",
+    "Load:  %.2f / %d cores": "Obciążenie:  %.2f / %d rdzeni",
+    "Throttling: CPU capped at %d%% speed": "Dławienie: CPU ścięte do %d%% prędkości",
     "   readings: %.0f-%.0f C": "   ostatnie pomiary: %.0f-%.0f C",
     "rising %.1f C/min - about %.0f min to pause": "rośnie %.1f C/min - do pauzy ok. %.0f min",
     "rising %.1f C/min": "rośnie %.1f C/min",
@@ -100,6 +101,14 @@ let PL: [String: String] = [
     "Battery temperature": "Temperatura baterii", "Fan rpm": "Obroty wentylatorów",
     "Power draw (W)": "Pobór mocy (W)", "RAM used": "Zajęty RAM", "Disk used": "Zajęty dysk",
     "Throttling marker": "Znacznik dławienia", "Pause marker": "Znacznik pauzy",
+    "Flame at critical": "Płonący pasek przy krytycznej",
+    "Like the paladin? Pass it on!": "Lubisz paladyna? Podaj dalej!",
+    "Share on X...": "Udostępnij na X...",
+    "Share by e-mail...": "Udostępnij e-mailem...",
+    "Copy link with note": "Kopiuj link z notką",
+    "Star it on GitHub...": "Zostaw gwiazdkę na GitHubie...",
+    "Is your Mac cooking through AI runs and renders? coffee-paladin watches the chip and pauses heavy jobs before things go wrong. Open source, free:":
+        "Mac grzeje się przy AI i renderach? coffee-paladin pilnuje temperatury chipa i pauzuje ciężkie zadania, zanim zrobi się źle. Open source, za darmo:",
     "Settings": "Ustawienia",
     "Chip pause threshold": "Wstrzymuj zadania powyżej",
     "Battery gate": "Wstrzymuj na baterii poniżej",
@@ -226,7 +235,8 @@ let RU: [String: String] = [
     "Power:  %@": "Питание:  %@",
     "AC adapter": "адаптер питания",
     "battery %@": "батарея %@",
-    "Load:  %.2f / %d cores    CPU available: %d%%": "Нагрузка:  %.2f / %d ядер    CPU доступно: %d%%",
+    "Load:  %.2f / %d cores": "Нагрузка:  %.2f / %d ядер",
+    "Throttling: CPU capped at %d%% speed": "Троттлинг: CPU ограничен до %d%% скорости",
     "   readings: %.0f-%.0f C": "   измерения: %.0f-%.0f C",
     "rising %.1f C/min - about %.0f min to pause": "растёт на %.1f C/мин - до паузы около %.0f мин",
     "rising %.1f C/min": "растёт на %.1f C/мин",
@@ -268,6 +278,14 @@ let RU: [String: String] = [
     "Disk used": "Занятый диск",
     "Throttling marker": "Индикатор троттлинга",
     "Pause marker": "Индикатор паузы",
+    "Flame at critical": "Пламя при критической",
+    "Like the paladin? Pass it on!": "Нравится паладин? Передай дальше!",
+    "Share on X...": "Поделиться в X...",
+    "Share by e-mail...": "Поделиться по почте...",
+    "Copy link with note": "Скопировать ссылку с заметкой",
+    "Star it on GitHub...": "Поставить звезду на GitHub...",
+    "Is your Mac cooking through AI runs and renders? coffee-paladin watches the chip and pauses heavy jobs before things go wrong. Open source, free:":
+        "Mac перегревается под ИИ и рендерами? coffee-paladin следит за чипом и ставит тяжёлые задачи на паузу, пока не стало плохо. Open source, бесплатно:",
     "Settings": "Настройки",
     "Chip pause threshold": "Пауза при температуре чипа выше",
     "Battery gate": "Пауза при заряде ниже",
@@ -365,7 +383,8 @@ let ZH: [String: String] = [
     "Power:  %@": "电源：  %@",
     "AC adapter": "电源适配器",
     "battery %@": "电池 %@",
-    "Load:  %.2f / %d cores    CPU available: %d%%": "负载：  %.2f / %d 核    CPU 可用：%d%%",
+    "Load:  %.2f / %d cores": "负载：  %.2f / %d 核",
+    "Throttling: CPU capped at %d%% speed": "降频：CPU 被限制到 %d%% 速度",
     "   readings: %.0f-%.0f C": "   测量值：%.0f-%.0f C",
     "rising %.1f C/min - about %.0f min to pause": "每分钟上升 %.1f C - 约 %.0f 分钟后暂停",
     "rising %.1f C/min": "每分钟上升 %.1f C",
@@ -407,6 +426,14 @@ let ZH: [String: String] = [
     "Disk used": "磁盘占用",
     "Throttling marker": "降频标记",
     "Pause marker": "暂停标记",
+    "Flame at critical": "危险温度时的火焰",
+    "Like the paladin? Pass it on!": "喜欢圣骑士?转发一下!",
+    "Share on X...": "分享到 X...",
+    "Share by e-mail...": "通过邮件分享...",
+    "Copy link with note": "复制链接和推荐语",
+    "Star it on GitHub...": "在 GitHub 上点星...",
+    "Is your Mac cooking through AI runs and renders? coffee-paladin watches the chip and pauses heavy jobs before things go wrong. Open source, free:":
+        "Mac 在 AI 任务和渲染时过热?coffee-paladin 监控芯片温度,在出问题前自动暂停繁重任务。开源免费:",
     "Settings": "设置",
     "Chip pause threshold": "芯片温度高于此值时暂停",
     "Battery gate": "电量低于此值时暂停",
@@ -504,7 +531,8 @@ let ES: [String: String] = [
     "Power:  %@": "Alimentación:  %@",
     "AC adapter": "adaptador de corriente",
     "battery %@": "batería %@",
-    "Load:  %.2f / %d cores    CPU available: %d%%": "Carga:  %.2f / %d núcleos    CPU disponible: %d%%",
+    "Load:  %.2f / %d cores": "Carga:  %.2f / %d núcleos",
+    "Throttling: CPU capped at %d%% speed": "Estrangulamiento: CPU limitada al %d%% de velocidad",
     "   readings: %.0f-%.0f C": "   lecturas: %.0f-%.0f C",
     "rising %.1f C/min - about %.0f min to pause": "sube %.1f C/min - pausa en unos %.0f min",
     "rising %.1f C/min": "sube %.1f C/min",
@@ -546,6 +574,14 @@ let ES: [String: String] = [
     "Disk used": "Disco usado",
     "Throttling marker": "Indicador de throttling",
     "Pause marker": "Indicador de pausa",
+    "Flame at critical": "Llama en nivel crítico",
+    "Like the paladin? Pass it on!": "¿Te gusta el paladín? ¡Pásalo!",
+    "Share on X...": "Compartir en X...",
+    "Share by e-mail...": "Compartir por correo...",
+    "Copy link with note": "Copiar enlace con nota",
+    "Star it on GitHub...": "Dale una estrella en GitHub...",
+    "Is your Mac cooking through AI runs and renders? coffee-paladin watches the chip and pauses heavy jobs before things go wrong. Open source, free:":
+        "¿Tu Mac se calienta con IA y renders? coffee-paladin vigila el chip y pausa las tareas pesadas antes de que algo vaya mal. Open source y gratis:",
     "Settings": "Ajustes",
     "Chip pause threshold": "Pausar por encima de",
     "Battery gate": "Pausar con batería por debajo de",
@@ -895,7 +931,7 @@ final class FooterLogoRow: NSView {
     @objc private func openSite() {
         let raw = GuardCfg.string("footer_logo_url", "")
         if !raw.isEmpty, let url = URL(string: raw) {
-            NSWorkspace.shared.open(url)
+            NSWorkspace.shared.open(zUTM(url.absoluteString) ?? url)
         }
     }
 
@@ -904,24 +940,51 @@ final class FooterLogoRow: NSView {
 
 /// Naglowek menu: logo + nazwa + wersja, wszystko WYSRODKOWANE. Gdy w ~/.thermal-guard
 /// lezy logo.png (u Pawla: znak AIrON), pokazujemy je; bez pliku rysujemy wlasny squircle.
+/// Kazdy link WYCHODZACY z aplikacji niesie UTM (decyzja Pawla 01.08) - w statystykach
+/// widac wtedy, ze ruch przyszedl z paska, a nie z README czy z posta.
+func zUTM(_ s: String, medium: String = "app") -> URL? {
+    guard var c = URLComponents(string: s) else { return URL(string: s) }
+    var q = c.queryItems ?? []
+    q.append(contentsOf: [URLQueryItem(name: "utm_source", value: "coffee-paladin"),
+                          URLQueryItem(name: "utm_medium", value: medium),
+                          URLQueryItem(name: "utm_campaign", value: "panbookovsky")])
+    c.queryItems = q
+    return c.url ?? URL(string: s)
+}
+
+/// Link do repo z UTM "share" - to wkleja sie w posty i maile z "Podaj dalej".
+func linkPodajDalej() -> String {
+    zUTM("https://github.com/pawelkwaczynski/coffee-paladin", medium: "share")?.absoluteString
+        ?? "https://github.com/pawelkwaczynski/coffee-paladin"
+}
+
+
 final class HeaderRow: NSView {
+    private var logoView: NSImageView?
+    private var appLabel: NSTextField?
+    private var srodkowane: [NSTextField] = []
+
     init() {
-        super.init(frame: NSRect(x: 0, y: 0, width: 400, height: 88))
-        let W: CGFloat = 400
+        // 360, nie 400: nagłówek nie moze byc tym, co rozpycha cale menu.
+        // Realna szerokosc i tak przychodzi od NSMenu - centrujemy w setFrameSize.
+        super.init(frame: NSRect(x: 0, y: 0, width: 360, height: 88))
+        autoresizingMask = [.width]
         if let logo = customLogo() {
             // znak poziomy (wordmark): srodek, wysokosc 22, szerokosc wg proporcji
             let ratio = logo.size.width / max(logo.size.height, 1)
             let h: CGFloat = 24
             let w = min(h * ratio, 330)
-            let iv = NSImageView(frame: NSRect(x: (W - w) / 2, y: 58, width: w, height: h))
+            let iv = NSImageView(frame: NSRect(x: 0, y: 58, width: w, height: h))
             iv.image = logo
             iv.imageScaling = .scaleProportionallyUpOrDown
             iv.contentTintColor = .labelColor
             addSubview(iv)
+            logoView = iv
         } else {
-            let iv = NSImageView(frame: NSRect(x: (W - 22) / 2, y: 58, width: 22, height: 22))
+            let iv = NSImageView(frame: NSRect(x: 0, y: 58, width: 22, height: 22))
             iv.image = makeLogo(22)
             addSubview(iv)
+            logoView = iv
         }
         // Nazwa produktu i motto: to jest "twarz" narzedzia, musi byc na gorze menu,
         // nie dopiero w stopce (luke wykryl wzmocniony test 6).
@@ -932,42 +995,70 @@ final class HeaderRow: NSView {
         app.font = .systemFont(ofSize: 13, weight: .semibold)
         app.textColor = .labelColor
         app.alignment = .center
-        app.frame = NSRect(x: 0, y: 38, width: W, height: 18)
+        app.frame = NSRect(x: 0, y: 38, width: 360, height: 18)
         addSubview(app)
+        appLabel = app
+        srodkowane.append(app)
 
         let motto = NSTextField(labelWithString: MOTTO)
         motto.font = .systemFont(ofSize: 11, weight: .regular)
         motto.textColor = .labelColor
         motto.alignment = .center
-        motto.frame = NSRect(x: 0, y: 22, width: W, height: 14)
+        motto.frame = NSRect(x: 0, y: 22, width: 360, height: 14)
         addSubview(motto)
+        srodkowane.append(motto)
 
         let name = NSTextField(labelWithString: T("A project of the AIrON student research club."))
         name.font = .systemFont(ofSize: 11)
         name.textColor = .secondaryLabelColor
         name.alignment = .center
-        name.frame = NSRect(x: 0, y: 6, width: W, height: 14)
+        name.frame = NSRect(x: 0, y: 6, width: 360, height: 14)
         addSubview(name)
+        srodkowane.append(name)
 
-        // Nazwa produktu jest klikalna: otwiera paladyna przypietego pod paskiem.
-        // Klikalny jest sam napis, nie caly nagłówek - zeby przypadkowe klikniecie
-        // w logo albo w motto nie wywolywalo okna.
-        nazwaKlikalna = app.frame
-        addTrackingArea(NSTrackingArea(rect: app.frame,
-                                       options: [.mouseEnteredAndExited, .activeAlways, .cursorUpdate],
+        // .inVisibleRect: obszar sledzenia podaza za KAZDA zmiana rozmiaru wiersza,
+        // wiec kursor-dlon dziala tez po tym, jak NSMenu rozciagnie widok
+        addTrackingArea(NSTrackingArea(rect: .zero,
+                                       options: [.mouseEnteredAndExited, .activeAlways,
+                                                 .cursorUpdate, .inVisibleRect],
                                        owner: self, userInfo: nil))
+        rozmiesc()
     }
     required init?(coder: NSCoder) { fatalError() }
 
-    private var nazwaKlikalna: NSRect = .zero
+    // Nagłówek byl centrowany w sztywnych 400 pt, a menu bywa szersze - cala sekcja
+    // wygladala na zle wysrodkowana (Pawel, 01.08). Teraz srodek liczy sie z bounds.
+    override func setFrameSize(_ newSize: NSSize) {
+        super.setFrameSize(newSize)
+        rozmiesc()
+    }
+
+    private func rozmiesc() {
+        if let iv = logoView {
+            iv.frame.origin.x = (bounds.width - iv.frame.width) / 2
+        }
+        for l in srodkowane { l.frame.size.width = bounds.width }
+    }
+
+    private func naLogo(_ p: NSPoint) -> Bool { logoView?.frame.contains(p) ?? false }
+    private func naNazwie(_ p: NSPoint) -> Bool { appLabel?.frame.contains(p) ?? false }
 
     override func cursorUpdate(with event: NSEvent) {
-        NSCursor.pointingHand.set()
+        let p = convert(event.locationInWindow, from: nil)
+        if naLogo(p) || naNazwie(p) { NSCursor.pointingHand.set() } else { NSCursor.arrow.set() }
     }
 
     override func mouseUp(with event: NSEvent) {
         let p = convert(event.locationInWindow, from: nil)
-        guard nazwaKlikalna.contains(p) else { return }
+        if naLogo(p) {
+            // logo AIrON prowadzi do kola naukowego: informatyka po angielsku na AHE
+            enclosingMenuItem?.menu?.cancelTracking()
+            if let u = zUTM("https://www.ahe.lodz.pl/study-in-english/eng-in-computer-science") {
+                NSWorkspace.shared.open(u)
+            }
+            return
+        }
+        guard naNazwie(p) else { return }
         // Najpierw zamykamy menu, dopiero potem pokazujemy panel - inaczej menu
         // przechwytuje zdarzenia myszy i panelu nie da sie zamknac klikiem.
         enclosingMenuItem?.menu?.cancelTracking()
@@ -1115,27 +1206,88 @@ final class Przelacznik: NSControl {
 /// Dwie rzeczy wlaczane najczesciej - pauzowanie przy przegrzaniu i autostart -
 /// zasluguja na element, ktorego stan widac bez czytania.
 final class SwitchRow: NSView {
+    /// Podpis pod etykieta zmienia sie NA ZYWO po przelaczeniu. Wczesniej byl budowany raz,
+    /// przy otwarciu menu - wiec klikniecie przelacznika zmienialo config, ale napis zostawal
+    /// stary az do zamkniecia i ponownego otwarcia menu. Wyglada to jak zepsuty przelacznik.
+    private var podpis: NSTextField?
+    private var etykieta: NSTextField?
+    private var przelacznik: Przelacznik?
+    private var xTekst: CGFloat = 21
+    private let opisGdyWylaczone: String?
+    private weak var celZewnetrzny: AnyObject?
+    private let akcjaZewnetrzna: Selector
+
     init(_ tytul: String, on: Bool, target: AnyObject, action: Selector,
-         opis: String? = nil, opisNaCzerwono: Bool = false) {
-        let W: CGFloat = 400, H: CGFloat = opis == nil ? 30 : 44
+         opisGdyWylaczone: String? = nil, ikona: String? = nil) {
+        self.opisGdyWylaczone = opisGdyWylaczone
+        self.celZewnetrzny = target
+        self.akcjaZewnetrzna = action
+        // Wysokosc jest STALA, nawet gdy podpisu chwilowo nie ma - inaczej wiersz
+        // skakalby przy kazdym przelaczeniu i rozpychal menu.
+        // Miejsce na czerwony podpis rezerwujemy TYLKO gdy ochrona jest wylaczona
+        // przy otwarciu menu - wlaczona rezerwowala pusta linie i dwa przelaczniki
+        // wygladaly na dziwnie oddalone (Pawel, 01.08 x2). Przy przelaczeniu OFF
+        // w otwartym menu czerwonego podpisu nie ma gdzie pokazac - stan mowi
+        // wtedy sam przelacznik plus powiadomienie guarda "watch-only".
+        let W: CGFloat = 360, H: CGFloat = (opisGdyWylaczone == nil || on) ? 26 : 40
         super.init(frame: NSRect(x: 0, y: 0, width: W, height: H))
-        let etykieta = NSTextField(labelWithString: tytul)
-        etykieta.font = .menuFont(ofSize: 13)
-        etykieta.textColor = .labelColor
-        etykieta.frame = NSRect(x: 21, y: H - 21, width: W - 90, height: 17)
-        addSubview(etykieta)
-        if let opis = opis {
-            let pod = NSTextField(labelWithString: opis)
-            pod.font = .systemFont(ofSize: 11, weight: opisNaCzerwono ? .medium : .regular)
-            pod.textColor = opisNaCzerwono ? .systemRed : .secondaryLabelColor
-            pod.frame = NSRect(x: 21, y: 6, width: W - 90, height: 14)
-            addSubview(pod)
+        // przelacznik trzyma sie PRAWEJ krawedzi realnego menu, nie sztywnych 400 pt
+        autoresizingMask = [.width]
+
+        // Ikona po lewej, jak w zwyklych pozycjach menu - wiersz z przelacznikiem
+        // nie moze wygladac na urwany obok wierszy, ktore ikony maja.
+        if let ikona = ikona,
+           let sym = NSImage(systemSymbolName: ikona, accessibilityDescription: nil) {
+            sym.isTemplate = true
+            let iv = NSImageView(image: sym)
+            iv.contentTintColor = .secondaryLabelColor
+            iv.frame = NSRect(x: 20, y: H - 21, width: 16, height: 16)
+            addSubview(iv)
+            xTekst = 44
         }
-        let sw = Przelacznik(on: on, target: target, action: action)
-        sw.frame = NSRect(x: W - 62, y: (H - 22) / 2, width: 38, height: 22)
+
+        let et = NSTextField(labelWithString: tytul)
+        et.font = .menuFont(ofSize: 13)
+        et.textColor = .labelColor
+        et.frame = NSRect(x: xTekst, y: H - 20, width: W - 69 - xTekst, height: 17)
+        addSubview(et)
+        etykieta = et
+
+        if opisGdyWylaczone != nil && !on {
+            let pod = NSTextField(labelWithString: "")
+            pod.font = .systemFont(ofSize: 11, weight: .medium)
+            pod.textColor = .systemRed
+            pod.frame = NSRect(x: xTekst, y: 3, width: W - 69 - xTekst, height: 14)
+            addSubview(pod)
+            podpis = pod
+        }
+
+        // Przelacznik NA ROWNI z etykieta (srodek w srodek), nie ze srodkiem calego
+        // wiersza - w wierszu z podpisem (H=44) etykieta jest u gory i switch
+        // centrowany na wierszu wygladal na obsuniety (uwaga Pawla, 01.08).
+        let sw = Przelacznik(on: on, target: self, action: #selector(przelaczono(_:)))
+        sw.frame = NSRect(x: W - 62, y: H - 22.5, width: 38, height: 22)
         addSubview(sw)
+        przelacznik = sw
+        pokazPodpis(on: on)
     }
     required init?(coder: NSCoder) { fatalError() }
+
+    override func setFrameSize(_ newSize: NSSize) {
+        super.setFrameSize(newSize)
+        przelacznik?.frame.origin.x = bounds.width - 62
+        etykieta?.frame.size.width = bounds.width - 69 - xTekst
+        podpis?.frame.size.width = bounds.width - 69 - xTekst
+    }
+
+    private func pokazPodpis(on: Bool) {
+        podpis?.stringValue = on ? "" : (opisGdyWylaczone ?? "")
+    }
+
+    @objc private func przelaczono(_ s: Przelacznik) {
+        pokazPodpis(on: s.wlaczony)
+        if let cel = celZewnetrzny { NSApp.sendAction(akcjaZewnetrzna, to: cel, from: self) }
+    }
 }
 
 
@@ -1168,7 +1320,7 @@ func icon(_ name: String, fallback: String, size: CGFloat = 12) -> NSAttributedS
 /// Every bar element can be switched on and off: the menu bar is scarce space and everyone
 /// wants something different there. The choice lives in heatbar.json, so it survives a restart.
 enum Item: String, CaseIterable {
-    case chip, gpu, battery, fans, watts, ram, disk, throttle, paused
+    case chip, gpu, battery, fans, watts, ram, disk, throttle, paused, flame
 
     var label: String {
         switch self {
@@ -1181,6 +1333,7 @@ enum Item: String, CaseIterable {
         case .disk: return T("Disk used")
         case .throttle: return T("Throttling marker")
         case .paused: return T("Pause marker")
+        case .flame: return T("Flame at critical")
         }
     }
 
@@ -1232,6 +1385,11 @@ enum GuardCfg {
     static func string(_ key: String, _ fallback: String) -> String { (all()[key] as? String) ?? fallback }
 
     static func set(_ values: [String: Any]) {
+        // Ten sam flock co demon (config.lock): czytaj-zmien-zapisz z dwoch procesow
+        // nie moze sie krzyzowac, bo przegrany zapis znika bez sladu (B5).
+        let fd = open(base + "/config.lock", O_CREAT | O_WRONLY, 0o644)
+        if fd >= 0 { flock(fd, LOCK_EX) }
+        defer { if fd >= 0 { flock(fd, LOCK_UN); close(fd) } }
         var j = all()
         for (k, v) in values { j[k] = v }
         if let d = try? JSONSerialization.data(withJSONObject: j, options: [.prettyPrinted, .sortedKeys]) {
@@ -1513,23 +1671,92 @@ func readSnap() -> Snap? {
     return s
 }
 
-/// Chip temperature graph from the history file - block characters, no drawing needed.
-func sparkline(limit: Int = 40) -> (String, Double, Double)? {
-    guard let text = try? String(contentsOfFile: historyPath, encoding: .utf8) else { return nil }
-    var values: [Double] = []
-    for line in text.split(separator: "\n").suffix(limit + 1) {
-        let c = line.split(separator: ",", omittingEmptySubsequences: false)
-        if c.count > 2, let v = Double(c[2]) { values.append(v) }
+/// Rysowany wykres temperatury chipu z history.csv (A10, decyzje Pawla 01.08):
+/// slupki kolorowane progami (zielony/zolty/czerwony), linia progu pauzy,
+/// znaczniki pauz (poziom >= 2) i podpisy min/max przy krancach - zamiast
+/// czarnych slupkow tekstowych bez skali. Rysuje sie RAZ przy otwarciu menu,
+/// zadnych timerow - wykres nie moze grzac Maca, ktorego pilnuje.
+final class WykresRow: NSView {
+    private let wartosci: [Double]
+    private let pauzy: [Bool]
+    private let progPauza: Double
+    private let progWznow: Double
+
+    static func make() -> WykresRow? {
+        guard let text = try? String(contentsOfFile: historyPath, encoding: .utf8) else { return nil }
+        var vals: [Double] = []
+        var pau: [Bool] = []
+        for line in text.split(separator: "\n").suffix(61) {
+            let c = line.split(separator: ",", omittingEmptySubsequences: false)
+            if c.count > 11, let v = Double(c[2]) {
+                vals.append(v)
+                pau.append((Int(c[11]) ?? 0) >= 2)
+            }
+        }
+        guard vals.count >= 3 else { return nil }
+        return WykresRow(vals, pau)
     }
-    guard values.count >= 3 else { return nil }
-    let blocks = Array("▁▂▃▄▅▆▇█")
-    let lo = values.min()!, hi = values.max()!
-    let span = max(hi - lo, 1.0)
-    let line = values.map { v -> Character in
-        let i = Int(((v - lo) / span) * Double(blocks.count - 1))
-        return blocks[min(max(i, 0), blocks.count - 1)]
+
+    init(_ v: [Double], _ p: [Bool]) {
+        wartosci = v
+        pauzy = p
+        progPauza = GuardCfg.double("soc_pause_c", 90)
+        progWznow = GuardCfg.double("soc_resume_c", 82)
+        super.init(frame: NSRect(x: 0, y: 0, width: 360, height: 64))
+        autoresizingMask = [.width]
     }
-    return (String(line), lo, hi)
+    required init?(coder: NSCoder) { fatalError() }
+
+    override func draw(_ dirtyRect: NSRect) {
+        let lewy: CGFloat = 44, prawy: CGFloat = 16, dol: CGFloat = 6, gora: CGFloat = 8
+        let W = bounds.width - lewy - prawy, H = bounds.height - dol - gora
+        guard W > 40, H > 20, !wartosci.isEmpty else { return }
+        let lo = wartosci.min()!, hi = wartosci.max()!
+        // skala obejmuje prog pauzy tylko, gdy maszyna chodzi w jego poblizu -
+        // inaczej zimne odczyty zgniata sie w plaska kreske przy dole
+        let top = hi >= progPauza - 15 ? Swift.max(hi, progPauza) : hi
+        let span = Swift.max(top - lo, 1.0)
+        func y(_ v: Double) -> CGFloat { dol + CGFloat((v - lo) / span) * H }
+
+        let n = wartosci.count
+        let krok = W / CGFloat(n)
+        let szer = Swift.max(krok - 1.5, 1.0)
+        for (i, v) in wartosci.enumerated() {
+            let kolor: NSColor = v >= progPauza ? .systemRed
+                               : v > progWznow ? .systemYellow : .systemGreen
+            kolor.withAlphaComponent(0.85).setFill()
+            let x = lewy + CGFloat(i) * krok
+            NSBezierPath(roundedRect:
+                NSRect(x: x, y: dol, width: szer, height: Swift.max(y(v) - dol, 1.5)),
+                xRadius: 0.5, yRadius: 0.5).fill()
+            if pauzy[i] {
+                // znacznik pauzy: czerwona kropka NAD slupkiem - interwencja guarda
+                NSColor.systemRed.setFill()
+                NSBezierPath(ovalIn: NSRect(x: x + szer / 2 - 1.5,
+                                            y: bounds.height - 6, width: 3, height: 3)).fill()
+            }
+        }
+
+        // linia progu pauzy (przerywana), o ile miesci sie w skali
+        if progPauza >= lo && progPauza <= top {
+            let yp = y(progPauza)
+            let path = NSBezierPath()
+            path.move(to: NSPoint(x: lewy, y: yp))
+            path.line(to: NSPoint(x: lewy + W, y: yp))
+            path.setLineDash([3, 3], count: 2, phase: 0)
+            path.lineWidth = 1
+            NSColor.systemRed.withAlphaComponent(0.6).setStroke()
+            path.stroke()
+        }
+
+        // podpisy skali przy krancach: max u gory, min u dolu (zamiast wiersza pod spodem)
+        let atr: [NSAttributedString.Key: Any] = [
+            .font: NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .regular),
+            .foregroundColor: NSColor.secondaryLabelColor]
+        String(format: "%.0f°", top).draw(at: NSPoint(x: 14, y: bounds.height - gora - 8),
+                                          withAttributes: atr)
+        String(format: "%.0f°", lo).draw(at: NSPoint(x: 14, y: dol - 1), withAttributes: atr)
+    }
 }
 
 /// "1 h 23 min" z liczby minut — do wiersza pozostalego czasu czuwania.
@@ -1549,11 +1776,14 @@ final class LangRow: NSView {
     private let codes = ["en", "pl", "ru", "zh", "es"]
     private let labels = ["EN", "PL", "RU", "中文", "ES"]
 
+    private var przyciski: [NSButton] = []
+
     init() {
-        super.init(frame: NSRect(x: 0, y: 0, width: 400, height: 30))
-        let w: CGFloat = 66, gap: CGFloat = 6
-        // wysrodkowane: 5 przyciskow + 4 odstepy w osi karty
-        var x: CGFloat = (400 - (5 * w + 4 * gap)) / 2
+        super.init(frame: NSRect(x: 0, y: 0, width: 360, height: 30))
+        // Menu bywa SZERSZE niz baza (najdluzszy wiersz tekstowy je rozpycha), a NSMenu
+        // rozciaga widok pozycji na cala szerokosc. Dlatego srodek liczymy z bounds
+        // w layout(), nie ze stalej 400 - inaczej rzad wisi przy lewej krawedzi.
+        autoresizingMask = [.width]
         for (i, code) in codes.enumerated() {
             let b = NSButton(title: labels[i], target: self, action: #selector(pick(_:)))
             b.bezelStyle = .rounded
@@ -1564,13 +1794,30 @@ final class LangRow: NSView {
                 b.bezelColor = .controlAccentColor
                 b.contentTintColor = .white
             }
-            b.frame = NSRect(x: x, y: 3, width: w, height: 22)
             addSubview(b)
-            x += w + gap
+            przyciski.append(b)
         }
+        rozmiesc()
     }
 
     required init?(coder: NSCoder) { fatalError() }
+
+    // setFrameSize, nie layout(): NSMenu rozciaga widok pozycji przez zmiane ramki,
+    // a layout() bez warstwy potrafi nie przyjsc wcale.
+    override func setFrameSize(_ newSize: NSSize) {
+        super.setFrameSize(newSize)
+        rozmiesc()
+    }
+
+    private func rozmiesc() {
+        let w: CGFloat = 66, gap: CGFloat = 6
+        var x: CGFloat = (bounds.width - (CGFloat(przyciski.count) * w
+                                          + CGFloat(przyciski.count - 1) * gap)) / 2
+        for b in przyciski {
+            b.frame = NSRect(x: x, y: 3, width: w, height: 22)
+            x += w + gap
+        }
+    }
 
     @objc private func pick(_ sender: NSButton) {
         let code = codes[sender.tag]
@@ -1634,6 +1881,37 @@ final class Bar: NSObject, NSMenuDelegate {
         }
     }
 
+    // PLONACY PASEK (A13.4, decyzja Pawla): przy poziomie krytycznym ikona pali sie
+    // ~3 sekundy i GASNIE. Celowo krotko i z 60 s przerwy: animacja to timer budzacy
+    // CPU, a nie bedziemy grzac Maca po to, zeby pokazac, ze jest goracy.
+    private var plomienTimer: Timer?
+    private var plomienKlatka = 0
+    private var plomienOstatnio = Date.distantPast
+
+    private func zapalPasek(_ s: Snap) {
+        plomienOstatnio = Date()
+        plomienKlatka = 0
+        plomienTimer = Timer.scheduledTimer(withTimeInterval: 0.12, repeats: true) { [weak self] t in
+            guard let self = self else { t.invalidate(); return }
+            self.plomienKlatka += 1
+            if self.plomienKlatka > 25 {
+                t.invalidate()
+                self.plomienTimer = nil
+                self.refresh()
+                return
+            }
+            let kolory: [NSColor] = [.systemRed, .systemOrange, .systemYellow]
+            let out = NSMutableAttributedString()
+            out.append(icon(self.plomienKlatka % 2 == 0 ? "flame.fill" : "flame",
+                            fallback: "!", size: 13))
+            if let c = s.chip { out.append(NSAttributedString(string: String(format: " %.0f°", c))) }
+            out.addAttributes([.foregroundColor: kolory[self.plomienKlatka % 3],
+                               .font: NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .bold)],
+                              range: NSRange(location: 0, length: out.length))
+            self.item.button?.attributedTitle = out
+        }
+    }
+
     func refresh() {
         let bold = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .regular)
         guard let s = readSnap() else {
@@ -1645,6 +1923,12 @@ final class Bar: NSObject, NSMenuDelegate {
             item.button?.attributedTitle = out
             return
         }
+
+        if prefs.enabled(.flame), s.level >= 3, plomienTimer == nil,
+           Date().timeIntervalSince(plomienOstatnio) > 60 {
+            zapalPasek(s)
+        }
+        if plomienTimer != nil { return }   // klatki ognia maja pierwszenstwo przez ~3 s
 
         let out = NSMutableAttributedString()
         func text(_ t: String) { out.append(NSAttributedString(string: t)) }
@@ -1667,8 +1951,11 @@ final class Bar: NSObject, NSMenuDelegate {
                 text(" " + (f >= 1000 ? String(format: "%.1fk", Double(f) / 1000.0) : "\(f)"))
             }
         }
-        if prefs.enabled(.watts), let w = s.watts, w >= 1 {
-            gap(); out.append(icon("bolt.fill", fallback: "W")); text(String(format: " %.0fW", w))
+        if prefs.enabled(.watts), let w = s.watts {
+            // zaznaczone = widoczne, takze przy 0.4 W - ukrywanie ponizej 1 W wygladalo
+            // jak zepsuty checkbox (Pawel, 01.08); ponizej 10 W z jednym miejscem po kropce
+            gap(); out.append(icon("bolt.fill", fallback: "W"))
+            text(w < 10 ? String(format: " %.1fW", w) : String(format: " %.0fW", w))
         }
         if prefs.enabled(.ram), let u = s.ramUsed, let t = s.ramTotal, t > 0 {
             gap(); out.append(icon("memorychip", fallback: "RAM"))
@@ -1725,27 +2012,62 @@ final class Bar: NSObject, NSMenuDelegate {
         if s.stale { row(T("!") + " " + String(format: T("data is stale (%@) - the guard may have died"), s.stamp)) }
         if let c = s.lastCrash { row(String(format: T("the Mac shut down without warning: %@"), c)) }
 
-        row("Chip:  " + (s.chip.map { String(format: "%.1f °C", $0) } ?? na)
-            + (s.gpu != nil ? String(format: "     GPU: %.1f °C", s.gpu!) : ""))
-        row(String(format: T("Battery:  %@"), s.batt.map { String(format: "%.1f °C", $0) } ?? na))
+        // Odczyty scalone parami w jedna linie (decyzja Pawla 01.08): temperatury razem,
+        // obciazenie z wentylatorami, zasilanie z poborem - karta krotsza, zero nowych
+        // kluczy tlumaczen (skladamy z istniejacych fragmentow)
+        // Ikony wiodace TE SAME co na pasku (thermometer/fan/bolt/memorychip/internaldrive),
+        // wiec odczyt z paska i odczyt z karty to wizualnie ten sam jezyk (Pawel, 01.08).
+        // Ikony w srodku linii (wentylator, piorun) ida jako NSTextAttachment przez icon().
+        func rowI(_ symbol: String, _ tresc: NSAttributedString) {
+            let it = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+            it.image = img(symbol)
+            let a = NSMutableAttributedString(attributedString: tresc)
+            a.addAttribute(.font, value: NSFont.menuFont(ofSize: 13),
+                           range: NSRange(location: 0, length: a.length))
+            it.attributedTitle = a
+            m.addItem(it)
+        }
+        func txt(_ s: String) -> NSAttributedString { NSAttributedString(string: s) }
+
+        rowI("thermometer.medium",
+             txt("Chip:  " + (s.chip.map { String(format: "%.1f °C", $0) } ?? na)
+                 + (s.gpu != nil ? String(format: "     GPU: %.1f °C", s.gpu!) : "")
+                 + "     " + String(format: T("Battery:  %@"),
+                                    s.batt.map { String(format: "%.1f °C", $0) } ?? na)))
         let fanTxt = s.fans.isEmpty ? na
             : s.fans.map { $0 == 0 ? T("stopped") : String(format: T("%d rpm"), $0) }.joined(separator: ", ")
-        row(String(format: T("Fans:  %@"), fanTxt))
-        if let w = s.watts { row(String(format: T("Draw:  %.1f W"), w)) }
+        let lf = NSMutableAttributedString()
+        lf.append(txt(String(format: T("Load:  %.2f / %d cores"),
+                             s.load, ProcessInfo.processInfo.processorCount) + "     "))
+        lf.append(icon("fan", fallback: ""))
+        lf.append(txt(" " + String(format: T("Fans:  %@"), fanTxt)))
+        rowI("gauge", lf)
         if let u = s.ramUsed, let t = s.ramTotal, t > 0 {
             var line = String(format: T("RAM:  %.1f / %.1f GB (%d%%)"), u, t, Int(100 * u / t))
             if let sw = s.swap, sw > 0.01 { line += "     " + String(format: T("swap %.2f GB"), sw) }
-            row(line)
+            rowI("memorychip", txt(line))
         }
         if let du = s.diskUsed, let dt = s.diskTotal, let dp = s.diskPct {
-            row(String(format: T("Disk:  %d / %d GB used (%d%%)"), du, dt, dp))
+            rowI("internaldrive", txt(String(format: T("Disk:  %d / %d GB used (%d%%)"), du, dt, dp)))
         }
-        row(String(format: T("Power:  %@"),
-                   s.onAC ? T("AC adapter")
-                          : String(format: T("battery %@"), s.pct.map { "\($0)%" } ?? "?")))
-        row(String(format: T("Load:  %.2f / %d cores    CPU available: %d%%"),
-                  s.load, ProcessInfo.processInfo.processorCount,
-                  s.cpuLimit))
+        // Bez procentu baterii - ten widac na pasku systemowym macOS. Sam fakt
+        // zasilacz/bateria zostaje, bo zmienia zachowanie guarda (bramka baterii).
+        // Procent zostal we flocie, gdzie patrzysz na cudza maszyne bez jej paska.
+        // Ikona mowi szybciej niz slowo: wtyczka = zasilacz, bateria = bateria.
+        let pw = NSMutableAttributedString()
+        pw.append(txt(String(format: T("Power:  %@"), s.onAC ? T("AC adapter") : T("battery"))))
+        if let w = s.watts {
+            pw.append(txt("     "))
+            pw.append(icon("bolt.fill", fallback: ""))
+            pw.append(txt(" " + String(format: T("Draw:  %.1f W"), w)))
+        }
+        rowI(s.onAC ? "powerplug" : "battery.100", pw)
+        // "CPU available: 100%" mylilo: to CPU_Speed_Limit z pmset (dlawienie zegarow),
+        // nie wolne moce. Wiersz pokazujemy TYLKO gdy dlawienie realnie wystepuje -
+        // przy 100% to szum, a nazwa mowi teraz wprost, o co chodzi (B7).
+        if s.cpuLimit < 100 {
+            row(String(format: T("Throttling: CPU capped at %d%% speed"), s.cpuLimit))
+        }
         if s.keepAwake {
             let a = Awake.read()
             switch a["mode"] as? String {
@@ -1763,18 +2085,15 @@ final class Bar: NSObject, NSMenuDelegate {
             }
         }
 
-        if let (line, lo, hi) = sparkline() {
+        if let wykres = WykresRow.make() {
             m.addItem(.separator())
-            mono("  " + line)
-            row(String(format: T("   readings: %.0f-%.0f C"), lo, hi))
+            let it = NSMenuItem()
+            it.view = wykres
+            m.addItem(it)
         }
-        if let t = s.trend, t > 0.5 {
-            if let e = s.eta {
-                row(String(format: T("rising %.1f C/min - about %.0f min to pause"), t, e))
-            } else {
-                row(String(format: T("rising %.1f C/min"), t))
-            }
-        }
+        // Prognoza "do pauzy ok. N min" usunieta z karty: ekstrapolacja liniowa klamie
+        // przy plateau 88-90 C (Apple tnie zegary). Pola trend_c_min/eta_pause_min
+        // zostaja w status.json - agent moze z nich korzystac, czlowieka nie oklamujemy.
 
         // akcja zamrozenia TUZ POD odczytami i wykresem — tam, gdzie patrzysz, gdy jest goraco
         m.addItem(.separator())
@@ -1785,9 +2104,16 @@ final class Bar: NSObject, NSMenuDelegate {
         ochrona.view = SwitchRow(T("Pause jobs when the Mac overheats"),
                                  on: !obserwuje,
                                  target: self, action: #selector(toggleDry),
-                                 opis: obserwuje ? T("OFF - the Mac is only being watched") : nil,
-                                 opisNaCzerwono: obserwuje)
+                                 opisGdyWylaczone: T("OFF - the Mac is only being watched"),
+                                 ikona: "pause")
         m.addItem(ochrona)
+        // autostart ZARAZ POD ochrona (decyzja Pawla 01.08): dwa przelaczniki obok siebie,
+        // jedna sekcja "wlacz/wylacz"; ikona petli = "co logowanie od nowa"
+        let auto = NSMenuItem()
+        auto.view = SwitchRow(T("Start at login"), on: Autostart.enabled(),
+                              target: self, action: #selector(toggleAutostart),
+                              ikona: "arrow.triangle.2.circlepath")
+        m.addItem(auto)
         m.addItem(.separator())
         if !s.paused.isEmpty {
             let it = m.addItem(withTitle: T("Resume paused jobs"),
@@ -2134,21 +2460,41 @@ final class Bar: NSObject, NSMenuDelegate {
         m.addItem(fleetIt)
 
         m.addItem(.separator())
-        m.addItem(withTitle: T("Report a problem (GitHub)..."), action: #selector(openIssues), keyEquivalent: "").target = self
-        m.addItem(withTitle: T("Write to the author..."), action: #selector(mailAuthor), keyEquivalent: "").target = self
+        let issuesIt = m.addItem(withTitle: T("Report a problem (GitHub)..."), action: #selector(openIssues), keyEquivalent: "")
+        issuesIt.target = self
+        issuesIt.image = img("lightbulb")
+        let mailIt = m.addItem(withTitle: T("Write to the author..."), action: #selector(mailAuthor), keyEquivalent: "")
+        mailIt.target = self
+        mailIt.image = img("envelope")
         let coffee = m.addItem(withTitle: T("Buy me a double espresso..."),
                                action: #selector(buyCoffee), keyEquivalent: "")
         coffee.target = self
         coffee.image = img(MUG_FILL)
 
-        // autostart przy logowaniu — default ON (tak instaluje install.sh)
-        let auto = NSMenuItem()
-        auto.view = SwitchRow(T("Start at login"), on: Autostart.enabled(),
-                              target: self, action: #selector(toggleAutostart))
-        m.addItem(auto)
+        // "Podaj dalej" (A14): notka w JEZYKU WYBRANYM W MENU + link z UTM share.
+        // Bez Facebooka (decyzja Pawla: sharer ucina tekst i wymaga logowania).
+        let podaj = NSMenuItem(title: T("Like the paladin? Pass it on!"), action: nil, keyEquivalent: "")
+        podaj.image = img("square.and.arrow.up")
+        let pd = NSMenu()
+        let px = pd.addItem(withTitle: T("Share on X..."), action: #selector(shareX), keyEquivalent: "")
+        px.target = self
+        px.image = img("at")
+        let pm = pd.addItem(withTitle: T("Share by e-mail..."), action: #selector(shareMail), keyEquivalent: "")
+        pm.target = self
+        pm.image = img("envelope")
+        let pc = pd.addItem(withTitle: T("Copy link with note"), action: #selector(shareCopy), keyEquivalent: "")
+        pc.target = self
+        pc.image = img("doc.on.doc")
+        let pg = pd.addItem(withTitle: T("Star it on GitHub..."), action: #selector(shareStar), keyEquivalent: "")
+        pg.target = self
+        pg.image = img("star")
+        podaj.submenu = pd
+        m.addItem(podaj)
+
         m.addItem(.separator())
 
         // STOPKA: kolorowe logo firmowe, sygnatura i wysrodkowane Zamknij
+        // (autostart przeniesiony na gore, pod wlacznik ochrony - decyzja Pawla 01.08)
         if let footer = FooterLogoRow.make() {
             let fi = NSMenuItem()
             fi.view = footer
@@ -2164,8 +2510,11 @@ final class Bar: NSObject, NSMenuDelegate {
         sig.isEnabled = false
         m.addItem(sig)
 
+        // kreska oddziela creditsy od akcji wyjscia (decyzja Pawla 01.08)
+        m.addItem(.separator())
         let quitIt = NSMenuItem(title: "", action: #selector(quit), keyEquivalent: "q")
         quitIt.target = self
+        quitIt.image = img("power")
         quitIt.attributedTitle = NSAttributedString(
             string: T("Quit coffee-paladin (protection stops)"),
             attributes: [.paragraphStyle: center, .font: NSFont.menuFont(ofSize: 13)])
@@ -2316,12 +2665,42 @@ Remember to switch it off afterwards: in this mode nothing protects the Mac.
 
     @objc func openLog() { NSWorkspace.shared.open(URL(fileURLWithPath: logPath)) }
 
+    // notka "Podaj dalej" w biezacym jezyku menu - jeden klucz, tlumaczenia w DICTS
+    private var notkaPodajDalej: String {
+        T("Is your Mac cooking through AI runs and renders? coffee-paladin watches the chip and pauses heavy jobs before things go wrong. Open source, free:")
+    }
+
+    @objc func shareX() {
+        var c = URLComponents(string: "https://x.com/intent/post")!
+        // URLComponents sam robi percent-encoding - polskie znaki i emoji nie rozwala linku
+        c.queryItems = [URLQueryItem(name: "text", value: notkaPodajDalej + "\n" + linkPodajDalej())]
+        if let u = c.url { NSWorkspace.shared.open(u) }
+    }
+
+    @objc func shareMail() {
+        var c = URLComponents(string: "mailto:")!
+        c.queryItems = [URLQueryItem(name: "subject", value: "coffee-paladin"),
+                        URLQueryItem(name: "body", value: notkaPodajDalej + "\n\n" + linkPodajDalej())]
+        if let u = c.url { NSWorkspace.shared.open(u) }
+    }
+
+    @objc func shareCopy() {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(notkaPodajDalej + "\n" + linkPodajDalej(), forType: .string)
+    }
+
+    @objc func shareStar() {
+        if let u = zUTM("https://github.com/pawelkwaczynski/coffee-paladin", medium: "share") {
+            NSWorkspace.shared.open(u)
+        }
+    }
+
     @objc func openIssues() {
-        NSWorkspace.shared.open(URL(string: "https://github.com/pawelkwaczynski/coffee-paladin/issues")!)
+        if let u = zUTM("https://github.com/pawelkwaczynski/coffee-paladin/issues") { NSWorkspace.shared.open(u) }
     }
 
     @objc func buyCoffee() {
-        NSWorkspace.shared.open(URL(string: "https://suppi.pl/panbookovsky")!)
+        if let u = zUTM("https://suppi.pl/panbookovsky") { NSWorkspace.shared.open(u) }
     }
 
     @objc func mailAuthor() {
@@ -2356,6 +2735,20 @@ Remember to switch it off afterwards: in this mode nothing protects the Mac.
         try? b.run()          // nie czekamy: to polecenie ubija nas samych
         NSApp.terminate(nil)
     }
+}
+
+// Agenci i skrypty wolaja `heatbar --once`/`--json` odruchowo — bez tej obslugi apka
+// paska wisi bez okna i blokuje automat do timeoutu (tamtej sesji: 2 minuty). Drukujemy
+// migawke guarda (to samo, co pasek czyta co 5 s) i wychodzimy natychmiast (B6).
+if CommandLine.arguments.contains("--once") || CommandLine.arguments.contains("--json") {
+    if let d = FileManager.default.contents(atPath: statusPath),
+       let s = String(data: d, encoding: .utf8) {
+        print(s)
+        exit(0)
+    }
+    FileHandle.standardError.write(
+        "no status.json - the coffee-paladin daemon is not running\n".data(using: .utf8)!)
+    exit(1)
 }
 
 let app = NSApplication.shared

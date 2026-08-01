@@ -93,8 +93,11 @@ DEFAULTS = {
     "cpu_min_percent": 20.0,    # tylko procesy powyzej tego zuzycia sa ruszane
     "max_pause_minutes": 45,    # dluzej niz to w pauzie -> lagodne ubicie (jest checkpoint)
     "kill_after_polls": 4,      # tyle kolejnych odczytow krytycznych -> SIGTERM
-    "demote_after_minutes": 5,  # ciezki proces dluzej niz to -> background QoS (E-cores) + nice
+    "demote_after_minutes": 5,  # goracy chip + proces mielacy dluzej niz to -> background QoS (E-cores)
     "demote_cpu_percent": 60.0,
+    # degradacja TYLKO gdy chip >= tego progu (None = soc_resume_c + 4); powrot na
+    # rdzenie P przy chip <= soc_resume_c - para progow jak przy pauzie/wznowieniu
+    "demote_above_c": None,
     "notify": True,
     "notify_min_gap_s": 300,
     # BANER przy poziomie krytycznym: zwykle powiadomienie latwo przeoczyc (Skupienie,
@@ -149,8 +152,12 @@ DEFAULTS = {
     "never_extra": [],
     # jak wyzej, ale dopasowanie po PELNEJ linii polecenia, nie po nazwie procesu —
     # przydatne, gdy ciezkie zadanie jest uruchamiane przez interpreter (python, node)
-    # i sama nazwa procesu nic nie mowi
-    "never_arg_patterns": ["thermal-guard", "thermal_guard", "guard.py", "safe-run"],
+    # i sama nazwa procesu nic nie mowi. Tedy chronimy zaplecze agentow AI i edytorow
+    # (node z claude/mcp/language-server w argumentach), NIE kazdy node - zwykly
+    # `node build.js` ma byc pauzowalny, bo to dokladnie ten przypadek, dla ktorego
+    # narzedzie powstalo (znalazl Codex przy recenzji skilla, 01.08.2026)
+    "never_arg_patterns": ["thermal-guard", "thermal_guard", "guard.py", "safe-run",
+                           "claude", "codex", "cursor", "mcp", "language-server", ".vscode"],
     # czego NIE wolno ruszac nigdy (nadrzedne wobec powyzszego)
     "never_patterns": [
         "kernel_task", "windowserver", "launchd", "loginwindow", "logd", "opendirectoryd",
@@ -164,13 +171,61 @@ DEFAULTS = {
         # INTERAKTYWNE narzedzia i ich zaplecze: SIGSTOP na sesji terminalowej odbiera jej
         # terminal, a SIGCONT wznawia ja JUZ W TLE -> SIGTTIN -> proces stoi na zawsze,
         # mimo ze log mowi "RESUMED". Zamrozenie takiej sesji to jej smierc (Neo, 31.07.2026).
-        "claude", "codex", "cursor", "node", "npm", "npx", "bun", "deno",
+        # Po NAZWIE tylko to, co nigdy nie jest zadaniem obliczeniowym. node/npm/npx/bun/deno
+        # celowo TU NIE SA: ciezki build w Node ma byc pauzowalny; zaplecze agentow chronia
+        # never_arg_patterns (linia polecen) + skip_foreground_tty (cokolwiek przy klawiaturze).
+        "claude", "codex", "cursor",
         "hermes", "hermes-secret", "mcp", "caffeinate", "tmux", "screen", "vim", "nvim",
     ],
 }
 
 
 # ---------------------------------------------------------------- narzedzia
+
+# Klucze configu, ktorych zmiana MUSI zostawic slad w logu. Lekcja z nocy 31.07/01.08:
+# progi zmienily sie dwa razy i przez pol nocy nie dalo sie ustalic, kto i kiedy.
+LOGOWANE_KLUCZE = (
+    "soc_pause_c", "soc_resume_c", "soc_kill_c",
+    "batt_pause_c", "batt_resume_c", "batt_kill_c",
+    "demote_after_minutes", "demote_above_c", "demote_cpu_percent",
+    "max_pause_minutes", "max_pause_minutes_batt", "cpu_min_percent",
+    "job_cores_mode", "job_cpu_percent", "dry_run", "lang",
+)
+
+
+def migawka_logowanych(cfg):
+    return {k: cfg.get(k) for k in LOGOWANE_KLUCZE}
+
+
+def loguj_zmiany_configu(poprzednie, cfg):
+    """Kazda zmiana obserwowanego klucza -> wpis stara -> nowa. Zwraca nowa migawke."""
+    biezace = migawka_logowanych(cfg)
+    if poprzednie is not None:
+        for k in LOGOWANE_KLUCZE:
+            if poprzednie.get(k) != biezace.get(k):
+                log("CONFIG CHANGED %s: %r -> %r" % (k, poprzednie.get(k), biezace.get(k)))
+    return biezace
+
+
+class config_lock:
+    """flock na czas czytaj-zmien-zapisz configu. Osobny plik .lock, nie sam config:
+    config podmieniamy atomowo przez os.replace, wiec lock na jego deskryptorze
+    wskazywalby stary inode. Pasek (Swift) bierze ten sam lock przed zapisem."""
+
+    def __enter__(self):
+        import fcntl
+        self._f = open(os.path.join(BASE, "config.lock"), "w")
+        fcntl.flock(self._f, fcntl.LOCK_EX)
+        return self
+
+    def __exit__(self, *a):
+        import fcntl
+        try:
+            fcntl.flock(self._f, fcntl.LOCK_UN)
+        finally:
+            self._f.close()
+        return False
+
 
 def now():
     return time.time()
@@ -231,9 +286,19 @@ PL = {
     "TERMINATED (SIGTERM) %s (pid %d) - %s": "STOP (SIGTERM) %s (pid %d) - %s",
     "SIGKILL %s (pid %d)": "SIGKILL %s (pid %d)",
     "[DRY-RUN] would demote %s (pid %d)": "[DRY-RUN] demote %s (pid %d)",
-    "DEMOTED %s (pid %d) -> background QoS/E-cores + nice+10 (hot for >%d min)":
-        "DEMOTE %s (pid %d) -> tlo/E-cores + nice+10 (mieli >%d min)",
+    "DEMOTED %s (pid %d) -> background QoS/E-cores (hot for >%d min)":
+        "DEMOTE %s (pid %d) -> tlo/E-cores (goraco i mieli >%d min)",
+    "PROMOTED %s (pid %d) -> back on P-cores (machine cooled down)":
+        "PROMOTE %s (pid %d) -> z powrotem na rdzenie P (maszyna ostygla)",
     "Thermal guard: hot": "Thermal guard: goraco",
+    "unknown argument: %s": "nieznany argument: %s",
+    "usage: thermal-guard [--once | status]   (no arguments = run the daemon)":
+        "uzycie: thermal-guard [--once | status]   (bez argumentow = uruchom demona)",
+    "Thermal guard: job slowed down": "Thermal guard: zadanie zwolnione",
+    "%s moved to E-cores (up to several times slower) - returns to full speed when the machine cools":
+        "%s zepchniete na rdzenie E (nawet kilka razy wolniej) - wroci na pelna predkosc, gdy maszyna ostygnie",
+    "Thermal guard: full speed again": "Thermal guard: znow pelna predkosc",
+    "%s is back on P-cores": "%s wrocil na rdzenie P",
     "Thermal guard (watch-only): hot": "Thermal guard (obserwacja): goraco",
     "Would pause %s - %s. Protection is off.":
         "Wstrzymalbym %s - %s. Ochrona jest wylaczona.",
@@ -310,6 +375,11 @@ PL = {
 # czlowiek (powiadomienia, baner, powody) — log techniczny zostaje po angielsku/polsku.
 RU = {
     "Thermal guard: hot": "Thermal guard: горячо",
+    "Thermal guard: job slowed down": "Thermal guard: задача замедлена",
+    "%s moved to E-cores (up to several times slower) - returns to full speed when the machine cools":
+        "%s переведён на E-ядра (в несколько раз медленнее) - вернётся на полную скорость, когда машина остынет",
+    "Thermal guard: full speed again": "Thermal guard: снова полная скорость",
+    "%s is back on P-cores": "%s снова на P-ядрах",
     "Thermal guard (watch-only): hot": "Thermal guard (наблюдение): горячо",
     "Would pause %s - %s. Protection is off.":
         "Приостановил бы %s - %s. Защита выключена.",
@@ -351,6 +421,11 @@ RU = {
 
 ZH = {
     "Thermal guard: hot": "Thermal guard：过热",
+    "Thermal guard: job slowed down": "Thermal guard：任务已降速",
+    "%s moved to E-cores (up to several times slower) - returns to full speed when the machine cools":
+        "%s 已移至能效核心（可能慢数倍）- 机器冷却后自动恢复全速",
+    "Thermal guard: full speed again": "Thermal guard：已恢复全速",
+    "%s is back on P-cores": "%s 已回到性能核心",
     "Thermal guard (watch-only): hot": "Thermal guard（仅观察）：过热",
     "Would pause %s - %s. Protection is off.": "本应暂停 %s - %s。保护已关闭。",
     "Paused: %s (%s)": "已暂停:%s(%s)",
@@ -391,6 +466,11 @@ ZH = {
 
 ES = {
     "Thermal guard: hot": "Thermal guard: caliente",
+    "Thermal guard: job slowed down": "Thermal guard: tarea ralentizada",
+    "%s moved to E-cores (up to several times slower) - returns to full speed when the machine cools":
+        "%s movido a nucleos E (hasta varias veces mas lento) - vuelve a plena velocidad cuando la maquina se enfrie",
+    "Thermal guard: full speed again": "Thermal guard: plena velocidad de nuevo",
+    "%s is back on P-cores": "%s vuelve a los nucleos P",
     "Thermal guard (watch-only): hot": "Thermal guard (solo observación): caliente",
     "Would pause %s - %s. Protection is off.":
         "Habría pausado %s - %s. La protección está desactivada.",
@@ -495,6 +575,8 @@ SOUNDS = {
     "fan": "Basso",        # awaria chlodzenia
     "pad": "Basso",        # wykryty twardy pad
     "freeze": "Tink",      # reczne akcje z paska
+    "demote": "Submarine", # zepchniecie na E-cores — "schodzimy nizej"
+    "promote": "Glass",    # powrot na P-cores — ten sam lekki ton co wznowienie
 }
 
 
@@ -774,8 +856,12 @@ def top_lists(n=3):
 # ---------------------------------------------------------------- wybor procesow
 
 def managed_pids_from_saferun():
-    """PID-y zarejestrowane przez safe-run: {pid: pgid}."""
+    """PID-y zarejestrowane przez safe-run: ({pid: pgid}, {pidy z --normal}).
+
+    Zbior "normal" to jawne decyzje czlowieka "ten job na wszystkich rdzeniach" -
+    degradacja na E-cores nie moze ich po cichu cofac (B1.4)."""
     res = {}
+    normalne = set()
     try:
         for name in os.listdir(MANAGED_DIR):
             if not name.endswith(".json"):
@@ -794,6 +880,8 @@ def managed_pids_from_saferun():
                         os.unlink(path)
                         continue
                     res[pid] = int(d.get("pgid", pid))
+                    if d.get("normal"):
+                        normalne.add(pid)
                 else:
                     os.unlink(path)
             except Exception:
@@ -803,7 +891,7 @@ def managed_pids_from_saferun():
                     pass
     except Exception:
         pass
-    return res
+    return res, normalne
 
 
 def alive(pid):
@@ -914,10 +1002,11 @@ def load_state():
         if isinstance(d, dict):
             d.setdefault("paused", {})
             d.setdefault("demoted", [])
+            d.setdefault("demoted_info", {})
             return d
     except Exception:
         pass
-    return {"paused": {}, "demoted": []}
+    return {"paused": {}, "demoted": [], "demoted_info": {}}
 
 
 def save_state(st):
@@ -1061,25 +1150,88 @@ def do_terminate(cfg, st, reason, only_keys=None):
     return bool(victims)
 
 
-def do_demote(cfg, st, targets, cpu_hist):
-    """Profilaktyka: dlugo mielacy proces -> background QoS (E-cores) + nice."""
+def prog_demote(cfg):
+    """Prog chipu, od ktorego degradacja w ogole ma sens termiczny.
+
+    Ponizej niego maszyna jest chlodna i spychanie kogokolwiek na E-cores
+    nie chlodzi niczego - tylko tnie tempo (nocna kolejka: ffmpeg przy 44 C
+    zwolnil 11x, wentylatory stały). Domyslnie soc_resume_c + 4: powrot jest
+    przy soc_resume_c, wiec miedzy degradacja a powrotem zostaje realna
+    szczelina histerezy, nie jedna kreska, na ktorej się trzepocze."""
+    p = cfg.get("demote_above_c")
+    if p is not None:
+        return float(p)
+    return float(cfg.get("soc_resume_c", 80.0)) + 4.0
+
+
+def do_demote(cfg, st, targets, cpu_hist, soc_t, saferun_normal=frozenset()):
+    """Cieplo + dlugo mielacy proces -> background QoS (E-cores).
+
+    Zegar (cpu_hist) liczy SKUMULOWANE sekundy aktywnego mielenia, nie czas
+    od pierwszego zobaczenia: proces pauzowany SIGSTOP-em wypada z targets
+    i przy starym liczeniu zegar startowal od zera po kazdym wznowieniu -
+    najgoretszy job NIGDY nie zbieral 5 minut i uciekal degradacji (B3)."""
     limit = cfg["demote_after_minutes"] * 60
     for pid, cpu, comm, pgid in targets:
         if cpu < cfg["demote_cpu_percent"]:
             continue
-        first = cpu_hist.setdefault(pid, now())
-        if now() - first < limit or pid in st["demoted"]:
+        # safe-run --normal = czlowiek jawnie kazal leciec na wszystkich rdzeniach;
+        # degradowanie go 5 minut pozniej cofaloby jego decyzje za jego plecami.
+        # Pauza przy przegrzaniu dalej obowiazuje - wyjatek dotyczy TYLKO degradacji.
+        if pid in saferun_normal or pgid in saferun_normal:
+            continue
+        zebral = cpu_hist.get(pid, 0.0) + cfg["poll_seconds"]
+        cpu_hist[pid] = zebral
+        if zebral < limit or pid in st["demoted"]:
+            continue
+        # bez odczytu chipu nie ma jak uzasadnic degradacji termicznie - nie zgadujemy
+        if soc_t is None or soc_t < prog_demote(cfg):
             continue
         if cfg["dry_run"]:
             log(T("[DRY-RUN] would demote %s (pid %d)") % (comm, pid))
             continue
+        # TYLKO taskpolicy, bez renice: nice podniesiony raz nie da sie oddac bez roota
+        # (Unix pozwala nieuprzywilejowanym wylacznie podnosic nice), a taskpolicy -b/-B
+        # jest w pelni odwracalne i to QoS background robi tu cala robote (E-cores)
         subprocess.call(["taskpolicy", "-b", "-p", str(pid)],
                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        subprocess.call(["renice", "+10", "-p", str(pid)],
-                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         st["demoted"].append(pid)
-        log(T("DEMOTED %s (pid %d) -> background QoS/E-cores + nice+10 (hot for >%d min)")
+        # nazwa do stanu - degradacja tnie tempo nawet 11x, wiec czlowiek
+        # i agent MUSZA ja widziec w status.json, a pid nikomu nic nie mowi
+        st.setdefault("demoted_info", {})[str(pid)] = {"comm": comm}
+        log(T("DEMOTED %s (pid %d) -> background QoS/E-cores (hot for >%d min)")
             % (comm, pid, cfg["demote_after_minutes"]))
+        # pauza ma dzwiek i push, a degradacja ma WIEKSZY trwaly wplyw na czas
+        # zadania (pauza mija, spowolnienie zostaje) - wiec tez musi byc slyszalna
+        notify(cfg, T("Thermal guard: job slowed down"),
+               T("%s moved to E-cores (up to several times slower) - returns to full speed when the machine cools") % comm,
+               "demote")
+
+
+def do_promote(cfg, st, cpu_hist, soc_t):
+    """Histereza powrotu: maszyna ostygla -> zdegradowane wracaja na rdzenie P.
+
+    Bez tego degradacja byla jednokierunkowa: proces raz zepchniety na E-cores
+    zostawal tam do smierci, nawet przy 44 C i stojacych wentylatorach."""
+    if not st["demoted"] or cfg["dry_run"]:
+        return
+    if soc_t is None or soc_t > cfg.get("soc_resume_c", 80.0):
+        return
+    for pid in list(st["demoted"]):
+        if not alive(pid):
+            continue
+        info = st.get("demoted_info", {}).get(str(pid), {})
+        subprocess.call(["taskpolicy", "-B", "-p", str(pid)],
+                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        st["demoted"].remove(pid)
+        st.get("demoted_info", {}).pop(str(pid), None)
+        # zegar od zera: powrot ma byc powrotem, a nie 15-sekundowa przerwa
+        # przed natychmiastowa ponowna degradacja
+        cpu_hist[pid] = 0.0
+        log(T("PROMOTED %s (pid %d) -> back on P-cores (machine cooled down)")
+            % (info.get("comm", "?"), pid))
+        notify(cfg, T("Thermal guard: full speed again"),
+               T("%s is back on P-cores") % info.get("comm", "?"), "promote")
 
 
 # ---------------------------------------------------------------- ocena
@@ -1364,12 +1516,19 @@ def auto_calibrate(cfg, hw):
         if not dry_ukryty:
             return None
         # sprzet znany, ale klucz dry_run niejawny (config sprzed v1.3) — dopisz go jawnie
-        _na_dysku["dry_run"] = True
+        # (czytaj-zmien-zapisz pod lockiem: pasek moze pisac rownolegle — B5)
         try:
-            tmp = CFG_PATH + ".tmp"
-            with open(tmp, "w") as f:
-                json.dump(_na_dysku, f, indent=2, ensure_ascii=False, sort_keys=True)
-            os.replace(tmp, CFG_PATH)
+            with config_lock():
+                try:
+                    with open(CFG_PATH) as f:
+                        _na_dysku = json.load(f)
+                except Exception:
+                    _na_dysku = {}
+                _na_dysku["dry_run"] = True
+                tmp = CFG_PATH + ".tmp"
+                with open(tmp, "w") as f:
+                    json.dump(_na_dysku, f, indent=2, ensure_ascii=False, sort_keys=True)
+                os.replace(tmp, CFG_PATH)
         except Exception:
             pass
         log("MIGRATION: dry_run was implicit - written explicitly as true (watch-only)")
@@ -1394,17 +1553,19 @@ def auto_calibrate(cfg, hw):
             % (hw.get("model_name"), hw.get("chip"), hw.get("p_cores", 0),
                hw.get("e_cores", 0), hw.get("ram_gb", 0), hw.get("fan_count"),
                "left as user set them" if not untouched else "defaults OK"))
+    # czytaj-zmien-zapisz pod lockiem: rownolegly zapis paska nie moze zginac (B5)
     try:
-        with open(CFG_PATH) as f:
-            disk_cfg = json.load(f)
-    except Exception:
-        disk_cfg = {}
-    disk_cfg.update(changes)
-    try:
-        tmp = CFG_PATH + ".tmp"
-        with open(tmp, "w") as f:
-            json.dump(disk_cfg, f, indent=2, ensure_ascii=False, sort_keys=True)
-        os.replace(tmp, CFG_PATH)
+        with config_lock():
+            try:
+                with open(CFG_PATH) as f:
+                    disk_cfg = json.load(f)
+            except Exception:
+                disk_cfg = {}
+            disk_cfg.update(changes)
+            tmp = CFG_PATH + ".tmp"
+            with open(tmp, "w") as f:
+                json.dump(disk_cfg, f, indent=2, ensure_ascii=False, sort_keys=True)
+            os.replace(tmp, CFG_PATH)
     except Exception:
         pass
     return "watchonly" if dry_ukryty else None
@@ -1559,7 +1720,7 @@ def fleet_write(cfg, status):
         hw = _hw_cache_fleet()
         out["model"] = hw.get("model")
         out["serial"] = hw.get("serial")
-        out["guard_version"] = "1.9.0"
+        out["guard_version"] = "2.0.0"
         tmp = os.path.join(d, ".%s.tmp" % hostname())
         with open(tmp, "w") as f:
             json.dump(out, f, ensure_ascii=False)
@@ -1589,6 +1750,9 @@ def status_write(state, temp, soc, soc_t, ac, pct, speed, load, lvl, why, target
         "battery_pct": pct, "on_ac": bool(ac),
         "cpu_limit": speed, "load1": round(load, 2),
         "paused": [v.get("comm") for v in st.get("paused", {}).values()],
+        # degradacja na E-cores jest NIEWIDOCZNA w temperaturze (44 C wyglada jak sukces
+        # chlodzenia), a tnie tempo zadania nawet 11x - musi byc jawna w migawce
+        "demoted": [v.get("comm", "?") for v in st.get("demoted_info", {}).values()],
         "top_proc": top[2] if top else None,
         "top_cpu": round(top[1]) if top else None,
         "manual_pause": bool(st.get("reczna_pauza")),
@@ -1652,10 +1816,10 @@ def snapshot(cfg):
     soc_t = soc_temp_c()
     ac, pct = power_source()
     procs = list_procs()
-    saferun = managed_pids_from_saferun()
+    saferun, saferun_normal = managed_pids_from_saferun()
     targets = pick_targets(cfg, procs, saferun)
     lvl, why = severity(cfg, state, temp, speed, soc_t, ac, pct)
-    return state, temp, speed, load, targets, lvl, why, soc, soc_t, ac, pct
+    return state, temp, speed, load, targets, lvl, why, soc, soc_t, ac, pct, saferun_normal
 
 
 def fan_alarm(cfg, soc, soc_t, st):
@@ -1696,8 +1860,19 @@ def main():
             st["paused"] = {}
         save_state(st)
 
-    if "--once" in sys.argv:
-        state, temp, speed, load, targets, lvl, why, soc, soc_t, ac, pct = snapshot(cfg)
+    # `thermal-guard status` bylo pulapka: konczylo sie kodem 0 bez slowa, co wyglada
+    # na sukces. Teraz jest aliasem --once, a kazdy nieznany argument mowi, co umiemy (B6).
+    znane = {"--once", "status"}
+    obce = [a for a in sys.argv[1:] if a not in znane]
+    if obce:
+        print(T("unknown argument: %s") % " ".join(obce), file=sys.stderr)
+        print(T("usage: thermal-guard [--once | status]   (no arguments = run the daemon)"),
+              file=sys.stderr)
+        return 2
+
+    if "--once" in sys.argv or "status" in sys.argv:
+        (state, temp, speed, load, targets, lvl, why,
+         soc, soc_t, ac, pct, _saferun_normal) = snapshot(cfg)
         fans = ",".join(str(x) for x in (soc.get("fans") if soc else [])) or "n/d"
         print(T("state=%s chip=%s battery=%s fans=%s power=%s CPU_limit=%d%% load1=%.2f level=%d (%s)") % (
             state, ("%.1f C" % soc_t) if soc_t else "n/d",
@@ -1752,11 +1927,16 @@ def main():
     cpu_hist = {}
     tick = 0
 
+    obserwowane_cfg = None
     while not stop["flag"]:
         try:
             cfg = load_cfg()
+            # kazda zmiana progow/zachowania zostawia slad stara -> nowa (B5);
+            # pierwszy przebieg tylko zapamietuje stan, bez logowania
+            obserwowane_cfg = loguj_zmiany_configu(obserwowane_cfg, cfg)
             reap_bg()
-            state, temp, speed, load, targets, lvl, why, soc, soc_t, ac, pct = snapshot(cfg)
+            (state, temp, speed, load, targets, lvl, why,
+             soc, soc_t, ac, pct, saferun_normal) = snapshot(cfg)
             fan_alarm(cfg, soc, soc_t, st)
             obsluz_rozkaz(cfg, st, targets)
 
@@ -1834,7 +2014,8 @@ def main():
                 # reczne zamrozenie z paska ma pierwszenstwo — nie odmrazamy za plecami Pawla
                 if st["paused"] and cool and powered and not st.get("reczna_pauza"):
                     do_resume(cfg, st, T("conditions are back to normal"))
-                do_demote(cfg, st, targets, cpu_hist)
+                do_promote(cfg, st, cpu_hist, soc_t)
+                do_demote(cfg, st, targets, cpu_hist, soc_t, saferun_normal)
 
             # Nic nie moze wisiec w pauzie w nieskonczonosc — ALE czekanie na zasilacz
             # to nie awaria. Gdy chip i bateria sa chlodne, a jedynym powodem pauzy jest
@@ -1855,9 +2036,16 @@ def main():
 
             for _p in [p for p in _nie_da_sie if not alive(p)]:
                 del _nie_da_sie[_p]
+            # Zegar degradacji przezywa pauzy: wpis znika dopiero ze SMIERCIA procesu,
+            # nie z wypadnieciem z targets (SIGSTOP zeruje pcpu w <5 s i przy starym
+            # przycinaniu najgoretszy job mial zegar kasowany co pauze - patrz B3).
             live = set(p[0] for p in targets)
-            cpu_hist = dict((k, v) for k, v in cpu_hist.items() if k in live)
+            cpu_hist = dict((k, v) for k, v in cpu_hist.items()
+                            if k in live or alive(k))
             st["demoted"] = [p for p in st["demoted"] if alive(p)]
+            zywe_demoted = set(str(p) for p in st["demoted"])
+            st["demoted_info"] = {k: v for k, v in st.get("demoted_info", {}).items()
+                                  if k in zywe_demoted}
             save_state(st)
         except Exception as e:
             log(T("LOOP ERROR: %r") % (e,))

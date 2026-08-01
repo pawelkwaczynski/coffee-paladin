@@ -29,10 +29,18 @@ The one field that decides everything is `level`:
 | 3 | critical - guard is pausing | **start nothing.** Tell the user the Mac is too hot and stop |
 
 Also worth reading: `chip_c`, `fans`, `on_ac`, `paused` (list of process names currently
-frozen), `dry_run` (when `true` the guard only watches and will *not* protect you),
+frozen), `demoted` (process names pushed onto E-cores because the machine was hot - the job
+is *running* but possibly an order of magnitude slower; it returns to full speed on its own
+once the chip cools, so a "slow" job on this list is not hung and must not be restarted),
+`dry_run` (when `true` the guard only watches and will *not* protect you),
 `eta_pause_min` (estimated minutes until the next pause at the current trend), and
 `unpausable` - if that key is present, the guard tried to pause something and **failed**;
 protection is incomplete and the user needs to know right now.
+
+One scope caveat: `status.json` answers "may I start work now", not "is that process
+stopped at this very second". The snapshot lands in the quiet part of the guard's cycle,
+so it can show 75 °C and an empty `paused` while the log has pauses every 40 s. For
+"is it stopped RIGHT NOW", ask `ps -o stat= -p <pid>` (state `T` = stopped).
 
 ```bash
 python3 -c "import json;d=json.load(open('$HOME/.thermal-guard/status.json'));print(d['level'],d['chip_c'],d.get('paused'))"

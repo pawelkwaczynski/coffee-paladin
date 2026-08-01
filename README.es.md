@@ -193,11 +193,12 @@ inglés (por defecto), polaco, ruso, chino y español. Se cambia en *Ajustes →
 
 MIT. Haz lo que quieras con esto. Si te salva la máquina, con eso basta.
 
-**Ilustración.** El paladín, la mascota, fue **generado con ChatGPT (OpenAI)** y se usa como
-imagen oficial del proyecto; los detalles están en [`branding/CREDITS.md`](branding/CREDITS.md).
-
 Autor: Paweł Kwaczyński / FOCUS FRAME, 2026. El proyecto se desarrolla también dentro de
 **AIrON**, el club de investigación estudiantil de informática de la AHE en Łódź.
 El código Swift lo escribió **Claude (Anthropic)** en Claude Code, con **Codex (OpenAI,
 GPT-5.5)** como revisor adversarial y dos modelos locales en paralelo:
 Devstral 24B sobre MLX y qwen3:4b sobre Ollama.
+
+**Ilustración.** El paladín, la mascota, fue **generado con ChatGPT (OpenAI)** y se usa como
+imagen oficial del proyecto; los detalles están en [`branding/CREDITS.md`](branding/CREDITS.md).
+
