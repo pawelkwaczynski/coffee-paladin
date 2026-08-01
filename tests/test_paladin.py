@@ -106,7 +106,7 @@ test("7. realne tlumaczenia powitania i etykiety wyjscia w 4 jezykach",
 
 # 8. regresja DWUCZESCIOWA: (a) zrodlo guarda kompiluje sie i przechodzi --once w IZOLACJI,
 #    (b) zywa instalacja Pawla dziala (to celowo dotyka prawdziwego ~/.coffee-paladin - read-only)
-import json, time, tempfile, py_compile
+import time, tempfile, py_compile
 st = os.path.expanduser("~/.coffee-paladin/status.json")
 wiek = time.time() - os.path.getmtime(st)
 log = io.open(os.path.expanduser("~/.coffee-paladin/guard.log"), encoding="utf-8", errors="replace").read()
@@ -118,7 +118,7 @@ try:
                        capture_output=True, text=True, timeout=60,
                        env=dict(os.environ, TG_LANG="en"))
     zrodlo_ok = p.returncode == 0 and "state=" in p.stdout
-except Exception as e:
+except Exception:
     zrodlo_ok = False
 test("8. regresja: zrodlo guarda kompiluje sie i raportuje + zywa instalacja zdrowa",
      zrodlo_ok and wiek < 60 and "LOOP ERROR" not in log and "BLAD petli" not in log,
@@ -147,7 +147,7 @@ try:
     ow, oh = png_wh(os.path.join(B, "paladin.png"))
     gw, gh, gk = gif_wh_klatki(os.path.join(B, "paladin.gif"))
     ok9 = ow >= 1000 and oh >= 1400 and gk >= 8 and gh > gw      # portret, nie miniatura
-except Exception as e:
+except Exception:
     ow = oh = gw = gh = gk = 0
     ok9 = False
 test("9. oficjalne zrodla: paladin.png (duzy portret) + paladin.gif (animacja)",
