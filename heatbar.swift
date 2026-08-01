@@ -19,7 +19,7 @@ import Cocoa
 let VERSION = "2.0.1"
 let APPNAME = "coffee-paladin"
 let CODENAME = "Double Espresso"
-let SIGNATURE = "\(APPNAME) v\(VERSION) \u{201E}\(CODENAME)\u{201D}  ·  FOCUS FRAME 2026"
+let SIGNATURE = "\(APPNAME) v\(VERSION) \u{201E}\(CODENAME)\u{201D}  ·  by panbookovsky"
 
 // Katalog roboczy. TG_BASE pozwala uruchomic pasek w izolacji (testy UI, demo)
 // bez ryzyka, ze klikniecie w oknie powitalnym przestawi konfiguracje zywej
@@ -224,7 +224,7 @@ let PL: [String: String] = [
     "Chip sensor (macmon):  %@": "Czujnik chipa (macmon):  %@",
     "yes": "tak",
     "no": "nie",
-    "Keep the Mac awake while heavy jobs run": "Nie usypiaj Maca, gdy działają ciężkie zadania",
+    "Keep the Mac awake while heavy jobs run": "Trzymaj caffeinate na ciężkie zadania",
     "Keeping the Mac awake (heavy job running)": "Trzymam Maca w czuwaniu (działa ciężkie zadanie)",
     "resume at %.0f C, terminate at %.0f C": "wznowienie przy %.0f C, ubicie przy %.0f C",
     "no fans (fanless Mac)": "brak wentylatorów (Mac bez wentylatorów)",
@@ -2795,9 +2795,6 @@ final class Bar: NSObject, NSMenuDelegate {
         let issuesIt = m.addItem(withTitle: T("Report a problem (GitHub)..."), action: #selector(openIssues), keyEquivalent: "")
         issuesIt.target = self
         issuesIt.image = img("lightbulb")
-        let mailIt = m.addItem(withTitle: T("Write to the author (GitHub)..."), action: #selector(mailAuthor), keyEquivalent: "")
-        mailIt.target = self
-        mailIt.image = img("envelope")
         // gwiazdka WYCIAGNIETA z podmenu (Pawel, pkt 14): najtansza waluta open source
         // ma byc na wierzchu, nie schowana pod rozwijanym menu
         let pg = m.addItem(withTitle: T("Star it on GitHub..."), action: #selector(shareStar), keyEquivalent: "")
@@ -3273,11 +3270,6 @@ Remember: while this switch is off, NOTHING protects the Mac. Flip it back on wh
         if let u = zUTM("https://suppi.pl/panbookovsky") { NSWorkspace.shared.open(u) }
     }
 
-    @objc func mailAuthor() {
-        // GitHub zamiast prywatnego maila (Pawel, pkt 10): zero adresu w kodzie,
-        // kontakt przez profil - issues/dyskusje sa i tak lepszym kanalem
-        if let u = zUTM("https://github.com/pawelkwaczynski") { NSWorkspace.shared.open(u) }
-    }
     /// Wyjscie znaczy KONIEC PROGRAMU, nie tylko schowanie ikony: zatrzymujemy demona
     /// i pasek. Wczesniej "Zamknij pasek" zostawialo demona przy zyciu - to bylo mylace
     /// w druga strone (ludzie myśleli, ze wylaczyli ochronę, a ona dzialala).
