@@ -8,7 +8,7 @@ Transport is deliberately a shared folder, not a server: every company already h
 questions a fleet owner actually asks: which machines are hot, which are throttling,
 which fans are dead, which boxes crashed hard, and which stopped reporting at all.
 
-Setup on every machine (one line in ~/.thermal-guard/config.json):
+Setup on every machine (one line in ~/.coffee-paladin/config.json):
   "fleet_dir": "~/Library/Mobile Documents/com~apple~CloudDocs/FleetTG"
 
 Usage:
@@ -19,7 +19,7 @@ Usage:
   fleet --setup              # detect synced folders (iCloud/Dropbox/Drive/OneDrive), pick one
   fleet --set-dir <folder>   # write fleet_dir into this machine's config
 
-Language: TG_LANG=en|pl, or "lang" in ~/.thermal-guard/config.json. Default: en.
+Language: TG_LANG=en|pl, or "lang" in ~/.coffee-paladin/config.json. Default: en.
 """
 
 import json
@@ -27,7 +27,7 @@ import os
 import sys
 import time
 
-BASE = os.path.expanduser(os.environ.get("TG_BASE") or "~/.thermal-guard")
+BASE = os.path.expanduser(os.environ.get("TG_BASE") or "~/.coffee-paladin")
 
 
 SUPPORTED_LANGS = ("en", "pl", "ru", "zh", "es")
@@ -51,8 +51,8 @@ LANG = _lang()
 
 PL = {
     "FLEET: %d machine(s), folder %s": "FLOTA: %d maszyn(y), folder %s",
-    "no fleet folder - set \"fleet_dir\" in ~/.thermal-guard/config.json or pass --dir":
-        "brak folderu floty - ustaw \"fleet_dir\" w ~/.thermal-guard/config.json albo podaj --dir",
+    "no fleet folder - set \"fleet_dir\" in ~/.coffee-paladin/config.json or pass --dir":
+        "brak folderu floty - ustaw \"fleet_dir\" w ~/.coffee-paladin/config.json albo podaj --dir",
     "no agent snapshots in %s (agents publish about once a minute)":
         "brak migawek agentow w %s (agenty publikuja mniej wiecej co minute)",
     "HOST": "HOST", "CHIP": "CHIP", "FAN": "WENT", "POWER": "MOC", "RAM": "RAM",
@@ -81,8 +81,8 @@ PL = {
 
 RU = {
     "FLEET: %d machine(s), folder %s": "ПАРК: %d машин(ы), папка %s",
-    "no fleet folder - set \"fleet_dir\" in ~/.thermal-guard/config.json or pass --dir":
-        "нет папки парка - задайте \"fleet_dir\" в ~/.thermal-guard/config.json или передайте --dir",
+    "no fleet folder - set \"fleet_dir\" in ~/.coffee-paladin/config.json or pass --dir":
+        "нет папки парка - задайте \"fleet_dir\" в ~/.coffee-paladin/config.json или передайте --dir",
     "no agent snapshots in %s (agents publish about once a minute)":
         "нет снимков агентов в %s (агенты публикуют примерно раз в минуту)",
     "HOST": "ХОСТ", "CHIP": "ЧИП", "FAN": "ВЕНТ", "POWER": "МОЩН", "RAM": "RAM",
@@ -111,8 +111,8 @@ RU = {
 
 ZH = {
     "FLEET: %d machine(s), folder %s": "机群: %d 台机器, 文件夹 %s",
-    "no fleet folder - set \"fleet_dir\" in ~/.thermal-guard/config.json or pass --dir":
-        "没有机群文件夹 - 请在 ~/.thermal-guard/config.json 中设置 \"fleet_dir\" 或传入 --dir",
+    "no fleet folder - set \"fleet_dir\" in ~/.coffee-paladin/config.json or pass --dir":
+        "没有机群文件夹 - 请在 ~/.coffee-paladin/config.json 中设置 \"fleet_dir\" 或传入 --dir",
     "no agent snapshots in %s (agents publish about once a minute)":
         "%s 中没有代理快照(代理约每分钟发布一次)",
     "HOST": "主机", "CHIP": "芯片", "FAN": "风扇", "POWER": "功耗", "RAM": "内存",
@@ -141,8 +141,8 @@ ZH = {
 
 ES = {
     "FLEET: %d machine(s), folder %s": "FLOTA: %d máquina(s), carpeta %s",
-    "no fleet folder - set \"fleet_dir\" in ~/.thermal-guard/config.json or pass --dir":
-        "sin carpeta de flota - define \"fleet_dir\" en ~/.thermal-guard/config.json o pasa --dir",
+    "no fleet folder - set \"fleet_dir\" in ~/.coffee-paladin/config.json or pass --dir":
+        "sin carpeta de flota - define \"fleet_dir\" en ~/.coffee-paladin/config.json o pasa --dir",
     "no agent snapshots in %s (agents publish about once a minute)":
         "no hay instantáneas de agentes en %s (los agentes publican una vez por minuto)",
     "HOST": "HOST", "CHIP": "CHIP", "FAN": "VENT", "POWER": "POT", "RAM": "RAM",
@@ -395,7 +395,7 @@ def main():
     else:
         d = fleet_dir_from_config()
     if not d or not os.path.isdir(d):
-        print(T("no fleet folder - set \"fleet_dir\" in ~/.thermal-guard/config.json or pass --dir"))
+        print(T("no fleet folder - set \"fleet_dir\" in ~/.coffee-paladin/config.json or pass --dir"))
         return 1
 
     if "--json" in sys.argv:

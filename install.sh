@@ -1,15 +1,25 @@
 #!/bin/bash
-# install.sh — instaluje thermal-guard na tym Macu.
+# install.sh — instaluje coffee-paladin na tym Macu.
 # Uruchom: bash install.sh   (z katalogu repozytorium)
 set -uo pipefail
 
 SRC="$(cd "$(dirname "$0")" && pwd)"
 BIN="$HOME/.local/bin"
-BASE="$HOME/.thermal-guard"
-AGENT="pl.pawel.thermal-guard"
+BASE="$HOME/.coffee-paladin"
+AGENT="pl.pawel.coffee-paladin"
 PLIST="$HOME/Library/LaunchAgents/$AGENT.plist"
 
-echo "== thermal-guard: instalacja na $(scutil --get ComputerName 2>/dev/null || hostname) =="
+# MIGRACJA ze starej nazwy (thermal-guard, do v2.0.0): katalog danych i uslugi
+if [ -d "$HOME/.thermal-guard" ] && [ ! -d "$HOME/.coffee-paladin" ]; then
+  mv "$HOME/.thermal-guard" "$HOME/.coffee-paladin"
+  echo "  🔁 migracja: ~/.thermal-guard -> ~/.coffee-paladin"
+fi
+for OLD in pl.pawel.thermal-guard pl.pawel.heatbar; do
+  launchctl bootout "gui/$(id -u)/$OLD" 2>/dev/null || true
+  rm -f "$HOME/Library/LaunchAgents/$OLD.plist"
+done
+
+echo "== coffee-paladin: instalacja na $(scutil --get ComputerName 2>/dev/null || hostname) =="
 mkdir -p "$BIN" "$BASE" "$BASE/managed" "$HOME/Library/LaunchAgents"
 
 # swieze konto / niekompletna paczka: sprawdz zrodla ZANIM cokolwiek ruszymy
@@ -43,20 +53,30 @@ fi
 
 # 1c. pasek menu — blad kompilacji ma byc WIDOCZNY, nie polkniety
 if command -v swiftc >/dev/null 2>&1; then
-  if swiftc -O -o "$BIN/heatbar" "$SRC/heatbar.swift" 2>/tmp/heatbar_build.err; then
-    echo "  ✅ heatbar (pasek menu) zbudowany"
+  if swiftc -O -o "$BIN/coffee-paladin-bar" "$SRC/heatbar.swift" 2>/tmp/heatbar_build.err; then
+    echo "  ✅ coffee-paladin-bar (pasek menu) zbudowany"
+    ln -sf "$BIN/coffee-paladin-bar" "$BIN/heatbar"
   else
-    echo "  ⚠️  heatbar NIE zbudowany — szczegoly: /tmp/heatbar_build.err (demon dziala bez paska)"
+    echo "  ⚠️  pasek NIE zbudowany — szczegoly: /tmp/heatbar_build.err (demon dziala bez paska)"
   fi
 fi
 
 # 2. skrypty
-install -m 755 "$SRC/guard.py"  "$BIN/thermal-guard"
+install -m 755 "$SRC/guard.py"  "$BIN/coffee-paladin"
+ln -sf "$BIN/coffee-paladin" "$BIN/thermal-guard"
 install -m 755 "$SRC/safe-run"  "$BIN/safe-run"
 install -m 755 "$SRC/heat"      "$BIN/heat"
 install -m 755 "$SRC/thermal-report" "$BIN/thermal-report"
 install -m 755 "$SRC/fleet" "$BIN/fleet"
-echo "  ✅ thermal-guard, safe-run, heat, thermal-report, fleet -> $BIN"
+echo "  ✅ coffee-paladin, safe-run, heat, thermal-report, fleet -> $BIN"
+
+# 2b. dzwieki (CC0, patrz sounds/LICENSES.md) - nadpisujemy: to czesc produktu
+if [ -d "$SRC/sounds" ]; then
+  mkdir -p "$BASE/sounds"
+  cp "$SRC/sounds/"*.wav "$BASE/sounds/" 2>/dev/null || true
+  cp "$SRC/sounds/LICENSES.md" "$BASE/sounds/" 2>/dev/null || true
+  echo "  ✅ dzwieki -> $BASE/sounds"
+fi
 
 # 3. konfiguracja (nie nadpisuje istniejącej)
 if [ ! -f "$BASE/config.json" ]; then
@@ -115,7 +135,7 @@ fi
 ma_pid() { launchctl list | awk -v l="$1" '$3==l && $1 != "-" {found=1} END {exit !found}'; }
 
 # 4. LaunchAgent (demon)
-sed "s|__HOME__|$HOME|g" "$SRC/pl.pawel.thermal-guard.plist" > "$PLIST"
+sed "s|__HOME__|$HOME|g" "$SRC/pl.pawel.coffee-paladin.plist" > "$PLIST"
 launchctl bootout "gui/$UID/$AGENT" 2>/dev/null
 sleep 3   # bootout jest asynchroniczny — bez tego bootstrap zwraca I/O error
 for _ in 1 2 3; do
@@ -130,27 +150,27 @@ else
 fi
 
 # 5. pasek menu (osobny agent — mozna wylaczyc nie ruszajac bezpiecznika)
-if [ -x "$BIN/heatbar" ] && [ -f "$SRC/pl.pawel.heatbar.plist" ]; then
-  HB="$HOME/Library/LaunchAgents/pl.pawel.heatbar.plist"
-  sed "s|__HOME__|$HOME|g" "$SRC/pl.pawel.heatbar.plist" > "$HB"
-  launchctl bootout "gui/$UID/pl.pawel.heatbar" 2>/dev/null
+if [ -x "$BIN/heatbar" ] && [ -f "$SRC/pl.pawel.coffee-paladin-bar.plist" ]; then
+  HB="$HOME/Library/LaunchAgents/pl.pawel.coffee-paladin-bar.plist"
+  sed "s|__HOME__|$HOME|g" "$SRC/pl.pawel.coffee-paladin-bar.plist" > "$HB"
+  launchctl bootout "gui/$UID/pl.pawel.coffee-paladin-bar" 2>/dev/null
   sleep 3   # bootout jest asynchroniczny — jak przy demonie
   for _ in 1 2 3; do
     launchctl bootstrap "gui/$UID" "$HB" 2>/dev/null || launchctl load "$HB" 2>/dev/null
     sleep 3
-    ma_pid "pl.pawel.heatbar" && break
-    launchctl kickstart "gui/$UID/pl.pawel.heatbar" 2>/dev/null
+    ma_pid "pl.pawel.coffee-paladin-bar" && break
+    launchctl kickstart "gui/$UID/pl.pawel.coffee-paladin-bar" 2>/dev/null
     sleep 2
-    ma_pid "pl.pawel.heatbar" && break
+    ma_pid "pl.pawel.coffee-paladin-bar" && break
   done
-  ma_pid "pl.pawel.heatbar" \
+  ma_pid "pl.pawel.coffee-paladin-bar" \
     && echo "  ✅ pasek menu działa (🌡 w prawym górnym rogu)" \
-    || echo "  ⚠️  pasek menu nie wstał — sprawdź $BASE/heatbar.err i: launchctl kickstart gui/$UID/pl.pawel.heatbar"
+    || echo "  ⚠️  pasek menu nie wstał — sprawdź $BASE/heatbar.err i: launchctl kickstart gui/$UID/pl.pawel.coffee-paladin-bar"
 fi
 
 echo
 echo "Sprawdź teraz:  heat"
 echo "Ciężkie zadania odpalaj:  safe-run -- <polecenie>"
-echo "Pasek menu wyłączysz:  launchctl bootout gui/$UID/pl.pawel.heatbar"
+echo "Pasek menu wyłączysz:  launchctl bootout gui/$UID/pl.pawel.coffee-paladin-bar"
 echo "Flota (wiele Maków):   fleet --setup"
 echo "Odinstalowanie:        bash uninstall.sh"

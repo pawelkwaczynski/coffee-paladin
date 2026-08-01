@@ -1,6 +1,6 @@
 // heatbar.swift - thermal state of the Mac in the menu bar.
 //
-// It measures nothing on its own: it reads ~/.thermal-guard/status.json, which thermal-guard
+// It measures nothing on its own: it reads ~/.coffee-paladin/status.json, which thermal-guard
 // writes on every cycle (every 15 s). That is why it costs no CPU and can never disagree with
 // the guard. Manual commands are passed back through a file and executed by the daemon, so
 // exactly one process ever decides what gets paused.
@@ -9,14 +9,14 @@
 //   C/G/B - chip, GPU, battery;  fan - rpm (warning when stopped while hot);  W - power draw;
 //   brain - RAM used;  disk - disk used;  bolt - macOS is throttling;  pause - something paused.
 //
-// Pick what is shown: menu > Show in the bar (checkboxes), stored in ~/.thermal-guard/heatbar.json.
-// Language: TG_LANG=en|pl, or "lang" in ~/.thermal-guard/config.json. Default: en.
+// Pick what is shown: menu > Show in the bar (checkboxes), stored in ~/.coffee-paladin/heatbar.json.
+// Language: TG_LANG=en|pl, or "lang" in ~/.coffee-paladin/config.json. Default: en.
 //
-// Build:  swiftc -O -o ~/.local/bin/heatbar heatbar.swift
+// Build:  swiftc -O -o ~/.local/bin/coffee-paladin-bar heatbar.swift
 
 import Cocoa
 
-let VERSION = "2.0.0"
+let VERSION = "2.0.1"
 let APPNAME = "coffee-paladin"
 let CODENAME = "Double Espresso"
 let SIGNATURE = "\(APPNAME) v\(VERSION) \u{201E}\(CODENAME)\u{201D}  ·  FOCUS FRAME 2026"
@@ -27,7 +27,7 @@ let SIGNATURE = "\(APPNAME) v\(VERSION) \u{201E}\(CODENAME)\u{201D}  ·  FOCUS F
 // dlatego potrzebna jest osobna zmienna, a nie sztuczka z katalogiem domowym.
 let base = ProcessInfo.processInfo.environment["TG_BASE"].map {
     NSString(string: $0).expandingTildeInPath
-} ?? NSString(string: "~/.thermal-guard").expandingTildeInPath
+} ?? NSString(string: "~/.coffee-paladin").expandingTildeInPath
 let statusPath = base + "/status.json"
 let historyPath = base + "/history.csv"
 let logPath = base + "/guard.log"
@@ -55,7 +55,7 @@ let lang: String = {
 
 let PL: [String: String] = [
     "!": "!",
-    "no data - is thermal-guard running?": "brak danych - czy thermal-guard działa?",
+    "no data - is coffee-paladin running?": "brak danych - czy coffee-paladin działa?",
     "data is stale (%@) - the guard may have died": "dane nieświeże (%@) - guard mógł paść",
     "the Mac shut down without warning: %@": "Mac zgasł bez ostrzeżenia: %@",
     "Battery:  %@": "Bateria:  %@",
@@ -107,8 +107,8 @@ let PL: [String: String] = [
     "Share by e-mail...": "Udostępnij e-mailem...",
     "Copy link with note": "Kopiuj link z notką",
     "Star it on GitHub...": "Zostaw gwiazdkę na GitHubie...",
-    "Is your Mac cooking through AI runs and renders? coffee-paladin watches the chip and pauses heavy jobs before things go wrong. Open source, free:":
-        "Mac grzeje się przy AI i renderach? coffee-paladin pilnuje temperatury chipa i pauzuje ciężkie zadania, zanim zrobi się źle. Open source, za darmo:",
+    "Is your Mac heating up with AI and renders? coffee-paladin watches the battery (temperature and charge), the chip (CPU) and the GPU. It pauses heavy jobs when the system overheats and resumes them by itself once the temperature drops, so you can sleep peacefully (literally!). Open source, free, for you:":
+        "Twój Mac grzeje się przy AI i renderach? coffee-paladin pilnuje temperatur (i poziomu) baterii, chipa (CPU) oraz GPU. Pauzuje ciężkie zadania kiedy system ulega przegrzaniu i sam je wznawia, gdy temperatura spadnie, abyś Ty mógł spać spokojnie (dosłownie!). Open source, za darmo, dla Ciebie:",
     "Settings": "Ustawienia",
     "Chip pause threshold": "Wstrzymuj zadania powyżej",
     "Battery gate": "Wstrzymuj na baterii poniżej",
@@ -154,13 +154,53 @@ let PL: [String: String] = [
     "While downloading (network active)": "Dopóki trwa pobieranie (aktywna sieć)",
     "released automatically when the Mac gets hot": "zwalniane samo, gdy Mac się grzeje",
     "Keep-awake: %@ left": "Czuwanie: zostało %@",
+    "caffeinate holds for another %@": "caffeinate trzyma jeszcze %@",
+    "Heavy processes right now: %d": "Ilość ciężkich procesów: %d",
+    "Measurement interval": "Częstotliwość pomiarów",
+    "Pick the report period.": "Wybierz okres raportu.",
+    "Included: hardware, battery, sudden shutdowns, interventions, measurement timeline.":
+        "W raporcie: sprzęt, bateria, nagłe wyłączenia, interwencje, oś pomiarów.",
+    "From:": "Od:",
+    "Is your Mac heating up with AI and renders? coffee-paladin watches battery, chip and GPU temperatures. It pauses heavy jobs and resumes them by itself once the temperature drops.\n\nOpen source, free, for you:\n%@\n\n#panbookovsky #macbook #protect #temperature #guard":
+        "Twój Mac grzeje się przy AI i renderach? coffee-paladin pilnuje temperatur baterii, chipa i GPU. Pauzuje ciężkie zadania i sam je wznawia, gdy temperatura spadnie.\n\nOpen source, za darmo, dla Ciebie:\n%@\n\n#panbookovsky #macbook #protect #temperature #guard",
+    "you have to see this: coffee-paladin": "musisz to zobaczyć: coffee-paladin",
+    "Hey,\n\nI found something you need on your Mac: coffee-paladin. It watches the chip, GPU and battery temperatures, and when things get hot it pauses heavy jobs and resumes them by itself once the machine cools down.\n\nIt is damn good, because the pause is lossless (the process freezes and continues from the same spot), it sends nothing anywhere, and it is free, open source:\n%@\n\nThe knight with the coffee in the attachment is its mascot.\n\nCheers!":
+        "Hej,\n\nznalazłem coś, co musisz mieć na Macu: coffee-paladin. Pilnuje temperatur chipa, GPU i baterii, a jak robi się gorąco, pauzuje ciężkie zadania i sam je wznawia, gdy maszyna ostygnie.\n\nJest zajebiste, bo pauza jest bezstratna (proces zamiera i rusza z tego samego miejsca), nic nigdzie nie wysyła i jest za darmo, open source:\n%@\n\nRycerz z kawą w załączniku to jego maskotka.\n\nPozdro!",
+    "chip": "chip", "fans": "wentylatory", "draw": "pobór", "state": "stan", "snapshot": "migawka",
+    "To:": "Do:",
+    "Everything on record": "Całość, wszystkie zapisy",
+    "Cores:  %d performance + %d efficiency  ·  Neural Engine: %d":
+        "Rdzenie:  %d wydajnościowych + %d oszczędne  ·  Neural Engine: %d",
+    "Disk: %d GB (%d%% free)": "Dysk: %d GB (%d%% wolnego)",
+    "max capacity: %d%%": "maks. pojemność: %d%%",
+    "Sensors:": "Czujniki:",
+    "chip and GPU (macmon/IOReport):  %@": "chip i GPU (macmon/IOReport):  %@",
+    "thermal state (Apple API):  %@": "stan termiczny (API Apple):  %@",
+    "battery (ioreg):  %@": "bateria (ioreg):  %@",
+    "CPU throttling (pmset):  %@": "dławienie CPU (pmset):  %@",
+    "limited warranty (est.): until %@": "limited warranty (szac.): do %@",
+    "set up: %@": "skonfigurowany: %@",
+    "Turns off banners, their sounds and phone push - one gate for all.":
+        "Wyłącza dymki, dźwięki przy nich i push na telefon — jedna bramka dla wszystkich.",
+    "Exception: the critical banner shouts regardless.":
+        "Wyjątek: baner krytyczny krzyczy niezależnie.",
+    "It is the ‹Pause jobs when the Mac overheats› switch: OFF = watch-only.":
+        "To stan przełącznika ‹Włącz pauzowanie przy przegrzaniu›: wyłączony = tylko obserwacja.",
+    "fastest reaction - the guard itself burns ~3.5% of one core all the time":
+        "najszybsza reakcja, ale strażnik sam pali ~3,5% jednego rdzenia bez przerwy",
+    "reacts up to 5 s sooner than default, costs ~1.8% of one core":
+        "reaguje do 5 s szybciej niż domyślnie, kosztuje ~1,8% jednego rdzenia",
+    "default: good reaction at ~1.2% of one core":
+        "domyślnie: dobra reakcja przy ~1,2% jednego rdzenia",
+    "frugal - an automatic pause may come tens of seconds after the threshold":
+        "oszczędnie, ale automatyczna pauza może przyjść kilkadziesiąt sekund po progu",
     "Keep-awake: while %@ is running": "Czuwanie: dopóki działa %@",
     "Keep-awake: while downloading": "Czuwanie: dopóki trwa pobieranie",
     "Keep-awake: indefinitely": "Czuwanie: bezterminowo",
     "Heavy jobs (safe-run)": "Ciężkie zadania (safe-run)",
     "Efficiency cores only (cool and quiet)": "Tylko rdzenie energooszczędne (chłodno i cicho)",
-    "All cores (fast - the guard still watches the temperature)":
-        "Wszystkie rdzenie (szybko — temperatury i tak pilnuje guard)",
+    "All cores (fast - the paladin still watches the temperature)":
+        "Wszystkie rdzenie (szybko — temperatury i tak pilnuje paladyn)",
     "CPU limit for heavy jobs": "Limit CPU dla ciężkich zadań",
     "below 100% the whole job gets tiny micro-pauses (works for any program)":
         "poniżej 100% całe zadanie dostaje mikropauzy (działa z każdym programem)",
@@ -190,37 +230,44 @@ let PL: [String: String] = [
     "no fans (fanless Mac)": "brak wentylatorów (Mac bez wentylatorów)",
     "What does watch-only mode do?": "Co daje tryb „tylko obserwuj”?",
     "Report a problem (GitHub)...": "Zgłoś problem lub pomysł (GitHub)...",
-    "Write to the author...": "Napisz do autora...",
+    "Write to the author (GitHub)...": "Napisz do autora (GitHub)...",
     "Watch only (dry run)": "Tylko obserwuj (dry run)",
     "WATCH-ONLY MODE - measuring and alerting, pausing nothing":
         "TRYB OBSERWACJI - mierzę i alarmuję, niczego nie wstrzymuję",
     "Enable protection (pause heavy jobs when hot)":
         "Włącz ochronę (wstrzymuj ciężkie zadania, gdy gorąco)",
     """
-With this on, thermal-guard measures everything and writes to its log exactly what it WOULD do \
-- "would pause Python (595% CPU)" - but sends no signal and never touches a single process.
+Protection is now OFF - coffee-paladin has entered watch-only mode.
 
-Use it to see whether the thresholds suit your machine before you let the tool freeze real work. \
-Open "Show the guard log" after a heavy job and you will know if it would have interfered too \
-eagerly, or not soon enough.
+It still measures everything (chip, GPU, battery, fans) and writes to the event log exactly \
+what it WOULD do - "would pause ffmpeg (630% CPU)" - but it sends no signal and never touches \
+a single process.
 
-Remember to switch it off afterwards: in this mode nothing protects the Mac.
+Use it to see whether the thresholds suit your machine before you let the paladin freeze real \
+work. Open "Show the event log" after a heavy job and you will know if it would have interfered \
+too eagerly, or not soon enough.
+
+Remember: while this switch is off, NOTHING protects the Mac. Flip it back on when you are done.
 """: """
-Przy włączonym trybie thermal-guard mierzy wszystko i zapisuje w logu dokładnie to, co ZROBIŁBY \
-- „pauza Python (595% CPU)” - ale nie wysyła żadnego sygnału i nie rusza ani jednego procesu.
+Ochrona jest teraz WYŁĄCZONA - coffee-paladin przeszedł w tryb biernej obserwacji.
 
-Służy do sprawdzenia, czy progi pasują do Twojej maszyny, zanim pozwolisz narzędziu zamrażać \
-realną pracę. Po ciężkim zadaniu otwórz „Pokaż log guarda” i zobaczysz, czy wtrącałby się za \
-gorliwie, czy odwrotnie - za późno.
+Dalej mierzy wszystko (chip, GPU, baterię, wentylatory) i zapisuje w dzienniku zdarzeń \
+dokładnie to, co ZROBIŁBY - „wstrzymałbym ffmpeg (630% CPU)” - ale nie wysyła żadnego \
+sygnału i nie rusza ani jednego procesu.
 
-Pamiętaj potem wyłączyć: w tym trybie nic nie chroni Maca.
+Służy do sprawdzenia, czy progi pasują do Twojej maszyny, zanim pozwolisz paladynowi \
+zamrażać realną pracę. Po ciężkim zadaniu otwórz „Pokaż dziennik zdarzeń” i zobaczysz, \
+czy wtrącałby się za gorliwie, czy odwrotnie - za późno.
+
+Pamiętaj: póki ten przełącznik jest wyłączony, NIC nie chroni Maca. Włącz go z powrotem, \
+gdy skończysz.
 """,
 ]
 
 let RU: [String: String] = [
     "Keep the Mac awake while heavy jobs run": "Не давать Mac засыпать, пока идут тяжёлые задачи",
     "Keeping the Mac awake (heavy job running)": "Держу Mac в бодрствовании (идёт тяжёлая задача)",
-    "no data - is thermal-guard running?": "нет данных - работает ли thermal-guard?",
+    "no data - is coffee-paladin running?": "нет данных - работает ли coffee-paladin?",
     "data is stale (%@) - the guard may have died": "данные устарели (%@) - демон мог упасть",
     "the Mac shut down without warning: %@": "Mac выключился без предупреждения: %@",
     "Battery:  %@": "Батарея:  %@",
@@ -284,8 +331,8 @@ let RU: [String: String] = [
     "Share by e-mail...": "Поделиться по почте...",
     "Copy link with note": "Скопировать ссылку с заметкой",
     "Star it on GitHub...": "Поставить звезду на GitHub...",
-    "Is your Mac cooking through AI runs and renders? coffee-paladin watches the chip and pauses heavy jobs before things go wrong. Open source, free:":
-        "Mac перегревается под ИИ и рендерами? coffee-paladin следит за чипом и ставит тяжёлые задачи на паузу, пока не стало плохо. Open source, бесплатно:",
+    "Is your Mac heating up with AI and renders? coffee-paladin watches the battery (temperature and charge), the chip (CPU) and the GPU. It pauses heavy jobs when the system overheats and resumes them by itself once the temperature drops, so you can sleep peacefully (literally!). Open source, free, for you:":
+        "Ваш Mac греется под ИИ и рендерами? coffee-paladin следит за батареей (температура и заряд), чипом (CPU) и GPU. Он ставит тяжёлые задачи на паузу при перегреве и сам возобновляет их, когда температура падает, чтобы вы могли спать спокойно (буквально!). Open source, бесплатно, для вас:",
     "Settings": "Настройки",
     "Chip pause threshold": "Пауза при температуре чипа выше",
     "Battery gate": "Пауза при заряде ниже",
@@ -300,7 +347,7 @@ let RU: [String: String] = [
     "resume at %.0f C, terminate at %.0f C": "возобновление при %.0f C, завершение при %.0f C",
     "What does watch-only mode do?": "Что делает режим наблюдения?",
     "Report a problem (GitHub)...": "Сообщить о проблеме (GitHub)...",
-    "Write to the author...": "Написать автору...",
+    "Write to the author (GitHub)...": "Написать автору (GitHub)...",
     "Watch only (dry run)": "Только наблюдение (dry run)",
     "WATCH-ONLY MODE - measuring and alerting, pausing nothing": "РЕЖИМ НАБЛЮДЕНИЯ - измеряю и предупреждаю, ничего не приостанавливаю",
     "Enable protection (pause heavy jobs when hot)": "Включить защиту (пауза тяжёлых задач при нагреве)",
@@ -333,13 +380,54 @@ let RU: [String: String] = [
     "While downloading (network active)": "Пока идёт загрузка (сеть активна)",
     "released automatically when the Mac gets hot": "снимается само, когда Mac нагревается",
     "Keep-awake: %@ left": "Бодрствование: осталось %@",
+    "caffeinate holds for another %@": "caffeinate держит ещё %@",
+    "Heavy processes right now: %d": "Тяжёлых процессов сейчас: %d",
+    "Measurement interval": "Частота измерений",
+    "Pick the report period.": "Выберите период отчёта.",
+    "Included: hardware, battery, sudden shutdowns, interventions, measurement timeline.":
+        "В отчёте: железо, батарея, внезапные отключения, вмешательства, шкала измерений.",
+    "From:": "С:",
+    "Sponsor on GitHub...": "Поддержать на GitHub...",
+    "Is your Mac heating up with AI and renders? coffee-paladin watches battery, chip and GPU temperatures. It pauses heavy jobs and resumes them by itself once the temperature drops.\n\nOpen source, free, for you:\n%@\n\n#panbookovsky #macbook #protect #temperature #guard":
+        "Ваш Mac греется под ИИ и рендерами? coffee-paladin следит за температурой батареи, чипа и GPU. Ставит тяжёлые задачи на паузу и сам возобновляет их, когда температура падает.\n\nOpen source, бесплатно, для вас:\n%@\n\n#panbookovsky #macbook #protect #temperature #guard",
+    "you have to see this: coffee-paladin": "ты должен это увидеть: coffee-paladin",
+    "Hey,\n\nI found something you need on your Mac: coffee-paladin. It watches the chip, GPU and battery temperatures, and when things get hot it pauses heavy jobs and resumes them by itself once the machine cools down.\n\nIt is damn good, because the pause is lossless (the process freezes and continues from the same spot), it sends nothing anywhere, and it is free, open source:\n%@\n\nThe knight with the coffee in the attachment is its mascot.\n\nCheers!":
+        "Привет!\n\nНашёл то, что нужно каждому Mac: coffee-paladin. Следит за температурой чипа, GPU и батареи, а когда становится горячо - ставит тяжёлые задачи на паузу и сам возобновляет их после остывания.\n\nОно отличное: пауза без потерь (процесс замирает и продолжает с того же места), ничего никуда не отправляет, бесплатно и open source:\n%@\n\nРыцарь с кофе во вложении - его маскот.\n\nПока!",
+    "chip": "чип", "fans": "вентиляторы", "draw": "мощность", "state": "состояние", "snapshot": "снимок",
+    "To:": "По:",
+    "Everything on record": "Всё, что записано",
+    "Cores:  %d performance + %d efficiency  ·  Neural Engine: %d":
+        "Ядра:  %d производительных + %d экономичных  ·  Neural Engine: %d",
+    "Disk: %d GB (%d%% free)": "Диск: %d ГБ (%d%% свободно)",
+    "max capacity: %d%%": "макс. ёмкость: %d%%",
+    "Sensors:": "Датчики:",
+    "chip and GPU (macmon/IOReport):  %@": "чип и GPU (macmon/IOReport):  %@",
+    "thermal state (Apple API):  %@": "тепловое состояние (API Apple):  %@",
+    "battery (ioreg):  %@": "батарея (ioreg):  %@",
+    "CPU throttling (pmset):  %@": "троттлинг CPU (pmset):  %@",
+    "limited warranty (est.): until %@": "гарантия (оцен.): до %@",
+    "set up: %@": "настроен: %@",
+    "Turns off banners, their sounds and phone push - one gate for all.":
+        "Отключает уведомления, их звуки и push — один шлюз для всего.",
+    "Exception: the critical banner shouts regardless.":
+        "Исключение: критический баннер кричит независимо.",
+    "It is the ‹Pause jobs when the Mac overheats› switch: OFF = watch-only.":
+        "Это состояние переключателя ‹Пауза при перегреве›: выключен = только наблюдение.",
+    "fastest reaction - the guard itself burns ~3.5% of one core all the time":
+        "самая быстрая реакция, но страж сам жжёт ~3,5% ядра постоянно",
+    "reacts up to 5 s sooner than default, costs ~1.8% of one core":
+        "реагирует до 5 с быстрее, стоит ~1,8% ядра",
+    "default: good reaction at ~1.2% of one core":
+        "по умолчанию: хорошая реакция при ~1,2% ядра",
+    "frugal - an automatic pause may come tens of seconds after the threshold":
+        "экономно, но автопауза может прийти через десятки секунд после порога",
     "Keep-awake: while %@ is running": "Бодрствование: пока работает %@",
     "Keep-awake: while downloading": "Бодрствование: пока идёт загрузка",
     "Keep-awake: indefinitely": "Бодрствование: бессрочно",
     "Heavy jobs (safe-run)": "Тяжёлые задачи (safe-run)",
     "Efficiency cores only (cool and quiet)": "Только энергоэффективные ядра (холодно и тихо)",
-    "All cores (fast - the guard still watches the temperature)":
-        "Все ядра (быстро — за температурой всё равно следит guard)",
+    "All cores (fast - the paladin still watches the temperature)":
+        "Все ядра (быстро — за температурой всё равно следит паладин)",
     "CPU limit for heavy jobs": "Лимит CPU для тяжёлых задач",
     "below 100% the whole job gets tiny micro-pauses (works for any program)":
         "ниже 100% вся задача получает микропаузы (работает с любой программой)",
@@ -368,7 +456,7 @@ let RU: [String: String] = [
 let ZH: [String: String] = [
     "Keep the Mac awake while heavy jobs run": "繁重任务运行时保持 Mac 唤醒",
     "Keeping the Mac awake (heavy job running)": "正在保持 Mac 唤醒（繁重任务运行中）",
-    "no data - is thermal-guard running?": "没有数据 - thermal-guard 在运行吗？",
+    "no data - is coffee-paladin running?": "没有数据 - coffee-paladin 在运行吗？",
     "data is stale (%@) - the guard may have died": "数据已过期（%@）- 守护进程可能已停止",
     "the Mac shut down without warning: %@": "Mac 毫无预警地关机了：%@",
     "Battery:  %@": "电池：  %@",
@@ -432,8 +520,8 @@ let ZH: [String: String] = [
     "Share by e-mail...": "通过邮件分享...",
     "Copy link with note": "复制链接和推荐语",
     "Star it on GitHub...": "在 GitHub 上点星...",
-    "Is your Mac cooking through AI runs and renders? coffee-paladin watches the chip and pauses heavy jobs before things go wrong. Open source, free:":
-        "Mac 在 AI 任务和渲染时过热?coffee-paladin 监控芯片温度,在出问题前自动暂停繁重任务。开源免费:",
+    "Is your Mac heating up with AI and renders? coffee-paladin watches the battery (temperature and charge), the chip (CPU) and the GPU. It pauses heavy jobs when the system overheats and resumes them by itself once the temperature drops, so you can sleep peacefully (literally!). Open source, free, for you:":
+        "你的 Mac 在 AI 任务和渲染时发热?coffee-paladin 监控电池(温度和电量)、芯片(CPU)和 GPU。系统过热时自动暂停繁重任务,温度下降后自动恢复,让你安心入睡(字面意义上!)。开源免费,为你而做:",
     "Settings": "设置",
     "Chip pause threshold": "芯片温度高于此值时暂停",
     "Battery gate": "电量低于此值时暂停",
@@ -448,7 +536,7 @@ let ZH: [String: String] = [
     "resume at %.0f C, terminate at %.0f C": "%.0f C 时恢复，%.0f C 时终止",
     "What does watch-only mode do?": "「仅观察」模式是什么？",
     "Report a problem (GitHub)...": "报告问题（GitHub）...",
-    "Write to the author...": "给作者写信...",
+    "Write to the author (GitHub)...": "给作者写信(GitHub)...",
     "Watch only (dry run)": "仅观察（dry run）",
     "WATCH-ONLY MODE - measuring and alerting, pausing nothing": "仅观察模式 - 只测量和提醒，不暂停任何任务",
     "Enable protection (pause heavy jobs when hot)": "启用保护（过热时暂停繁重任务）",
@@ -481,13 +569,54 @@ let ZH: [String: String] = [
     "While downloading (network active)": "下载期间(网络活跃)",
     "released automatically when the Mac gets hot": "Mac 变热时自动解除",
     "Keep-awake: %@ left": "保持唤醒:剩余 %@",
+    "caffeinate holds for another %@": "caffeinate 还将保持 %@",
+    "Heavy processes right now: %d": "当前繁重进程数:%d",
+    "Measurement interval": "测量频率",
+    "Pick the report period.": "选择报告时间段。",
+    "Included: hardware, battery, sudden shutdowns, interventions, measurement timeline.":
+        "报告含:硬件、电池、突然关机、干预、测量时间线。",
+    "From:": "从:",
+    "Sponsor on GitHub...": "在 GitHub 上赞助...",
+    "Is your Mac heating up with AI and renders? coffee-paladin watches battery, chip and GPU temperatures. It pauses heavy jobs and resumes them by itself once the temperature drops.\n\nOpen source, free, for you:\n%@\n\n#panbookovsky #macbook #protect #temperature #guard":
+        "你的 Mac 在 AI 任务和渲染时发热?coffee-paladin 监控电池、芯片和 GPU 温度。自动暂停繁重任务,温度下降后自动恢复。\n\n开源免费,为你而做:\n%@\n\n#panbookovsky #macbook #protect #temperature #guard",
+    "you have to see this: coffee-paladin": "你一定要看看:coffee-paladin",
+    "Hey,\n\nI found something you need on your Mac: coffee-paladin. It watches the chip, GPU and battery temperatures, and when things get hot it pauses heavy jobs and resumes them by itself once the machine cools down.\n\nIt is damn good, because the pause is lossless (the process freezes and continues from the same spot), it sends nothing anywhere, and it is free, open source:\n%@\n\nThe knight with the coffee in the attachment is its mascot.\n\nCheers!":
+        "嘿!\n\n我发现了每台 Mac 都需要的东西:coffee-paladin。它监控芯片、GPU 和电池温度,过热时自动暂停繁重任务,冷却后自动恢复。\n\n它真的很棒:暂停是无损的(进程冻结后从原处继续),不向任何地方发送数据,免费开源:\n%@\n\n附件里拿着咖啡的骑士是它的吉祥物。\n\n再见!",
+    "chip": "芯片", "fans": "风扇", "draw": "功耗", "state": "状态", "snapshot": "快照",
+    "To:": "至:",
+    "Everything on record": "全部记录",
+    "Cores:  %d performance + %d efficiency  ·  Neural Engine: %d":
+        "核心:  %d 性能 + %d 能效  ·  神经网络引擎: %d",
+    "Disk: %d GB (%d%% free)": "磁盘: %d GB(%d%% 可用)",
+    "max capacity: %d%%": "最大容量: %d%%",
+    "Sensors:": "传感器:",
+    "chip and GPU (macmon/IOReport):  %@": "芯片与 GPU(macmon/IOReport):  %@",
+    "thermal state (Apple API):  %@": "热状态(Apple API):  %@",
+    "battery (ioreg):  %@": "电池(ioreg):  %@",
+    "CPU throttling (pmset):  %@": "CPU 降频(pmset):  %@",
+    "limited warranty (est.): until %@": "保修(估计): 至 %@",
+    "set up: %@": "配置于: %@",
+    "Turns off banners, their sounds and phone push - one gate for all.":
+        "关闭通知、其声音和手机推送——同一道闸门。",
+    "Exception: the critical banner shouts regardless.":
+        "例外:危险横幅无论如何都会警报。",
+    "It is the ‹Pause jobs when the Mac overheats› switch: OFF = watch-only.":
+        "即主开关‹过热时暂停任务›:关闭 = 仅观察。",
+    "fastest reaction - the guard itself burns ~3.5% of one core all the time":
+        "反应最快,但守卫自身持续占用约3.5%单核",
+    "reacts up to 5 s sooner than default, costs ~1.8% of one core":
+        "比默认快最多5秒,占用约1.8%单核",
+    "default: good reaction at ~1.2% of one core":
+        "默认:约1.2%单核,反应良好",
+    "frugal - an automatic pause may come tens of seconds after the threshold":
+        "省电,但自动暂停可能在超过阈值后数十秒才触发",
     "Keep-awake: while %@ is running": "保持唤醒:%@ 运行期间",
     "Keep-awake: while downloading": "保持唤醒:下载期间",
     "Keep-awake: indefinitely": "保持唤醒:无限期",
     "Heavy jobs (safe-run)": "繁重任务(safe-run)",
     "Efficiency cores only (cool and quiet)": "仅能效核心(凉爽安静)",
-    "All cores (fast - the guard still watches the temperature)":
-        "全部核心(快 - 温度仍由 guard 监控)",
+    "All cores (fast - the paladin still watches the temperature)":
+        "全部核心(快 - 温度仍由圣骑士监控)",
     "CPU limit for heavy jobs": "繁重任务的 CPU 限制",
     "below 100% the whole job gets tiny micro-pauses (works for any program)":
         "低于 100% 时整个任务会得到微暂停(适用于任何程序)",
@@ -516,7 +645,7 @@ let ZH: [String: String] = [
 let ES: [String: String] = [
     "Keep the Mac awake while heavy jobs run": "Mantener el Mac despierto mientras corren tareas pesadas",
     "Keeping the Mac awake (heavy job running)": "Manteniendo el Mac despierto (tarea pesada en curso)",
-    "no data - is thermal-guard running?": "sin datos - ¿está funcionando thermal-guard?",
+    "no data - is coffee-paladin running?": "sin datos - ¿está funcionando coffee-paladin?",
     "data is stale (%@) - the guard may have died": "datos obsoletos (%@) - el guardián pudo detenerse",
     "the Mac shut down without warning: %@": "el Mac se apagó sin aviso: %@",
     "Battery:  %@": "Batería:  %@",
@@ -580,8 +709,8 @@ let ES: [String: String] = [
     "Share by e-mail...": "Compartir por correo...",
     "Copy link with note": "Copiar enlace con nota",
     "Star it on GitHub...": "Dale una estrella en GitHub...",
-    "Is your Mac cooking through AI runs and renders? coffee-paladin watches the chip and pauses heavy jobs before things go wrong. Open source, free:":
-        "¿Tu Mac se calienta con IA y renders? coffee-paladin vigila el chip y pausa las tareas pesadas antes de que algo vaya mal. Open source y gratis:",
+    "Is your Mac heating up with AI and renders? coffee-paladin watches the battery (temperature and charge), the chip (CPU) and the GPU. It pauses heavy jobs when the system overheats and resumes them by itself once the temperature drops, so you can sleep peacefully (literally!). Open source, free, for you:":
+        "¿Tu Mac se calienta con IA y renders? coffee-paladin vigila la batería (temperatura y carga), el chip (CPU) y la GPU. Pausa las tareas pesadas cuando el sistema se sobrecalienta y las reanuda solo cuando baja la temperatura, para que puedas dormir tranquilo (¡literalmente!). Open source, gratis, para ti:",
     "Settings": "Ajustes",
     "Chip pause threshold": "Pausar por encima de",
     "Battery gate": "Pausar con batería por debajo de",
@@ -596,7 +725,7 @@ let ES: [String: String] = [
     "resume at %.0f C, terminate at %.0f C": "reanuda a %.0f C, termina a %.0f C",
     "What does watch-only mode do?": "¿Qué hace el modo de solo observación?",
     "Report a problem (GitHub)...": "Informar de un problema (GitHub)...",
-    "Write to the author...": "Escribir al autor...",
+    "Write to the author (GitHub)...": "Escribir al autor (GitHub)...",
     "Watch only (dry run)": "Solo observación (dry run)",
     "WATCH-ONLY MODE - measuring and alerting, pausing nothing": "MODO OBSERVACIÓN - mido y aviso, no pauso nada",
     "Enable protection (pause heavy jobs when hot)": "Activar la protección (pausar tareas pesadas al calentarse)",
@@ -629,13 +758,54 @@ let ES: [String: String] = [
     "While downloading (network active)": "Mientras se descarga (red activa)",
     "released automatically when the Mac gets hot": "se libera solo cuando el Mac se calienta",
     "Keep-awake: %@ left": "Despierto: quedan %@",
+    "caffeinate holds for another %@": "caffeinate aguanta %@ más",
+    "Heavy processes right now: %d": "Procesos pesados ahora: %d",
+    "Measurement interval": "Frecuencia de medición",
+    "Pick the report period.": "Elige el periodo del informe.",
+    "Included: hardware, battery, sudden shutdowns, interventions, measurement timeline.":
+        "Incluye: hardware, batería, apagados repentinos, intervenciones, línea de mediciones.",
+    "From:": "Desde:",
+    "Sponsor on GitHub...": "Patrocinar en GitHub...",
+    "Is your Mac heating up with AI and renders? coffee-paladin watches battery, chip and GPU temperatures. It pauses heavy jobs and resumes them by itself once the temperature drops.\n\nOpen source, free, for you:\n%@\n\n#panbookovsky #macbook #protect #temperature #guard":
+        "¿Tu Mac se calienta con IA y renders? coffee-paladin vigila la temperatura de batería, chip y GPU. Pausa las tareas pesadas y las reanuda solo cuando baja la temperatura.\n\nOpen source, gratis, para ti:\n%@\n\n#panbookovsky #macbook #protect #temperature #guard",
+    "you have to see this: coffee-paladin": "tienes que ver esto: coffee-paladin",
+    "Hey,\n\nI found something you need on your Mac: coffee-paladin. It watches the chip, GPU and battery temperatures, and when things get hot it pauses heavy jobs and resumes them by itself once the machine cools down.\n\nIt is damn good, because the pause is lossless (the process freezes and continues from the same spot), it sends nothing anywhere, and it is free, open source:\n%@\n\nThe knight with the coffee in the attachment is its mascot.\n\nCheers!":
+        "¡Hola!\n\nEncontré algo que necesitas en tu Mac: coffee-paladin. Vigila la temperatura del chip, la GPU y la batería, y cuando hay calor pausa las tareas pesadas y las reanuda solo al enfriarse.\n\nEs buenísimo: la pausa no pierde nada (el proceso se congela y sigue desde el mismo punto), no envía nada a ningún sitio y es gratis, open source:\n%@\n\nEl caballero con café del adjunto es su mascota.\n\n¡Saludos!",
+    "chip": "chip", "fans": "ventiladores", "draw": "consumo", "state": "estado", "snapshot": "instantánea",
+    "To:": "Hasta:",
+    "Everything on record": "Todo lo registrado",
+    "Cores:  %d performance + %d efficiency  ·  Neural Engine: %d":
+        "Núcleos:  %d de rendimiento + %d eficientes  ·  Neural Engine: %d",
+    "Disk: %d GB (%d%% free)": "Disco: %d GB (%d%% libre)",
+    "max capacity: %d%%": "capacidad máx.: %d%%",
+    "Sensors:": "Sensores:",
+    "chip and GPU (macmon/IOReport):  %@": "chip y GPU (macmon/IOReport):  %@",
+    "thermal state (Apple API):  %@": "estado térmico (API de Apple):  %@",
+    "battery (ioreg):  %@": "batería (ioreg):  %@",
+    "CPU throttling (pmset):  %@": "limitación de CPU (pmset):  %@",
+    "limited warranty (est.): until %@": "garantía (est.): hasta %@",
+    "set up: %@": "configurado: %@",
+    "Turns off banners, their sounds and phone push - one gate for all.":
+        "Apaga avisos, sus sonidos y el push al móvil: una sola puerta para todo.",
+    "Exception: the critical banner shouts regardless.":
+        "Excepción: el banner crítico grita igualmente.",
+    "It is the ‹Pause jobs when the Mac overheats› switch: OFF = watch-only.":
+        "Es el estado del interruptor ‹Pausar al sobrecalentarse›: apagado = solo observación.",
+    "fastest reaction - the guard itself burns ~3.5% of one core all the time":
+        "reacción más rápida, pero el guardián quema ~3,5% de un núcleo sin parar",
+    "reacts up to 5 s sooner than default, costs ~1.8% of one core":
+        "reacciona hasta 5 s antes, cuesta ~1,8% de un núcleo",
+    "default: good reaction at ~1.2% of one core":
+        "por defecto: buena reacción con ~1,2% de un núcleo",
+    "frugal - an automatic pause may come tens of seconds after the threshold":
+        "ahorrador, pero la pausa automática puede llegar decenas de segundos tras el umbral",
     "Keep-awake: while %@ is running": "Despierto: mientras corre %@",
     "Keep-awake: while downloading": "Despierto: mientras se descarga",
     "Keep-awake: indefinitely": "Despierto: indefinidamente",
     "Heavy jobs (safe-run)": "Tareas pesadas (safe-run)",
     "Efficiency cores only (cool and quiet)": "Solo núcleos de eficiencia (frío y silencioso)",
-    "All cores (fast - the guard still watches the temperature)":
-        "Todos los núcleos (rápido - el guard sigue vigilando la temperatura)",
+    "All cores (fast - the paladin still watches the temperature)":
+        "Todos los núcleos (rápido - el paladín sigue vigilando la temperatura)",
     "CPU limit for heavy jobs": "Límite de CPU para tareas pesadas",
     "below 100% the whole job gets tiny micro-pauses (works for any program)":
         "por debajo del 100% la tarea recibe micropausas (funciona con cualquier programa)",
@@ -693,7 +863,7 @@ func makeLogo(_ size: CGFloat = 22) -> NSImage {
     return img
 }
 
-/// Wlasne logo uzytkownika: ~/.thermal-guard/logo.png (czarny znak na przezroczystym tle).
+/// Wlasne logo uzytkownika: ~/.coffee-paladin/logo.png (czarny znak na przezroczystym tle).
 /// isTemplate sprawia, ze macOS sam przebarwia je na kolor motywu (jasny/ciemny).
 func customLogo() -> NSImage? {
     guard let img = NSImage(contentsOfFile: base + "/logo.png") else { return nil }
@@ -730,6 +900,7 @@ final class Welcome: NSObject {
 
     func maybeShow() {
         guard !FileManager.default.fileExists(atPath: flagPath) else { return }
+        grajPaladyna()
         let W: CGFloat = 440, H: CGFloat = 470
         let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: W, height: H),
                            styleMask: [.titled, .fullSizeContentView], backing: .buffered, defer: false)
@@ -845,6 +1016,7 @@ struct FleetHost {
     let paused: [String]
     let onAC: Bool
     let battPct: Int?
+    var battC: Double? = nil
 }
 
 /// Migawki hostow z folderu floty. nil = folder nieskonfigurowany/nieczytelny;
@@ -887,7 +1059,8 @@ func fleetHosts() -> [FleetHost]? {
             level: numInt(j["level"]) ?? 0,
             paused: (j["paused"] as? [String]) ?? [],
             onAC: (j["on_ac"] as? Bool) ?? true,
-            battPct: numInt(j["battery_pct"])))
+            battPct: numInt(j["battery_pct"]),
+            battC: num(j["battery_c"])))
     }
     return out
 }
@@ -899,7 +1072,7 @@ func fleetAge(_ s: TimeInterval) -> String {
     return String(format: T("%d h ago"), Int(s / 3600))
 }
 
-/// Stopka: kolorowe logo z ~/.thermal-guard/logo_footer.png (w ciemnym motywie wariant
+/// Stopka: kolorowe logo z ~/.coffee-paladin/logo_footer.png (w ciemnym motywie wariant
 /// logo_footer_dark.png z jasnym tekstem, jesli istnieje). Brak plikow = brak wiersza.
 final class FooterLogoRow: NSView {
     static func make() -> FooterLogoRow? {
@@ -938,7 +1111,7 @@ final class FooterLogoRow: NSView {
     required init?(coder: NSCoder) { fatalError() }
 }
 
-/// Naglowek menu: logo + nazwa + wersja, wszystko WYSRODKOWANE. Gdy w ~/.thermal-guard
+/// Naglowek menu: logo + nazwa + wersja, wszystko WYSRODKOWANE. Gdy w ~/.coffee-paladin
 /// lezy logo.png (u Pawla: znak AIrON), pokazujemy je; bez pliku rysujemy wlasny squircle.
 /// Kazdy link WYCHODZACY z aplikacji niesie UTM (decyzja Pawla 01.08) - w statystykach
 /// widac wtedy, ze ruch przyszedl z paska, a nie z README czy z posta.
@@ -956,6 +1129,19 @@ func zUTM(_ s: String, medium: String = "app") -> URL? {
 func linkPodajDalej() -> String {
     zUTM("https://github.com/pawelkwaczynski/coffee-paladin", medium: "share")?.absoluteString
         ?? "https://github.com/pawelkwaczynski/coffee-paladin"
+}
+
+
+/// Dzwiek paladyna (zbroja) przy pokazaniu paladyna - plik z wyborow Pawla (CC0),
+/// pod tym samym przelacznikiem Dzwieki co reszta; brak pliku = cisza, zero bledow.
+func grajPaladyna() {
+    guard GuardCfg.bool("sound", true) else { return }
+    let p = base + "/sounds/paladin.wav"
+    guard FileManager.default.fileExists(atPath: p) else { return }
+    let pr = Process()
+    pr.executableURL = URL(fileURLWithPath: "/usr/bin/afplay")
+    pr.arguments = [p]
+    try? pr.run()
 }
 
 
@@ -1080,6 +1266,7 @@ final class PaladinPanel: NSObject {
         if panel != nil { close(); return }
         guard let sprite = NSImage(contentsOfFile: base + "/paladin_welcome.gif")
             ?? NSImage(contentsOfFile: base + "/paladin_welcome.png") else { return }
+        grajPaladyna()   // zbroja takze przy panelu (Pawel przywrocil, 01.08 wieczorem)
 
         let ratio = sprite.size.width / max(sprite.size.height, 1)
         let ih: CGFloat = 210
@@ -1168,6 +1355,7 @@ final class PaladinPanel: NSObject {
 /// Kolory sa systemowe (systemGreen / tertiaryLabel), wiec graja z motywem jasnym i ciemnym.
 final class Przelacznik: NSControl {
     var wlaczony: Bool { didSet { needsDisplay = true } }
+    var kolor: NSColor = .systemGreen
     init(on: Bool, target: AnyObject, action: Selector) {
         self.wlaczony = on
         super.init(frame: NSRect(x: 0, y: 0, width: 38, height: 22))
@@ -1179,7 +1367,7 @@ final class Przelacznik: NSControl {
     override func draw(_ r: NSRect) {
         let tor = NSRect(x: 0, y: 2, width: bounds.width, height: bounds.height - 4)
         let sciezka = NSBezierPath(roundedRect: tor, xRadius: tor.height / 2, yRadius: tor.height / 2)
-        (wlaczony ? NSColor.systemGreen : NSColor.tertiaryLabelColor).setFill()
+        (wlaczony ? kolor : NSColor.tertiaryLabelColor).setFill()
         sciezka.fill()
         let d = tor.height - 4
         let x = wlaczony ? tor.maxX - d - 2 : tor.minX + 2
@@ -1218,7 +1406,8 @@ final class SwitchRow: NSView {
     private let akcjaZewnetrzna: Selector
 
     init(_ tytul: String, on: Bool, target: AnyObject, action: Selector,
-         opisGdyWylaczone: String? = nil, ikona: String? = nil) {
+         opisGdyWylaczone: String? = nil, ikona: String? = nil,
+         podpisStaly: String? = nil, kolor: NSColor = .systemGreen) {
         self.opisGdyWylaczone = opisGdyWylaczone
         self.celZewnetrzny = target
         self.akcjaZewnetrzna = action
@@ -1229,7 +1418,8 @@ final class SwitchRow: NSView {
         // wygladaly na dziwnie oddalone (Pawel, 01.08 x2). Przy przelaczeniu OFF
         // w otwartym menu czerwonego podpisu nie ma gdzie pokazac - stan mowi
         // wtedy sam przelacznik plus powiadomienie guarda "watch-only".
-        let W: CGFloat = 360, H: CGFloat = (opisGdyWylaczone == nil || on) ? 26 : 40
+        let W: CGFloat = 360
+        let H: CGFloat = (podpisStaly != nil || (opisGdyWylaczone != nil && !on)) ? 40 : 26
         super.init(frame: NSRect(x: 0, y: 0, width: W, height: H))
         // przelacznik trzyma sie PRAWEJ krawedzi realnego menu, nie sztywnych 400 pt
         autoresizingMask = [.width]
@@ -1260,12 +1450,20 @@ final class SwitchRow: NSView {
             pod.frame = NSRect(x: xTekst, y: 3, width: W - 69 - xTekst, height: 14)
             addSubview(pod)
             podpis = pod
+        } else if let staly = podpisStaly {
+            // podpis informacyjny na stale (np. liczba ciezkich procesow) - neutralny kolor
+            let pod = NSTextField(labelWithString: staly)
+            pod.font = .systemFont(ofSize: 11)
+            pod.textColor = .secondaryLabelColor
+            pod.frame = NSRect(x: xTekst, y: 3, width: W - 69 - xTekst, height: 14)
+            addSubview(pod)
         }
 
         // Przelacznik NA ROWNI z etykieta (srodek w srodek), nie ze srodkiem calego
         // wiersza - w wierszu z podpisem (H=44) etykieta jest u gory i switch
         // centrowany na wierszu wygladal na obsuniety (uwaga Pawla, 01.08).
         let sw = Przelacznik(on: on, target: self, action: #selector(przelaczono(_:)))
+        sw.kolor = kolor
         sw.frame = NSRect(x: W - 62, y: H - 22.5, width: 38, height: 22)
         addSubview(sw)
         przelacznik = sw
@@ -1337,13 +1535,8 @@ enum Item: String, CaseIterable {
         }
     }
 
-    /// Safety-related items are on by default; RAM and disk are an extra.
-    var byDefault: Bool {
-        switch self {
-        case .ram, .disk: return false
-        default: return true
-        }
-    }
+    /// Domyslnie WSZYSTKO widoczne (Pawel, 01.08) - kto chce mniej, odznaczy.
+    var byDefault: Bool { true }
 }
 
 final class Prefs {
@@ -1447,7 +1640,7 @@ func hardwareInfo() -> [String: Any] {
 /// `launchctl disable` nie zabija dzialajacej instancji — wylacza tylko start przy logowaniu,
 /// dokladnie tak, jak obiecuje przelacznik.
 enum Autostart {
-    static let services = ["pl.pawel.thermal-guard", "pl.pawel.heatbar"]
+    static let services = ["pl.pawel.coffee-paladin", "pl.pawel.coffee-paladin-bar"]
     static func enabled() -> Bool {
         let out = shell(["/bin/launchctl", "print-disabled", "gui/\(getuid())"])
         // brak wpisu = wlaczone; KTORAKOLWIEK usluga wylaczona = przelacznik OFF
@@ -1607,6 +1800,7 @@ struct Snap {
     var trend: Double?, eta: Double?
     var jobs: [Job] = []
     var topCpuList: [TopCPU] = []
+    var heavyCount: Int = 0
     var topRamList: [TopRAM] = []
     var pausesToday = 0, killsToday = 0
     var lastCrash: String?
@@ -1635,6 +1829,7 @@ func readSnap() -> Snap? {
     s.level = numInt(j["level"]) ?? 0
     s.load = num(j["load1"]) ?? 0
     s.cpuLimit = numInt(j["cpu_limit"]) ?? 100
+    s.heavyCount = numInt(j["heavy_count"]) ?? 0
     s.reason = (j["reason"] as? String) ?? ""
     s.topProc = j["top_proc"] as? String
     s.topCPU = numInt(j["top_cpu"])
@@ -1679,6 +1874,7 @@ func readSnap() -> Snap? {
 final class WykresRow: NSView {
     private let wartosci: [Double]
     private let pauzy: [Bool]
+    private let czasy: [String]
     private let progPauza: Double
     private let progWznow: Double
 
@@ -1686,29 +1882,35 @@ final class WykresRow: NSView {
         guard let text = try? String(contentsOfFile: historyPath, encoding: .utf8) else { return nil }
         var vals: [Double] = []
         var pau: [Bool] = []
+        var czasy: [String] = []
         for line in text.split(separator: "\n").suffix(61) {
             let c = line.split(separator: ",", omittingEmptySubsequences: false)
             if c.count > 11, let v = Double(c[2]) {
                 vals.append(v)
                 pau.append((Int(c[11]) ?? 0) >= 2)
+                // "YYYY-MM-DD HH:MM:SS" -> "HH:MM" (podpisy osi czasu pod wykresem)
+                let t = String(c[0])
+                czasy.append(t.count >= 16 ? String(t.dropFirst(11).prefix(5)) : "")
             }
         }
         guard vals.count >= 3 else { return nil }
-        return WykresRow(vals, pau)
+        return WykresRow(vals, pau, czasy)
     }
 
-    init(_ v: [Double], _ p: [Bool]) {
+    init(_ v: [Double], _ p: [Bool], _ t: [String]) {
         wartosci = v
         pauzy = p
+        czasy = t
         progPauza = GuardCfg.double("soc_pause_c", 90)
         progWznow = GuardCfg.double("soc_resume_c", 82)
-        super.init(frame: NSRect(x: 0, y: 0, width: 360, height: 64))
+        // +12 pt na os czasu pod slupkami
+        super.init(frame: NSRect(x: 0, y: 0, width: 360, height: 76))
         autoresizingMask = [.width]
     }
     required init?(coder: NSCoder) { fatalError() }
 
     override func draw(_ dirtyRect: NSRect) {
-        let lewy: CGFloat = 44, prawy: CGFloat = 16, dol: CGFloat = 6, gora: CGFloat = 8
+        let lewy: CGFloat = 44, prawy: CGFloat = 16, dol: CGFloat = 18, gora: CGFloat = 8
         let W = bounds.width - lewy - prawy, H = bounds.height - dol - gora
         guard W > 40, H > 20, !wartosci.isEmpty else { return }
         let lo = wartosci.min()!, hi = wartosci.max()!
@@ -1756,6 +1958,19 @@ final class WykresRow: NSView {
         String(format: "%.0f°", top).draw(at: NSPoint(x: 14, y: bounds.height - gora - 8),
                                           withAttributes: atr)
         String(format: "%.0f°", lo).draw(at: NSPoint(x: 14, y: dol - 1), withAttributes: atr)
+
+        // os czasu: poczatek, srodek i koniec zakresu pomiarow (HH:MM z history.csv)
+        if let pierwszy = czasy.first(where: { !$0.isEmpty }),
+           let ostatni = czasy.last(where: { !$0.isEmpty }) {
+            pierwszy.draw(at: NSPoint(x: lewy, y: 2), withAttributes: atr)
+            let wOst = (ostatni as NSString).size(withAttributes: atr).width
+            ostatni.draw(at: NSPoint(x: lewy + W - wOst, y: 2), withAttributes: atr)
+            let i = czasy.count / 2
+            if czasy.indices.contains(i), !czasy[i].isEmpty, czasy.count > 6 {
+                let wSr = (czasy[i] as NSString).size(withAttributes: atr).width
+                czasy[i].draw(at: NSPoint(x: lewy + W / 2 - wSr / 2, y: 2), withAttributes: atr)
+            }
+        }
     }
 }
 
@@ -1979,7 +2194,7 @@ final class Bar: NSObject, NSMenuDelegate {
                           range: NSRange(location: 0, length: out.length))
         item.button?.attributedTitle = out
 
-        var tip = s.reason.isEmpty ? "thermal-guard: " + T("calm") : s.reason
+        var tip = s.reason.isEmpty ? "coffee-paladin: " + T("calm") : s.reason
         if let e = s.eta { tip += String(format: "\n%.0f min", e) }
         item.button?.toolTip = tip
     }
@@ -1997,7 +2212,7 @@ final class Bar: NSObject, NSMenuDelegate {
         m.addItem(langTop)
         m.addItem(.separator())
         guard let s = readSnap() else {
-            m.addItem(NSMenuItem(title: T("no data - is thermal-guard running?"), action: nil, keyEquivalent: ""))
+            m.addItem(NSMenuItem(title: T("no data - is coffee-paladin running?"), action: nil, keyEquivalent: ""))
             addTail(m, paused: false); return
         }
         func row(_ t: String) { m.addItem(NSMenuItem(title: t, action: nil, keyEquivalent: "")) }
@@ -2073,7 +2288,11 @@ final class Bar: NSObject, NSMenuDelegate {
             switch a["mode"] as? String {
             case "timer":
                 let left = max(0, (a["until"] as? Double ?? 0) - Date().timeIntervalSince1970)
-                row(String(format: T("Keep-awake: %@ left"), fmtDur(Int(left / 60))))
+                // zegar + jezyk wprost: to caffeinate (wbudowane w macOS) trzyma czuwanie;
+                // licznik maleje przy kazdym odswiezeniu karty (otwarte menu nie tyka
+                // co sekunde - staly timer w menu grzalby CPU, ktorego pilnujemy)
+                rowI("clock", txt(String(format: T("caffeinate holds for another %@"),
+                                         fmtDur(Int(left / 60)))))
             case "forever":
                 row(T("Keep-awake: indefinitely"))
             case "app":
@@ -2114,61 +2333,35 @@ final class Bar: NSObject, NSMenuDelegate {
                               target: self, action: #selector(toggleAutostart),
                               ikona: "arrow.triangle.2.circlepath")
         m.addItem(auto)
-        m.addItem(.separator())
-        if !s.paused.isEmpty {
-            let it = m.addItem(withTitle: T("Resume paused jobs"),
-                               action: #selector(resume), keyEquivalent: "")
-            it.target = self
-            it.image = img("play.circle")
-        } else {
-            let it = m.addItem(withTitle: T("Freeze all heavy jobs now"),
-                               action: #selector(freeze), keyEquivalent: "")
-            it.target = self
-            it.image = img("pause.circle")
-        }
-
-        m.addItem(.separator())
-        // "Informacje o obciazeniu": zadania, top CPU/RAM, stan, progi, licznik dnia —
-        // wszystko w rozwijanym podmenu, zeby glowna karta zostala zwarta
-        let loadIt = NSMenuItem(title: T("Load info"), action: nil, keyEquivalent: "")
-        loadIt.image = img("chart.bar")
-        let lo = NSMenu()
-        lo.autoenablesItems = false
-        func lrow(_ t: String) { lo.addItem(NSMenuItem(title: t, action: nil, keyEquivalent: "")) }
-        if !s.jobs.isEmpty {
-            lrow(T("Supervised jobs (safe-run):"))
-            for j in s.jobs { lrow("   - \(j.name) — \(j.minutes) min") }
-        }
-        // listy "co grzeje / co zjada RAM": CPU jest przyblizeniem ciepla (per-proces
-        // temperatur nie ma) i tak to opisujemy. Gdy guard jeszcze nie opublikowal list
-        // (stara wersja demona), zostaje dawny pojedynczy wiersz Top CPU.
+        // przelacznik zamiast klikanej pozycji (Pawel, pkt 3): ON = zamrozone recznie;
+        // niebieski, zeby nie mylil sie z zielona OCHRONA; obok liczba ciezkich procesow
+        let zamrozone = !s.paused.isEmpty
+        let mrozek = NSMenuItem()
+        let mrozView = SwitchRow(T("Freeze all heavy jobs now"),
+                                 on: zamrozone,
+                                 target: self, action: #selector(toggleFreeze(_:)),
+                                 ikona: zamrozone ? "play.circle" : "pause.circle",
+                                 podpisStaly: String(format: T("Heavy processes right now: %d"),
+                                                    s.heavyCount),
+                                 kolor: .systemBlue)
+        // tooltip mowi JAKIE procesy sa na celowniku (top 3 wg CPU)
         if !s.topCpuList.isEmpty {
-            lrow(T("Heating the most now (CPU ≈ heat):"))
-            for t in s.topCpuList { lrow("   - \(t.name) — \(t.cpu)% CPU") }
-        } else if let p = s.topProc, let c = s.topCPU {
-            lrow(String(format: T("Top CPU:  %@ (%d%%)"), p, c))
+            mrozView.toolTip = s.topCpuList.map { "\($0.name) (\($0.cpu)%)" }.joined(separator: ", ")
         }
-        if !s.topRamList.isEmpty {
-            lrow(T("Eating the most RAM:"))
-            for t in s.topRamList { lrow(String(format: "   - %@ — %.1f GB", t.name, t.gb)) }
-        }
-        if !s.paused.isEmpty {
-            lrow(String(format: T("Paused: %@"), s.paused.joined(separator: ", "))
-                 + (s.manualPause ? T("  (manual)") : ""))
-        } else {
-            let names = [T("calm"), T("warm"), T("HOT - paused"), T("CRITICAL")]
-            lrow(String(format: T("State: %@"), names[min(s.level, 3)])
-                 + (s.reason.isEmpty ? "" : " — \(s.reason)"))
-        }
-        if let pp = s.thrPause, let pk = s.thrKill {
-            lrow(String(format: T("Chip thresholds:  pause %.0f C, kill %.0f C"), pp, pk))
-        }
-        if s.pausesToday > 0 || s.killsToday > 0 {
-            lrow(String(format: T("Today: %d x pause"), s.pausesToday)
-                 + (s.killsToday > 0 ? String(format: T(", %d x kill"), s.killsToday) : ""))
-        }
-        loadIt.submenu = lo
-        m.addItem(loadIt)
+        mrozek.view = mrozView
+        m.addItem(mrozek)
+        m.addItem(.separator())
+
+        // eksport: uzytkownik wybiera format, nie my
+        let rep = NSMenuItem(title: T("Export report for a repair shop"), action: nil, keyEquivalent: "")
+        rep.image = img("wrench.and.screwdriver")
+        rep.action = #selector(reportDialog)
+        rep.target = self
+        m.addItem(rep)
+        let logIt = m.addItem(withTitle: T("Show the guard log"), action: #selector(openLog), keyEquivalent: "")
+        logIt.target = self
+        logIt.image = img("text.alignleft")
+
         addTail(m, paused: !s.paused.isEmpty)
     }
 
@@ -2240,6 +2433,12 @@ final class Bar: NSObject, NSMenuDelegate {
                               action: nil, keyEquivalent: "")
         note.isEnabled = false
         km.addItem(note)
+        km.addItem(.separator())
+        let kaAuto = NSMenuItem()
+        kaAuto.view = SwitchRow(T("Keep the Mac awake while heavy jobs run"),
+                                on: GuardCfg.bool("keep_awake_auto", false),
+                                target: self, action: #selector(toggleAwake), kolor: .systemGray)
+        km.addItem(kaAuto)
         ka.submenu = km
         m.addItem(ka)
 
@@ -2266,6 +2465,30 @@ final class Bar: NSObject, NSMenuDelegate {
         ss.autoenablesItems = false
 
         let pauseNow = GuardCfg.double("soc_pause_c", 85)
+        let jobsHdr = NSMenuItem(title: T("Heavy jobs (safe-run)"), action: nil, keyEquivalent: "")
+        jobsHdr.isEnabled = false
+        ss.addItem(jobsHdr)
+        let mode = GuardCfg.string("job_cores_mode", "efficiency")
+        let eff = NSMenuItem(title: T("Efficiency cores only (cool and quiet)"),
+                             action: #selector(coresEfficiency), keyEquivalent: "")
+        eff.target = self
+        eff.state = mode == "all" ? .off : .on
+        ss.addItem(eff)
+        let allc = NSMenuItem(title: T("All cores (fast - the paladin still watches the temperature)"),
+                              action: #selector(coresAll), keyEquivalent: "")
+        allc.target = self
+        allc.state = mode == "all" ? .on : .off
+        ss.addItem(allc)
+        ss.addItem(.separator())
+        let cpuRow = NSMenuItem()
+        cpuRow.view = SliderRow(
+            title: T("CPU limit for heavy jobs"), min: 50, max: 100,
+            current: GuardCfg.double("job_cpu_percent", 95), unit: "%",
+            describe: { _ in (T("below 100% the whole job gets tiny micro-pauses (works for any program)"), "") }) { v in
+            GuardCfg.set(["job_cpu_percent": Int(v)])
+        }
+        ss.addItem(cpuRow)
+        ss.addItem(.separator())
         let chipRow = NSMenuItem()
         chipRow.view = SliderRow(
             title: T("Chip pause threshold"), min: 55, max: 100, current: pauseNow, unit: "°C",
@@ -2290,59 +2513,69 @@ final class Bar: NSObject, NSMenuDelegate {
         ss.addItem(.separator())
 
         // CIEZKIE ZADANIA: typ rdzeni + limit CPU (defaulty dla safe-run; zapis do config.json)
-        let jobsHdr = NSMenuItem(title: T("Heavy jobs (safe-run)"), action: nil, keyEquivalent: "")
-        jobsHdr.isEnabled = false
-        ss.addItem(jobsHdr)
-        let mode = GuardCfg.string("job_cores_mode", "efficiency")
-        let eff = NSMenuItem(title: T("Efficiency cores only (cool and quiet)"),
-                             action: #selector(coresEfficiency), keyEquivalent: "")
-        eff.target = self
-        eff.state = mode == "all" ? .off : .on
-        ss.addItem(eff)
-        let allc = NSMenuItem(title: T("All cores (fast - the guard still watches the temperature)"),
-                              action: #selector(coresAll), keyEquivalent: "")
-        allc.target = self
-        allc.state = mode == "all" ? .on : .off
-        ss.addItem(allc)
-        let cpuRow = NSMenuItem()
-        cpuRow.view = SliderRow(
-            title: T("CPU limit for heavy jobs"), min: 50, max: 100,
-            current: GuardCfg.double("job_cpu_percent", 95), unit: "%",
-            describe: { _ in (T("below 100% the whole job gets tiny micro-pauses (works for any program)"), "") }) { v in
-            GuardCfg.set(["job_cpu_percent": Int(v)])
+        // interwal pomiarow (Pawel, 01.08): rzadziej = oszczedniej, czesciej = szybsza
+        // automatyczna reakcja; reczne akcje i tak reaguja w ~1 s niezaleznie od tego
+        let pollRow = NSMenuItem()
+        pollRow.view = SliderRow(
+            title: T("Measurement interval"), min: 5, max: 30,
+            current: GuardCfg.double("poll_seconds", 15), unit: " s",
+            describe: { v in
+                switch v {
+                case ..<7.5:  return (T("fastest reaction - the guard itself burns ~3.5% of one core all the time"), "")
+                case ..<12.5: return (T("reacts up to 5 s sooner than default, costs ~1.8% of one core"), "")
+                case ..<17.5: return (T("default: good reaction at ~1.2% of one core"), "")
+                default:      return (T("frugal - an automatic pause may come tens of seconds after the threshold"), "")
+                }
+            }) { v in
+            GuardCfg.set(["poll_seconds": Int(v)])
         }
-        ss.addItem(cpuRow)
+        ss.addItem(pollRow)
         ss.addItem(.separator())
 
-        let notif = NSMenuItem(title: T("Notifications"), action: #selector(toggleNotify), keyEquivalent: "")
-        notif.target = self
-        notif.state = GuardCfg.bool("notify", true) ? .on : .off
+        let notif = NSMenuItem()
+        notif.view = SwitchRow(T("Notifications"), on: GuardCfg.bool("notify", true),
+                               target: self, action: #selector(toggleNotify), kolor: .systemBlue)
         ss.addItem(notif)
+        func infoLinia(_ tekst: String) {
+            let it = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+            it.attributedTitle = NSAttributedString(
+                string: tekst,
+                attributes: [.font: NSFont.systemFont(ofSize: 11),
+                             .foregroundColor: NSColor.secondaryLabelColor])
+            it.isEnabled = false
+            ss.addItem(it)
+        }
+        infoLinia(T("Turns off banners, their sounds and phone push - one gate for all."))
+        // pomoc o trybie obserwacji zyje w popupie przy WYLACZANIU ochrony;
+        // Powiadomienia / Dzwieki / Push = jedna zwarta sekcja (Pawel, 01.08)
 
-        let help = NSMenuItem(title: T("What does watch-only mode do?"), action: #selector(explainDry), keyEquivalent: "")
-        help.target = self
-        ss.addItem(help)
-        ss.addItem(.separator())
-
-        let snd = NSMenuItem(title: T("Sounds"), action: #selector(toggleSound), keyEquivalent: "")
-        snd.target = self
-        snd.state = GuardCfg.bool("sound", true) ? .on : .off
+        let snd = NSMenuItem()
+        snd.view = SwitchRow(T("Sounds"), on: GuardCfg.bool("sound", true),
+                             target: self, action: #selector(toggleSound), kolor: .systemBlue)
         ss.addItem(snd)
+        infoLinia(T("Exception: the critical banner shouts regardless."))
 
-        let kaAuto = NSMenuItem(title: T("Keep the Mac awake while heavy jobs run"),
-                                action: #selector(toggleAwake), keyEquivalent: "")
-        kaAuto.target = self
-        kaAuto.state = GuardCfg.bool("keep_awake_auto", false) ? .on : .off
-        ss.addItem(kaAuto)
+        // "Nie usypiaj przy ciezkich zadaniach" mieszka teraz w podmenu Nie usypiaj Maca
 
-        let ntfy = NSMenuItem(title: T("Phone push (ntfy.sh)..."),
-                              action: #selector(ntfyDialog), keyEquivalent: "")
-        ntfy.target = self
-        ntfy.state = GuardCfg.string("ntfy_topic", "").isEmpty ? .off : .on
+        let ntfy = NSMenuItem()
+        ntfy.view = SwitchRow(T("Phone push (ntfy.sh)..."),
+                              on: !GuardCfg.string("ntfy_topic", "").isEmpty,
+                              target: self, action: #selector(toggleNtfy), kolor: .systemBlue)
         ss.addItem(ntfy)
 
-        let flabel = NSMenuItem(title: T("Name this Mac in the fleet..."),
-                                action: #selector(fleetNameDialog), keyEquivalent: "")
+        ss.addItem(.separator())
+        let flabel = NSMenuItem(title: "", action: #selector(fleetNameDialog), keyEquivalent: "")
+        // po "|" aktualna nazwa (szara) - widac od razu, jak ten Mac nazywa sie we flocie
+        let nazwaFloty = GuardCfg.string("fleet_label", "")
+        let pokazNazwe = nazwaFloty.isEmpty
+            ? (Host.current().localizedName ?? "Mac")
+            : nazwaFloty
+        let ft = NSMutableAttributedString(string: T("Name this Mac in the fleet...") + "  |  ",
+                                           attributes: [.font: NSFont.menuFont(ofSize: 13)])
+        ft.append(NSAttributedString(string: pokazNazwe,
+                                     attributes: [.font: NSFont.menuFont(ofSize: 13),
+                                                  .foregroundColor: NSColor.secondaryLabelColor]))
+        flabel.attributedTitle = ft
         flabel.target = self
         flabel.state = GuardCfg.string("fleet_label", "").isEmpty ? .off : .on
         ss.addItem(flabel)
@@ -2361,42 +2594,130 @@ final class Bar: NSObject, NSMenuDelegate {
             abm.addItem(it)
         }
         if hw.isEmpty {
-            arow(T("no data - is thermal-guard running?"))
+            arow(T("no data - is coffee-paladin running?"))
         } else {
-            arow(String(format: T("Model:  %@"), (hw["model_name"] as? String) ?? "?"))
-            arow(String(format: T("Chip:  %@"), (hw["chip"] as? String) ?? "?"))
-            arow(String(format: T("Cores:  %d performance + %d efficiency"),
-                        (hw["p_cores"] as? Int) ?? 0, (hw["e_cores"] as? Int) ?? 0))
-            arow(String(format: T("RAM:  %d GB"), (hw["ram_gb"] as? Int) ?? 0))
-            arow(String(format: T("Fans:  %d"), (hw["fan_count"] as? Int) ?? 0))
-            arow(String(format: T("macOS:  %@"), (hw["macos"] as? String) ?? "?"))
-            if let ser = hw["serial"] as? String, !ser.isEmpty {
-                arow(String(format: T("Serial:  %@"), ser))
+            // pary w liniach (Pawel, pkt 6): model+chip / rdzenie+NE / RAM+dysk /
+            // macOS+data konfiguracji / wentylatory+cykle baterii
+            let chipNazwa = (hw["chip"] as? String) ?? "?"
+            arow(((hw["model_name"] as? String) ?? "?") + "  ·  " + chipNazwa)
+            // Neural Engine nie ma publicznego API do odczytu - liczba rdzeni ANE
+            // wynika z modelu chipa (Ultra = 2x die = 32, kazdy inny M = 16)
+            let ane = chipNazwa.contains("Ultra") ? 32 : 16
+            arow(String(format: T("Cores:  %d performance + %d efficiency  ·  Neural Engine: %d"),
+                        (hw["p_cores"] as? Int) ?? 0, (hw["e_cores"] as? Int) ?? 0, ane))
+            var ramLinia = String(format: T("RAM:  %d GB"), (hw["ram_gb"] as? Int) ?? 0)
+            let snapDysk = readSnap()
+            if let dt = snapDysk?.diskTotal, let dp = snapDysk?.diskPct {
+                ramLinia += "  ·  " + String(format: T("Disk: %d GB (%d%% free)"), dt, 100 - dp)
             }
+            arow(ramLinia)
+            // marketingowa nazwa systemu jak w "About This Mac" (Tahoe/Sequoia/...)
+            let wersjaOS = (hw["macos"] as? String) ?? "?"
+            let nazwaOS: String
+            switch Int(wersjaOS.split(separator: ".").first.map(String.init) ?? "") ?? 0 {
+            case 26: nazwaOS = "macOS Tahoe"
+            case 15: nazwaOS = "macOS Sequoia"
+            case 14: nazwaOS = "macOS Sonoma"
+            case 13: nazwaOS = "macOS Ventura"
+            case 12: nazwaOS = "macOS Monterey"
+            case 11: nazwaOS = "macOS Big Sur"
+            default: nazwaOS = "macOS"
+            }
+            var osLinia = nazwaOS + " " + wersjaOS
+            var dataSetup: Date?
+            if let atr = try? FileManager.default.attributesOfItem(atPath: "/var/db/.AppleSetupDone"),
+               let data = (atr[.creationDate] ?? atr[.modificationDate]) as? Date {
+                dataSetup = data
+                let f = DateFormatter()
+                f.dateFormat = "dd.MM.yyyy"
+                osLinia += "  ·  " + String(format: T("set up: %@"), f.string(from: data))
+            }
+            arow(osLinia)
+            var wentLinia = String(format: T("Fans:  %d"), (hw["fan_count"] as? Int) ?? 0)
             if let cyc = hw["battery_cycles"] as? Int {
-                let warn = (hw["battery_failure"] as? Bool) == true ? "  (!)" : ""
-                arow(String(format: T("Battery cycles:  %@"), "\(cyc)\(warn)"))
+                let warn = (hw["battery_failure"] as? Bool) == true ? " (!)" : ""
+                wentLinia += "  ·  " + String(format: T("Battery cycles:  %@"), "\(cyc)\(warn)")
             }
-            arow(String(format: T("Chip sensor (macmon):  %@"),
-                        (hw["chip_sensor"] as? Bool) == true ? T("yes") : T("no")))
+            if let poj = hw["battery_max_capacity_pct"] as? Int {
+                wentLinia += "  ·  " + String(format: T("max capacity: %d%%"), poj)
+            }
+            arow(wentLinia)
+            if let ser = hw["serial"] as? String, !ser.isEmpty {
+                var serLinia = String(format: T("Serial:  %@"), ser)
+                // gwarancja: macOS nie zdradza jej programowo - szacujemy rok od
+                // pierwszej konfiguracji systemu i mowimy wprost, ze to szacunek
+                if let ds = dataSetup {
+                    let f = DateFormatter()
+                    f.dateFormat = "dd.MM.yyyy"
+                    let koniec = ds.addingTimeInterval(365 * 86400)
+                    serLinia += "  ·  " + String(format: T("limited warranty (est.): until %@"),
+                                                 f.string(from: koniec))
+                }
+                arow(serLinia)
+            }
+            // wszystkie zrodla pomiaru, nie tylko macmon (Pawel, 01.08): gdy jedno
+            // padnie, widac od razu, co jeszcze pilnuje maszyny
+            let ok = T("yes"), nie = T("no")
+            let mac = (hw["chip_sensor"] as? Bool) == true
+            let stanOK = FileManager.default.isExecutableFile(atPath:
+                NSHomeDirectory() + "/.local/bin/thermalstate")
+            let snapZ = readSnap()
+            let battOK = snapZ?.batt != nil
+            let thrOK = (snapZ?.cpuLimit ?? 0) > 0
+            arow(T("Sensors:"))
+            arow("   - " + String(format: T("chip and GPU (macmon/IOReport):  %@"), mac ? ok : nie))
+            arow("   - " + String(format: T("thermal state (Apple API):  %@"), stanOK ? ok : nie))
+            arow("   - " + String(format: T("battery (ioreg):  %@"), battOK ? ok : nie))
+            arow("   - " + String(format: T("CPU throttling (pmset):  %@"), thrOK ? ok : nie))
             let sp = GuardCfg.double("soc_pause_c", 85), sk = GuardCfg.double("soc_kill_c", 90)
             arow(String(format: T("Chip thresholds:  pause %.0f C, kill %.0f C"), sp, sk))
         }
         about.submenu = abm
         m.addItem(about)
+        if let sn = readSnap() {
+            // "Informacje o obciazeniu": zadania, top CPU/RAM, stan, progi, licznik dnia —
+            // wszystko w rozwijanym podmenu, zeby glowna karta zostala zwarta
+            let loadIt = NSMenuItem(title: T("Load info"), action: nil, keyEquivalent: "")
+            loadIt.image = img("chart.bar")
+            let lo = NSMenu()
+            lo.autoenablesItems = false
+            func lrow(_ t: String) { lo.addItem(NSMenuItem(title: t, action: nil, keyEquivalent: "")) }
+            if !sn.jobs.isEmpty {
+                lrow(T("Supervised jobs (safe-run):"))
+                for j in sn.jobs { lrow("   - \(j.name) — \(j.minutes) min") }
+            }
+            // listy "co grzeje / co zjada RAM": CPU jest przyblizeniem ciepla (per-proces
+            // temperatur nie ma) i tak to opisujemy. Gdy guard jeszcze nie opublikowal list
+            // (stara wersja demona), zostaje dawny pojedynczy wiersz Top CPU.
+            if !sn.topCpuList.isEmpty {
+                lrow(T("Heating the most now (CPU ≈ heat):"))
+                for t in sn.topCpuList { lrow("   - \(t.name) — \(t.cpu)% CPU") }
+            } else if let p = sn.topProc, let c = sn.topCPU {
+                lrow(String(format: T("Top CPU:  %@ (%d%%)"), p, c))
+            }
+            if !sn.topRamList.isEmpty {
+                lrow(T("Eating the most RAM:"))
+                for t in sn.topRamList { lrow(String(format: "   - %@ — %.1f GB", t.name, t.gb)) }
+            }
+            if !sn.paused.isEmpty {
+                lrow(String(format: T("Paused: %@"), sn.paused.joined(separator: ", "))
+                     + (sn.manualPause ? T("  (manual)") : ""))
+            } else {
+                let names = [T("calm"), T("warm"), T("HOT - paused"), T("CRITICAL")]
+                lrow(String(format: T("State: %@"), names[min(sn.level, 3)])
+                     + (sn.reason.isEmpty ? "" : " — \(sn.reason)"))
+            }
+            if let pp = sn.thrPause, let pk = sn.thrKill {
+                lrow(String(format: T("Chip thresholds:  pause %.0f C, kill %.0f C"), pp, pk))
+            }
+            if sn.pausesToday > 0 || sn.killsToday > 0 {
+                lrow(String(format: T("Today: %d x pause"), sn.pausesToday)
+                     + (sn.killsToday > 0 ? String(format: T(", %d x kill"), sn.killsToday) : ""))
+            }
+            loadIt.submenu = lo
+            m.addItem(loadIt)
+        }
 
-        // eksport: uzytkownik wybiera format, nie my
-        let rep = NSMenuItem(title: T("Export report for a repair shop"), action: nil, keyEquivalent: "")
-        rep.image = img("wrench.and.screwdriver")
-        let rm = NSMenu()
-        rm.autoenablesItems = false
-        rm.addItem(withTitle: T("As PDF..."), action: #selector(reportPDF), keyEquivalent: "").target = self
-        rm.addItem(withTitle: T("As plain text (TXT)..."), action: #selector(reportTXT), keyEquivalent: "").target = self
-        rep.submenu = rm
-        m.addItem(rep)
-        let logIt = m.addItem(withTitle: T("Show the guard log"), action: #selector(openLog), keyEquivalent: "")
-        logIt.target = self
-        logIt.image = img("text.alignleft")
 
         // FLOTA APPLE: wszystkie Maki publikujace do wspolnego folderu — te same pliki,
         // ktore czyta CLI `fleet`. "Live" w rytmie ~1 min (takt agenta + sync folderu).
@@ -2416,7 +2737,7 @@ final class Bar: NSObject, NSMenuDelegate {
                                   age: h0.age + cacheDrift, chip: h0.chip,
                                   fans: h0.fans, watts: h0.watts, ramPct: h0.ramPct,
                                   level: h0.level, paused: h0.paused, onAC: h0.onAC,
-                                  battPct: h0.battPct)
+                                  battPct: h0.battPct, battC: h0.battC)
                 if h.age > 300 {
                     // symbol systemowy, nie emoji: emoji ma wlasny kolor i wlasna szerokosc,
                     // wiec w ciemnym motywie odcina sie jak naklejka i rozjezdza kolumny
@@ -2429,28 +2750,39 @@ final class Bar: NSObject, NSMenuDelegate {
                     fmenu.addItem(it)
                     continue
                 }
+                // ZWARTY wiersz (Pawel, pkt 9): znacznik + nazwa + najwyzsza temperatura
+                // + temperatura baterii; komplet szczegolow wyskakuje po KLIKNIECIU
                 var bits: [String] = []
                 if let c = h.chip { bits.append(String(format: "%.0f °C", c)) }
-                if let f = h.fans {
-                    bits.append(f >= 1000 ? String(format: "%.1fk rpm", Double(f) / 1000.0)
-                                          : "\(f) rpm")
-                }
-                if let w = h.watts { bits.append(String(format: "%.0f W", w)) }
-                if let r = h.ramPct { bits.append("RAM \(r)%") }
-                if !h.onAC, let b = h.battPct { bits.append(T("battery") + " \(b)%") }
-                let names = [T("calm"), T("warm"), T("HOT - paused"), T("CRITICAL")]
-                bits.append(names[min(max(h.level, 0), 3)])
-                if !h.paused.isEmpty {
-                    bits.append(T("paused") + ": " + h.paused.joined(separator: ", "))
-                }
-                bits.append(fleetAge(h.age))
-                let tytul = h.model.isEmpty ? h.name : "\(h.name)  [\(h.model)]"
-                let it = NSMenuItem(title: tytul + ":   " + bits.joined(separator: "  ·  "),
-                                    action: nil, keyEquivalent: "")
-                if !h.serial.isEmpty || !h.model.isEmpty {
-                    it.toolTip = [h.model, h.serial.isEmpty ? "" : "SN " + h.serial]
-                        .filter { !$0.isEmpty }.joined(separator: "  ·  ")
-                }
+                if let b = h.battC { bits.append(T("battery") + String(format: " %.0f °C", b)) }
+                let a = NSMutableAttributedString()
+                a.append(icon(h.level >= 3 ? "flame.fill"
+                              : h.level >= 2 ? "exclamationmark.triangle.fill"
+                              : "laptopcomputer", fallback: ">"))
+                let mojSerial = (hardwareInfo()["serial"] as? String) ?? ""
+                let toJa = !mojSerial.isEmpty && h.serial == mojSerial
+                a.append(NSAttributedString(
+                    string: "  " + h.name,
+                    attributes: [.font: toJa ? NSFont.boldSystemFont(ofSize: 13)
+                                             : NSFont.menuFont(ofSize: 13)]))
+                a.append(NSAttributedString(string: "   " + bits.joined(separator: "  ·  "),
+                                            attributes: [.font: NSFont.menuFont(ofSize: 13)]))
+                let it = NSMenuItem(title: "", action: #selector(fleetDetails(_:)), keyEquivalent: "")
+                it.target = self
+                it.attributedTitle = a
+                it.representedObject = [
+                    "name": h.name, "model": h.model, "serial": h.serial,
+                    "age": fleetAge(h.age),
+                    "chip": h.chip.map { String(format: "%.1f °C", $0) } ?? "-",
+                    "batt": h.battC.map { String(format: "%.1f °C", $0) } ?? "-",
+                    "fans": h.fans.map { "\($0) rpm" } ?? "-",
+                    "watts": h.watts.map { String(format: "%.1f W", $0) } ?? "-",
+                    "ram": h.ramPct.map { "\($0)%" } ?? "-",
+                    "power": h.onAC ? T("AC adapter")
+                                    : T("battery") + (h.battPct.map { " \($0)%" } ?? ""),
+                    "state": [T("calm"), T("warm"), T("HOT - paused"), T("CRITICAL")][min(max(h.level, 0), 3)],
+                    "paused": h.paused.joined(separator: ", "),
+                ] as [String: String]
                 fmenu.addItem(it)
             }
         } else {
@@ -2463,13 +2795,27 @@ final class Bar: NSObject, NSMenuDelegate {
         let issuesIt = m.addItem(withTitle: T("Report a problem (GitHub)..."), action: #selector(openIssues), keyEquivalent: "")
         issuesIt.target = self
         issuesIt.image = img("lightbulb")
-        let mailIt = m.addItem(withTitle: T("Write to the author..."), action: #selector(mailAuthor), keyEquivalent: "")
+        let mailIt = m.addItem(withTitle: T("Write to the author (GitHub)..."), action: #selector(mailAuthor), keyEquivalent: "")
         mailIt.target = self
         mailIt.image = img("envelope")
-        let coffee = m.addItem(withTitle: T("Buy me a double espresso..."),
-                               action: #selector(buyCoffee), keyEquivalent: "")
-        coffee.target = self
-        coffee.image = img(MUG_FILL)
+        // gwiazdka WYCIAGNIETA z podmenu (Pawel, pkt 14): najtansza waluta open source
+        // ma byc na wierzchu, nie schowana pod rozwijanym menu
+        let pg = m.addItem(withTitle: T("Star it on GitHub..."), action: #selector(shareStar), keyEquivalent: "")
+        pg.target = self
+        pg.image = img("star")
+        // suppi.pl dziala tylko po polsku (BLIK/przelewy, brak wersji EN - research
+        // 01.08): espresso przy polskim menu, reszta swiata -> GitHub Sponsors
+        if lang == "pl" {
+            let coffee = m.addItem(withTitle: T("Buy me a double espresso..."),
+                                   action: #selector(buyCoffee), keyEquivalent: "")
+            coffee.target = self
+            coffee.image = img(MUG_FILL)
+        } else {
+            let sponsor = m.addItem(withTitle: T("Sponsor on GitHub..."),
+                                    action: #selector(sponsorGithub), keyEquivalent: "")
+            sponsor.target = self
+            sponsor.image = img("heart")
+        }
 
         // "Podaj dalej" (A14): notka w JEZYKU WYBRANYM W MENU + link z UTM share.
         // Bez Facebooka (decyzja Pawla: sharer ucina tekst i wymaga logowania).
@@ -2485,9 +2831,6 @@ final class Bar: NSObject, NSMenuDelegate {
         let pc = pd.addItem(withTitle: T("Copy link with note"), action: #selector(shareCopy), keyEquivalent: "")
         pc.target = self
         pc.image = img("doc.on.doc")
-        let pg = pd.addItem(withTitle: T("Star it on GitHub..."), action: #selector(shareStar), keyEquivalent: "")
-        pg.target = self
-        pg.image = img("star")
         podaj.submenu = pd
         m.addItem(podaj)
 
@@ -2512,12 +2855,11 @@ final class Bar: NSObject, NSMenuDelegate {
 
         // kreska oddziela creditsy od akcji wyjscia (decyzja Pawla 01.08)
         m.addItem(.separator())
-        let quitIt = NSMenuItem(title: "", action: #selector(quit), keyEquivalent: "q")
+        // do lewej jak kazda inna pozycja (Pawel, pkt 15) - koniec centrowania
+        let quitIt = NSMenuItem(title: T("Quit coffee-paladin (protection stops)"),
+                                action: #selector(quit), keyEquivalent: "q")
         quitIt.target = self
         quitIt.image = img("power")
-        quitIt.attributedTitle = NSAttributedString(
-            string: T("Quit coffee-paladin (protection stops)"),
-            attributes: [.paragraphStyle: center, .font: NSFont.menuFont(ofSize: 13)])
         m.addItem(quitIt)
     }
 
@@ -2550,6 +2892,15 @@ final class Bar: NSObject, NSMenuDelegate {
     private var ntfyField: NSTextField?
 
     @objc func ntfyGenerate() { ntfyField?.stringValue = randomTopic() }
+
+    @objc func toggleNtfy() {
+        // switch ON = trzeba wpisac temat (dialog); OFF = czyscimy temat i push milknie
+        if GuardCfg.string("ntfy_topic", "").isEmpty {
+            ntfyDialog()
+        } else {
+            GuardCfg.set(["ntfy_topic": ""])
+        }
+    }
 
     @objc func ntfyDialog() {
         let a = NSAlert()
@@ -2603,13 +2954,24 @@ final class Bar: NSObject, NSMenuDelegate {
         let a = NSAlert()
         a.messageText = T("Watch only (dry run)")
         a.informativeText = T("""
-With this on, thermal-guard measures everything and writes to its log exactly what it WOULD do - "would pause Python (595% CPU)" - but sends no signal and never touches a single process.
+Protection is now OFF - coffee-paladin has entered watch-only mode.
 
-Use it to see whether the thresholds suit your machine before you let the tool freeze real work. Open "Show the guard log" after a heavy job and you will know if it would have interfered too eagerly, or not soon enough.
+It still measures everything (chip, GPU, battery, fans) and writes to the event log exactly \
+what it WOULD do - "would pause ffmpeg (630% CPU)" - but it sends no signal and never touches \
+a single process.
 
-Remember to switch it off afterwards: in this mode nothing protects the Mac.
+Use it to see whether the thresholds suit your machine before you let the paladin freeze real \
+work. Open "Show the event log" after a heavy job and you will know if it would have interfered \
+too eagerly, or not soon enough.
+
+Remember: while this switch is off, NOTHING protects the Mac. Flip it back on when you are done.
 """)
         a.alertStyle = .informational
+        // domyslna ikona alertu golej binarki wyglada jak pusty folder - dajemy paladyna
+        if let ikona = NSImage(contentsOfFile: base + "/paladin_welcome.png")
+            ?? NSImage(systemSymbolName: "eye", accessibilityDescription: nil) {
+            a.icon = ikona
+        }
         a.addButton(withTitle: "OK")
         a.runModal()
     }
@@ -2617,7 +2979,12 @@ Remember to switch it off afterwards: in this mode nothing protects the Mac.
     @objc func enableProtection() { GuardCfg.set(["dry_run": false]) }
 
     @objc func toggleNotify() { GuardCfg.set(["notify": !GuardCfg.bool("notify", true)]) }
-    @objc func toggleDry() { GuardCfg.set(["dry_run": !GuardCfg.bool("dry_run", true)]) }
+    @objc func toggleDry() {
+        let obserwacjaTeraz = !GuardCfg.bool("dry_run", true)
+        GuardCfg.set(["dry_run": obserwacjaTeraz])
+        // wylaczenie ochrony = powazna decyzja - od razu mowimy, co to znaczy
+        if obserwacjaTeraz { DispatchQueue.main.async { self.explainDry() } }
+    }
 
     @objc func toggleSound() { GuardCfg.set(["sound": !GuardCfg.bool("sound", true)]) }
     @objc func toggleAwake() { GuardCfg.set(["keep_awake_auto": !GuardCfg.bool("keep_awake_auto", false)]) }
@@ -2643,15 +3010,192 @@ Remember to switch it off afterwards: in this mode nothing protects the Mac.
     }
 
     @objc func freeze() { send("freeze") }
+    @objc func toggleFreeze(_ sender: Any?) {
+        // stan bierzemy z migawki, nie z klikniecia - guard wykonuje rozkaz w swoim
+        // cyklu (do ~15 s), wiec przelacznik potwierdzi sie po nastepnym odswiezeniu
+        if let s = readSnap(), !s.paused.isEmpty { send("resume") } else { send("freeze") }
+    }
     @objc func resume() { send("resume") }
 
-    @objc func reportPDF() { report(pdf: true) }
-    @objc func reportTXT() { report(pdf: false) }
+    @objc func reportDialog() {
+        // WLASNE okno, nie NSAlert: alert rezerwuje pas na swoj naglowek nawet
+        // przy pustych tekstach - zostawal wielki pusty prostokat u gory (Pawel x3).
+        let SZER: CGFloat = 300
+        let notka = NSTextField(wrappingLabelWithString:
+            T("Included: hardware, battery, sudden shutdowns, interventions, measurement timeline."))
+        notka.font = .systemFont(ofSize: 10)
+        notka.textColor = .secondaryLabelColor
+        notka.alignment = .center
+        notka.preferredMaxLayoutWidth = SZER - 32
+        let hNotki = notka.sizeThatFits(NSSize(width: SZER - 32, height: 200)).height
 
-    func report(pdf: Bool) {
+        let hOkna: CGFloat = 16 + 44 + 6 + 18 + 4 + 15 + 12 + 24 + 6 + 24 + 10 + 20
+                            + 8 + hNotki + 14 + 32 + 16
+        let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: SZER, height: hOkna),
+                           styleMask: [.titled, .fullSizeContentView],
+                           backing: .buffered, defer: false)
+        win.titlebarAppearsTransparent = true
+        win.titleVisibility = .hidden
+        win.isMovableByWindowBackground = true
+        win.level = .modalPanel
+        win.center()
+        let tlo = NSVisualEffectView(frame: NSRect(x: 0, y: 0, width: SZER, height: hOkna))
+        tlo.material = .popover
+        tlo.state = .active
+        win.contentView = tlo
+
+        var y = hOkna - 16 - 44
+        let ikonaV = NSImageView(frame: NSRect(x: (SZER - 44) / 2, y: y, width: 44, height: 44))
+        if let img = NSImage(contentsOfFile: base + "/paladin_welcome.png") { ikonaV.image = img }
+        ikonaV.imageScaling = .scaleProportionallyUpOrDown
+        tlo.addSubview(ikonaV)
+
+        y -= 6 + 18
+        let tytul = NSTextField(labelWithString: T("Export report for a repair shop"))
+        tytul.font = .boldSystemFont(ofSize: 13)
+        tytul.alignment = .center
+        tytul.frame = NSRect(x: 0, y: y, width: SZER, height: 18)
+        tlo.addSubview(tytul)
+
+        y -= 4 + 15
+        let podtytul = NSTextField(labelWithString: T("Pick the report period."))
+        podtytul.font = .systemFont(ofSize: 11)
+        podtytul.textColor = .secondaryLabelColor
+        podtytul.alignment = .center
+        podtytul.frame = NSRect(x: 0, y: y, width: SZER, height: 15)
+        tlo.addSubview(podtytul)
+
+        let szerPary: CGFloat = 42 + 4 + 118
+        let x0 = (SZER - szerPary) / 2
+        y -= 12 + 24
+        let od = NSDatePicker(frame: NSRect(x: x0 + 46, y: y, width: 118, height: 24))
+        od.datePickerStyle = .textFieldAndStepper
+        od.datePickerElements = .yearMonthDay
+        od.dateValue = Date().addingTimeInterval(-14 * 86400)
+        tlo.addSubview(od)
+        let odL = NSTextField(labelWithString: T("From:"))
+        odL.frame = NSRect(x: x0, y: y + 4, width: 42, height: 16)
+        odL.alignment = .right
+        tlo.addSubview(odL)
+
+        y -= 6 + 24
+        let doP = NSDatePicker(frame: NSRect(x: x0 + 46, y: y, width: 118, height: 24))
+        doP.datePickerStyle = .textFieldAndStepper
+        doP.datePickerElements = .yearMonthDay
+        doP.dateValue = Date()
+        tlo.addSubview(doP)
+        let doL = NSTextField(labelWithString: T("To:"))
+        doL.frame = NSRect(x: x0, y: y + 4, width: 42, height: 16)
+        doL.alignment = .right
+        tlo.addSubview(doL)
+
+        y -= 10 + 20
+        let calosc = NSButton(checkboxWithTitle: T("Everything on record"), target: nil, action: nil)
+        calosc.sizeToFit()
+        calosc.frame = NSRect(x: (SZER - calosc.frame.width) / 2, y: y,
+                              width: calosc.frame.width, height: 20)
+        tlo.addSubview(calosc)
+
+        y -= 8 + hNotki
+        notka.frame = NSRect(x: 16, y: y, width: SZER - 32, height: hNotki)
+        tlo.addSubview(notka)
+
+        y -= 14 + 32
+        let szerB: CGFloat = 80, luka: CGFloat = 8
+        let xB = (SZER - (3 * szerB + 2 * luka)) / 2
+        for (i, tytulB) in ["PDF", "TXT", T("Cancel")].enumerated() {
+            let b = NSButton(title: tytulB, target: self, action: #selector(zamknijRaport(_:)))
+            b.bezelStyle = .rounded
+            b.tag = i
+            b.frame = NSRect(x: xB + CGFloat(i) * (szerB + luka), y: y, width: szerB, height: 32)
+            if i == 0 { b.keyEquivalent = "\r" }
+            tlo.addSubview(b)
+        }
+
+        let wynik = NSApp.runModal(for: win)
+        win.orderOut(nil)
+        guard wynik.rawValue != 2 else { return }
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        let zakres: [String] = calosc.state == .on
+            ? ["--all"]
+            : ["--from", f.string(from: od.dateValue), "--to", f.string(from: doP.dateValue)]
+        report(pdf: wynik.rawValue == 0, zakres: zakres)
+    }
+
+    @objc func fleetDetails(_ sender: NSMenuItem) {
+        // wlasne okno zamiast NSAlert (Pawel): wszystko na osi, zero pustych rezerw
+        guard let d = sender.representedObject as? [String: String] else { return }
+        var linie: [String] = []
+        if let m = d["model"], !m.isEmpty { linie.append(m) }
+        if let s = d["serial"], !s.isEmpty { linie.append("SN " + s) }
+        linie.append(T("chip") + ": " + (d["chip"] ?? "-") + "   ·   "
+                     + T("battery") + ": " + (d["batt"] ?? "-"))
+        linie.append(T("fans") + ": " + (d["fans"] ?? "-") + "   ·   "
+                     + T("draw") + ": " + (d["watts"] ?? "-"))
+        linie.append("RAM: " + (d["ram"] ?? "-") + "   ·   " + (d["power"] ?? "-"))
+        linie.append(T("state") + ": " + (d["state"] ?? "-"))
+        if let p = d["paused"], !p.isEmpty { linie.append(T("paused") + ": " + p) }
+        linie.append(T("snapshot") + ": " + (d["age"] ?? "-"))
+
+        let SZER: CGFloat = 240
+        let tekst = NSTextField(wrappingLabelWithString: linie.joined(separator: "\n"))
+        tekst.font = .systemFont(ofSize: 12)
+        tekst.alignment = .center
+        tekst.preferredMaxLayoutWidth = SZER - 24
+        let hTekstu = tekst.sizeThatFits(NSSize(width: SZER - 24, height: 400)).height
+
+        let hOkna: CGFloat = 16 + 44 + 6 + 18 + 8 + hTekstu + 14 + 32 + 16
+        let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: SZER, height: hOkna),
+                           styleMask: [.titled, .fullSizeContentView],
+                           backing: .buffered, defer: false)
+        win.titlebarAppearsTransparent = true
+        win.titleVisibility = .hidden
+        win.isMovableByWindowBackground = true
+        win.level = .modalPanel
+        win.center()
+        let tlo = NSVisualEffectView(frame: NSRect(x: 0, y: 0, width: SZER, height: hOkna))
+        tlo.material = .popover
+        tlo.state = .active
+        win.contentView = tlo
+
+        var y = hOkna - 16 - 44
+        let ikonaV = NSImageView(frame: NSRect(x: (SZER - 44) / 2, y: y, width: 44, height: 44))
+        if let img = NSImage(contentsOfFile: base + "/paladin_welcome.png") { ikonaV.image = img }
+        ikonaV.imageScaling = .scaleProportionallyUpOrDown
+        tlo.addSubview(ikonaV)
+
+        y -= 6 + 18
+        let tytul = NSTextField(labelWithString: d["name"] ?? "?")
+        tytul.font = .boldSystemFont(ofSize: 13)
+        tytul.alignment = .center
+        tytul.frame = NSRect(x: 0, y: y, width: SZER, height: 18)
+        tlo.addSubview(tytul)
+
+        y -= 8 + hTekstu
+        tekst.frame = NSRect(x: 12, y: y, width: SZER - 24, height: hTekstu)
+        tlo.addSubview(tekst)
+
+        y -= 14 + 32
+        let ok = NSButton(title: "OK", target: self, action: #selector(zamknijRaport(_:)))
+        ok.bezelStyle = .rounded
+        ok.tag = 0
+        ok.keyEquivalent = "\r"
+        ok.frame = NSRect(x: (SZER - 90) / 2, y: y, width: 90, height: 32)
+        tlo.addSubview(ok)
+
+        NSApp.runModal(for: win)
+        win.orderOut(nil)
+    }
+
+    @objc func zamknijRaport(_ sender: NSButton) {
+        NSApp.stopModal(withCode: NSApplication.ModalResponse(rawValue: sender.tag))
+    }
+
+    func report(pdf: Bool, zakres: [String] = ["--days", "14"]) {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: reportBin)
-        p.arguments = pdf ? ["--days", "14", "--pdf"] : ["--days", "14"]
+        p.arguments = zakres + (pdf ? ["--pdf"] : [])
         let pipe = Pipe()
         p.standardOutput = pipe
         do { try p.run() } catch { return }
@@ -2667,26 +3211,52 @@ Remember to switch it off afterwards: in this mode nothing protects the Mac.
 
     // notka "Podaj dalej" w biezacym jezyku menu - jeden klucz, tlumaczenia w DICTS
     private var notkaPodajDalej: String {
-        T("Is your Mac cooking through AI runs and renders? coffee-paladin watches the chip and pauses heavy jobs before things go wrong. Open source, free:")
+        T("Is your Mac heating up with AI and renders? coffee-paladin watches the battery (temperature and charge), the chip (CPU) and the GPU. It pauses heavy jobs when the system overheats and resumes them by itself once the temperature drops, so you can sleep peacefully (literally!). Open source, free, for you:")
     }
 
     @objc func shareX() {
+        // osobny, krotszy tekst pod X (limit 280 znakow; tresc Pawla, 01.08)
         var c = URLComponents(string: "https://x.com/intent/post")!
         // URLComponents sam robi percent-encoding - polskie znaki i emoji nie rozwala linku
-        c.queryItems = [URLQueryItem(name: "text", value: notkaPodajDalej + "\n" + linkPodajDalej())]
+        c.queryItems = [URLQueryItem(name: "text",
+                                     value: String(format: T("Is your Mac heating up with AI and renders? coffee-paladin watches battery, chip and GPU temperatures. It pauses heavy jobs and resumes them by itself once the temperature drops.\n\nOpen source, free, for you:\n%@\n\n#panbookovsky #macbook #protect #temperature #guard"),
+                                                   linkPodajDalej()))]
         if let u = c.url { NSWorkspace.shared.open(u) }
     }
 
     @objc func shareMail() {
-        var c = URLComponents(string: "mailto:")!
-        c.queryItems = [URLQueryItem(name: "subject", value: "coffee-paladin"),
-                        URLQueryItem(name: "body", value: notkaPodajDalej + "\n\n" + linkPodajDalej())]
-        if let u = c.url { NSWorkspace.shared.open(u) }
+        // osobisty ton "do kolegi" + GIF paladyna w zalaczniku; mailto nie umie
+        // zalacznikow, wiec komponujemy wiadomosc przez Mail.app (osascript).
+        // Argumenty ida przez argv - zero pieklarni z escapowaniem cudzyslowow.
+        let temat = T("you have to see this: coffee-paladin")
+        let tresc = String(format: T("Hey,\n\nI found something you need on your Mac: coffee-paladin. It watches the chip, GPU and battery temperatures, and when things get hot it pauses heavy jobs and resumes them by itself once the machine cools down.\n\nIt is damn good, because the pause is lossless (the process freezes and continues from the same spot), it sends nothing anywhere, and it is free, open source:\n%@\n\nThe knight with the coffee in the attachment is its mascot.\n\nCheers!"), linkPodajDalej())
+            .replacingOccurrences(of: "\\n", with: "\n")
+        let gif = base + "/paladin_welcome.gif"
+        var skrypt = [
+            "on run argv",
+            "tell application \"Mail\"",
+            "set msg to make new outgoing message with properties {subject:(item 1 of argv), content:(item 2 of argv), visible:true}",
+        ]
+        if FileManager.default.fileExists(atPath: gif) {
+            skrypt.append("tell msg to make new attachment with properties {file name:(POSIX file (item 3 of argv))} at after the last paragraph of content")
+        }
+        skrypt += ["activate", "end tell", "end run"]
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+        var argumenty: [String] = []
+        for linia in skrypt { argumenty += ["-e", linia] }
+        argumenty += [temat, tresc, gif]
+        p.arguments = argumenty
+        try? p.run()
     }
 
     @objc func shareCopy() {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(notkaPodajDalej + "\n" + linkPodajDalej(), forType: .string)
+    }
+
+    @objc func sponsorGithub() {
+        if let u = zUTM("https://github.com/sponsors/pawelkwaczynski") { NSWorkspace.shared.open(u) }
     }
 
     @objc func shareStar() {
@@ -2704,7 +3274,9 @@ Remember to switch it off afterwards: in this mode nothing protects the Mac.
     }
 
     @objc func mailAuthor() {
-        NSWorkspace.shared.open(URL(string: "mailto:kwaczynski.pawel@gmail.com?subject=thermal-guard%20v\(VERSION)")!)
+        // GitHub zamiast prywatnego maila (Pawel, pkt 10): zero adresu w kodzie,
+        // kontakt przez profil - issues/dyskusje sa i tak lepszym kanalem
+        if let u = zUTM("https://github.com/pawelkwaczynski") { NSWorkspace.shared.open(u) }
     }
     /// Wyjscie znaczy KONIEC PROGRAMU, nie tylko schowanie ikony: zatrzymujemy demona
     /// i pasek. Wczesniej "Zamknij pasek" zostawialo demona przy zyciu - to bylo mylace
@@ -2725,13 +3297,13 @@ Remember to switch it off afterwards: in this mode nothing protects the Mac.
         let uid = String(getuid())
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/bin/launchctl")
-        p.arguments = ["bootout", "gui/\(uid)/pl.pawel.thermal-guard"]
+        p.arguments = ["bootout", "gui/\(uid)/pl.pawel.coffee-paladin"]
         try? p.run()
         p.waitUntilExit()
 
         let b = Process()
         b.executableURL = URL(fileURLWithPath: "/bin/launchctl")
-        b.arguments = ["bootout", "gui/\(uid)/pl.pawel.heatbar"]
+        b.arguments = ["bootout", "gui/\(uid)/pl.pawel.coffee-paladin-bar"]
         try? b.run()          // nie czekamy: to polecenie ubija nas samych
         NSApp.terminate(nil)
     }

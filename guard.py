@@ -14,11 +14,11 @@ When it gets hot: SIGSTOP on heavy jobs. When it cools down: SIGCONT. In a criti
 SIGCONT + SIGTERM so jobs can checkpoint, then SIGKILL after a grace period. The system,
 Finder and interactive shells are never touched.
 
-Measurement history: ~/.thermal-guard/history.csv   (evidence for "what happened at 3 a.m.")
-Events:              ~/.thermal-guard/events.log    (hard shutdowns, cooling alarms)
-Log:                 ~/.thermal-guard/guard.log
-State (pauses):      ~/.thermal-guard/state.json    (restored on start -> nothing stays frozen)
-Snapshot for the menu bar: ~/.thermal-guard/status.json
+Measurement history: ~/.coffee-paladin/history.csv   (evidence for "what happened at 3 a.m.")
+Events:              ~/.coffee-paladin/events.log    (hard shutdowns, cooling alarms)
+Log:                 ~/.coffee-paladin/guard.log
+State (pauses):      ~/.coffee-paladin/state.json    (restored on start -> nothing stays frozen)
+Snapshot for the menu bar: ~/.coffee-paladin/status.json
 
 Usage:
   guard.py            # the loop (this is how the LaunchAgent starts it)
@@ -37,7 +37,7 @@ import sys
 import time
 
 HOME = os.path.expanduser("~")
-BASE = os.environ.get("TG_BASE") or os.path.join(HOME, ".thermal-guard")
+BASE = os.environ.get("TG_BASE") or os.path.join(HOME, ".coffee-paladin")
 BASE = os.path.expanduser(BASE)   # TG_BASE sluzy do testow w izolacji
 CFG_PATH = os.path.join(BASE, "config.json")
 STATE_PATH = os.path.join(BASE, "state.json")
@@ -113,14 +113,14 @@ DEFAULTS = {
     # "efficiency" = tylko rdzenie E (chlodno, wolno), "all" = wszystkie (szybko, cieplej —
     # temperature i tak pilnuje guard). Limit w % realizowany mikropauzami calej grupy
     # procesow (jak cpulimit); 95 = praktycznie pelna predkosc z odrobina oddechu dla UI.
-    "job_cores_mode": "efficiency",
+    "job_cores_mode": "all",   # default wszystkie rdzenie (Pawel, 01.08) - temperatura i tak pod straza
     "job_cpu_percent": 95,
     # prog aktywnosci sieci dla keep-awake "dopoki trwa pobieranie" (KB/s)
     "download_kbps": 500,
     # dzwieki systemowe przy zdarzeniach (afplay — dziala nawet gdy powiadomienia sa
     # wyciszone przez Skupienie). Rozne zdarzenia maja rozne dzwieki, zeby dalo sie
     # rozpoznac bez patrzenia: pauza=nisko, wznowienie=szklo, ubicie/pad=powaznie.
-    "sound": True,
+    "sound": False,   # default cisza (Pawel, 01.08) - kto chce, wlaczy w Ustawieniach
     # NIE USYPIAJ, GDY LICZY — jak Caffeine/Amphetamine, ale z bezpiecznikiem: czuwanie
     # trzymamy TYLKO gdy realnie dziala ciezkie zadanie i jest chlodno; przy pauzie/goracu
     # blokade zwalniamy (sen chlodzi najszybciej), po zakonczeniu zadania Mac normalnie
@@ -570,18 +570,38 @@ def reap_bg():
 
 SOUNDS = {
     "pause": "Basso",      # goraco — niski, powazny
-    "resume": "Glass",     # ochlodzone — lekki
+    "resume": "Hero",      # wznowienie = triumf: przetrwalismy goraco, wracamy do roboty
     "kill": "Sosumi",      # ubicie zadania
     "fan": "Basso",        # awaria chlodzenia
     "pad": "Basso",        # wykryty twardy pad
     "freeze": "Tink",      # reczne akcje z paska
     "demote": "Submarine", # zepchniecie na E-cores — "schodzimy nizej"
-    "promote": "Glass",    # powrot na P-cores — ten sam lekki ton co wznowienie
+    "promote": "Hero",     # powrot na P-cores — ta sama fanfara co wznowienie
+    "awake": "Funk",       # start keep-awake — kubek stuka o blat
+    "watchonly": "Basso",  # obserwacja: "wstrzymalbym, ale ochrona wylaczona" — powazny ton
 }
+
+
+# rozne klucze zdarzen, wspolny plik dzwiekowy
+SOUND_ALIAS = {"promote": "resume", "fan": "kill", "default": "pad"}
+# przy cyklowaniu pauza/wznowienie co ~40 s miecz cialby non stop - decyzja Pawla:
+# max raz na 10 minut (powiadomienia chodza dalej, tylko dzwiek jest przycinany)
+SOUND_MIN_GAP_S = {"pause": 600, "demote": 600, "resume": 600, "awake": 600}
+_last_sound = {}
 
 
 def play_sound(cfg, key):
     if not cfg.get("sound", True):
+        return
+    gap = SOUND_MIN_GAP_S.get(key, 0)
+    if gap and now() - _last_sound.get(key, 0) < gap:
+        return
+    _last_sound[key] = now()
+    # najpierw wlasne pliki (wybory Pawla 01.08, CC0 - patrz sounds/LICENSES.md);
+    # fallback na dzwieki systemowe - stara instalacja bez sounds/ nic nie traci
+    wlasny = os.path.join(BASE, "sounds", SOUND_ALIAS.get(key, key) + ".wav")
+    if os.path.exists(wlasny):
+        popen_bg(["afplay", wlasny])
         return
     name = SOUNDS.get(key, "Ping")
     path = "/System/Library/Sounds/%s.aiff" % name
@@ -632,6 +652,7 @@ def banner(cfg, title, text):
     if t - _last_banner["t"] < gap:
         return
     _last_banner["t"] = t
+    play_sound(cfg, "critical")   # ogien: "krytycznie" ma brzmiec inaczej niz "goraco"
     script = 'display alert %s message %s as critical giving up after %d' % (
         json.dumps(title), json.dumps(text), int(gap))
     popen_bg(["osascript", "-e", script])
@@ -1055,7 +1076,7 @@ def do_pause(cfg, st, targets, reason, manual=False, lvl_krytyczny=False):
         if cfg["dry_run"]:
             log(T("[DRY-RUN] would pause %s (pid %d, %.0f%% CPU) - %s") % (comm, pid, cpu, reason))
             notify(cfg, T("Thermal guard (watch-only): hot"),
-                   T("Would pause %s - %s. Protection is off.") % (comm, reason), "pause")
+                   T("Would pause %s - %s. Protection is off.") % (comm, reason), "watchonly")
             continue
         blad = sig(pid, pgid, signal.SIGSTOP)
         if blad == 0:
@@ -1485,6 +1506,11 @@ def hardware_info():
     hw["battery_cycles"] = int(m.group(1)) if m else None
     m = re.search(r'"PermanentFailureStatus"\s*=\s*(\d+)', ioreg)
     hw["battery_failure"] = bool(int(m.group(1))) if m else None
+    # maks. pojemnosc = ile fabrycznej pojemnosci ogniwo jeszcze trzyma
+    m1 = re.search(r'"NominalChargeCapacity"\s*=\s*(\d+)', ioreg)
+    m2 = re.search(r'"DesignCapacity"\s*=\s*(\d+)', ioreg)
+    if m1 and m2 and int(m2.group(1)) > 0:
+        hw["battery_max_capacity_pct"] = round(100 * int(m1.group(1)) / int(m2.group(1)))
     s = soc_sensors()
     hw["fan_count"] = len((s or {}).get("fans") or [])
     hw["chip_sensor"] = bool(s)
@@ -1672,6 +1698,7 @@ def keep_awake_update(cfg, targets, lvl, st=None):
                 ["caffeinate", "-is"],
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             log("KEEP-AWAKE start (heavy job running, machine cool)")
+            play_sound(cfg, "awake")   # Funk: paladyn bierze kubek
         except Exception:
             _caff["proc"] = None
     elif not chcemy and zywy:
@@ -1720,7 +1747,7 @@ def fleet_write(cfg, status):
         hw = _hw_cache_fleet()
         out["model"] = hw.get("model")
         out["serial"] = hw.get("serial")
-        out["guard_version"] = "2.0.0"
+        out["guard_version"] = "2.0.1"
         tmp = os.path.join(d, ".%s.tmp" % hostname())
         with open(tmp, "w") as f:
             json.dump(out, f, ensure_ascii=False)
@@ -1753,6 +1780,7 @@ def status_write(state, temp, soc, soc_t, ac, pct, speed, load, lvl, why, target
         # degradacja na E-cores jest NIEWIDOCZNA w temperaturze (44 C wyglada jak sukces
         # chlodzenia), a tnie tempo zadania nawet 11x - musi byc jawna w migawce
         "demoted": [v.get("comm", "?") for v in st.get("demoted_info", {}).values()],
+        "heavy_count": len(targets),
         "top_proc": top[2] if top else None,
         "top_cpu": round(top[1]) if top else None,
         "manual_pause": bool(st.get("reczna_pauza")),
@@ -1842,6 +1870,13 @@ def fan_alarm(cfg, soc, soc_t, st):
 
 
 def main():
+    # migracja ze starej nazwy: instalacje sprzed v2.1 trzymaly dane w ~/.thermal-guard
+    stary_dom = os.path.join(HOME, ".thermal-guard")
+    if os.path.isdir(stary_dom) and not os.path.isdir(BASE) and "TG_BASE" not in os.environ:
+        try:
+            os.rename(stary_dom, BASE)
+        except OSError:
+            pass
     ensure_dirs()
     cfg = load_cfg()
     st = load_state()
@@ -2050,9 +2085,24 @@ def main():
         except Exception as e:
             log(T("LOOP ERROR: %r") % (e,))
         tick += 1
+        # drzemka przerywalna: rozkaz z paska (command) albo zmiana keep-awake
+        # (awake.json) budzi petle NATYCHMIAST - reczne akcje reaguja w ~1 s,
+        # a pelny cykl pomiarowy dalej chodzi rzadko. Koszt: dwa stat() co 0.5 s.
+        try:
+            awake_przed = os.path.getmtime(AWAKE_PATH)
+        except OSError:
+            awake_przed = None
         for _ in range(int(cfg["poll_seconds"] * 2)):
             if stop["flag"]:
                 break
+            if os.path.exists(COMMAND_PATH):
+                break
+            try:
+                if os.path.getmtime(AWAKE_PATH) != awake_przed:
+                    break
+            except OSError:
+                if awake_przed is not None:
+                    break
             time.sleep(0.5)
 
     do_resume(cfg, st, T("guard is shutting down"))

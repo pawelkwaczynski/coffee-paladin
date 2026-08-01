@@ -1,4 +1,4 @@
-# coffee-paladin v2.0.0
+# coffee-paladin v2.0.1
 
 <p align="center">
   <img src="branding/paladin.gif" alt="coffee-paladin - the project mascot" width="260">
@@ -38,6 +38,35 @@ switched from the menu bar (*Settings > Language*), with `TG_LANG` or `"lang"` i
 
 ---
 
+## Why the name, and why the coffee
+
+<p align="center">
+  <img src="branding/paladin.png" alt="coffee-paladin" width="260">
+</p>
+
+The coffee is not decoration. This tool stands on `caffeinate` - a real utility built into
+macOS since 2012, living at `/usr/bin/caffeinate`, doing exactly what the name suggests:
+**it stops the machine from falling asleep**. Apple made the joke first, naming it after
+caffeine, and the whole category followed - Caffeine with its coffee-cup icon, then
+Amphetamine, where the metaphor escalated a notch.
+
+Our knight holds that cup for one reason: **he drinks from it too**. Start a job with
+`safe-run` and a `caffeinate` assertion goes up underneath, keeping the Mac awake through
+your render.
+
+The difference is what he does with the cup when things get hot: **he puts it down**.
+Everything else in this category holds the Mac awake unconditionally - including when it
+is lying hot in a backpack. This one releases the lock the moment the chip crosses the
+threshold, because sleep is the fastest cooling a computer has.
+
+Hence a paladin, not just a knight. A paladin stands watch by choice and holds a principle
+above an order. The order says "do not let it sleep."
+The principle says "but do not let it cook."
+
+**Shield the Process, Sip the Coffee.**
+
+---
+
 ## Why this exists
 
 A MacBook Pro M4 Pro was working overnight - video rendering and other heavy workloads, the
@@ -54,6 +83,60 @@ are, the direction is the same: nobody can afford to lose the machine they have.
 
 This project is the answer to all of it: *stop it before it cooks*, and *keep the evidence
 when something goes wrong anyway*.
+
+---
+
+## Why this matters more in 2026 than ever
+
+Excess heat always broke computers. What changed in 2026 is that failures got expensive
+like never before.
+
+Overheating is not a theory. MacStadium, a professional data centre full of Macs, wrote
+on its own blog [back in 2020](https://macstadium.com/blog/digging-deeper-into-2018-mac-minis-at-macstadium)
+that a Mac mini at 100% CPU starts throttling after about an hour, and that ordinary rack
+mounts gave them cases of temperature-related failures. They solved it with custom sleds
+and cold-air aisles. Your Mac on a desk has none of those things. Apple itself
+[once apologised for throttling](https://techcrunch.com/2018/07/24/apple-apologizes-issues-update-for-macbook-pro-thermal-throttling/)
+(clock dropping under heat). After their 2018 fix the same MacBooks got 35 to 70 percent
+faster(!). That is the cost of bad thermal management, priced by Apple itself. Ok, that
+is big companies - but what if you are a student who closes the lid out of habit, with
+a process still running, and slides the laptop into a backpack? Apple specifies an
+[operating range of 10-35 °C ambient](https://support.apple.com/en-us/102336), and
+"Mac hot in its sleeve because some app kept it awake" threads go back years. In
+[one of them](https://forums.macrumors.com/threads/2017-running-very-hot-in-my-bag.2216012/)
+the user's keyboard keys even melted...
+
+Replacing a "cooked" Mac got expensive and painfully slow. On June 25, 2026 Apple
+[raised prices](https://9to5mac.com/2026/06/25/apple-price-increases-mac-ipad-more/):
+the Mac Studio M3 Ultra went from $3,999 to $5,299 in one day. Tim Cook said he had never
+seen a component get this expensive this fast, and back in April he already admitted
+Studio and mini [need "several months"](https://www.macrumors.com/2026/04/30/mac-studio-mac-mini-constrained-months/)
+to catch up with demand driven by AI. Consumer DRAM rose
+[80-90% in a single quarter](https://spectrum.ieee.org/dram-shortage). The surge started
+cooling in July, but forecasts put normalisation somewhere in 2027-2028. Deliveries?
+Base configurations take weeks, a Mac Studio
+[10-14 weeks](https://appleinsider.com/articles/26/07/22/upgraded-mac-mini-mac-studio-and-oled-imac-are-all-in-the-pipeline),
+and high-RAM options take months or show up as "Currently Unavailable". Apple pulled the
+512 GB option in March and [cut 128 GB in May](https://www.tomshardware.com/desktops/apple-quietly-axes-128gb-mac-studio-amid-supply-constraints-and-local-ai-frenzy-highest-memory-capacity-reduced-to-96gb-two-months-after-discontinuation-of-512gb-model).
+In spring the wait [reached 4-5 months](https://www.macrumors.com/2026/04/06/mac-mini-and-mac-studio-long-shipping-delays/).
+
+I also checked this on my own skin. On July 30 I wrote to three Polish Apple resellers
+about leasing a single Mac Studio. One replied that "due to the global availability
+problem we are not taking orders for this product category". Another, an authorised
+Apple partner, quoted a price 23% above the pre-hike list and reserved the right to
+change the price after the order is placed, or to cancel it altogether. The third never
+answered.
+
+And the AI boom, hyped everywhere, works these machines harder than anything ever
+before. A Mac with big unified memory (shared between CPU and GPU) is the cheapest way
+to run large models locally: 512 GB in a Mac cost $9,499, while one 80 GB H100 goes for
+about $30,000. So Macs everywhere now grind LLMs and renders for hours, chip saturated.
+Long heat is exactly what kills these units, laptops and batteries, because every
+5-10 °C above optimum roughly doubles how fast a Li-ion cell ages.
+
+The conclusion is simple. The Mac you have cannot be re-bought quickly or at the price
+from the start of the year. That is why coffee-paladin guards it FOR FREE, in code you
+can read before you trust it, and takes care of your processes.
 
 ---
 
@@ -276,7 +359,7 @@ So coffee-paladin ships a **skill for AI agents**. `install.sh` drops it into
 Markdown, so any agent that reads skills can use it). It is not documentation *about* the
 tool - it is instructions *for the agent*, and it teaches four things:
 
-- **Look before you start.** `~/.thermal-guard/status.json` is machine-readable and refreshed
+- **Look before you start.** `~/.coffee-paladin/status.json` is machine-readable and refreshed
   every ~15 s. One field decides everything: `level` - `0` start the job, `1` start but do not
   parallelise, `2` finish what is running and start nothing new, `3` stop and tell the human.
   Also `dry_run` (protection may be off!) and `unpausable` (protection is incomplete right now).
@@ -360,7 +443,7 @@ in the config:
 ```bash
 python3 - <<'EOF'
 import json, os
-p = os.path.expanduser("~/.thermal-guard/config.json")
+p = os.path.expanduser("~/.coffee-paladin/config.json")
 c = json.load(open(p)) if os.path.exists(p) else {}
 c["fleet_dir"] = "~/Library/Mobile Documents/com~apple~CloudDocs/FleetTG"   # your folder here
 json.dump(c, open(p, "w"), indent=2)
@@ -414,6 +497,28 @@ processes.
 | **CPU throttling** | `pmset -g therm` → `CPU_Speed_Limit` | 100 = not throttled. Note this is available *speed*, not free capacity: a machine can be busy at 100% speed limit - which is why the menu shows this row only when actual throttling is happening. |
 | **Power source, battery %** | `pmset -g batt` | |
 | **Processes** | `ps` | Own CPU plus subtree rollup. |
+
+### Three thermometers, one machine
+
+It is one piece of silicon, but different regions, separate sensors and different jobs:
+
+1. **Chip (CPU) vs GPU.** On an M4 Pro the processor cores and the graphics cores sit
+   next to each other on the same die, but they heat up separately, depending on what
+   you do: compilation, Python and scripts heat the CPU part; video, games and AI
+   models on the GPU heat the graphics part. The difference can be a dozen degrees,
+   which is why we show both. (The Neural Engine is on that die too, but Apple exposes
+   no public sensor for it - when it grinds, its heat shows up indirectly in the CPU
+   reading anyway.)
+2. **The paladin watches the hotter one.** For the pause decision the guard takes
+   max(CPU, GPU) - "the hottest point of the die" (`soc_temp_c` in `guard.py`) - so it
+   does not matter which half of the chip is cooking, the protection works the same.
+3. **The battery is a different league entirely.** A separate physical component that
+   heats slowly (from charging and from case heat), but with much lower limits:
+   lithium-ion degrades above ~40 °C. That is why its pause threshold is 40 °C while
+   the chip is allowed to run to 90 °C.
+
+In short: chip and GPU are two thermometers in one piece of silicon (different jobs,
+different temperatures), and the battery is a third thermometer in a more fragile place.
 
 ### Two dead ends, documented so you don't repeat them
 
@@ -488,7 +593,7 @@ bash install.sh
 ```
 
 The installer compiles the two Swift helpers, installs the scripts into `~/.local/bin`, writes a
-default config into `~/.thermal-guard/config.json` (it will **not** overwrite an existing one),
+default config into `~/.coffee-paladin/config.json` (it will **not** overwrite an existing one),
 and loads two LaunchAgents - the daemon and, separately, the menu bar app, so you can disable the
 latter without touching the safety net.
 
@@ -550,7 +655,7 @@ limiting the CPU and a pause marker when something is frozen. a fan reading of 0
 hot; a RAM warning means memory is 62 % used **and** the machine has started swapping.
 
 Everything on the bar is optional - **Show in the bar** gives you a checkbox per element and the
-choice is remembered in `~/.thermal-guard/heatbar.json`. RAM and disk are off by default.
+choice is remembered in `~/.coffee-paladin/heatbar.json`. RAM and disk are off by default.
 The language switch (EN · PL · RU · 中文 · ES) sits as a row of buttons right on the main menu,
 **About my Mac** shows the detected hardware, and **Start at login** toggles autostart of both
 agents (on by default).
@@ -566,7 +671,7 @@ iCloud/SMB. "Live" here means the agent's ~1-minute publishing rhythm plus your 
 delay - perfect for a glance, not for second-by-second monitoring (that is what a future HTTP
 collector would be for).
 
-**Branding:** the menu header and footer render `~/.thermal-guard/logo.png` (black-on-transparent,
+**Branding:** the menu header and footer render `~/.coffee-paladin/logo.png` (black-on-transparent,
 theme-aware template) and `logo_footer.png` (+ optional `logo_footer_dark.png` for dark mode;
 a click opens `footer_logo_url` from the config). The installer copies the logos shipped in
 `branding/` - swap those files for your own to rebrand your install.
@@ -577,7 +682,7 @@ per-process proxy for heat there is) and **what is eating the RAM** (top 3 by re
 running `safe-run` jobs, today's intervention count, a manual **Freeze / Resume** control, and
 **Export report**.
 
-The bar measures nothing itself - it reads `~/.thermal-guard/status.json`, which the daemon writes
+The bar measures nothing itself - it reads `~/.coffee-paladin/status.json`, which the daemon writes
 every cycle. It therefore costs no CPU and can never disagree with the guard. Manual commands are
 passed back through a file and executed by the daemon, so exactly one process ever decides what
 gets paused.
@@ -611,7 +716,7 @@ sooner, so a lower threshold - around 75-78 °C - is kinder to it. thermal-guard
 absence of fans and simply skips the fan alarm there, but the temperature threshold is yours to
 set. That is exactly what the slider is for.
 
-`~/.thermal-guard/config.json`. The defaults:
+`~/.coffee-paladin/config.json`. The defaults:
 
 | Setting | Default | Meaning |
 |---|---|---|
@@ -664,7 +769,7 @@ The shipped defaults are deliberately more conservative than Apple's own throttl
 - **Chip temperature depends on `macmon`.** Without it the daemon still runs, but falls back to
   battery temperature and thermal pressure only, and loses fan monitoring.
 - **Apple Silicon only.**
-- The LaunchAgent labels are `pl.pawel.thermal-guard` and `pl.pawel.heatbar`. Rename them in the
+- The LaunchAgent labels are `pl.pawel.coffee-paladin` and `pl.pawel.coffee-paladin-bar`. Rename them in the
   plists if you prefer something neutral.
 - Messages are English by default; `"lang"` in `config.json` (or `TG_LANG`) switches every tool,
   the notifications and the menu bar to Polish, Russian, Chinese or Spanish. Adding a language
@@ -732,6 +837,33 @@ Mac mini pod CI, zespoły ML - i każdy, kto zostawia laptop z obliczeniami na n
 
 Bez `sudo`, bez rozszerzeń jądra, bez niczego działającego jako root.
 
+## Skąd ta nazwa i skąd ta kawa
+
+<p align="center">
+  <img src="branding/paladin.png" alt="coffee-paladin" width="260">
+</p>
+
+Kawa nie jest ozdobnikiem. Ten program stoi na `caffeinate` - prawdziwym narzędziu
+wbudowanym w macOS od 2012 roku, które leży w `/usr/bin/caffeinate` i robi dokładnie to,
+co sugeruje nazwa: **nie pozwala komputerowi zasnąć**. Apple zażartowało, nazywając je
+po kofeinie, i cała kategoria poszła za tym żartem - najpierw Caffeine z ikoną filiżanki,
+potem Amphetamine, gdzie metafora poszła o stopień dalej.
+
+Nasz rycerz trzyma tę filiżankę z jednego powodu: **też pije z tego kubka**. Gdy odpalasz
+`safe-run`, pod spodem startuje `caffeinate` i pilnuje, żeby Mac nie usnął w połowie
+Twojego renderu.
+
+Różnica jest w tym, co ten rycerz robi z kubkiem, gdy zrobi się gorąco: **odstawia go**.
+Cała reszta tej kategorii trzyma Maca w czuwaniu bezwarunkowo - także wtedy, gdy leży
+rozgrzany w plecaku. Nasz puszcza blokadę snu w chwili, gdy chip przekracza próg, bo sen
+jest najszybszym chłodzeniem, jakie ma komputer.
+
+Stąd paladyn, a nie zwykły rycerz. Paladyn to ten, który stoi na warcie dobrowolnie
+i ma zasadę ważniejszą od rozkazu. Rozkaz brzmi „nie pozwól mu zasnąć".
+Zasada brzmi „ale nie pozwól mu się ugotować".
+
+**Shield the Process, Sip the Coffee.**
+
 ## Skąd się wziął
 
 MacBook Pro M4 Pro pracował nocą - render wideo i inne ciężkie obciążenia, czyli dokładnie to,
@@ -747,6 +879,58 @@ na utratę maszyny, którą ma.
 
 Ten projekt odpowiada na oba problemy: *zatrzymać, zanim się ugotuje*, i *zachować dowody, gdy coś
 jednak pójdzie źle*.
+
+## Dlaczego to jest cenne właśnie teraz (2026)
+
+Zbyt duża temperatura zawsze psuła komputery. W 2026 zmieniło się co innego: awarie stały
+się drogie jak nigdy.
+
+Przegrzania to nie teoria. MacStadium, czyli zawodowa serwerownia pełna Maców, napisało
+na własnym blogu [w 2020 roku](https://macstadium.com/blog/digging-deeper-into-2018-mac-minis-at-macstadium),
+że Mac mini na 100% CPU zaczyna zwalniać po około godzinie, a w zwykłych szafach
+rackowych mieli przypadki awarii związanych z temperaturą. Poradzili sobie, bo zbudowali
+własne uchwyty i korytarze zimnego powietrza. Twój Mac na biurku nie ma żadnej z tych
+rzeczy. Samo Apple [przepraszało kiedyś za throttling](https://techcrunch.com/2018/07/24/apple-apologizes-issues-update-for-macbook-pro-thermal-throttling/)
+(dławienie zegarów przy przegrzaniu). Po ich poprawce z 2018 roku te same MacBooki
+przyspieszyły o 35 do 70 procent(!). Tyle kosztuje złe zarządzanie ciepłem, policzyło to
+samo Apple. Ok, mówimy o wielkich firmach, a co jeśli jesteś studentem i z przyzwyczajenia
+zamykasz laptop z otwartym procesem ładując go do plecaka? Apple podaje
+[przedział zakresu pracy na 10-35 °C otoczenia](https://support.apple.com/en-us/102336),
+a wątki „Mac gorący w etui, bo jakaś apka nie dała mu zasnąć" ciągną się na forach od lat.
+W [jednym z nich](https://forums.macrumors.com/threads/2017-running-very-hot-in-my-bag.2216012/)
+użytkownikowi stopiły się nawet klawisze...
+
+Wymiana „ugotowanego" Maca zrobiła się droga i boleśnie wolna. 25 czerwca 2026 Apple
+[podniosło ceny](https://9to5mac.com/2026/06/25/apple-price-increases-mac-ipad-more/):
+Mac Studio M3 Ultra z 3999 na 5299 dolarów, w jeden dzień. Tim Cook mówił, że nigdy nie
+widział, żeby komponent zdrożał tak szybko, a już w kwietniu przyznał, że Studio i mini
+[potrzebują „kilku miesięcy"](https://www.macrumors.com/2026/04/30/mac-studio-mac-mini-constrained-months/),
+żeby dogonić popyt napędzany przez AI. Pamięci DRAM podrożały
+[80-90% w jeden kwartał](https://spectrum.ieee.org/dram-shortage). W lipcu wzrosty
+zaczęły hamować, ale prognozy mówią o normalizacji dopiero w latach 2027-2028. Dostawy?
+Bazowe konfiguracje to tygodnie, Mac Studio
+[10-14 tygodni](https://appleinsider.com/articles/26/07/22/upgraded-mac-mini-mac-studio-and-oled-imac-are-all-in-the-pipeline),
+a wysokie opcje RAM to miesiące albo status „Currently Unavailable". Opcję 512 GB Apple
+wycięło w marcu, [128 GB w maju](https://www.tomshardware.com/desktops/apple-quietly-axes-128gb-mac-studio-amid-supply-constraints-and-local-ai-frenzy-highest-memory-capacity-reduced-to-96gb-two-months-after-discontinuation-of-512gb-model).
+Wiosną czekało się [nawet 4-5 miesięcy](https://www.macrumors.com/2026/04/06/mac-mini-and-mac-studio-long-shipping-delays/).
+
+Sprawdziłem to także na sobie. 30 lipca napisałem do trzech polskich dostawców Apple
+o leasing jednego Mac Studio. Jeden odpisał, że „ze względu na globalny problem
+z dostępnością nie przyjmuje zamówień na tę kategorię produktów". Drugi, autoryzowany
+partner Apple, podał cenę o 23% wyższą niż cennik sprzed podwyżki i zastrzegł, że terminu
+nie zna, cenę może zmienić już po złożeniu zamówienia, a samo zamówienie może anulować.
+Trzeci nie odpisał wcale.
+
+A hype'owany wszędzie boom na AI katuje te maszyny jak nic nigdy wcześniej. Mac z dużą
+pamięcią unified (wspólną dla procesora i grafiki) to najtańszy sposób na duże modele
+lokalnie. 512 GB w Macu kosztowało 9499 dolarów. Jedna karta H100 z 80 GB chodzi po
+około 30 tysięcy. Więc Maki na całym świecie mielą teraz LLM-y i rendery godzinami,
+pod korek. Długie grzanie to dokładnie to, co zabija te jednostki, laptopy i baterie,
+bo każde 5-10 °C ponad optimum to mniej więcej dwa razy szybsze starzenie ogniwa.
+
+Wniosek jest prosty. Działającego Maca nie odkupisz dziś ani szybko, ani w cenie
+z początku roku. Dlatego coffee-paladin pilnuje go ZA DARMO, w kodzie, który możesz
+przeczytać, zanim mu zaufasz i opiekuje się twoimi procesami.
 
 ## Co robi
 
@@ -861,6 +1045,28 @@ baterii, wykryte twarde pady z odczytami, interwencje bezpiecznika i pełną oś
 <p align="center"><sub>Jeden klik zamienia czarną skrzynkę w dokument, który serwis przyjmie.</sub></p>
 ## Skąd biorą się dane
 
+### Trzy termometry, jedna maszyna
+
+To jeden kawałek krzemu, ale różne rejony, osobne czujniki i różne zadania:
+
+1. **Chip (CPU) vs GPU.** Na M4 Pro rdzenie procesora i rdzenie graficzne leżą obok
+   siebie na tym samym krzemie, ale grzeją się osobno, zależnie od tego, co robisz:
+   kompilacja, Python i skrypty grzeją część CPU, a wideo, gry i modele AI na GPU
+   część graficzną. Różnica potrafi być kilkanaście stopni, dlatego pokazujemy obie.
+   (Neural Engine też tam siedzi, ale Apple nie daje do niego publicznego czujnika.
+   Gdy mieli, jego ciepło i tak widać pośrednio w odczycie CPU.)
+2. **Paladyn i tak patrzy na gorętszą.** Do decyzji o pauzie bierze max(CPU, GPU),
+   czyli „najgorętszy punkt układu" (`soc_temp_c` w `guard.py`). Obojętne, która
+   połowa chipa się gotuje, ochrona działa tak samo.
+3. **Bateria to zupełnie inna liga.** Osobny fizyczny podzespół, który grzeje się
+   wolno (od ładowania i ciepła obudowy), ale ma dużo niższe granice: lit-jon
+   degraduje się już powyżej ~40 °C. Dlatego jej próg pauzy to 40 °C, gdy chip może
+   spokojnie chodzić do 90 °C.
+
+Krótko: chip i GPU to dwa termometry w jednym kawałku krzemu (różne zadania, różne
+temperatury), a bateria to trzeci termometr w delikatniejszym miejscu.
+
+
 macOS nie udostępnia temperatury chipa zwykłemu procesowi. Działające źródła:
 
 - **temperatura chipa i GPU, obroty wentylatorów, pobór mocy** - [`macmon`](https://github.com/vladkens/macmon) przez **IOReport**, jedyna droga bez `sudo`,
@@ -909,7 +1115,7 @@ Dlatego coffee-paladin dowozi **skill dla agentów AI**. `install.sh` wykłada g
 poradzi sobie każdy agent, który czyta skille). To nie jest dokumentacja *o* narzędziu — to
 instrukcja *dla agenta*, i uczy czterech rzeczy:
 
-- **Popatrz, zanim odpalisz.** `~/.thermal-guard/status.json` jest do czytania przez program
+- **Popatrz, zanim odpalisz.** `~/.coffee-paladin/status.json` jest do czytania przez program
   i odświeża się co ~15 s. Jedno pole rozstrzyga wszystko: `level` — `0` startuj, `1` startuj,
   ale nie zrównoleglaj, `2` dokończ to, co biegnie, i nie zaczynaj nic nowego, `3` stop i
   powiedz człowiekowi. Do tego `dry_run` (ochrona może być wyłączona!) i `unpausable`
@@ -976,7 +1182,7 @@ Na pasku widać wtedy ikonę oka. Odinstalowanie: `bash uninstall.sh`.
 
 Konfiguracja floty: `fleet --setup` (wykrywa foldery synchronizowane i zapisuje wybór) albo
 ręcznie - jeden klucz na każdej maszynie: `"fleet_dir": "<ścieżka folderu>"` w
-`~/.thermal-guard/config.json` - bez restartu, agent zacznie publikować w ciągu minuty. Potem
+`~/.coffee-paladin/config.json` - bez restartu, agent zacznie publikować w ciągu minuty. Potem
 na swojej maszynie: `fleet` (tabela + problemy), `fleet --watch` (odświeżanie), `fleet --json`
 (pod automaty i dashboardy). Host bez raportu od 5 minut dostaje flagę `NIE RAPORTUJE`.
 
@@ -1030,13 +1236,13 @@ bash install.sh
   „NIE RAPORTUJE" (cache w tle, otwarcie menu nigdy nie czeka na iCloud/SMB)
 - `thermal-report --dni 14` - raport dowodowy dla serwisu
 
-Progi w `~/.thermal-guard/config.json`. **Nie ustawiaj progu chipa na 45 °C** - bezczynny M4 Pro
+Progi w `~/.coffee-paladin/config.json`. **Nie ustawiaj progu chipa na 45 °C** - bezczynny M4 Pro
 ma 40-55 °C, a Apple Silicon dławi się dopiero koło 100-108 °C. 45 °C to właściwa liczba dla
 *baterii* i tam jest używana.
 
 Język: domyślnie angielski. Pasek menu, powiadomienia i wszystkie narzędzia CLI mówią w **pięciu
 językach** (angielski, polski, rosyjski, chiński, hiszpański) - przełączasz w menu paska
-(*Ustawienia > Język*) albo przez `"lang"` w `~/.thermal-guard/config.json` / `TG_LANG`.
+(*Ustawienia > Język*) albo przez `"lang"` w `~/.coffee-paladin/config.json` / `TG_LANG`.
 
 ## Uczciwa notka o autorstwie
 

@@ -1,7 +1,7 @@
 # Testy `wykryj_twardy_pad()` — matryca dowodowa (Neo, 30.07.2026)
 
 `test_wykryj_twardy_pad.py` — 16 przypadków bez uruchamiania demona i **bez dotykania**
-`~/.thermal-guard` (izolacja: import przez `importlib` + podmiana w module wszystkich
+`~/.coffee-paladin` (izolacja: import przez `importlib` + podmiana w module wszystkich
 atrybutów `*_PATH`/`*_DIR` na katalog tymczasowy; `HOME` ze środowiska NIE wystarcza,
 bo `guard.py` liczy je z `pwd`).
 

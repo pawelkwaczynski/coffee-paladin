@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """heat - one command: how hot is this Mac and what is heating it up.
 
-Language: TG_LANG=en|pl, or "lang" in ~/.thermal-guard/config.json. Default: en.
+Language: TG_LANG=en|pl, or "lang" in ~/.coffee-paladin/config.json. Default: en.
 """
 
 import json
@@ -13,12 +13,12 @@ import sys
 import time
 
 HOME = os.path.expanduser("~")
-BASE = os.environ.get("TG_BASE") or os.path.join(HOME, ".thermal-guard")
+BASE = os.environ.get("TG_BASE") or os.path.join(HOME, ".coffee-paladin")
 BASE = os.path.expanduser(BASE)   # TG_BASE sluzy do testow w izolacji
 HIST = os.path.join(BASE, "history.csv")
 LOG = os.path.join(BASE, "guard.log")
 STATE = os.path.join(BASE, "state.json")
-AGENT = "pl.pawel.thermal-guard"
+AGENT = "pl.pawel.coffee-paladin"
 
 ICON = {"nominal": "🟢", "fair": "🟡", "serious": "🟠", "critical": "🔴", "unknown": "⚪️"}
 
@@ -331,7 +331,7 @@ def paladin(ile_stopni=None, straz=None):
     polbloki w truecolor, filizanka ASCII. `--ascii` wymusza filizanke,
     `--bloki` - polbloki (do podgladu tego, co zobaczy ktos bez grafiki)."""
     protokol = _protokol_obrazkowy()
-    grafika = os.path.expanduser("~/.thermal-guard/paladin_welcome.png")
+    grafika = os.path.expanduser("~/.coffee-paladin/paladin_welcome.png")
     if not (protokol and _wyslij_obraz(grafika, protokol)):
         print(PALADIN_KOLOR if _kolorowy_terminal() else PALADIN_MONO)
     print("   coffee-paladin  -  " + MOTTO)

@@ -10,12 +10,12 @@ when the chip gets too hot, instead of letting the machine cook itself. It is on
 but only if you talk to it. An agent that starts eight parallel jobs without looking at the
 temperature is exactly the thing this tool exists to survive.
 
-Is it here at all? `test -f ~/.thermal-guard/status.json` - if that file is missing, this
+Is it here at all? `test -f ~/.coffee-paladin/status.json` - if that file is missing, this
 skill does not apply and you can ignore the rest.
 
 ## 1. Look before you start
 
-`~/.thermal-guard/status.json` is refreshed every ~15 s and is meant to be read by programs.
+`~/.coffee-paladin/status.json` is refreshed every ~15 s and is meant to be read by programs.
 Read it; do not parse the pretty output of `heat` (that one is for humans and is translated
 into five languages).
 
@@ -43,7 +43,7 @@ so it can show 75 °C and an empty `paused` while the log has pauses every 40 s.
 "is it stopped RIGHT NOW", ask `ps -o stat= -p <pid>` (state `T` = stopped).
 
 ```bash
-python3 -c "import json;d=json.load(open('$HOME/.thermal-guard/status.json'));print(d['level'],d['chip_c'],d.get('paused'))"
+python3 -c "import json;d=json.load(open('$HOME/.coffee-paladin/status.json'));print(d['level'],d['chip_c'],d.get('paused'))"
 ```
 
 **When the read fails, be conservative, not optimistic.** The file is rewritten every cycle,
@@ -88,7 +88,7 @@ decided to accept the risk.
   should and resumes by itself once the chip cools - relaunching it doubles the load that
   caused the pause. If the name is *not* in `paused`, it is a normal hang and you may treat
   it as one.
-- **Never edit `~/.thermal-guard/config.json` to raise the thresholds** so your job can keep
+- **Never edit `~/.coffee-paladin/config.json` to raise the thresholds** so your job can keep
   running. Those numbers were measured on real hardware. If they are wrong, say so to the
   user and let them decide.
 - **One heavy job at a time**, unless the user asked for more. Half the cores is a sane
@@ -102,7 +102,7 @@ Say it plainly and do not work around it:
 > nothing was lost, the process is frozen mid-instruction. Waiting.
 
 Then wait and re-read `status.json`. If a pause lasts beyond `max_pause_minutes` the guard
-will terminate the job with `SIGTERM` and you will see it in `~/.thermal-guard/guard.log`.
+will terminate the job with `SIGTERM` and you will see it in `~/.coffee-paladin/guard.log`.
 
 ## 5. You are protected - so is your terminal
 
@@ -111,7 +111,53 @@ list, and any process that holds the foreground of a terminal is skipped as well
 exists because freezing a foreground terminal job leaves it stuck in a way only `fg` can
 undo. If you ever see your own session frozen, that is a bug worth reporting.
 
-## 6. Do not create the heat in the first place
+## 6. Two files that answer "what actually happened"
+
+`status.json` is the present tense. When you need the past - a user asking why a job died
+overnight, or evidence for a repair shop - there are two more files, both plain and both
+safe to read:
+
+**`~/.coffee-paladin/guard.log`** - one line per action, newest last. Grep it, do not read it
+whole:
+
+```bash
+grep -E "PAUSE|PAUZA|RESUM|WZNOW|DEMOT|TERMINAT|SIGKILL" ~/.coffee-paladin/guard.log | tail -20
+grep "CONFIG CHANGED" ~/.coffee-paladin/guard.log | tail -5   # who moved the thresholds
+```
+
+Lines are `YYYY-MM-DD HH:MM:SS  MESSAGE`. Messages are written in the user's language, so
+match on both English and the local word (`PAUSE|PAUZA`) or on the process name.
+
+**`~/.coffee-paladin/events.log`** - the black box: one JSON object per line, only for the
+rare and serious (hard shutdown detected after a reboot, fans stopped while hot). Each entry
+carries `time`, `type`, `description` and a `context.last_readings` array - the last eight
+measurements taken before the machine died. That array is the whole point: it is the evidence
+macOS itself does not keep.
+
+```bash
+python3 -c "import json;[print(json.loads(l)['time'], json.loads(l)['type']) for l in open('$HOME/.coffee-paladin/events.log')]"
+```
+
+An empty `events.log` is good news, not a broken file.
+
+## 7. Building a report for a human
+
+`thermal-report` assembles hardware, battery health, hard shutdowns, interventions and the
+measurement timeline into one file. Use it when a human asks for proof, not to answer
+questions yourself - for those, read the two files above.
+
+```bash
+thermal-report --days 14                 # text file on the Desktop, path printed on stdout
+thermal-report --from 2026-07-01 --to 2026-07-31
+thermal-report --all --pdf               # everything on record, PDF next to the text file
+thermal-report --days 7 --file /tmp/r.txt
+```
+
+It prints the path of what it wrote - use that, do not guess the filename. The report is
+already branded and dated; do not rewrite it into your own summary when the user asked for
+the report itself.
+
+## 8. Do not create the heat in the first place
 
 Two habits that cost more than any thermal threshold:
 

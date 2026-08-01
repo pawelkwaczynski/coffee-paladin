@@ -3,11 +3,11 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>pl.pawel.thermal-guard</string>
+    <string>pl.pawel.coffee-paladin</string>
     <key>ProgramArguments</key>
     <array>
         <string>/usr/bin/python3</string>
-        <string>__HOME__/.local/bin/thermal-guard</string>
+        <string>__HOME__/.local/bin/coffee-paladin</string>
     </array>
     <key>RunAtLoad</key>
     <true/>
@@ -22,9 +22,9 @@
     <key>Nice</key>
     <integer>5</integer>
     <key>StandardOutPath</key>
-    <string>__HOME__/.thermal-guard/stdout.log</string>
+    <string>__HOME__/.coffee-paladin/stdout.log</string>
     <key>StandardErrorPath</key>
-    <string>__HOME__/.thermal-guard/stderr.log</string>
+    <string>__HOME__/.coffee-paladin/stderr.log</string>
     <key>EnvironmentVariables</key>
     <dict>
         <key>PATH</key>

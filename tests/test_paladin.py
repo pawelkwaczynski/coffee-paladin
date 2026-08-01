@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """21 testow rebrandingu coffee-paladin (eggi, animacja, tlumaczenia, grafika, regresja).
-NIE dotyka procesow uzytkownika ani prawdziwego ~/.thermal-guard - tylko czyta zrodla
+NIE dotyka procesow uzytkownika ani prawdziwego ~/.coffee-paladin - tylko czyta zrodla
 i uruchamia CLI w trybie tylko-do-odczytu.  Uruchom:  python3 testy/test_paladin.py"""
 import io, os, re, struct, subprocess, sys
 
@@ -105,11 +105,11 @@ test("7. realne tlumaczenia powitania i etykiety wyjscia w 4 jezykach",
      "powitanie: %d tlumaczen, wyjscie: %d" % (len(tp), len(tq)))
 
 # 8. regresja DWUCZESCIOWA: (a) zrodlo guarda kompiluje sie i przechodzi --once w IZOLACJI,
-#    (b) zywa instalacja Pawla dziala (to celowo dotyka prawdziwego ~/.thermal-guard - read-only)
+#    (b) zywa instalacja Pawla dziala (to celowo dotyka prawdziwego ~/.coffee-paladin - read-only)
 import json, time, tempfile, py_compile
-st = os.path.expanduser("~/.thermal-guard/status.json")
+st = os.path.expanduser("~/.coffee-paladin/status.json")
 wiek = time.time() - os.path.getmtime(st)
-log = io.open(os.path.expanduser("~/.thermal-guard/guard.log"), encoding="utf-8", errors="replace").read()
+log = io.open(os.path.expanduser("~/.coffee-paladin/guard.log"), encoding="utf-8", errors="replace").read()
 zrodlo_ok = True
 try:
     py_compile.compile(os.path.join(SRC, "guard.py"), doraise=True)
@@ -241,8 +241,8 @@ test("14. panel paladyna: klikalna nazwa + kotwica pod ikona paska",
 # 15. wyjscie = koniec programu, nie schowanie ikony. Etykieta i skutek musza sie zgadzac:
 #     zatrzymujemy demona I pasek, i pytamy przed tym nieodwracalnym krokiem.
 test("15. Quit zatrzymuje DEMONA i pasek, po potwierdzeniu w oknie",
-     'bootout", "gui/\\(uid)/pl.pawel.thermal-guard"' in hb
-     and 'bootout", "gui/\\(uid)/pl.pawel.heatbar"' in hb
+     'bootout", "gui/\\(uid)/pl.pawel.coffee-paladin"' in hb
+     and 'bootout", "gui/\\(uid)/pl.pawel.coffee-paladin-bar"' in hb
      and "NSAlert()" in hb
      and "protection keeps running" not in hb,     # stara, mylaca obietnica ma zniknac
      "brak zatrzymania demona albo zostala stara etykieta")
@@ -269,7 +269,7 @@ import base64, hashlib
 sur = przez_pty(["--paladin"], {"TERM": "xterm-ghostty", "TERM_PROGRAM": "ghostty",
                                 "COLORTERM": "truecolor"}, surowo=True)
 bloki = re.findall(rb"\x1b_G([^;]*);([A-Za-z0-9+/=]*)\x1b\\", sur)
-png = os.path.expanduser("~/.thermal-guard/paladin_welcome.png")
+png = os.path.expanduser("~/.coffee-paladin/paladin_welcome.png")
 try:
     oryg = open(png, "rb").read()
     zlozone = base64.b64decode(b"".join(b for _, b in bloki))

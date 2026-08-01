@@ -1,5 +1,5 @@
 import importlib.util, os, sys, time
-home = sys.argv[1]; base = os.path.join(home, ".thermal-guard"); os.makedirs(base, exist_ok=True)
+home = sys.argv[1]; base = os.path.join(home, ".coffee-paladin"); os.makedirs(base, exist_ok=True)
 spec = importlib.util.spec_from_file_location("g", os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "guard.py"))
 g = importlib.util.module_from_spec(spec); spec.loader.exec_module(g)
 g.HOME, g.BASE = home, base

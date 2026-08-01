@@ -2,15 +2,18 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>Label</key><string>pl.pawel.heatbar</string>
+  <key>Label</key><string>pl.pawel.coffee-paladin-bar</string>
   <key>ProgramArguments</key>
-  <array><string>__HOME__/.local/bin/heatbar</string></array>
+  <array><string>__HOME__/.local/bin/coffee-paladin-bar</string></array>
   <key>RunAtLoad</key><true/>
   <!-- Wskrzeszamy TYLKO po awarii. Z KeepAlive=true "Zakoncz heatbar" z menu bylo bezuzyteczne:
        launchd natychmiast startowal go z powrotem. SuccessfulExit=false = restartuj, gdy proces
        wyszedl z bledem; czyste wyjscie uzytkownika zostaje respektowane. -->
   <key>KeepAlive</key>
   <dict><key>SuccessfulExit</key><false/></dict>
-  <key>StandardErrorPath</key><string>__HOME__/.thermal-guard/heatbar.err</string>
+  <!-- Zmiana jezyka = exit(1) + wskrzeszenie. Domyslny prog launchd to 10 s zwloki,
+       przez co przelaczenie jezyka wygladalo na zwis. 1 s = natychmiastowy powrot. -->
+  <key>ThrottleInterval</key><integer>1</integer>
+  <key>StandardErrorPath</key><string>__HOME__/.coffee-paladin/heatbar.err</string>
 </dict>
 </plist>

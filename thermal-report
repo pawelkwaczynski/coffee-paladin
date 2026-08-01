@@ -13,7 +13,7 @@ Usage:
   thermal-report --pdf              # additionally render a PDF next to the text file
   thermal-report --file /path/report.txt
 
-Language: TG_LANG=en|pl, or "lang" in ~/.thermal-guard/config.json. Default: en.
+Language: TG_LANG=en|pl, or "lang" in ~/.coffee-paladin/config.json. Default: en.
 """
 
 import json
@@ -23,8 +23,10 @@ import subprocess
 import sys
 import time
 
+VERSION = "2.0.1"   # bump razem z guard_version/heatbar VERSION/README (checklista release)
+
 HOME = os.path.expanduser("~")
-BASE = os.environ.get("TG_BASE") or os.path.join(HOME, ".thermal-guard")
+BASE = os.environ.get("TG_BASE") or os.path.join(HOME, ".coffee-paladin")
 BASE = os.path.expanduser(BASE)   # TG_BASE sluzy do testow w izolacji
 HIST = os.path.join(BASE, "history.csv")
 EVENTS = os.path.join(BASE, "events.log")
@@ -54,6 +56,16 @@ LANG = _lang()
 PL = {
     "THERMAL AND POWER REPORT - Mac": "RAPORT TERMICZNY I ZASILANIA - Mac",
     "generated: %s   range: last %d days": "wygenerowano: %s   zakres: ostatnie %d dni",
+    "coffee-paladin - THERMAL AND POWER REPORT": "coffee-paladin - RAPORT TERMICZNY I ZASILANIA",
+    "generated: %s": "wygenerowano: %s",
+    "range: last %d days": "zakres: ostatnie %d dni",
+    "range: everything on record": "zakres: wszystko, co zarejestrowano",
+    "range: %s - %s": "zakres: %s - %s",
+    "  system set up: %s": "  system skonfigurowany: %s",
+    "  fans: %s": "  wentylatory: %s",
+    "  Neural Engine: %d cores": "  Neural Engine: %d rdzeni",
+    "  disk: %s GB total, %s GB free": "  dysk: %s GB, wolne %s GB",
+    "  guard thresholds: pause >=%s C, kill >=%s C": "  progi paladyna: pauza >=%s C, ubicie >=%s C",
     "\n## HARDWARE\n": "\n## SPRZET\n",
     "\n## BATTERY\n": "\n## BATERIA\n",
     "\n## CRITICAL EVENTS (hard shutdowns, cooling alarms)\n":
@@ -70,8 +82,8 @@ PL = {
     "  time, chip C, GPU C, battery C, fan rpm, W, battery %, on AC, CPU limit, load, level":
         "  czas, chip C, GPU C, bateria C, obroty, W, bateria %, zasilacz, CPU limit, load, poziom",
     "  PEAK MEASURED CHIP TEMPERATURE: %.1f C (%s)": "  NAJWYZSZA ZMIERZONA TEMPERATURA CHIPA: %.1f C (%s)",
-    "Measurements are collected by thermal-guard every 15 s (written every 5 min and on every event).":
-        "Pomiary zbiera thermal-guard co 15 s (zapis co 5 min oraz przy kazdym zdarzeniu).",
+    "Measurements are collected by the algorithm every %d s (written every 5 min and on every event).":
+        "Algorytmy zbieraja pomiary co %d s (zapis co 5 min oraz przy kazdym zdarzeniu).",
     "Chip temperature is read through IOReport, battery temperature through AppleSmartBattery.":
         "Temperatura chipa czytana przez IOReport, temperatura baterii przez AppleSmartBattery.",
     "AC": "zasilacz",
@@ -97,8 +109,8 @@ RU = {
     "  time, chip C, GPU C, battery C, fan rpm, W, battery %, on AC, CPU limit, load, level":
         "  время, чип C, GPU C, батарея C, об/мин, Вт, батарея %, адаптер, CPU limit, load, уровень",
     "  PEAK MEASURED CHIP TEMPERATURE: %.1f C (%s)": "  ПИКОВАЯ ТЕМПЕРАТУРА ЧИПА: %.1f C (%s)",
-    "Measurements are collected by thermal-guard every 15 s (written every 5 min and on every event).":
-        "Измерения собирает thermal-guard каждые 15 с (запись каждые 5 мин и при каждом событии).",
+    "Measurements are collected by the algorithm every %d s (written every 5 min and on every event).":
+        "Измерения собирает алгоритм каждые %d с (запись каждые 5 мин и при каждом событии).",
     "Chip temperature is read through IOReport, battery temperature through AppleSmartBattery.":
         "Температура чипа читается через IOReport, температура батареи - через AppleSmartBattery.",
     "AC": "адаптер",
@@ -124,8 +136,8 @@ ZH = {
     "  time, chip C, GPU C, battery C, fan rpm, W, battery %, on AC, CPU limit, load, level":
         "  时间, 芯片 C, GPU C, 电池 C, 风扇转速, W, 电池 %, 接电源, CPU limit, 负载, 级别",
     "  PEAK MEASURED CHIP TEMPERATURE: %.1f C (%s)": "  实测芯片峰值温度: %.1f C (%s)",
-    "Measurements are collected by thermal-guard every 15 s (written every 5 min and on every event).":
-        "thermal-guard 每 15 秒采集一次测量(每 5 分钟及每次事件时写入)。",
+    "Measurements are collected by the algorithm every %d s (written every 5 min and on every event).":
+        "算法每 %d 秒采集一次测量(每 5 分钟及每次事件时写入)。",
     "Chip temperature is read through IOReport, battery temperature through AppleSmartBattery.":
         "芯片温度通过 IOReport 读取, 电池温度通过 AppleSmartBattery 读取。",
     "AC": "电源适配器",
@@ -151,8 +163,8 @@ ES = {
     "  time, chip C, GPU C, battery C, fan rpm, W, battery %, on AC, CPU limit, load, level":
         "  hora, chip C, GPU C, batería C, rpm, W, batería %, adaptador, CPU limit, carga, nivel",
     "  PEAK MEASURED CHIP TEMPERATURE: %.1f C (%s)": "  TEMPERATURA MÁXIMA MEDIDA DEL CHIP: %.1f C (%s)",
-    "Measurements are collected by thermal-guard every 15 s (written every 5 min and on every event).":
-        "thermal-guard toma mediciones cada 15 s (escritura cada 5 min y en cada evento).",
+    "Measurements are collected by the algorithm every %d s (written every 5 min and on every event).":
+        "El algoritmo toma mediciones cada %d s (escritura cada 5 min y en cada evento).",
     "Chip temperature is read through IOReport, battery temperature through AppleSmartBattery.":
         "La temperatura del chip se lee por IOReport, la de la batería por AppleSmartBattery.",
     "AC": "adaptador",
@@ -202,18 +214,73 @@ def main():
     if cel is None:
         cel = os.path.join(HOME, "Desktop",
                            "thermal_report_%s.txt" % time.strftime("%Y%m%d_%H%M"))
+
+    def _data(s):
+        return time.mktime(time.strptime(s, "%Y-%m-%d"))
+
+    # zakres: --all (calosc), --from/--to YYYY-MM-DD (kalendarz), albo --days N
     granica = time.time() - dni * 86400
+    gorna = None
+    zakres_opis = T("range: last %d days") % dni
+    if "--all" in sys.argv:
+        granica = 0
+        zakres_opis = T("range: everything on record")
+    if "--from" in sys.argv:
+        try:
+            granica = _data(sys.argv[sys.argv.index("--from") + 1])
+        except Exception:
+            pass
+    if "--to" in sys.argv:
+        try:
+            gorna = _data(sys.argv[sys.argv.index("--to") + 1]) + 86400
+        except Exception:
+            pass
+    if "--from" in sys.argv or "--to" in sys.argv:
+        zakres_opis = T("range: %s - %s") % (
+            time.strftime("%Y-%m-%d", time.localtime(granica)),
+            time.strftime("%Y-%m-%d", time.localtime((gorna or time.time()))))
+
+    def w_zakresie(t):
+        return t >= granica and (gorna is None or t <= gorna)
+
     W = []
 
-    W.append(T("THERMAL AND POWER REPORT - Mac"))
-    W.append(T("generated: %s   range: last %d days") % (
-        time.strftime("%Y-%m-%d %H:%M:%S"), dni))
+    W.append(T("coffee-paladin - THERMAL AND POWER REPORT"))
+    W.append(T("generated: %s") % time.strftime("%Y-%m-%d %H:%M:%S") + "   " + zakres_opis)
     W.append("=" * 78)
 
     W.append(T("\n## HARDWARE\n"))
     for linia in sh(["system_profiler", "SPHardwareDataType"]).splitlines():
         if re.search(r"Model Name|Model Identifier|Chip|Total Number of Cores|Memory|Serial", linia):
             W.append("  " + linia.strip())
+
+    # komplet danych jak w "O moim Macu" (pkt 7): macOS, data konfiguracji,
+    # wentylatory, dysk, Neural Engine, progi
+    try:
+        hw = json.load(open(os.path.join(BASE, "hardware.json")))
+    except Exception:
+        hw = {}
+    W.append("  macOS: " + sh(["sw_vers", "-productVersion"]).strip())
+    try:
+        st = os.stat("/var/db/.AppleSetupDone")
+        W.append(T("  system set up: %s") % time.strftime("%Y-%m-%d", time.localtime(st.st_birthtime)))
+    except Exception:
+        pass
+    if hw.get("fan_count") is not None:
+        W.append(T("  fans: %s") % hw.get("fan_count"))
+    chip_hw = hw.get("chip") or ""
+    if chip_hw:
+        W.append(T("  Neural Engine: %d cores") % (32 if "Ultra" in chip_hw else 16))
+    df = sh(["df", "-g", "/"]).splitlines()
+    if len(df) > 1 and len(df[1].split()) >= 5:
+        k = df[1].split()
+        W.append(T("  disk: %s GB total, %s GB free") % (k[1], k[3]))
+    try:
+        cfg_j = json.load(open(CFG))
+        W.append(T("  guard thresholds: pause >=%s C, kill >=%s C") % (
+            cfg_j.get("soc_pause_c", "?"), cfg_j.get("soc_kill_c", "?")))
+    except Exception:
+        pass
 
     W.append(T("\n## BATTERY\n"))
     for linia in sh(["system_profiler", "SPPowerDataType"]).splitlines()[:40]:
@@ -239,7 +306,7 @@ def main():
                     continue
                 if z.get("synthetic"):
                     continue          # wpisy testowe nie wchodza do dowodu dla serwisu
-                if czas_z(z.get("time", "")) < granica:
+                if not w_zakresie(czas_z(z.get("time", ""))):
                     continue
                 zdarzen += 1
                 W.append("  [%s] %s — %s" % (z.get("time"), z.get("type"), z.get("description")))
@@ -271,7 +338,7 @@ def main():
     try:
         with open(LOG) as f:
             for linia in f:
-                if czas_z(linia[:19]) < granica:
+                if not w_zakresie(czas_z(linia[:19])):
                     continue
                 if re.search(r"PAUSED|RESUMED|PAUZA|WZNOWIONE|SIGTERM|TERMINAT|koncze zadanie|AWARIA|FAILURE|HARD SHUT|TWARDY", linia):
                     inter += 1
@@ -290,7 +357,7 @@ def main():
             f.readline()                  # naglowek CSV - pomijamy
             for linia in f:
                 c = linia.strip().split(",")
-                if len(c) < 12 or czas_z(c[0]) < granica:
+                if len(c) < 12 or not w_zakresie(czas_z(c[0])):
                     continue
                 ile += 1
                 try:
@@ -305,8 +372,16 @@ def main():
         W.insert(len(W) - ile - 2, T("  PEAK MEASURED CHIP TEMPERATURE: %.1f C (%s)") % szczyt)
 
     W.append("\n" + "=" * 78)
-    W.append(T("Measurements are collected by thermal-guard every 15 s (written every 5 min and on every event)."))
+    try:
+        interwal = int(json.load(open(CFG)).get("poll_seconds", 15))
+    except Exception:
+        interwal = 15
+    W.append(T("Measurements are collected by the algorithm every %d s (written every 5 min and on every event).") % interwal)
     W.append(T("Chip temperature is read through IOReport, battery temperature through AppleSmartBattery."))
+    W.append("")
+    W.append("coffee-paladin v%s  ·  Shield the Process, Sip the Coffee" % VERSION)
+    W.append("https://github.com/pawelkwaczynski/coffee-paladin")
+    W.append("FOCUS FRAME")
 
     tekst = "\n".join(W) + "\n"
     with open(cel, "w") as f:
@@ -317,6 +392,41 @@ def main():
     # nadal istnieje i drukujemy sciezke tego, co jest.
     if "--pdf" in sys.argv:
         pdf = cel.rsplit(".", 1)[0] + ".pdf"
+        # PIERWSZA DROGA: HTML -> Chrome headless. Tylko tak wchodzi KOLOROWE logo
+        # FOCUS FRAME w stopce (cupsfilter potrafi wylacznie czysty tekst).
+        chrome = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+        logo = os.path.join(BASE, "logo_footer.png")
+        if os.path.exists(chrome):
+            try:
+                import base64
+                import html as _html
+                tresc = _html.escape(tekst.rsplit("FOCUS FRAME", 1)[0].rstrip())
+                stopka = ""
+                if os.path.exists(logo):
+                    with open(logo, "rb") as f:
+                        b64 = base64.b64encode(f.read()).decode()
+                    stopka = ('<div class="stopka"><img src="data:image/png;base64,%s"></div>'
+                              % b64)
+                doc = ("""<!doctype html><meta charset="utf-8"><style>
+@page { margin: 14mm 12mm; }
+body { font: 8.5pt ui-monospace, "SF Mono", Menlo, monospace; color: #111; }
+pre { white-space: pre-wrap; word-break: break-word; margin: 0; }
+.stopka { margin-top: 10mm; text-align: center; }
+.stopka img { width: 42mm; }
+</style><pre>%s</pre>%s""" % (tresc, stopka))
+                tmp_html = cel.rsplit(".", 1)[0] + ".html"
+                with open(tmp_html, "w") as f:
+                    f.write(doc)
+                r = subprocess.run([chrome, "--headless", "--disable-gpu", "--no-pdf-header-footer",
+                                    "--print-to-pdf=" + pdf, "file://" + tmp_html],
+                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=180)
+                os.remove(tmp_html)
+                if r.returncode == 0 and os.path.exists(pdf) and os.path.getsize(pdf) > 1000:
+                    print(pdf)
+                    return 0
+            except Exception:
+                pass
+        # ZAPAS: cupsfilter (bez logo, ale zawsze dziala)
         try:
             with open(pdf, "wb") as f:
                 r = subprocess.run(["cupsfilter", cel], stdout=f,
