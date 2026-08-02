@@ -356,6 +356,30 @@ def load_cfg():
             _zle_typy.append("progi %s poza zakresem %.0f-%.0f - przywrocone domyslne"
                              % (rodzina[0].split("_")[0], zakres[0], zakres[1]))
 
+    # Progi temperatur mialy zakresy, liczniki i interwaly nie mialy zadnych. A to
+    # wlasnie one potrafia zrobic najwiecej szkody, bo nie brzmia grozne:
+    #   poll_seconds: 0        -> petla bez ani jednego sleepa, jeden rdzen pod korek
+    #                             NA MACU, KTOREGO TEN PROGRAM MA PILNOWAC PRZED GRZANIEM
+    #   max_pause_minutes: -1  -> kazda pauza od razu przekracza limit, wiec swiezo
+    #                             wstrzymane zadanie dostaje SIGTERM w tej samej sekundzie
+    #   kill_after_polls: 0    -> ubicie przy pierwszym krytycznym odczycie, bez laski
+    # Zamiast odrzucac cala konfiguracje, przycinamy pojedyncza wartosc do sensownej
+    # granicy i mowimy o tym w logu.
+    for klucz, dolna, gorna in (("poll_seconds", 1, 300),
+                                ("max_pause_minutes", 1, 10080),
+                                ("max_pause_minutes_batt", 1, 10080),
+                                ("kill_after_polls", 1, 100),
+                                ("job_cpu_percent", 5, 100),
+                                ("batt_pct_pause", 0, 100),
+                                ("batt_pct_resume", 0, 100)):
+        v = cfg.get(klucz)
+        if isinstance(v, (int, float)) and not isinstance(v, bool):
+            if v < dolna or v > gorna:
+                cfg[klucz] = type(DEFAULTS[klucz])(min(max(v, dolna), gorna)) \
+                             if klucz in DEFAULTS else min(max(v, dolna), gorna)
+                _zle_typy.append("%s = %s poza zakresem %s-%s - przyciete do %s"
+                                 % (klucz, v, dolna, gorna, cfg[klucz]))
+
     # listy nietykalnych sa UZUPELNIANE o wlasne nazwy, nigdy nimi nie nadpisywane:
     # uzytkownik moze dopisac swoje wzorce, ale nie moze przypadkiem odslonic demona.
     # Puste stringi wylatuja: "" pasuje do KAZDEJ nazwy procesu, wiec jedna pusta
@@ -485,6 +509,7 @@ PL = {
     "%s cannot resume by itself - switch to its terminal and type 'fg'.":
         "%s nie wznowi sie samo - przejdz do jego terminala i wpisz 'fg'.",
     "Thermal guard: PROTECTION INCOMPLETE": "Thermal guard: OCHRONA NIEPELNA",
+    "No chip temperature sensor (macmon missing). Only battery temperature is watched, and it reacts minutes late. Fix: brew install macmon": "Brak czujnika temperatury chipa (nie ma macmona). Pilnowana jest tylko bateria, a ona reaguje z kilkuminutowym opoznieniem. Naprawa: brew install macmon",
     "Could not pause: %s (%s). The Mac stays hot - intervene manually.":
         "Nie udalo sie wstrzymac: %s (%s). Mac zostaje goracy - zareaguj recznie.",
     "Thermal guard: CRITICAL overheating": "Thermal guard: KRYTYCZNE przegrzanie",
@@ -579,6 +604,7 @@ RU = {
     "Thermal guard: job needs your hand": "Тепловой страж: задача требует вашего вмешательства",
     "%s cannot resume by itself - switch to its terminal and type 'fg'.": "%s не может продолжить сам - перейдите в его терминал и наберите 'fg'.",
     "Thermal guard: PROTECTION INCOMPLETE": "Тепловой страж: ЗАЩИТА НЕПОЛНАЯ",
+    "No chip temperature sensor (macmon missing). Only battery temperature is watched, and it reacts minutes late. Fix: brew install macmon": "Нет датчика температуры чипа (отсутствует macmon). Отслеживается только батарея, а она реагирует с задержкой в несколько минут. Решение: brew install macmon",
     "Could not pause: %s (%s). The Mac stays hot - intervene manually.": "Не удалось поставить на паузу: %s (%s). Mac остаётся горячим - вмешайтесь вручную.",
 }
 
@@ -660,6 +686,7 @@ ZH = {
     "Thermal guard: job needs your hand": "热量守卫:任务需要你处理",
     "%s cannot resume by itself - switch to its terminal and type 'fg'.": "%s 无法自行恢复 - 切换到它的终端并输入 'fg'。",
     "Thermal guard: PROTECTION INCOMPLETE": "热量守卫:保护不完整",
+    "No chip temperature sensor (macmon missing). Only battery temperature is watched, and it reacts minutes late. Fix: brew install macmon": "没有芯片温度传感器（缺少 macmon）。只能监测电池温度，而它要慢上几分钟才有反应。解决办法：brew install macmon",
     "Could not pause: %s (%s). The Mac stays hot - intervene manually.": "无法暂停:%s (%s)。Mac 仍然过热 - 请手动处理。",
 }
 
@@ -742,6 +769,7 @@ ES = {
     "Thermal guard: job needs your hand": "Guardián térmico: la tarea necesita tu intervención",
     "%s cannot resume by itself - switch to its terminal and type 'fg'.": "%s no puede reanudarse solo - ve a su terminal y escribe 'fg'.",
     "Thermal guard: PROTECTION INCOMPLETE": "Guardián térmico: PROTECCIÓN INCOMPLETA",
+    "No chip temperature sensor (macmon missing). Only battery temperature is watched, and it reacts minutes late. Fix: brew install macmon": "No hay sensor de temperatura del chip (falta macmon). Solo se vigila la bateria, que reacciona con minutos de retraso. Solucion: brew install macmon",
     "Could not pause: %s (%s). The Mac stays hot - intervene manually.": "No se pudo pausar: %s (%s). El Mac sigue caliente - interviene manualmente.",
 }
 
@@ -1770,7 +1798,17 @@ def obsluz_rozkaz(cfg, st, targets):
         os.remove(COMMAND_PATH)
     except Exception:
         return
-    if rozkaz == "freeze":
+    if rozkaz == "freeze" or rozkaz.startswith("freeze:"):
+        # "freeze" = wszystko co kwalifikuje; "freeze:123,456" = tylko wskazane PID-y
+        # (uzytkownik wybiera je w oknie potwierdzenia). Wybor filtruje kandydatow,
+        # NIE omija zadnej reguly: proces spoza listy targets i tak nie zostanie ruszony.
+        if rozkaz.startswith("freeze:"):
+            chciane = set()
+            for kawalek in rozkaz.split(":", 1)[1].split(","):
+                kawalek = kawalek.strip()
+                if kawalek.isdigit():
+                    chciane.add(int(kawalek))
+            targets = [t for t in (targets or []) if t[0] in chciane]
         # flage stawiamy TYLKO gdy naprawde cos zamrozilismy — inaczej pasek klamie
         if targets and do_pause(cfg, st, targets, T("MANUAL FREEZE (from the menu bar)"), manual=True):
             st["reczna_pauza"] = True
@@ -2205,6 +2243,14 @@ def status_write(state, temp, soc, soc_t, ac, pct, speed, load, lvl, why, target
         "stats": st.get("_stat", {}),
         "unpausable": st.get("_unpausable", []),
         "top_cpu_list": st.get("_top_cpu", []),
+        # Kandydaci do RECZNEGO zamrozenia - dokladnie to, co dostanie SIGSTOP.
+        # Pasek pokazywal tu wczesniej "top_cpu_list", czyli trzy najciezsze procesy
+        # w systemie. To byla lista do CZYTANIA, nie do dzialania: siedzialy w niej
+        # WindowServer i agent AI, oba na liscie nietykalnych. Okno potwierdzenia
+        # obiecywalo wiec zatrzymac procesy, ktorych straznik nigdy by nie ruszyl,
+        # i podawalo inna liczbe niz licznik obok.
+        "freeze_candidates": [{"pid": t[0], "name": t[2], "cpu": round(t[1])}
+                              for t in (targets or [])],
         "top_ram_list": st.get("_top_ram", []),
         "last_hard_shutdown": st.get("_ostatni_pad"),
         "thresholds": {"pause": st.get("_prog_pauza"), "kill": st.get("_prog_ubicie")},
@@ -2598,6 +2644,26 @@ def main():
             time.sleep(0.5)
 
     do_resume(cfg, st, T("guard is shutting down"))
+    # Degradacja na rdzenie ekonomiczne przezywala zamkniecie demona: proces zostawal
+    # przypiety do E-cores do konca zycia, niewidocznie, bo w temperaturze tego nie
+    # widac - tylko w tempie pracy. Zdejmujemy ja tak samo jak pauze.
+    for _pid in list(st.get("demoted_info") or {}):
+        try:
+            run(["taskpolicy", "-B", "-p", str(_pid)], timeout=5)
+        except Exception:
+            pass
+    # `caffeinate -is` jest DZIECKIEM demona, ale przezywa go: po smierci straznika
+    # przejmuje go launchd i Mac nigdy nie zasypia, bez zadnego sladu w interfejsie.
+    try:
+        _c = _caff.get("proc")
+        if _c is not None and _c.poll() is None:
+            _c.terminate()
+            try:
+                _c.communicate(timeout=3)
+            except Exception:
+                _c.kill()
+    except Exception:
+        pass
     save_state(st)
     # znacznik czystego zamkniecia — bez niego nastepny start uzna to za twardy pad
     try:

@@ -84,6 +84,12 @@ let PL: [String: String] = [
     "Today: %d x pause": "Dziś: %d x pauza", ", %d x kill": ", %d x ubicie",
     "Resume paused jobs": "Wznów wstrzymane zadania",
     "Freeze all heavy jobs now": "Wstrzymaj ciężkie zadania",
+    "Freeze all of them": "Wstrzymaj wszystkie",
+    "Freeze heavy jobs now?": "Wstrzymać teraz ciężkie zadania?",
+    "Nothing heavy is running right now. Anything that gets heavy will be frozen until you switch this back off.": "Nic ciężkiego teraz nie chodzi. Cokolwiek się rozpędzi, zostanie wstrzymane, dopóki nie przesuniesz przełącznika z powrotem.",
+    "A freeze is not a kill. The process stops between two instructions, keeps its memory and its open files, and carries on from the same place when you switch this off. Local computation - a render, a compile, ffmpeg - loses nothing.": "Wstrzymanie to nie zabicie. Proces staje między dwiema instrukcjami, zachowuje pamięć i otwarte pliki, a po wyłączeniu przełącznika liczy dalej od tego samego miejsca. Liczenie lokalne, czyli render, kompilacja czy ffmpeg, nie traci nic.",
+    "What a freeze does NOT protect: anything waiting on the network or watching a clock will notice the gap. A download or an upload can drop, a server can disconnect you, a video call freezes, a game goes unresponsive. The paladin will not touch the system, Finder, your terminal or your AI agent.": "Czego wstrzymanie NIE chroni: cokolwiek czeka na sieć albo pilnuje zegara, zauważy przerwę. Pobieranie albo wysyłka może się zerwać, serwer może rozłączyć, rozmowa wideo zamarznie, gra przestanie odpowiadać. Paladyn nie ruszy systemu, Findera, Twojego terminala ani Twojego agenta AI.",
+    "Freeze": "Wstrzymaj",
     "Pause jobs when the Mac overheats": "Włącz pauzowanie przy przegrzaniu",
     "OFF - the Mac is only being watched": "WYŁĄCZONE — Mac jest tylko obserwowany",
     "Show in the bar": "Pokaż na pasku",
@@ -312,6 +318,12 @@ let RU: [String: String] = [
     ", %d x kill": ", %d x завершение",
     "Resume paused jobs": "Возобновить приостановленные задачи",
     "Freeze all heavy jobs now": "Приостановить тяжёлые задачи",
+    "Freeze all of them": "Приостановить все",
+    "Freeze heavy jobs now?": "Приостановить тяжёлые задачи сейчас?",
+    "Nothing heavy is running right now. Anything that gets heavy will be frozen until you switch this back off.": "Сейчас ничего тяжёлого не работает. Всё, что станет тяжёлым, будет приостановлено, пока вы не выключите этот переключатель.",
+    "A freeze is not a kill. The process stops between two instructions, keeps its memory and its open files, and carries on from the same place when you switch this off. Local computation - a render, a compile, ffmpeg - loses nothing.": "Приостановка - не убийство. Процесс замирает между двумя инструкциями, сохраняет память и открытые файлы и продолжит с того же места, когда вы выключите переключатель. Локальные вычисления - рендер, сборка, ffmpeg - ничего не теряют.",
+    "What a freeze does NOT protect: anything waiting on the network or watching a clock will notice the gap. A download or an upload can drop, a server can disconnect you, a video call freezes, a game goes unresponsive. The paladin will not touch the system, Finder, your terminal or your AI agent.": "Что приостановка НЕ защищает: всё, что ждёт сеть или следит за часами, заметит паузу. Загрузка или выгрузка может оборваться, сервер может отключить, видеозвонок замрёт, игра перестанет отвечать. Паладин не тронет систему, Finder, ваш терминал и вашего ИИ-агента.",
+    "Freeze": "Приостановить",
     "Pause jobs when the Mac overheats": "Приостанавливать задачи при перегреве",
     "OFF - the Mac is only being watched": "ВЫКЛЮЧЕНО — Mac только под наблюдением",
     "Show in the bar": "Показывать в строке меню",
@@ -510,6 +522,12 @@ let ZH: [String: String] = [
     ", %d x kill": "，%d 次终止",
     "Resume paused jobs": "恢复已暂停的任务",
     "Freeze all heavy jobs now": "立即暂停繁重任务",
+    "Freeze all of them": "全部暂停",
+    "Freeze heavy jobs now?": "现在暂停繁重任务？",
+    "Nothing heavy is running right now. Anything that gets heavy will be frozen until you switch this back off.": "目前没有繁重任务在运行。之后出现的繁重任务都会被暂停，直到你关掉这个开关。",
+    "A freeze is not a kill. The process stops between two instructions, keeps its memory and its open files, and carries on from the same place when you switch this off. Local computation - a render, a compile, ffmpeg - loses nothing.": "暂停不是终止。进程停在两条指令之间，保留内存和已打开的文件，你关掉开关后会从原地继续。本地计算，比如渲染、编译、ffmpeg，不会有任何损失。",
+    "What a freeze does NOT protect: anything waiting on the network or watching a clock will notice the gap. A download or an upload can drop, a server can disconnect you, a video call freezes, a game goes unresponsive. The paladin will not touch the system, Finder, your terminal or your AI agent.": "暂停不能保护什么：任何等待网络或盯着时钟的东西都会察觉到这段空白。下载或上传可能中断，服务器可能把你断开，视频通话会卡住，游戏会失去响应。圣骑士不会碰系统、访达、你的终端或你的 AI 代理。",
+    "Freeze": "暂停",
     "Pause jobs when the Mac overheats": "过热时暂停任务",
     "OFF - the Mac is only being watched": "已关闭 —— 仅在观察这台 Mac",
     "Show in the bar": "菜单栏显示内容",
@@ -708,6 +726,12 @@ let ES: [String: String] = [
     ", %d x kill": ", %d x terminación",
     "Resume paused jobs": "Reanudar tareas en pausa",
     "Freeze all heavy jobs now": "Pausar las tareas pesadas",
+    "Freeze all of them": "Pausar todas",
+    "Freeze heavy jobs now?": "¿Pausar ahora las tareas pesadas?",
+    "Nothing heavy is running right now. Anything that gets heavy will be frozen until you switch this back off.": "Ahora mismo no hay nada pesado en marcha. Todo lo que se vuelva pesado quedará en pausa hasta que vuelvas a desactivar esto.",
+    "A freeze is not a kill. The process stops between two instructions, keeps its memory and its open files, and carries on from the same place when you switch this off. Local computation - a render, a compile, ffmpeg - loses nothing.": "Pausar no es matar. El proceso se detiene entre dos instrucciones, conserva su memoria y sus archivos abiertos, y sigue desde el mismo punto cuando desactivas esto. El cálculo local (un render, una compilación, ffmpeg) no pierde nada.",
+    "What a freeze does NOT protect: anything waiting on the network or watching a clock will notice the gap. A download or an upload can drop, a server can disconnect you, a video call freezes, a game goes unresponsive. The paladin will not touch the system, Finder, your terminal or your AI agent.": "Lo que una pausa NO protege: todo lo que espera a la red o vigila un reloj notará el hueco. Una descarga o una subida puede cortarse, un servidor puede desconectarte, una videollamada se congela, un juego deja de responder. El paladín no tocará el sistema, el Finder, tu terminal ni tu agente de IA.",
+    "Freeze": "Pausar",
     "Pause jobs when the Mac overheats": "Pausar tareas cuando el Mac se recalienta",
     "OFF - the Mac is only being watched": "DESACTIVADO: el Mac solo está siendo observado",
     "Show in the bar": "Mostrar en la barra",
@@ -1937,6 +1961,12 @@ struct Job { let name: String; let minutes: Int }
 struct TopCPU { let name: String; let cpu: Int }
 struct TopRAM { let name: String; let gb: Double }
 
+struct Kandydat {
+    let pid: Int
+    let name: String
+    let cpu: Int
+}
+
 struct Snap {
     var chip: Double?, gpu: Double?, batt: Double?, watts: Double?
     var fans: [Int] = []
@@ -1951,6 +1981,10 @@ struct Snap {
     var trend: Double?, eta: Double?
     var jobs: [Job] = []
     var topCpuList: [TopCPU] = []
+    /// Dokladnie to, co dostanie SIGSTOP przy recznym zamrozeniu. Publikuje to demon,
+    /// bo tylko on zna listy nietykalnych. Wczesniej pasek pokazywal tu top CPU -
+    /// czyli WindowServer i agenta AI, ktorych straznik nigdy by nie ruszyl.
+    var freezeCandidates: [Kandydat] = []
     var heavyCount: Int = 0
     var topRamList: [TopRAM] = []
     var pausesToday = 0, killsToday = 0
@@ -1995,6 +2029,13 @@ func readSnap() -> Snap? {
         s.jobs = z.map { Job(name: ($0["name"] as? String) ?? "?", minutes: numInt($0["minutes"]) ?? 0) }
     }
     if let z = j["top_cpu_list"] as? [[String: Any]] {
+        if let fc = j["freeze_candidates"] as? [[String: Any]] {
+            s.freezeCandidates = fc.compactMap {
+                guard let pid = numInt($0["pid"]) else { return nil }
+                return Kandydat(pid: pid, name: ($0["name"] as? String) ?? "?",
+                                cpu: numInt($0["cpu"]) ?? 0)
+            }
+        }
         s.topCpuList = z.map { TopCPU(name: ($0["name"] as? String) ?? "?",
                                       cpu: numInt($0["cpu"]) ?? 0) }
     }
@@ -2026,14 +2067,19 @@ final class WykresRow: NSView {
     private let wartosci: [Double]
     private let pauzy: [Bool]
     private let czasy: [String]
+    private let procesy: [String]
     private let progPauza: Double
     private let progWznow: Double
+    /// Slupek pod kursorem. nil = mysz poza wykresem.
+    private var podKursorem: Int?
+    private var obszar: NSTrackingArea?
 
     static func make() -> WykresRow? {
         guard let text = try? String(contentsOfFile: historyPath, encoding: .utf8) else { return nil }
         var vals: [Double] = []
         var pau: [Bool] = []
         var czasy: [String] = []
+        var proc: [String] = []
         for line in text.split(separator: "\n").suffix(61) {
             let c = line.split(separator: ",", omittingEmptySubsequences: false)
             if c.count > 11, let v = Double(c[2]) {
@@ -2042,16 +2088,21 @@ final class WykresRow: NSView {
                 // "YYYY-MM-DD HH:MM:SS" -> "HH:MM" (podpisy osi czasu pod wykresem)
                 let t = String(c[0])
                 czasy.append(t.count >= 16 ? String(t.dropFirst(11).prefix(5)) : "")
+                // kto wtedy grzal najmocniej - do podpowiedzi pod kursorem
+                let nazwa = c.count > 12 ? String(c[12]).trimmingCharacters(in: .whitespaces) : ""
+                let cpu = c.count > 13 ? String(c[13]).trimmingCharacters(in: .whitespaces) : ""
+                proc.append(nazwa.isEmpty ? "" : (cpu.isEmpty ? nazwa : "\(nazwa) \(cpu)%"))
             }
         }
         guard vals.count >= 3 else { return nil }
-        return WykresRow(vals, pau, czasy)
+        return WykresRow(vals, pau, czasy, proc)
     }
 
-    init(_ v: [Double], _ p: [Bool], _ t: [String]) {
+    init(_ v: [Double], _ p: [Bool], _ t: [String], _ pr: [String]) {
         wartosci = v
         pauzy = p
         czasy = t
+        procesy = pr
         progPauza = GuardCfg.double("soc_pause_c", 90)
         progWznow = GuardCfg.double("soc_resume_c", 82)
         // +12 pt na os czasu pod slupkami
@@ -2059,6 +2110,33 @@ final class WykresRow: NSView {
         autoresizingMask = [.width]
     }
     required init?(coder: NSCoder) { fatalError() }
+
+    // Sledzenie myszy nad wykresem. Zadnego timera - przerysowujemy sie wylacznie
+    // wtedy, gdy kursor naprawde zmienil slupek.
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let o = obszar { removeTrackingArea(o) }
+        let o = NSTrackingArea(rect: bounds,
+                               options: [.mouseEnteredAndExited, .mouseMoved, .activeAlways, .inVisibleRect],
+                               owner: self, userInfo: nil)
+        addTrackingArea(o)
+        obszar = o
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        let p = convert(event.locationInWindow, from: nil)
+        let lewy: CGFloat = 44, prawy: CGFloat = 16
+        let W = bounds.width - lewy - prawy
+        guard W > 0, !wartosci.isEmpty else { return }
+        let krok = W / CGFloat(wartosci.count)
+        let i = Int((p.x - lewy) / krok)
+        let nowy = (p.x >= lewy && i >= 0 && i < wartosci.count) ? i : nil
+        if nowy != podKursorem { podKursorem = nowy; needsDisplay = true }
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        if podKursorem != nil { podKursorem = nil; needsDisplay = true }
+    }
 
     override func draw(_ dirtyRect: NSRect) {
         let lewy: CGFloat = 44, prawy: CGFloat = 16, dol: CGFloat = 18, gora: CGFloat = 8
@@ -2090,6 +2168,17 @@ final class WykresRow: NSView {
             }
         }
 
+        // slupek pod kursorem: obwodka, zeby bylo widac ktory odczyt czytamy
+        if let k = podKursorem, wartosci.indices.contains(k) {
+            let x = lewy + CGFloat(k) * krok
+            NSColor.labelColor.withAlphaComponent(0.55).setStroke()
+            let ramka = NSBezierPath(rect: NSRect(x: x - 0.5, y: dol - 0.5,
+                                                  width: szer + 1,
+                                                  height: Swift.max(y(wartosci[k]) - dol, 1.5) + 1))
+            ramka.lineWidth = 1
+            ramka.stroke()
+        }
+
         // linia progu pauzy (przerywana), o ile miesci sie w skali
         if progPauza >= lo && progPauza <= top {
             let yp = y(progPauza)
@@ -2110,8 +2199,32 @@ final class WykresRow: NSView {
                                           withAttributes: atr)
         String(format: "%.0f°", lo).draw(at: NSPoint(x: 14, y: dol - 1), withAttributes: atr)
 
+        // Podpowiedz pod kursorem: godzina odczytu, temperatura i kto wtedy grzal
+        // najmocniej. Rysowana w widoku, nie przez NSToolTip - w menu tooltipy
+        // pojawiaja sie z opoznieniem i gubia sie przy przesuwaniu myszy.
+        if let k = podKursorem, wartosci.indices.contains(k) {
+            var opis = czasy.indices.contains(k) && !czasy[k].isEmpty ? czasy[k] + "   " : ""
+            opis += String(format: "%.1f°C", wartosci[k])
+            if procesy.indices.contains(k), !procesy[k].isEmpty { opis += "   " + procesy[k] }
+            let atrP: [NSAttributedString.Key: Any] = [
+                .font: NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .medium),
+                .foregroundColor: NSColor.labelColor]
+            let rozmiar = (opis as NSString).size(withAttributes: atrP)
+            // trzymamy chmurke w granicach wykresu, zeby nie uciekala poza menu
+            let xSrodek = lewy + CGFloat(k) * krok + szer / 2
+            let x = Swift.min(Swift.max(xSrodek - rozmiar.width / 2, lewy),
+                              lewy + W - rozmiar.width)
+            let yT = bounds.height - rozmiar.height - 1
+            NSColor.windowBackgroundColor.withAlphaComponent(0.92).setFill()
+            NSBezierPath(roundedRect: NSRect(x: x - 4, y: yT - 2,
+                                             width: rozmiar.width + 8, height: rozmiar.height + 3),
+                         xRadius: 3, yRadius: 3).fill()
+            (opis as NSString).draw(at: NSPoint(x: x, y: yT), withAttributes: atrP)
+        }
+
         // os czasu: poczatek, srodek i koniec zakresu pomiarow (HH:MM z history.csv)
-        if let pierwszy = czasy.first(where: { !$0.isEmpty }),
+        if podKursorem == nil,
+           let pierwszy = czasy.first(where: { !$0.isEmpty }),
            let ostatni = czasy.last(where: { !$0.isEmpty }) {
             pierwszy.draw(at: NSPoint(x: lewy, y: 2), withAttributes: atr)
             let wOst = (ostatni as NSString).size(withAttributes: atr).width
@@ -2205,6 +2318,12 @@ final class Bar: NSObject, NSMenuDelegate {
     var fleetCache: [FleetHost]?
     var fleetCacheAt = Date.distantPast
     private var tick = 0
+    /// Zabezpieczenie przed przewodnikiem wracajacym co 5 s, gdy pliku-sygnalu
+    /// nie da sie usunac.
+    private var pokazanyGuideZSygnalu = false
+    /// Zyja tylko na czas trwania okna potwierdzenia zamrozenia.
+    private var wszystkieCheckbox: NSButton?
+    private var checkboxyProcesow: [NSButton] = []
 
     override init() {
         super.init()
@@ -2223,44 +2342,61 @@ final class Bar: NSObject, NSMenuDelegate {
         // gdy czlowiek patrzy na temperature.
         timer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
             guard let self = self else { return }
-            // plik-sygnal: `touch ~/.coffee-paladin/show_guide` otwiera przewodnik
-            // (do zdalnego sterowania przy zrzutach ekranu / wsparciu)
-            let sygnalGuide = base + "/show_guide"
-            if FileManager.default.fileExists(atPath: sygnalGuide) {
-                try? FileManager.default.removeItem(atPath: sygnalGuide)
-                Guide.shared.show()
-            }
-            // ...i ogolniejszy: `echo ntfy > ~/.coffee-paladin/show_window`
-            // (guide|ntfy|fleetname|observe) - otwiera wskazane okno
-            let sygnalOkno = base + "/show_window"
-            if let dane = try? String(contentsOfFile: sygnalOkno, encoding: .utf8) {
-                let tresc = dane.trimmingCharacters(in: .whitespacesAndNewlines)
-                // `echo ntfy > plik` najpierw OBCINA plik do zera, potem dopisuje tresc.
-                // Trafienie timerem w to okno dawalo pusty string - i zamiast okna ntfy
-                // otwieral sie Przewodnik, a plik znikal. Pusty plik zostawiamy na
-                // nastepny cykl; jesli po 30 s dalej jest pusty, sprzatamy go.
-                if tresc.isEmpty {
-                    if let a = try? FileManager.default.attributesOfItem(atPath: sygnalOkno),
-                       let m = a[.modificationDate] as? Date,
-                       Date().timeIntervalSince(m) > 30 {
-                        try? FileManager.default.removeItem(atPath: sygnalOkno)
-                    }
-                    return
-                }
-                try? FileManager.default.removeItem(atPath: sygnalOkno)
-                NSApp.activate(ignoringOtherApps: true)
-                switch tresc {
-                case "ntfy": self.ntfyDialog()
-                case "fleetname": self.fleetNameDialog()
-                case "observe": self.explainDry()
-                default: Guide.shared.show()
-                }
-            }
+            self.obsluzSygnaly()
             self.refresh()
             self.tick += 1
             if self.tick % 6 == 0 { self.refreshFleet() }   // flota co ~30 s, w tle
         }
         if let t = timer { RunLoop.main.add(t, forMode: .common) }
+    }
+
+    /// Pliki-sygnaly: `touch ~/.coffee-paladin/show_guide` albo
+    /// `echo ntfy > ~/.coffee-paladin/show_window` (guide|ntfy|fleetname|observe).
+    /// Sluza do zdalnego otwierania okien przy zrzutach ekranu i we wsparciu.
+    ///
+    /// To MUSI byc osobna metoda. Wczesniej dyspozytor siedzial w srodku domkniecia
+    /// timera i jego `return` (przy pustym pliku) wychodzil z CALEGO taktu, pomijajac
+    /// refresh(). Pusty plik-sygnal zatrzymywal wiec odswiezanie paska na 30 s, a plik
+    /// z data modyfikacji w przyszlosci (rozjazd zegara, powrot z Time Machine, plik
+    /// przyniesiony przez iCloud z maszyny z zegarem do przodu) - na zawsze.
+    func obsluzSygnaly() {
+        let fm = FileManager.default
+        let sygnalGuide = base + "/show_guide"
+        if fm.fileExists(atPath: sygnalGuide) {
+            // Gdy pliku nie da sie usunac (katalog tylko do odczytu, flaga uchg), okno
+            // wracaloby na wierzch co 5 s i nie dalo sie pracowac. Pokazujemy raz.
+            let usuniety = (try? fm.removeItem(atPath: sygnalGuide)) != nil
+            if usuniety || !pokazanyGuideZSygnalu {
+                pokazanyGuideZSygnalu = true
+                Guide.shared.show()
+            }
+        } else {
+            pokazanyGuideZSygnalu = false
+        }
+
+        let sygnalOkno = base + "/show_window"
+        guard let dane = try? String(contentsOfFile: sygnalOkno, encoding: .utf8) else { return }
+        let tresc = dane.trimmingCharacters(in: .whitespacesAndNewlines)
+        // `echo ntfy > plik` najpierw OBCINA plik do zera, potem dopisuje tresc.
+        // Trafienie timerem w to okno dawalo pusty string - i zamiast okna ntfy
+        // otwieral sie Przewodnik. Pusty plik zostawiamy na nastepny cykl; jesli po
+        // 30 s dalej jest pusty, sprzatamy go. abs(), bo data z przyszlosci tez sie liczy.
+        if tresc.isEmpty {
+            if let a = try? fm.attributesOfItem(atPath: sygnalOkno),
+               let m = a[.modificationDate] as? Date,
+               abs(Date().timeIntervalSince(m)) > 30 {
+                try? fm.removeItem(atPath: sygnalOkno)
+            }
+            return
+        }
+        try? fm.removeItem(atPath: sygnalOkno)
+        NSApp.activate(ignoringOtherApps: true)
+        switch tresc {
+        case "ntfy": ntfyDialog()
+        case "fleetname": fleetNameDialog()
+        case "observe": explainDry()
+        default: Guide.shared.show()
+        }
     }
 
     func refreshFleet() {
@@ -2314,6 +2450,11 @@ final class Bar: NSObject, NSMenuDelegate {
                               range: NSRange(location: 0, length: out.length))
             self.item.button?.attributedTitle = out
         }
+        // Tryb .common, nie .default: przy otwartym menu (i przy kazdym oknie modalnym)
+        // runloop przechodzi w tryb sledzenia, a timer w .default przestaje tykac.
+        // Animacja stawala wtedy w polklatce i blokowala refresh() - pasek zamarzal
+        // z nieaktualna temperatura dokladnie wtedy, gdy uzytkownik na niego patrzyl.
+        if let t = plomienTimer { RunLoop.main.add(t, forMode: .common) }
     }
 
     // WENTYLATOR (zyczenie Pawla 02.08): gdy wiatraki ruszaja z zera, ikona kreci sie
@@ -2346,6 +2487,11 @@ final class Bar: NSObject, NSMenuDelegate {
                               range: NSRange(location: 0, length: out.length))
             self.item.button?.attributedTitle = out
         }
+        // Tryb .common, nie .default: przy otwartym menu (i przy kazdym oknie modalnym)
+        // runloop przechodzi w tryb sledzenia, a timer w .default przestaje tykac.
+        // Animacja stawala wtedy w polklatce i blokowala refresh() - pasek zamarzal
+        // z nieaktualna temperatura dokladnie wtedy, gdy uzytkownik na niego patrzyl.
+        if let t = plomienTimer { RunLoop.main.add(t, forMode: .common) }
     }
 
     // FILIZANKA (zyczenie Pawla 02.08): gdy caffeinate wstaje, kubek mruga ~3 s.
@@ -2373,6 +2519,11 @@ final class Bar: NSObject, NSMenuDelegate {
                               range: NSRange(location: 0, length: out.length))
             self.item.button?.attributedTitle = out
         }
+        // Tryb .common, nie .default: przy otwartym menu (i przy kazdym oknie modalnym)
+        // runloop przechodzi w tryb sledzenia, a timer w .default przestaje tykac.
+        // Animacja stawala wtedy w polklatce i blokowala refresh() - pasek zamarzal
+        // z nieaktualna temperatura dokladnie wtedy, gdy uzytkownik na niego patrzyl.
+        if let t = plomienTimer { RunLoop.main.add(t, forMode: .common) }
     }
 
     func refresh() {
@@ -2630,6 +2781,12 @@ final class Bar: NSObject, NSMenuDelegate {
         logIt.target = self
         logIt.image = img("text.alignleft")
 
+        // Przewodnik siedzi tuz pod dziennikiem, bo okno powitalne pokazuje sie raz
+        // i po jego zamknieciu nie bylo skad go otworzyc.
+        let guideIt = m.addItem(withTitle: T("First steps..."), action: #selector(openGuide), keyEquivalent: "")
+        guideIt.target = self
+        guideIt.image = img("book")
+
         addTail(m, paused: !s.paused.isEmpty)
     }
 
@@ -2852,10 +3009,6 @@ final class Bar: NSObject, NSMenuDelegate {
         m.addItem(setItem)
 
         // ABOUT MY MAC: sprzet wykryty przez guarda + zdrowie baterii + progi
-        let guideIt = m.addItem(withTitle: T("First steps..."), action: #selector(openGuide), keyEquivalent: "")
-        guideIt.target = self
-        guideIt.image = img("book")
-
         let about = NSMenuItem(title: T("About my Mac"), action: nil, keyEquivalent: "")
         about.image = img("info.circle")
         let abm = NSMenu()
@@ -2902,6 +3055,8 @@ final class Bar: NSObject, NSMenuDelegate {
                 dataSetup = data
                 let f = DateFormatter()
                 f.dateFormat = "dd.MM.yyyy"
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.calendar = Calendar(identifier: .gregorian)
                 osLinia += "  ·  " + String(format: T("set up: %@"), f.string(from: data))
             }
             arow(osLinia)
@@ -2921,6 +3076,8 @@ final class Bar: NSObject, NSMenuDelegate {
                 if let ds = dataSetup {
                     let f = DateFormatter()
                     f.dateFormat = "dd.MM.yyyy"
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.calendar = Calendar(identifier: .gregorian)
                     let koniec = ds.addingTimeInterval(365 * 86400)
                     serLinia += "  ·  " + String(format: T("limited warranty (est.): until %@"),
                                                  f.string(from: koniec))
@@ -2976,7 +3133,7 @@ final class Bar: NSObject, NSMenuDelegate {
                      + (sn.manualPause ? T("  (manual)") : ""))
             } else {
                 let names = [T("calm"), T("warm"), T("HOT - paused"), T("CRITICAL")]
-                lrow(String(format: T("State: %@"), names[min(sn.level, 3)])
+                lrow(String(format: T("State: %@"), names[min(max(sn.level, 0), 3)])
                      + (sn.reason.isEmpty ? "" : " — \(sn.reason)"))
             }
             if let pp = sn.thrPause, let pk = sn.thrKill {
@@ -3309,7 +3466,95 @@ Remember: while this switch is off, NOTHING protects the Mac. Flip it back on wh
     @objc func toggleFreeze(_ sender: Any?) {
         // stan bierzemy z migawki, nie z klikniecia - guard wykonuje rozkaz w swoim
         // cyklu (do ~15 s), wiec przelacznik potwierdzi sie po nastepnym odswiezeniu
-        if let s = readSnap(), !s.paused.isEmpty { send("resume") } else { send("freeze") }
+        let s = readSnap()
+        if let s = s, !s.paused.isEmpty { send("resume"); return }
+        // Reczne zamrozenie to jedyne miejsce, gdzie uzytkownik zatrzymuje SWOJA prace
+        // swiadomie. Zanim to zrobi, ma zobaczyc CO konkretnie stanie i czego moze sie
+        // po tym spodziewac - bez tego przelacznik jest strzalem w ciemno.
+        pokazModalnie { [weak self] in
+            guard let self = self else { return }
+            guard let wybrane = self.potwierdzZamrozenie(s) else { return }   // anulowane
+            if wybrane.isEmpty {
+                self.send("freeze")                       // nie bylo z czego wybierac
+            } else {
+                self.send("freeze:" + wybrane.map(String.init).joined(separator: ","))
+            }
+        }
+    }
+
+    /// Okno potwierdzenia przed recznym zamrozeniem: co konkretnie stanie, z mozliwoscia
+    /// odznaczenia pojedynczych procesow. Lista pochodzi z `freeze_candidates` w migawce,
+    /// czyli z tego samego zbioru, na ktorym zadziala demon - nie z listy "top CPU".
+    /// Zwraca nil przy anulowaniu, albo liste PID-ow do zamrozenia (pusta = wszystkie).
+    func potwierdzZamrozenie(_ s: Snap?) -> [Int]? {
+        let kandydaci = s?.freezeCandidates ?? []
+        let a = NSAlert()
+        a.alertStyle = .informational
+        if let ikona = NSImage(contentsOfFile: base + "/paladin_welcome.png") { a.icon = ikona }
+        a.messageText = T("Freeze heavy jobs now?")
+
+        var tresc = ""
+        if kandydaci.isEmpty {
+            tresc = T("Nothing heavy is running right now. Anything that gets heavy "
+                      + "will be frozen until you switch this back off.") + "\n\n"
+        }
+        tresc += T("A freeze is not a kill. The process stops between two instructions, "
+                   + "keeps its memory and its open files, and carries on from the same "
+                   + "place when you switch this off. Local computation - a render, a "
+                   + "compile, ffmpeg - loses nothing.")
+        tresc += "\n\n"
+        tresc += T("What a freeze does NOT protect: anything waiting on the network or "
+                   + "watching a clock will notice the gap. A download or an upload can "
+                   + "drop, a server can disconnect you, a video call freezes, a game "
+                   + "goes unresponsive. The paladin will not touch the system, Finder, "
+                   + "your terminal or your AI agent.")
+        a.informativeText = tresc
+
+        var przelaczniki: [NSButton] = []
+        if !kandydaci.isEmpty {
+            let SZER: CGFloat = 300, WYS: CGFloat = 22
+            let widok = NSView(frame: NSRect(x: 0, y: 0, width: SZER,
+                                             height: WYS * CGFloat(kandydaci.count + 1) + 6))
+            var y = widok.frame.height - WYS
+            let wszystkie = NSButton(checkboxWithTitle: T("Freeze all of them"),
+                                     target: nil, action: nil)
+            wszystkie.state = .on
+            wszystkie.frame = NSRect(x: 0, y: y, width: SZER, height: WYS)
+            wszystkie.font = .systemFont(ofSize: 12, weight: .medium)
+            widok.addSubview(wszystkie)
+            y -= WYS + 6
+            for k in kandydaci {
+                let c = NSButton(checkboxWithTitle: "\(k.name)   \(k.cpu)% CPU   pid \(k.pid)",
+                                 target: nil, action: nil)
+                c.state = .on
+                c.tag = k.pid
+                c.frame = NSRect(x: 16, y: y, width: SZER - 16, height: WYS)
+                c.font = .systemFont(ofSize: 11)
+                // szary, zeby wybor procesow nie krzyczal mocniej niz sama decyzja
+                c.contentTintColor = .secondaryLabelColor
+                widok.addSubview(c)
+                przelaczniki.append(c)
+                y -= WYS
+            }
+            wszystkie.target = self
+            wszystkie.action = #selector(przelaczWszystkie(_:))
+            wszystkieCheckbox = wszystkie
+            checkboxyProcesow = przelaczniki
+            a.accessoryView = widok
+        }
+
+        a.addButton(withTitle: T("Freeze"))
+        a.addButton(withTitle: T("Cancel"))
+        let odp = a.runModal()
+        defer { wszystkieCheckbox = nil; checkboxyProcesow = [] }
+        guard odp == .alertFirstButtonReturn else { return nil }
+        if przelaczniki.isEmpty { return [] }
+        let wybrane = przelaczniki.filter { $0.state == .on }.map { $0.tag }
+        return wybrane
+    }
+
+    @objc func przelaczWszystkie(_ sender: NSButton) {
+        for c in checkboxyProcesow { c.state = sender.state }
     }
     @objc func resume() { send("resume") }
 

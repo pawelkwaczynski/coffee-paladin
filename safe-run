@@ -289,12 +289,32 @@ def parse():
     return opt, cmd
 
 
+def migawka_swieza(nazwa, max_wiek=120):
+    """Czy plik demona jest na tyle swiezy, zeby mial cokolwiek znaczyc?
+
+    Bramka startowa sprawdzala wiek migawki, a petla limitera juz nie - i to bylo
+    grozne. Gdy demon zginal w chwili, gdy bylo goraco, `status.json` z poziomem 2
+    zostawal zamrozony w czasie NA ZAWSZE. Limiter po wlasnej mikro-pauzie pytal
+    niezyjacego demona o zgode na wznowienie, nie dostawal jej i nie budzil grupy.
+    Zadanie stalo w stanie T az do wyczerpania budzetu czasu (domyslnie 6 h), a potem
+    dostawalo SIGTERM - czyli jedynym wyjsciem byla egzekucja, nie wznowienie.
+    Nieswieza migawka znaczy "nie ma komu decydowac": limiter wraca do wlasnych regul.
+    """
+    try:
+        return (time.time() - os.path.getmtime(os.path.join(BASE, nazwa))) <= max_wiek
+    except Exception:
+        return False
+
+
 def guard_paused(pid):
     """Czy TEN pid jest aktualnie wstrzymany przez guarda (state.json)?
 
     Limiter nie moze wyslac SIGCONT zadaniu, ktore zamrozil bezpiecznik —
-    o pauzie termicznej decyduje wylacznie guard.
+    o pauzie termicznej decyduje wylacznie guard. ALE tylko dopoki guard zyje:
+    nieswieza migawka znaczy "nie ma komu decydowac", nie "trzymaj zamrozone".
     """
+    if not migawka_swieza("state.json"):
+        return False
     try:
         with open(os.path.join(BASE, "state.json")) as f:
             return str(pid) in (json.load(f).get("paused") or {})
@@ -308,6 +328,8 @@ def guard_hot():
     Domyka szczatkowy wyscig: guard mogl wyslac SIGSTOP, ale jeszcze nie zapisac
     state.json — sam poziom w status.json wystarcza, zeby limiter nie budzil grupy.
     """
+    if not migawka_swieza("status.json"):
+        return False
     try:
         with open(os.path.join(BASE, "status.json")) as f:
             return (json.load(f).get("level") or 0) >= 2
@@ -432,6 +454,25 @@ def guard_zyje():
 
 def main():
     opt, cmd = parse()
+
+    # ZAGNIEZDZONY safe-run: skrypt uruchomiony przez safe-run sam wola safe-run.
+    # Bez tego wewnetrzny robil `setsid` po raz drugi i prawdziwa praca ladowala
+    # w TRZECIEJ grupie procesow, podczas gdy zewnetrzny mial zarejestrowana grupe
+    # zawierajaca wylacznie wewnetrznego NADZORCE. Skutek zmierzony na zywo:
+    # SIGSTOP zamrazal nadzorce, a ffmpeg grzal dalej; limit CPU nie dzialal w ogole
+    # (nadzorca stal 90% czasu, praca leciala 100%); eskalacja ubijala nadzorce
+    # zamiast zadania. Dokladnie ten uklad jest w kolejce kompresji.
+    # Rozwiazanie: drugi safe-run nie tworzy wlasnego nadzoru, tylko PODMIENIA sie
+    # na polecenie (execvp). Zostaje jedna sesja, jedna rejestracja, jeden wlasciciel.
+    if os.environ.get("TG_SAFE_RUN_PGID") and cmd:
+        print(T("safe-run: already inside a supervised job - running the command directly"))
+        sys.stdout.flush()
+        try:
+            os.execvp(cmd[0], cmd)
+        except OSError as e:
+            print("safe-run: %s: %s" % (cmd[0], e), file=sys.stderr)
+            return 127
+
     for d in (BASE, MANAGED_DIR):
         # exist_ok: przy kilku safe-run odpalonych naraz na swiezej instalacji trzy
         # z czterech wywalaly sie FileExistsError i zadania w ogole nie ruszaly
@@ -463,7 +504,9 @@ def main():
 
     t0 = time.time()
     try:
-        proc = subprocess.Popen(wrapped, preexec_fn=os.setsid)
+        srodowisko = dict(os.environ)
+        srodowisko["TG_SAFE_RUN_PGID"] = str(os.getpid())   # patrz uwaga w main()
+        proc = subprocess.Popen(wrapped, preexec_fn=os.setsid, env=srodowisko)
     except Exception as e:
         print(T("safe-run: cannot start: %r") % (e,))
         return 4

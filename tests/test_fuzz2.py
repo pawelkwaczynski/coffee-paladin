@@ -123,7 +123,7 @@ class Sesja(object):
 # bedacy agentem stracil ochrone - albo zeby zwykly enkoder ja zyskal (i grzal Maca
 # dalej, bo guard nie ma prawa go dotknac)?
 
-ROZSZ_ZNANE = sorted(guard.ROZSZERZENIA_DANYCH)
+ROZSZ_ZNANE = sorted(getattr(guard, "ROZSZERZENIA_DANYCH", (".json", ".csv", ".log", ".txt")))
 # realne formaty medialne i robocze, ktorych NIE MA na liscie ROZSZERZENIA_DANYCH
 ROZSZ_NIEZNANE = [".mxf", ".ts", ".m2ts", ".braw", ".r3d", ".exr", ".heif", ".bmp",
                   ".ogv", ".opus", ".wma", ".vob", ".mts", ".jxl", ".dpx", ".cr3",

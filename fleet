@@ -24,6 +24,7 @@ Language: TG_LANG=en|pl, or "lang" in ~/.coffee-paladin/config.json. Default: en
 
 import json
 import os
+import stat
 import sys
 import time
 
@@ -246,21 +247,38 @@ def load_hosts(d):
     for name in sorted(os.listdir(d)):
         if name.endswith(".json.icloud"):
             # zewinkowane przez iCloud: host istnieje, danych nie ma pod reka
-            base = name.lstrip(".")[:-len(".json.icloud")]
+            base = _czysty_tekst(name.lstrip(".")[:-len(".json.icloud")], 18)
             hosts.append({"host": base, "_age": 1e9})
             continue
         if not name.endswith(".json") or name.startswith("."):
             continue
         path = os.path.join(d, name)
+        # Folder floty to WEJSCIE Z ZEWNATRZ: iCloud, SMB, cudze Maki. Wszystko tu
+        # moze byc w polowie zsynchronizowane, skasowane miedzy listdir a open,
+        # albo w ogole nie byc plikiem. Dlatego najpierw stat, potem odczyt, a kazdy
+        # blad konczy sie WPISEM, nie zniknieciem hosta z tabeli.
+        #   - `os.path.getmtime` w obsludze bledu sam rzucal, gdy plik juz nie istnial,
+        #     i wywalal CALA tabele razem ze zdrowymi maszynami;
+        #   - nazwany potok albo dowiazanie do /dev/zero wieszalo `fleet` na zawsze;
+        #   - JSON bedacy lista (nie obiektem) kasowal hosta po cichu przez `continue`.
         try:
-            with open(path) as f:
+            st = os.lstat(path)
+            if not stat.S_ISREG(st.st_mode):
+                raise ValueError("nie jest zwyklym plikiem")
+            if st.st_size > 256 * 1024:
+                raise ValueError("migawka za duza: %d B" % st.st_size)
+            with open(path, encoding="utf-8", errors="replace") as f:
                 snap = json.load(f)
             if not isinstance(snap, dict):
-                continue
+                raise ValueError("JSON nie jest obiektem")
         except Exception:
             # Zepsuty plik NIE moze znikac po cichu: host wypadal z tabeli, a operator
             # widzial "all machines look fine". Zostaje w tabeli, oznaczony i policzony.
-            hosts.append({"host": _czysty_tekst(name[:-5], 18), "_age": time.time() - os.path.getmtime(path),
+            try:
+                wiek = time.time() - os.lstat(path).st_mtime
+            except OSError:
+                wiek = 1e9
+            hosts.append({"host": _czysty_tekst(name[:-5], 18), "_age": wiek,
                           "_bad": True, "level": 0, "fans": []})
             continue
         for k in ("chip_c", "watts", "ram_used_gb", "ram_total_gb"):
@@ -289,9 +307,12 @@ def load_hosts(d):
         p = snap.get("paused")
         snap["paused"] = [_czysty_tekst(str(x))[:24] for x in p][:6] if isinstance(p, list) else []
         st = snap.get("stats")
-        # nie wystarczy sprawdzic, ze to slownik: %d na wartosci "duzo" wywala render
-        snap["stats"] = {k: int(v) for k, v in st.items()
-                         if isinstance(v, (int, float)) and v == v} if isinstance(st, dict) else {}
+        # Nie wystarczy sprawdzic, ze to slownik: %d na wartosci "duzo" wywala render.
+        # Warunek `v == v` odsiewal NaN, ale przepuszczal nieskonczonosc - a JSON
+        # `1e400` parsuje sie w Pythonie wlasnie do inf i `int(inf)` rzuca OverflowError,
+        # ktory zabijal CALA tabele. `_num` sprawdza jedno i drugie.
+        snap["stats"] = {k: int(_num(v)) for k, v in st.items()
+                         if _num(v) is not None} if isinstance(st, dict) else {}
         crash = snap.get("last_hard_shutdown")
         if isinstance(crash, dict):
             # to pole tez idzie na terminal operatora - musi przejsc przez czyszczenie
@@ -311,10 +332,24 @@ def load_hosts(d):
 def issues_for(h):
     """Problemy hosta, w kolejnosci powagi. Pusta lista = wszystko dobrze."""
     out = []
+    # Migawka nieczytelna: host meldowal sie jako "spokojny i raportujacy teraz",
+    # bo flaga _bad byla USTAWIANA, ale nigdzie nie czytana. O maszynie, o ktorej
+    # nic nie wiemy, nie wolno mowic, ze wszystko z nia dobrze.
+    if h.get("_bad"):
+        out.append(T("unreadable snapshot"))
+        return out
     # nie raportuje > 5 min: albo padl, albo spi, albo folder sie nie synchronizuje
     if h["_age"] > 300:
         out.append(T("STALE - not reporting"))
         return out
+    # Poziom 2 = straznik pauzuje, 3 = krytycznie. Maszyna z chipem pod 100 C
+    # wypadala z listy "wymagajacych uwagi" i `fleet --json` konczyl sie zerem,
+    # wiec cron i Grafana milczaly dokladnie wtedy, gdy mialy krzyczec.
+    poziom = h.get("level") or 0
+    if isinstance(poziom, (int, float)) and poziom >= 2:
+        chip = h.get("chip_c")
+        out.append(T("HOT - %.0f C") % chip if isinstance(chip, (int, float))
+                   else T("HOT - guard is intervening"))
     crash = h.get("last_hard_shutdown") or {}
     if crash.get("time"):
         out.append(T("hard shutdown %s") % crash["time"])
@@ -365,7 +400,8 @@ def render(d):
                                           else str(max(fans))),
             "-" if stale or h.get("watts") is None else "%.0fW" % h["watts"],
             "-" if stale or not h.get("ram_total_gb") else "%d%%" % round(
-                100.0 * h.get("ram_used_gb", 0) / h["ram_total_gb"]),
+                # iloraz tez trzeba sprawdzic: skladniki moga byc skonczone, a wynik nie
+                min(max(_num(100.0 * h.get("ram_used_gb", 0) / h["ram_total_gb"]) or 0, 0), 999)),
             "-" if stale or h.get("disk_used_pct") is None else "%d%%" % h["disk_used_pct"],
             "?" if stale else levels[h.get("level", 0)],
             "-" if stale else today,
@@ -429,7 +465,7 @@ def set_dir(path):
     except Exception:
         pass
     cfgp = os.path.join(BASE, "config.json")
-    os.makedirs(BASE, exist_ok=True)
+    os.makedirs(BASE, 0o700, exist_ok=True)
     # Config, ktorego nie umiemy sparsowac, jest NIETYKALNY. Nadpisanie go wlasnym
     # kluczem kasowaloby progi i dry_run:false, czyli po cichu wylaczaloby ochrone -
     # a komunikat nizej mowilby "zapisane". Lepiej odmowic i pokazac plik.
@@ -447,11 +483,17 @@ def set_dir(path):
     c["fleet_dir"] = path
     # flock na tym samym pliku, ktorego uzywaja guard i pasek menu
     import fcntl
-    lock = open(os.path.join(BASE, "config.lock"), "w")
+    # 0600, nie umask. W config.json siedzi `ntfy_topic`, ktory jest JEDYNYM
+    # zabezpieczeniem powiadomien: kto zna temat, ten czyta cudze alerty i podszywa
+    # sie pod nie. `ensure_dirs()` w demonie zaciska prawa tylko przy starcie, wiec
+    # `fleet --setup` uruchomiony pozniej odslanial plik az do nastepnego restartu.
+    lock_fd = os.open(os.path.join(BASE, "config.lock"), os.O_WRONLY | os.O_CREAT, 0o600)
+    lock = os.fdopen(lock_fd, "w")
     try:
         fcntl.flock(lock, fcntl.LOCK_EX)
         tmp = cfgp + ".tmp"
-        with open(tmp, "w") as f:
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w") as f:
             json.dump(c, f, indent=2, ensure_ascii=False)
         os.replace(tmp, cfgp)
     finally:

@@ -354,7 +354,7 @@ def main():
     W.append(T("\n## CRITICAL EVENTS (hard shutdowns, cooling alarms)\n"))
     zdarzen = 0
     try:
-        with open(EVENTS) as f:
+        with open(EVENTS, encoding="utf-8", errors="replace") as f:
             for linia in f:
                 try:
                     z = json.loads(linia)
@@ -405,7 +405,7 @@ def main():
     W.append(T("\n## GUARD INTERVENTIONS\n"))
     inter = 0
     try:
-        with open(LOG) as f:
+        with open(LOG, encoding="utf-8", errors="replace") as f:
             for linia in f:
                 if not w_zakresie(czas_z(linia[:19])):
                     continue
@@ -427,7 +427,7 @@ def main():
     ile = 0
     szczyt = (0, "")
     try:
-        with open(HIST) as f:
+        with open(HIST, encoding="utf-8", errors="replace") as f:
             f.readline()                  # naglowek CSV - pomijamy
             for linia in f:
                 c = linia.strip().split(",")
@@ -438,7 +438,7 @@ def main():
                     # Zakres fizyczny: jedna ucieta linijka po padzie zasilania podmieniala
                     # kluczowa liczbe dokumentu na "999.9 C (USZKODZONY WIERSZ)".
                     v = float(c[2]) if c[2] else 0.0
-                    if 0.0 < v <= 120.0 and v > szczyt[0] and czas_z(c[0]):
+                    if 0.0 < v <= 150.0 and v > szczyt[0] and czas_z(c[0]):
                         szczyt = (v, c[0])
                 except ValueError:
                     pass
