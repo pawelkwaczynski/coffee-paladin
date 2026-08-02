@@ -760,11 +760,33 @@ def log(msg, tag=None):
 
 
 def run(cmd, timeout=10):
+    """Uruchamia polecenie i ZAWSZE po sobie sprzata.
+
+    `communicate(timeout=...)` rzuca TimeoutExpired, ale NIE zabija dziecka - proces
+    zostaje, a demon zbiera kolejne. Zaobserwowane na zywo 02.08.2026 przy obciazonym
+    Macu: guard mial czworke wiszacych dzieci (dwa `macmon pipe`, `pmset -g therm`),
+    petla stala 90 sekund i status.json przestal byc odswiezany. Przy 15-sekundowym
+    cyklu to znaczy, ze przez ten czas nikt nie pilnowal temperatury.
+    """
+    p = None
     try:
         p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
         out, _ = p.communicate(timeout=timeout)
         return out.decode("utf-8", "replace")
+    except subprocess.TimeoutExpired:
+        try:
+            p.kill()
+            p.communicate(timeout=2)      # zbieramy zwloki, inaczej zostaje zombie
+        except Exception:
+            pass
+        return ""
     except Exception:
+        if p is not None and p.poll() is None:
+            try:
+                p.kill()
+                p.communicate(timeout=2)
+            except Exception:
+                pass
         return ""
 
 

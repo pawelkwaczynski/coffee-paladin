@@ -466,7 +466,10 @@ def main():
 
     if "--watch" in sys.argv:
         while True:
-            os.system("clear")
+            # Sekwencja ANSI zamiast os.system("clear"): bez powloki, bez zaleznosci
+            # od $TERM (w cronie i przez ssh clear wypisywal blad co cykl) i bez
+            # spawnowania 2880 powlok na dobe.
+            sys.stdout.write("\033[H\033[2J")
             render(d)
             time.sleep(30)
     return render(d)

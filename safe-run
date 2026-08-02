@@ -193,11 +193,21 @@ def cfg():
 
 
 def sh(cmd, timeout=15):
+    # Po timeoucie trzeba dziecko ZABIC: communicate() tylko rzuca wyjatek, a proces
+    # zyje dalej. W demonie konczylo sie to czworka wiszacych macmonow i zatrzymana
+    # petla (02.08.2026) - tutaj byloby to samo, tylko ciszej.
+    p = None
     try:
         p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
         out, _ = p.communicate(timeout=timeout)
         return out.decode("utf-8", "replace")
     except Exception:
+        if p is not None and p.poll() is None:
+            try:
+                p.kill()
+                p.communicate(timeout=2)
+            except Exception:
+                pass
         return ""
 
 
