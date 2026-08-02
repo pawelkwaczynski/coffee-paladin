@@ -159,17 +159,27 @@ def zadanie_z_danymi(rng):
         wej, wyj = '"%s"' % wej, '"%s"' % wyj            # sciezki w cudzyslowach
     elif katalog_jako_arg:
         wyj = os.path.dirname(wyj) + "/"                 # katalog docelowy, nie plik
-    cmd = "%s -y -i %s -c:v libx265 -preset slow %s" % (rng.choice(NARZEDZIA), wej, wyj)
+    narz = rng.choice(NARZEDZIA)
+    if guard.jest_interpreterem(os.path.basename(narz).lower()):
+        # Dla interpretera tozsamoscia procesu jest URUCHAMIANY SKRYPT, a nie plik
+        # wideo. `python3 -y -i rec.mkv` nie istnieje w przyrodzie - a wlasnie taka
+        # linie generowal ten kod i zglaszal jako defekt. Efekt: 18 "znalezisk
+        # WYSOKICH" (02.08.2026), ktore mowily tylko tyle, ze python3 jest
+        # interpreterem. Realny job pythonowy ma skrypt na pierwszym miejscu.
+        cmd = "%s /Users/x/skrypty/kompresor.py -y -i %s -c:v libx265 -preset slow %s" % (
+            narz, wej, wyj)
+    else:
+        cmd = "%s -y -i %s -c:v libx265 -preset slow %s" % (narz, wej, wyj)
     if " " in kat:
         powod = "spacja w sciezce (ps rozbija argument na dwa tokeny)"
     elif nieznane:
-        powod = "rozszerzenie %s spoza ROZSZERZENIA_DANYCH" % ext
+        powod = "nietypowe rozszerzenie pliku danych (%s)" % ext
     elif cudzyslow:
-        powod = "sciezka w cudzyslowach (splitext widzi rozszerzenie z cudzyslowem)"
+        powod = "sciezka w cudzyslowach"
     elif katalog_jako_arg:
         powod = "argumentem jest KATALOG, nie plik"
     else:
-        powod = "sciezka z rozszerzeniem Z LISTY (wariant kontrolny)"
+        powod = "typowe rozszerzenie pliku danych (wariant kontrolny)"
     return cmd, False, powod        # False = NIE powinien byc chroniony
 
 
@@ -442,6 +452,19 @@ def fuzz_run(seed, n):
 
 # ================================================================ 4. zajmij_wylacznosc
 
+def uchwyt(r):
+    """Czy zajmij_wylacznosc() zwrocila UCHWYT (czyli blokade), czy odmowe.
+
+    Funkcja ma trzy udokumentowane wyniki (guard.main): plik = mam wylacznosc,
+    None = trzyma ja ktos inny, False = nie dalo sie otworzyc pliku blokady i demon
+    startuje BEZ wylacznosci. Ten fuzzer sprawdzal tylko `is not None`, wiec wkladal
+    `False` na liste uchwytow i potem wolal na nim .close() - stad 264 "wyjatki
+    guard.zajmij_wylacznosc: AttributeError: 'bool' object has no attribute 'close'"
+    i rozjechany stan, ktory raz zglosil nieistniejaca "podwojna blokade" (02.08.2026).
+    """
+    return hasattr(r, "close")
+
+
 def fuzz_wylacznosc(seed, n):
     s = Sesja("guard.zajmij_wylacznosc", seed)
     lock = os.path.join(TMP, "guard.lock")
@@ -462,15 +485,17 @@ def fuzz_wylacznosc(seed, n):
                     if os.path.isdir(lock):
                         shutil.rmtree(lock, ignore_errors=True)
                     f1 = guard.zajmij_wylacznosc()
-                    if f1 is None:
-                        s.bzdura(opis, "pierwsza instancja NIE dostala blokady", "WYSOKA",
-                                 klucz="brak-blokady")
+                    if not uchwyt(f1):
+                        s.bzdura(opis, "pierwsza instancja NIE dostala blokady (zwrocono %r)"
+                                 % (f1,), "WYSOKA", klucz="brak-blokady")
                     else:
                         uchwyty.append(f1)
                 elif wariant == 1:
                     opis = "druga instancja przy trzymanej blokadzie"
+                    if not uchwyty:
+                        continue      # nikt nie trzyma blokady - nie ma czego sprawdzac
                     f2 = guard.zajmij_wylacznosc()
-                    if f2 is not None:
+                    if uchwyt(f2):
                         uchwyty.append(f2)
                         s.bzdura(opis, "DWIE instancje dostaly blokade naraz - dwa demony na "
                                        "maszynie moga sie wzajemnie pauzowac", "WYSOKA",
@@ -499,7 +524,7 @@ def fuzz_wylacznosc(seed, n):
                     os.makedirs(lock, exist_ok=True)
                     try:
                         r = guard.zajmij_wylacznosc()
-                        if r is not None:
+                        if uchwyt(r):
                             uchwyty.append(r)
                     except Exception as e:
                         s.blad(opis, e, "SREDNIA")
@@ -514,7 +539,7 @@ def fuzz_wylacznosc(seed, n):
                     os.chmod(TMP, 0o500)
                     try:
                         r = guard.zajmij_wylacznosc()
-                        if r is not None:
+                        if uchwyt(r):
                             uchwyty.append(r)
                     except Exception as e:
                         s.blad(opis, e, "SREDNIA")
