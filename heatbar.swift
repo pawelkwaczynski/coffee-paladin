@@ -1680,14 +1680,35 @@ let prefs = Prefs()
 /// Odczyt i zapis config.json guarda. Zawsze scalamy z istniejaca trescia — plik nalezy do
 /// demona i zawiera znacznie wiecej niz to, co pokazuje pasek.
 enum GuardCfg {
-    static func all() -> [String: Any] {
-        guard let d = FileManager.default.contents(atPath: configPath),
-              let j = try? JSONSerialization.jsonObject(with: d) as? [String: Any] else { return [:] }
+    /// Zwraca nil, gdy configu NIE DA SIE przeczytac. To nie to samo co pusty config:
+    /// `set()` musi wtedy odmowic zapisu, inaczej jeden nieudany odczyt kasuje
+    /// wszystkie 30 kluczy - a brak `dry_run` demon czyta jako tryb obserwacji,
+    /// czyli ruszenie suwaka po cichu wylacza ochrone.
+    static func czytaj() -> [String: Any]? {
+        guard let d = FileManager.default.contents(atPath: configPath) else {
+            return FileManager.default.fileExists(atPath: configPath) ? nil : [:]
+        }
+        guard let j = try? JSONSerialization.jsonObject(with: d) as? [String: Any] else { return nil }
         return j
     }
 
+    /// Cache na czas budowy JEDNEGO menu. Bez niego jedno otwarcie menu to ~17
+    /// pelnych odczytow i parsowan config.json, a przy otwartym podmenu floty jeszcze
+    /// wiecej. Uniewazniany jawnie w menuNeedsUpdate i po kazdym zapisie.
+    private static var cache: [String: Any]?
+
+    static func zacznijCache() { cache = czytaj() ?? [:] }
+    static func zakonczCache() { cache = nil }
+
+    static func all() -> [String: Any] { cache ?? (czytaj() ?? [:]) }
+
+    /// Jeden odczyt na wywolanie zamiast dwoch. Menu pytalo o config ~25 razy przy
+    /// kazdym otwarciu; polowa z tego brala sie stad, ze `double` czytalo plik dwa razy.
     static func double(_ key: String, _ fallback: Double) -> Double {
-        (all()[key] as? Double) ?? Double((all()[key] as? Int) ?? 0).nonZero ?? fallback
+        let c = all()
+        if let d = c[key] as? Double { return d }
+        if let i = c[key] as? Int { return Double(i) }
+        return fallback
     }
 
     static func bool(_ key: String, _ fallback: Bool) -> Bool { (all()[key] as? Bool) ?? fallback }
@@ -1699,16 +1720,22 @@ enum GuardCfg {
         let fd = open(base + "/config.lock", O_CREAT | O_WRONLY, 0o644)
         if fd >= 0 { flock(fd, LOCK_EX) }
         defer { if fd >= 0 { flock(fd, LOCK_UN); close(fd) } }
-        var j = all()
+        guard var j = czytaj() else {
+            // Config jest, ale nieczytelny. Zapis oznaczalby skasowanie reszty kluczy,
+            // wiec nie ruszamy pliku - lepiej, zeby przelacznik nie zadzialal, niz
+            // zeby cicho wylaczyl ochrone.
+            NSLog("coffee-paladin: config.json nieczytelny - zapis wstrzymany")
+            return
+        }
         for (k, v) in values { j[k] = v }
         if let d = try? JSONSerialization.data(withJSONObject: j, options: [.prettyPrinted, .sortedKeys]) {
             // .atomic: plik dzieli z nami demon Pythona — uciety zapis = config na DEFAULTS
             try? d.write(to: URL(fileURLWithPath: configPath), options: .atomic)
+            cache = j                     // zapis jest zrodlem prawdy do konca cyklu
         }
     }
 }
 
-extension Double { var nonZero: Double? { self == 0 ? nil : self } }
 
 let awakePath = base + "/awake.json"
 let hwPath = base + "/hardware.json"
@@ -2182,6 +2209,10 @@ final class Bar: NSObject, NSMenuDelegate {
         refresh()
         refreshFleet()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { Welcome.shared.maybeShow() }
+        // .common, nie .default: w trybie .default timer NIE tyka, gdy menu jest otwarte
+        // albo gdy stoi okno modalne (raport, ntfy, nazwa floty). Odczyt na pasku zamieral
+        // wtedy razem z animacjami i z dyspozytorem pliku-sygnalu - czyli dokladnie wtedy,
+        // gdy czlowiek patrzy na temperature.
         timer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
             guard let self = self else { return }
             // plik-sygnal: `touch ~/.coffee-paladin/show_guide` otwiera przewodnik
@@ -2195,9 +2226,22 @@ final class Bar: NSObject, NSMenuDelegate {
             // (guide|ntfy|fleetname|observe) - otwiera wskazane okno
             let sygnalOkno = base + "/show_window"
             if let dane = try? String(contentsOfFile: sygnalOkno, encoding: .utf8) {
+                let tresc = dane.trimmingCharacters(in: .whitespacesAndNewlines)
+                // `echo ntfy > plik` najpierw OBCINA plik do zera, potem dopisuje tresc.
+                // Trafienie timerem w to okno dawalo pusty string - i zamiast okna ntfy
+                // otwieral sie Przewodnik, a plik znikal. Pusty plik zostawiamy na
+                // nastepny cykl; jesli po 30 s dalej jest pusty, sprzatamy go.
+                if tresc.isEmpty {
+                    if let a = try? FileManager.default.attributesOfItem(atPath: sygnalOkno),
+                       let m = a[.modificationDate] as? Date,
+                       Date().timeIntervalSince(m) > 30 {
+                        try? FileManager.default.removeItem(atPath: sygnalOkno)
+                    }
+                    return
+                }
                 try? FileManager.default.removeItem(atPath: sygnalOkno)
                 NSApp.activate(ignoringOtherApps: true)
-                switch dane.trimmingCharacters(in: .whitespacesAndNewlines) {
+                switch tresc {
                 case "ntfy": self.ntfyDialog()
                 case "fleetname": self.fleetNameDialog()
                 case "observe": self.explainDry()
@@ -2208,6 +2252,7 @@ final class Bar: NSObject, NSMenuDelegate {
             self.tick += 1
             if self.tick % 6 == 0 { self.refreshFleet() }   // flota co ~30 s, w tle
         }
+        if let t = timer { RunLoop.main.add(t, forMode: .common) }
     }
 
     func refreshFleet() {
@@ -2413,6 +2458,8 @@ final class Bar: NSObject, NSMenuDelegate {
     }
 
     func menuNeedsUpdate(_ m: NSMenu) {
+        GuardCfg.zacznijCache()          // jeden odczyt configu na cale menu
+        defer { GuardCfg.zakonczCache() }
         m.removeAllItems()
         // sekcja marki: logo + nazwa, nad nia nic — to jest "twarz" narzedzia
         let head = NSMenuItem()
@@ -2949,6 +2996,9 @@ final class Bar: NSObject, NSMenuDelegate {
             if hosts.isEmpty {
                 frow(T("no agent snapshots yet (agents publish about once a minute)"))
             }
+            // Wlasny serial czytany RAZ, nie raz na host: hardwareInfo() to pelny odczyt
+            // pliku z dysku, a lecial w petli przy kazdym otwarciu menu.
+            let mojSerial = (hardwareInfo()["serial"] as? String) ?? ""
             for h0 in hosts {
                 let h = FleetHost(name: h0.name, model: h0.model, serial: h0.serial,
                                   age: h0.age + cacheDrift, chip: h0.chip,
@@ -2976,7 +3026,6 @@ final class Bar: NSObject, NSMenuDelegate {
                 a.append(icon(h.level >= 3 ? "flame.fill"
                               : h.level >= 2 ? "exclamationmark.triangle.fill"
                               : "laptopcomputer", fallback: ">"))
-                let mojSerial = (hardwareInfo()["serial"] as? String) ?? ""
                 let toJa = !mojSerial.isEmpty && h.serial == mojSerial
                 a.append(NSAttributedString(
                     string: "  " + h.name,
@@ -3110,10 +3159,18 @@ final class Bar: NSObject, NSMenuDelegate {
     @objc func toggleNtfy() {
         // switch ON = trzeba wpisac temat (dialog); OFF = czyscimy temat i push milknie
         if GuardCfg.string("ntfy_topic", "").isEmpty {
-            ntfyDialog()
+            pokazModalnie { self.ntfyDialog() }
         } else {
             GuardCfg.set(["ntfy_topic": ""])
         }
+    }
+
+    /// Okno modalne odpalane z pozycji menu, ktora jest custom view (SwitchRow):
+    /// menu wtedy NIE zamyka sie samo i dalej sledzi mysz, wiec runModal wchodzi
+    /// w konflikt z jego petla zdarzen. Ta sama sztuczka co w HeaderRow.mouseUp.
+    func pokazModalnie(_ akcja: @escaping () -> Void) {
+        item.menu?.cancelTracking()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { akcja() }
     }
 
     @objc func ntfyDialog() {
@@ -3197,7 +3254,7 @@ Remember: while this switch is off, NOTHING protects the Mac. Flip it back on wh
         let obserwacjaTeraz = !GuardCfg.bool("dry_run", true)
         GuardCfg.set(["dry_run": obserwacjaTeraz])
         // wylaczenie ochrony = powazna decyzja - od razu mowimy, co to znaczy
-        if obserwacjaTeraz { DispatchQueue.main.async { self.explainDry() } }
+        if obserwacjaTeraz { pokazModalnie { self.explainDry() } }
     }
 
     @objc func toggleSound() { GuardCfg.set(["sound": !GuardCfg.bool("sound", true)]) }
@@ -3330,6 +3387,12 @@ Remember: while this switch is off, NOTHING protects the Mac. Flip it back on wh
         win.orderOut(nil)
         guard wynik.rawValue != 2 else { return }
         let f = DateFormatter()
+        // en_US_POSIX obowiazkowo: bez tego na regionie tajskim data wychodzi w kalendarzu
+        // buddyjskim (2569-08-02), a na saudyjskim cyframi arabskimi - raport dostaje
+        // zakres, ktorego nie rozumie, i wraca do domyslnych 7 dni albo jest pusty.
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.calendar = Calendar(identifier: .gregorian)
+        f.timeZone = TimeZone.current
         f.dateFormat = "yyyy-MM-dd"
         let zakres: [String] = calosc.state == .on
             ? ["--all"]

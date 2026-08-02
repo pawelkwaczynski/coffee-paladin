@@ -267,10 +267,13 @@ def main():
     if "--from" in sys.argv or "--to" in sys.argv:
         zakres_opis = T("range: %s - %s") % (
             time.strftime("%Y-%m-%d", time.localtime(granica)),
-            time.strftime("%Y-%m-%d", time.localtime((gorna or time.time()))))
+            time.strftime("%Y-%m-%d", time.localtime((gorna - 1 if gorna else time.time()))))
 
     def w_zakresie(t):
-        return t >= granica and (gorna is None or t <= gorna)
+        # `t < gorna`, nie `<=`: gorna to polnoc NASTEPNEJ doby, wiec przy <= do raportu
+        # za jeden dzien wchodzil pierwszy wpis z dnia kolejnego - lacznie ze "szczytem
+        # temperatury", ktory byl przypisywany do dnia, w ktorym go nie bylo.
+        return t >= granica and (gorna is None or t < gorna)
 
     W = []
 
@@ -335,7 +338,12 @@ def main():
                     continue
                 if z.get("synthetic"):
                     continue          # wpisy testowe nie wchodza do dowodu dla serwisu
-                if not w_zakresie(czas_z(z.get("time", ""))):
+                # `epoch` (od 02.08.2026) jest jednoznaczny; `time` to tekst bez strefy,
+                # wiec przy odczycie w innej strefie wpis potrafil wypasc z zakresu.
+                t_zdarzenia = z.get("epoch")
+                if not isinstance(t_zdarzenia, (int, float)):
+                    t_zdarzenia = czas_z(z.get("time", ""))
+                if not w_zakresie(t_zdarzenia):
                     continue
                 zdarzen += 1
                 W.append("  [%s] %s — %s" % (z.get("time"), z.get("type"), z.get("description")))

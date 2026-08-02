@@ -1588,7 +1588,7 @@ def boot_time():
     return int(m.group(1)) if m else 0
 
 
-def zapisz_zdarzenie(rodzaj, opis, kontekst=None, synthetic=False):
+def zapisz_zdarzenie(rodzaj, opis, kontekst=None, synthetic=False, kiedy=None):
     """Czarna skrzynka — zdarzenia, ktore maja przezyc restart i trafic do raportu.
 
     synthetic=True oznacza wpis z testu/harnessu: thermal-report go POMIJA, zeby zaden
@@ -1597,7 +1597,13 @@ def zapisz_zdarzenie(rodzaj, opis, kontekst=None, synthetic=False):
     """
     try:
         with open(EVENTS_PATH, "a") as f:
-            wpis = {"time": ts(), "type": rodzaj, "description": opis}
+            # `kiedy` to epoch ZDARZENIA. Bez tego do pliku szedl moment WYKRYCIA, a pad
+            # wykrywa sie dopiero przy starcie po restarcie - wiec raport za dzien padu
+            # odpowiadal "w tym okresie nie wykryto zadnego twardego wylaczenia".
+            # Najgorszy mozliwy falszywy negatyw w dokumencie dla ubezpieczyciela.
+            t = kiedy if kiedy else now()
+            wpis = {"time": ts(t), "epoch": round(t, 3), "detected_at": ts(),
+                    "type": rodzaj, "description": opis}
             if synthetic:
                 wpis["synthetic"] = True
             if kontekst:
@@ -1670,7 +1676,7 @@ def wykryj_twardy_pad():
             pass
         opis = (T("Mac went down without a clean shutdown. Guard's last heartbeat: %s, "
                 "system booted: %s.") % (ts(puls), ts(boot)))
-        zapisz_zdarzenie("HARD_SHUTDOWN", opis, {"last_readings": ogon})
+        zapisz_zdarzenie("HARD_SHUTDOWN", opis, {"last_readings": ogon}, kiedy=puls)
         log(T("!!! HARD SHUTDOWN DETECTED - ") + opis)
         return {"time": ts(puls), "description": opis, "readings": ogon}
     except Exception:
