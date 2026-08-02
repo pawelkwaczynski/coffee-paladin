@@ -324,7 +324,7 @@ def load_hosts(d):
             snap["on_ac"] = True if v is None else str(v).strip().lower() in ("1", "true", "yes", "tak")
         wiek = time.time() - os.path.getmtime(path)
         snap["_age"] = max(wiek, 0.0)   # zegar drugiej maszyny bywa w przyszlosci
-        snap.setdefault("host", name[:-5])
+        snap.setdefault("host", _czysty_tekst(name[:-5], 18))
         hosts.append(snap)
     return hosts
 

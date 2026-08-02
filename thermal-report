@@ -16,6 +16,7 @@ Usage:
 Language: TG_LANG=en|pl, or "lang" in ~/.coffee-paladin/config.json. Default: en.
 """
 
+import datetime
 import json
 import os
 import re
@@ -285,7 +286,13 @@ def main():
             pass
     if "--to" in sys.argv:
         try:
-            gorna = _data(sys.argv[sys.argv.index("--to") + 1]) + 86400
+            # Doba przy zmianie czasu ma 23 albo 25 godzin. Dodanie stalych 86400 s
+            # do polnocy dawalo 23:00 tej samej doby (jesien) albo 01:00 doby
+            # nastepnej (wiosna) - w noc zmiany czasu raport gubil caly dzien
+            # RAZEM Z PADEM, a wiosna drukowal w naglowku date, o ktora nikt nie pytal.
+            _txt = sys.argv[sys.argv.index("--to") + 1]
+            _d = datetime.datetime.strptime(_txt, "%Y-%m-%d").date() + datetime.timedelta(days=1)
+            gorna = time.mktime(_d.timetuple())
         except Exception:
             pass
     if "--from" in sys.argv or "--to" in sys.argv:
@@ -353,6 +360,8 @@ def main():
     # --- najwazniejsza czesc: twarde pady
     W.append(T("\n## CRITICAL EVENTS (hard shutdowns, cooling alarms)\n"))
     zdarzen = 0
+    _juz_alarmy = []     # czasy alarmow z events.log — do deduplikacji tych z guard.log
+    _wpisy = []          # (czas, linie) — sekcja krytyczna musi byc CHRONOLOGICZNA
     try:
         with open(EVENTS, encoding="utf-8", errors="replace") as f:
             for linia in f:
@@ -372,27 +381,41 @@ def main():
                 if not w_zakresie(t_zdarzenia):
                     continue
                 zdarzen += 1
-                W.append("  [%s] %s — %s" % (z.get("time"), z.get("type"), z.get("description")))
+                if "COOLING" in str(z.get("type", "")):
+                    _juz_alarmy.append(t_zdarzenia)
+                _linie = ["  [%s] %s — %s" % (z.get("time"), z.get("type"), z.get("description"))]
                 kontekst = z.get("context")
                 pomiary = kontekst.get("last_readings") if isinstance(kontekst, dict) else []
                 pomiary = [x for x in (pomiary or []) if isinstance(x, dict)]
                 if pomiary:
-                    W.append(T("      readings immediately before the event:"))
+                    _linie.append(T("      readings immediately before the event:"))
                     for p in pomiary:
-                        W.append("        %s  chip %s C  wentylator %s obr/min  %s W  bateria %s%%  %s  load %s"
+                        _linie.append("        %s  chip %s C  wentylator %s obr/min  %s W  bateria %s%%  %s  load %s"
                                  % (p.get("time", "?"), p.get("chip_C", "?"),
                                     p.get("fan_rpm", "?"), p.get("watts", "?"),
                                     p.get("battery_pct", "?"),
-                                    T("AC") if p.get("on_ac") == "1" else T("battery"),
+                                    (T("AC") if p.get("on_ac") == "1" else T("battery")) if p.get("on_ac") is not None else "?",
                                     p.get("load1", "?")))
+                _wpisy.append((t_zdarzenia, _linie))
     except FileNotFoundError:
         pass
     # Alarmy wentylatorow trafiaja do events.log dopiero od 02.08.2026. Dla starszych
     # instalacji dociagamy je z guard.log, zeby sekcja krytyczna nie twierdzila
     # "brak alarmow", majac je wypisane kilkadziesiat linii nizej w tym samym dokumencie.
+    # Od 02.08 alarm chlodzenia idzie i do guard.log, i do events.log. Czytnik logu
+    # istnieje dla instalacji SPRZED tej zmiany, wiec musi pomijac to, co juz przyszlo
+    # z events.log - inaczej kazdy alarm liczy sie DWA razy w dokumencie roszczeniowym.
     for linia in _alarmy_z_logu(w_zakresie):
+        _t = czas_z(linia[:19])
+        if any(abs(_t - e) <= 2 for e in _juz_alarmy):
+            continue
         zdarzen += 1
-        W.append("  " + linia)
+        _wpisy.append((_t, ["  " + linia]))
+    # events.log jest w kolejnosci WYKRYCIA, nie zajscia (pad wykrywa sie po restarcie),
+    # a alarmy z guard.log doklejaly sie zawsze na koncu. Czytelnik nie mogl odtworzyc
+    # przyczynowosci - czy najpierw stanely wentylatory, czy najpierw padl Mac.
+    for _, _l in sorted(_wpisy, key=lambda x: x[0]):
+        W.extend(_l)
     if not zdarzen:
         W.append(T("  (none - no hard shutdown or cooling alarm was detected in this period)"))
 
@@ -462,7 +485,7 @@ def main():
 
     tekst = "\n".join(W) + "\n"
     try:
-        with open(cel, "w") as f:
+        with os.fdopen(os.open(cel, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w") as f:
             f.write(tekst)
     except OSError as e:
         # To narzedzie odpala sie dokladnie wtedy, gdy dysk jest pelny albo po padzie -
