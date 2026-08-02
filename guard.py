@@ -2295,7 +2295,7 @@ def fleet_write(cfg, status):
         hw = _hw_cache_fleet()
         out["model"] = hw.get("model")
         out["serial"] = hw.get("serial")
-        out["guard_version"] = "2.1.6"
+        out["guard_version"] = "2.1.7"
         tmp = os.path.join(d, ".%s.tmp" % hostname())
         with open(tmp, "w") as f:
             json.dump(out, f, ensure_ascii=False)
