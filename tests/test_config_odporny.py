@@ -121,16 +121,32 @@ wzorce = [w.lower() for w in g.load_cfg()["never_arg_patterns"]]
 
 
 def chroniony(cmd):
-    zostaw = [a for a in cmd.split()
-              if not ("/" in a and os.path.splitext(a)[1].lower() in g.ROZSZERZENIA_DANYCH)]
+    czesci = cmd.split()
+    if not czesci:
+        return False
+    zostaw = [czesci[0]]
+    interpreter = os.path.basename(czesci[0].strip('"\'')).lower() in g.INTERPRETERY
+    for i, a in enumerate(czesci[1:], start=1):
+        if interpreter and i == 1:
+            zostaw.append(a)
+        elif "/" not in a:
+            zostaw.append(a)
     return any(w in " ".join(zostaw).lower() for w in wzorce)
 
 
 for opis, cmd, oczekiwane in [
     ("wideo w katalogu z 'claude' w nazwie jest pauzowalne",
      "ffmpeg -i /Users/x/Desktop/claude_brain/wideo/rec.mkv out.mp4", False),
-    ("model .gguf w katalogu 'mcp' jest pauzowalny",
-     "python3 run.py --model /Users/x/mcp/modele/qwen.gguf", False),
+    ("rozszerzenie spoza listy (.braw) tez jest pauzowalne",
+     "x265 -y -i /Users/x/cursor_projekt/rec.braw -o out.mp4", False),
+    ("spacja w sciezce nie daje nietykalnosci",
+     "ffmpeg -i /Users/x/Desktop/claude brain/rec.mkv out.mp4", False),
+    ("katalog jako argument nie daje nietykalnosci",
+     "ffmpeg -y -i in.mp4 /Users/x/Desktop/mcp_dane/out/", False),
+    ("agent w pliku o rozszerzeniu danych ZACHOWUJE ochrone",
+     "python3 /Users/x/claude/agent.pt", True),
+    ("serwer mcp jako modul zachowuje ochrone",
+     "python3 -m mcp.server", True),
     ("serwer MCP pozostaje nietykalny", "node /opt/claude/mcp-server.js", True),
     ("agent claude pozostaje nietykalny", "/usr/local/bin/claude --resume", True),
     ("language server pozostaje nietykalny",

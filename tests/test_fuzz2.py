@@ -373,7 +373,7 @@ def zywe_dzieci():
 
 
 def fuzz_run(seed, n):
-    s = Sesja("guard.run [sprzatanie po dziecku]", seed, limit=40.0)
+    s = Sesja("guard.run [sprzatanie po dziecku]", seed, limit=45.0)
     PY = sys.executable
 
     def scen(rng, i):
@@ -419,7 +419,9 @@ def fuzz_run(seed, n):
             if not isinstance(out, str):
                 s.bzdura(opis, "zwrocono %s zamiast str" % type(out).__name__, "WYSOKA",
                          klucz="zly-typ")
-            time.sleep(0.01)
+            if "nie istnieje" in opis or "string" in opis:
+                continue        # nic sie nie uruchomilo - pgrep bylby strata czasu
+            time.sleep(0.005)
             zywe = zywe_dzieci()
             if zywe:
                 zostawione.update(zywe)

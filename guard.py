@@ -1089,48 +1089,56 @@ def pierwszoplanowy_na_tty(pid):
     return False
 
 
-# Rozszerzenia plikow, ktore sa DANYMI do przerobienia, nie tozsamoscia programu.
-# Sciezki do nich nie biora udzialu w dopasowaniu never_arg_patterns.
-ROZSZERZENIA_DANYCH = frozenset((
-    ".mkv", ".mp4", ".mov", ".avi", ".m4v", ".webm", ".wmv", ".mpg", ".mpeg", ".flv",
-    ".wav", ".mp3", ".aac", ".flac", ".m4a", ".aiff", ".ogg",
-    ".png", ".jpg", ".jpeg", ".heic", ".tif", ".tiff", ".gif", ".webp", ".raw", ".dng",
-    ".blend", ".psd", ".ai", ".prproj", ".aep", ".fcpbundle",
-    ".zip", ".tar", ".gz", ".bz2", ".xz", ".7z", ".dmg", ".iso", ".pkg",
-    ".csv", ".tsv", ".parquet", ".sqlite", ".db", ".pdf", ".epub",
-    ".gguf", ".safetensors", ".ckpt", ".pt", ".bin", ".npz", ".h5",
-))
-
-
 def full_args(pid):
     out = run(["ps", "-o", "args=", "-p", str(pid)])
     return out.strip()
 
 
-def args_bez_sciezek(pid):
-    """Linia polecen z wycietymi argumentami, ktore sa SCIEZKAMI do plikow danych.
+# Programy, ktore SAME nic nie znacza - tozsamosc procesu niesie ich pierwszy argument
+# (skrypt albo modul). Dla nich argv[1] traktujemy jak nazwe programu.
+INTERPRETERY = frozenset((
+    "node", "nodejs", "deno", "bun", "python", "python3", "python3.9", "python3.11",
+    "python3.12", "python3.13", "ruby", "perl", "php", "java", "sh", "bash", "zsh",
+    "osascript", "tsx", "ts-node", "uv", "uvx", "pipx", "npx",
+))
 
-    never_arg_patterns ma rozpoznawac, CZYM jest proces (agent, edytor, serwer MCP),
-    a nie co przetwarza. Dopasowanie do surowej linii polecen myli jedno z drugim:
-    `ffmpeg -i ~/Desktop/claude_brain/wideo/rec.mkv` trafialo we wzorzec "claude"
-    i stawalo sie nietykalne, wiec Mac grzal sie dalej, a w logu byla cisza.
-    Zostaje wiec nazwa programu (argv[0]) i te argumenty, ktore nie wygladaja
-    na sciezki - czyli flagi i nazwy modulow, po ktorych naprawde poznajemy agenta.
+
+def args_bez_sciezek(pid):
+    """Ta czesc linii polecen, ktora mowi CZYM jest proces - bez danych, ktore przerabia.
+
+    never_arg_patterns ma rozpoznawac agenta, edytor albo serwer MCP, a nie to, co
+    proces czyta. Dopasowanie do surowej linii mylilo jedno z drugim: `ffmpeg -i
+    ~/Desktop/claude_brain/wideo/rec.mkv` trafialo we wzorzec "claude" i stawalo sie
+    nietykalne, wiec Mac grzal sie dalej.
+
+    Pierwsza proba (biala lista rozszerzen danych) miala dwadziescia obejsc, ktore
+    znalazl fuzzer: .braw, .r3d, .mxf, .heif, spacja w sciezce (ps skleja argv
+    spacjami), sciezka w cudzyslowach, argument bedacy katalogiem. Kazde z nich
+    czynilo zwykly enkoder nietykalnym. Odwrotnie tez: `python3 ~/claude/agent.pt`
+    tracil ochrone, bo .pt bylo na liscie danych.
+
+    Dlatego regula jest teraz strukturalna, nie slownikowa:
+      argv[0]                     - zawsze tozsamosc (nazwa programu),
+      argv[1] przy interpreterze  - tozsamosc (to skrypt albo modul),
+      argumenty bez ukosnika      - tozsamosc (flagi, nazwy modulow: -m mcp.server),
+      pozostale sciezki           - DANE, nie biora udzialu w dopasowaniu.
     """
     czesci = full_args(pid).split()
     if not czesci:
         return ""
-    zostaw = []
-    for a in czesci:
-        # Wycinamy WYLACZNIE sciezki do PLIKOW Z DANYMI. Katalog, w ktorym leza
-        # dane, nie mowi nic o tozsamosci procesu, a potrafi ja falszywie nadac:
-        # `ffmpeg -i ~/Desktop/claude_brain/wideo/rec.mkv` trafialo we wzorzec
-        # "claude" i stawalo sie nietykalne. Reszta sciezek zostaje w calosci,
-        # bo tam tozsamosc naprawde bywa w katalogu: node_modules/typescript-
-        # language-server/lib/cli.js albo ~/.vscode/extensions/...
-        if "/" in a and os.path.splitext(a)[1].lower() in ROZSZERZENIA_DANYCH:
-            continue
-        zostaw.append(a)
+    zostaw = [czesci[0]]
+    interpreter = os.path.basename(czesci[0].strip('"\'')).lower() in INTERPRETERY
+    skrypt_wziety = not interpreter
+    for a in czesci[1:]:
+        if "/" not in a:
+            zostaw.append(a)          # flaga albo nazwa modulu (-m mcp.server)
+        elif not skrypt_wziety and not a.startswith("-"):
+            # pierwszy niebedacy flaga argument interpretera to URUCHAMIANY SKRYPT,
+            # czyli tozsamosc procesu - takze wtedy, gdy przed nim byly flagi
+            # (`node --experimental-modules /sciezka/mcp-server.js`)
+            zostaw.append(a)
+            skrypt_wziety = True
+        # reszta to sciezka do danych - pomijamy
     return " ".join(zostaw).lower()
 
 
@@ -1711,7 +1719,10 @@ def statystyki_dnia():
     dzis = time.strftime("%Y-%m-%d")
     pauzy = wznowienia = ubicia = 0
     try:
-        with open(LOG_PATH) as f:
+        # errors="replace": jeden bajt spoza UTF-8 (uciety zapis, smiec po padzie) wywalal
+        # dekoder przy pierwszym readline i zerowal calą statystyke dnia - pasek pokazywal
+        # "dzis 0 pauz" po nocy pelnej pauz, bez zadnego sygnalu.
+        with open(LOG_PATH, encoding="utf-8", errors="replace") as f:
             for line in f:
                 if not line.startswith(dzis):
                     continue
@@ -2022,7 +2033,16 @@ def _loguj_awake(msg):
     ile przelaczen sie w tym czasie zmiescilo.
     """
     t = now()
-    if msg == _awake_log["ostatni"] or t - _awake_log["kiedy"] < 600:
+    # Warunek na powtorzenie MUSI miec limit czasu: bez niego ten sam komunikat nie
+    # trafialby do logu juz nigdy (sprawdzone: co 24 h przez 5 dni = zero linii).
+    # Ujemna roznica (cofniety zegar) tez nie moze wyciszac na zawsze.
+    odstep = t - _awake_log["kiedy"]
+    if odstep < 0:
+        _awake_log["kiedy"] = t          # zegar skoczyl w tyl - zaczynamy liczyc od nowa
+        odstep = 0
+    if not isinstance(msg, str):
+        msg = str(msg)
+    if odstep < 600:
         _awake_log["pominiete"] += 1
         _awake_log["ostatni"] = msg
         return
@@ -2196,14 +2216,28 @@ def zajmij_wylacznosc():
     """
     import fcntl
     sciezka = os.path.join(BASE, "guard.lock")
-    f = open(sciezka, "w")
+    try:
+        # "a+", nie "w": tryb "w" OBCINA plik zanim sprobuje flock, wiec kazde nieudane
+        # uruchomienie kasowalo PID wlasciciela blokady - czyli jedyna diagnostyke
+        # "kto ja trzyma". Zapis dopiero po zdobyciu blokady.
+        f = open(sciezka, "a+")
+    except OSError as e:
+        # katalog zamiast pliku, brak prawa zapisu - bez tego demon padal tracebackiem
+        # przy starcie, a launchd restartowal go w petli
+        log("nie moge otworzyc %s (%s) - demon startuje BEZ wylacznosci" % (sciezka, e))
+        return False
     try:
         fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except OSError:
         f.close()
         return None
-    f.write("%d\n" % os.getpid())
-    f.flush()
+    try:
+        f.seek(0)
+        f.truncate()
+        f.write("%d\n" % os.getpid())
+        f.flush()
+    except OSError:
+        pass
     return f
 
 
@@ -2213,6 +2247,8 @@ def main():
     # maja dzialac zawsze, takze gdy demon chodzi (tak sprawdza je czlowiek i testy).
     jednorazowo = ("--once" in sys.argv) or ("status" in sys.argv)
     _blokada = None if jednorazowo else zajmij_wylacznosc()
+    # False = nie dalo sie otworzyc pliku blokady (katalog, brak praw). Startujemy mimo to:
+    # brak wylacznosci jest zly, ale brak OCHRONY jest gorszy. None = ktos ja trzyma.
     if not jednorazowo and _blokada is None:
         print(T("another coffee-paladin daemon is already running - this one exits"),
               file=sys.stderr)

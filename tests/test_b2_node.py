@@ -47,11 +47,29 @@ def spawn(*args):
                             stdout=subprocess.DEVNULL, start_new_session=True)
 
 
+def spawn_skrypt(podkatalog):
+    """Interpreter uruchamiajacy SKRYPT z podanej sciezki - realna postac serwera MCP
+    czy language servera (`node /Users/x/.claude/mcp/server.js`). Zwraca (proces, katalog)."""
+    import tempfile
+    kat = tempfile.mkdtemp()
+    sciezka = os.path.join(kat, podkatalog)
+    os.makedirs(os.path.dirname(sciezka), exist_ok=True)
+    with open(sciezka, "w") as f:
+        f.write("import time\ntime.sleep(120)\n")
+    return subprocess.Popen(["python3", sciezka],
+                            stdout=subprocess.DEVNULL, start_new_session=True), kat
+
+
 def main():
     procesy = []
+    kat_agenta = None
     try:
         build = spawn("build.js")          # udaje: node build.js
-        agent = spawn("po/.claude/mcp")    # udaje: node .../.claude/... serwer mcp
+        # realna postac serwera MCP: interpreter + SCIEZKA DO SKRYPTU. (Wczesniej sciezka
+        # stala na koncu, za kodem `-c`; taka linia polecen nie wystepuje w naturze,
+        # a od 02.08 argumenty-dane nie daja juz nietykalnosci - tozsamosc niesie
+        # nazwa programu i uruchamiany skrypt, nie to, co proces przetwarza.)
+        agent, kat_agenta = spawn_skrypt(".claude/mcp/server.py")
         procesy = [build, agent]
         import time
         time.sleep(1)
@@ -86,6 +104,9 @@ def main():
         for p in procesy:
             p.kill()
             p.wait()
+        import shutil
+        if kat_agenta:
+            shutil.rmtree(kat_agenta, ignore_errors=True)   # katalog z atrapa serwera MCP
 
     padniete = [n for n, ok in WYNIKI if not ok]
     print("\nWYNIK: %d/%d" % (len(WYNIKI) - len(padniete), len(WYNIKI)))

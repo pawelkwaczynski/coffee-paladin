@@ -197,10 +197,32 @@ def age_str(seconds):
 
 
 def _num(v):
+    """Liczba albo None. OverflowError i NaN tez znacza "brak danych".
+
+    Migawka przychodzi ze wspoldzielonego folderu, wiec moze zawierac 400-cyfrowy
+    int (float() rzuca OverflowError) albo "nan" (float() to lyka, a int() juz nie).
+    """
     try:
-        return float(v)
-    except (TypeError, ValueError):
+        f = float(v)
+    except (TypeError, ValueError, OverflowError):
         return None
+    return None if f != f or f in (float("inf"), float("-inf")) else f
+
+
+def _liczby(v):
+    """Lista intow z czegokolwiek. `_num` przepuszcza stringi ("3.5"), a int() na nich pada."""
+    if not isinstance(v, list):
+        return []
+    out = []
+    for x in v:
+        n = _num(x)
+        if n is None or n != n:
+            continue
+        try:
+            out.append(int(n))
+        except (ValueError, OverflowError):
+            continue
+    return out
 
 
 def _czysty_tekst(s, limit=60):
@@ -234,29 +256,43 @@ def load_hosts(d):
         except Exception:
             # Zepsuty plik NIE moze znikac po cichu: host wypadal z tabeli, a operator
             # widzial "all machines look fine". Zostaje w tabeli, oznaczony i policzony.
-            hosts.append({"host": name[:-5][:18], "_age": time.time() - os.path.getmtime(path),
+            hosts.append({"host": _czysty_tekst(name[:-5], 18), "_age": time.time() - os.path.getmtime(path),
                           "_bad": True, "level": 0, "fans": []})
             continue
         for k in ("chip_c", "watts", "ram_used_gb", "ram_total_gb"):
             snap[k] = _num(snap.get(k))
+        if snap["ram_used_gb"] is None or snap["ram_total_gb"] is None:
+            snap["ram_used_gb"] = snap["ram_total_gb"] = None   # jedno bez drugiego = brak danych
         for k in ("disk_used_pct", "battery_pct", "cpu_limit"):
             v = _num(snap.get(k))
             snap[k] = int(v) if v is not None else None
         lv = _num(snap.get("level"))
-        snap["level"] = min(max(int(lv), 0), 3) if lv is not None else 0
+        try:
+            snap["level"] = min(max(int(lv), 0), 3) if lv is not None else 0
+        except (ValueError, OverflowError):
+            snap["level"] = 0              # "nan", 1e400 - _num je przepuszcza, int() nie
         fans = snap.get("fans")
-        snap["fans"] = [int(f) for f in fans if _num(f) is not None] if isinstance(fans, list) else []
+        snap["fans"] = _liczby(fans)
         # Pola, ktore ida prosto do renderu. Migawka pochodzi ze WSPOLDZIELONEGO
         # folderu, wiec traktujemy ja jak dane z obcej maszyny: kazdy typ moze byc inny,
         # a znaki sterujace ANSI w nazwie hosta potrafia skasowac juz wypisane wiersze.
         for k in ("host", "model"):
             v = snap.get(k)
-            snap[k] = _czysty_tekst(v) if isinstance(v, str) else (None if v is None else _czysty_tekst(str(v)))
+            if v is None or (isinstance(v, str) and not v.strip()):
+                snap.pop(k, None)          # None NIE moze zostac - blokowalo setdefault nizej
+            else:
+                snap[k] = _czysty_tekst(v if isinstance(v, str) else str(v))
         p = snap.get("paused")
         snap["paused"] = [_czysty_tekst(str(x))[:24] for x in p][:6] if isinstance(p, list) else []
-        if not isinstance(snap.get("stats"), dict):
-            snap["stats"] = {}
-        if not isinstance(snap.get("last_hard_shutdown"), dict):
+        st = snap.get("stats")
+        # nie wystarczy sprawdzic, ze to slownik: %d na wartosci "duzo" wywala render
+        snap["stats"] = {k: int(v) for k, v in st.items()
+                         if isinstance(v, (int, float)) and v == v} if isinstance(st, dict) else {}
+        crash = snap.get("last_hard_shutdown")
+        if isinstance(crash, dict):
+            # to pole tez idzie na terminal operatora - musi przejsc przez czyszczenie
+            snap["last_hard_shutdown"] = {"time": _czysty_tekst(crash.get("time", ""), 30)}
+        else:
             snap["last_hard_shutdown"] = None
         if not isinstance(snap.get("on_ac"), bool):
             v = snap.get("on_ac")

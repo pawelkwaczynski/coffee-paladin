@@ -290,6 +290,8 @@ def main():
     # wentylatory, dysk, Neural Engine, progi
     try:
         hw = json.load(open(os.path.join(BASE, "hardware.json")))
+        if not isinstance(hw, dict):
+            hw = {}          # poprawny JSON, ale lista albo tekst - hw.get() by wywalilo raport
     except Exception:
         hw = {}
     W.append("  macOS: " + sh(["sw_vers", "-productVersion"]).strip())
