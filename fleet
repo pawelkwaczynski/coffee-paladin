@@ -86,6 +86,12 @@ PL = {
         "GORACO - bezpiecznik interweniuje",
     "unreadable snapshot":
         "migawka nie do odczytania",
+    "implausible readings: %s":
+        "niewiarygodne odczyty: %s",
+    "fleet: --set-dir needs a folder path":
+        "fleet: --set-dir wymaga sciezki do folderu",
+    "fleet: --dir needs a folder path":
+        "fleet: --dir wymaga sciezki do folderu",
 }
 
 RU = {
@@ -124,6 +130,12 @@ RU = {
         "ГОРЯЧО - защита вмешивается",
     "unreadable snapshot":
         "снимок не читается",
+    "implausible readings: %s":
+        "недостоверные показания: %s",
+    "fleet: --set-dir needs a folder path":
+        "fleet: --set-dir требует путь к папке",
+    "fleet: --dir needs a folder path":
+        "fleet: --dir требует путь к папке",
 }
 
 ZH = {
@@ -162,6 +174,12 @@ ZH = {
         "过热 - 守护正在干预",
     "unreadable snapshot":
         "快照无法读取",
+    "implausible readings: %s":
+        "不可信的读数:%s",
+    "fleet: --set-dir needs a folder path":
+        "fleet: --set-dir 需要文件夹路径",
+    "fleet: --dir needs a folder path":
+        "fleet: --dir 需要文件夹路径",
 }
 
 ES = {
@@ -200,6 +218,12 @@ ES = {
         "CALIENTE - el guardián está interviniendo",
     "unreadable snapshot":
         "instantánea ilegible",
+    "implausible readings: %s":
+        "lecturas inverosimiles: %s",
+    "fleet: --set-dir needs a folder path":
+        "fleet: --set-dir necesita una ruta de carpeta",
+    "fleet: --dir needs a folder path":
+        "fleet: --dir necesita una ruta de carpeta",
 }
 
 DICTS = {"pl": PL, "ru": RU, "zh": ZH, "es": ES}
@@ -305,6 +329,20 @@ def load_hosts(d):
             hosts.append({"host": _czysty_tekst(name[:-5], 18), "_age": wiek,
                           "_bad": True, "level": 0, "fans": []})
             continue
+        # Niewiarygodnosc trzeba zauwazyc PRZED normalizacja: `_num()` zamienia inf i NaN
+        # na None, wiec po niej nie da sie juz odroznic "czujnik nie odpowiedzial"
+        # od "migawka jest bez sensu". Host z samymi nieskonczonosciami pokazywal sie
+        # w tabeli jako spokojna, zdrowa maszyna.
+        _podejrzane = []
+        for k in ("chip_c", "battery_c", "gpu_c", "level", "load1", "watts", "battery_pct"):
+            v = snap.get(k)
+            if v is None or isinstance(v, str):
+                continue
+            if isinstance(v, bool) or not isinstance(v, (int, float)) or v != v \
+                    or abs(v) == float("inf"):
+                _podejrzane.append(k)
+        if _podejrzane:
+            snap["_implausible"] = sorted(_podejrzane)
         for k in ("chip_c", "watts", "ram_used_gb", "ram_total_gb"):
             snap[k] = _num(snap.get(k))
         if snap["ram_used_gb"] is None or snap["ram_total_gb"] is None:
@@ -362,13 +400,25 @@ def issues_for(h):
     if h.get("_bad"):
         out.append(T("unreadable snapshot"))
         return out
-    # nie raportuje > 5 min: albo padl, albo spi, albo folder sie nie synchronizuje
-    if h["_age"] > 300:
+    # nie raportuje > 5 min: albo padl, albo spi, albo folder sie nie synchronizuje.
+    # WCZESNIEJ byl tu `return out`, wiec "nie raportuje" UCINALO wszystkie pozostale
+    # problemy. Skutek: Mac, ktory PADL TWARDO przy chipie 98,7 C i nie wstal, pokazywal
+    # w kolumnie ISSUES wylacznie "nie raportuje" - czyli najwazniejsza informacja
+    # z calej floty znikala za najmniej wazna. Dzisiaj to samo w drugą strone: maszyna
+    # nieraportujaca to wlasnie ta, o ktorej trzeba wiedziec NAJWIECEJ.
+    stale = h["_age"] > 300
+    if stale:
         out.append(T("STALE - not reporting"))
-        return out
     # Poziom 2 = straznik pauzuje, 3 = krytycznie. Maszyna z chipem pod 100 C
     # wypadala z listy "wymagajacych uwagi" i `fleet --json` konczyl sie zerem,
     # wiec cron i Grafana milczaly dokladnie wtedy, gdy mialy krzyczec.
+    # Migawka z samymi nieskonczonosciami/NaN raportowana byla jako ZDROWA maszyna:
+    # `float("nan") >= 2` to False, `or 0` nie lapie NaN, wiec host z chip_c=inf
+    # i level=NaN pokazywal sie w tabeli jako "calm". O maszynie, ktorej odczyty sa
+    # bez sensu, nie wolno mowic, ze jest spokojna - to ten sam blad, co "unreadable".
+    if h.get("_implausible"):
+        out.append(T("implausible readings: %s") % ",".join(h["_implausible"])[:40])
+
     poziom = h.get("level") or 0
     if isinstance(poziom, (int, float)) and poziom >= 2:
         chip = h.get("chip_c")
@@ -550,12 +600,21 @@ def main():
         print(__doc__)
         return 0
     if "--set-dir" in sys.argv:
-        return set_dir(sys.argv[sys.argv.index("--set-dir") + 1])
+        try:
+            _v = sys.argv[sys.argv.index("--set-dir") + 1]
+        except IndexError:
+            print(T("fleet: --set-dir needs a folder path"), file=sys.stderr)
+            return 2
+        return set_dir(_v)
     if "--setup" in sys.argv:
         return setup()
     d = ""
     if "--dir" in sys.argv:
-        d = os.path.expanduser(sys.argv[sys.argv.index("--dir") + 1])
+        try:
+            d = os.path.expanduser(sys.argv[sys.argv.index("--dir") + 1])
+        except IndexError:
+            print(T("fleet: --dir needs a folder path"), file=sys.stderr)
+            return 2
     else:
         d = fleet_dir_from_config()
     if not d or not os.path.isdir(d):

@@ -1840,11 +1840,27 @@ enum GuardCfg {
     /// pelnych odczytow i parsowan config.json, a przy otwartym podmenu floty jeszcze
     /// wiecej. Uniewazniany jawnie w menuNeedsUpdate i po kazdym zapisie.
     private static var cache: [String: Any]?
+    /// Cache jest STATYCZNY i dotykany z DWOCH watkow: `menuNeedsUpdate` ustawia go
+    /// na watku glownym, a `refreshFleet` -> `fleetHosts()` -> `GuardCfg.string`
+    /// czyta go z watku w tle (DispatchQueue.global). Slownik Swifta nie jest
+    /// bezpieczny watkowo - rownoczesny odczyt i zapis to niezdefiniowane zachowanie,
+    /// od smieciowej wartosci po wywalenie paska. Caly dostep idzie przez ten zamek.
+    private static let zamek = NSLock()
 
-    static func zacznijCache() { cache = czytaj() ?? [:] }
-    static func zakonczCache() { cache = nil }
+    static func zacznijCache() {
+        let swieze = czytaj() ?? [:]
+        zamek.lock(); cache = swieze; zamek.unlock()
+    }
 
-    static func all() -> [String: Any] { cache ?? (czytaj() ?? [:]) }
+    static func zakonczCache() { zamek.lock(); cache = nil; zamek.unlock() }
+
+    static func all() -> [String: Any] {
+        zamek.lock()
+        let biezacy = cache
+        zamek.unlock()
+        // czytamy z dysku POZA zamkiem: I/O pod blokada zatrzymywaloby watek glowny
+        return biezacy ?? (czytaj() ?? [:])
+    }
 
     /// Jeden odczyt na wywolanie zamiast dwoch. Menu pytalo o config ~25 razy przy
     /// kazdym otwarciu; polowa z tego brala sie stad, ze `double` czytalo plik dwa razy.
@@ -2502,6 +2518,14 @@ final class Bar: NSObject, NSMenuDelegate {
                abs(Date().timeIntervalSince(m)) > 30 {
                 try? fm.removeItem(atPath: sygnalOkno)
             }
+            return
+        }
+        // NIE OTWIERAMY OKNA NA OKNIE. Ten dyspozytor biegnie z timera, wiec potrafil
+        // wywolac `runModal` w chwili, gdy inny modal juz trwal (np. potwierdzenie
+        // wyjscia albo dialog ntfy otwarty recznie). Zagniezdzony runModal to
+        // zablokowany pasek: uzytkownik widzi dwa okna i zadnego nie da sie zamknac.
+        // Sygnal zostawiamy na dysku - obsluzymy go, gdy pierwsze okno sie zamknie.
+        if NSApp.modalWindow != nil {
             return
         }
         try? fm.removeItem(atPath: sygnalOkno)
