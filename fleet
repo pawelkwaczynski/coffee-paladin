@@ -77,6 +77,7 @@ PL = {
     "Pick a number (the SAME folder must be set on every machine):":
         "Wybierz numer (TEN SAM folder trzeba ustawic na kazdej maszynie):",
     "cancelled": "anulowano",
+    "fleet: cannot read %s (%s) - not touching it. Fix the file first.": "fleet: nie umiem odczytac %s (%s) - nie ruszam pliku. Napraw go najpierw.",
 }
 
 RU = {
@@ -107,6 +108,7 @@ RU = {
     "Pick a number (the SAME folder must be set on every machine):":
         "Выберите номер (ТА ЖЕ папка должна быть задана на каждой машине):",
     "cancelled": "отменено",
+    "fleet: cannot read %s (%s) - not touching it. Fix the file first.": "fleet: не могу прочитать %s (%s) - не трогаю файл. Сначала исправьте его.",
 }
 
 ZH = {
@@ -137,6 +139,7 @@ ZH = {
     "Pick a number (the SAME folder must be set on every machine):":
         "选择一个编号(每台机器必须设置同一个文件夹):",
     "cancelled": "已取消",
+    "fleet: cannot read %s (%s) - not touching it. Fix the file first.": "fleet:无法读取 %s(%s)- 不改动该文件。请先修复它。",
 }
 
 ES = {
@@ -167,6 +170,7 @@ ES = {
     "Pick a number (the SAME folder must be set on every machine):":
         "Elige un número (la MISMA carpeta debe configurarse en cada máquina):",
     "cancelled": "cancelado",
+    "fleet: cannot read %s (%s) - not touching it. Fix the file first.": "fleet: no puedo leer %s (%s) - no toco el archivo. Arréglalo primero.",
 }
 
 DICTS = {"pl": PL, "ru": RU, "zh": ZH, "es": ES}
@@ -353,15 +357,34 @@ def set_dir(path):
     except Exception:
         pass
     cfgp = os.path.join(BASE, "config.json")
-    try:
-        with open(cfgp) as f:
-            c = json.load(f)
-    except Exception:
-        c = {}
-    c["fleet_dir"] = path
     os.makedirs(BASE, exist_ok=True)
-    with open(cfgp, "w") as f:
-        json.dump(c, f, indent=2, ensure_ascii=False)
+    # Config, ktorego nie umiemy sparsowac, jest NIETYKALNY. Nadpisanie go wlasnym
+    # kluczem kasowaloby progi i dry_run:false, czyli po cichu wylaczaloby ochrone -
+    # a komunikat nizej mowilby "zapisane". Lepiej odmowic i pokazac plik.
+    c = {}
+    if os.path.exists(cfgp):
+        try:
+            with open(cfgp) as f:
+                c = json.load(f)
+            if not isinstance(c, dict):
+                raise ValueError("config.json nie jest obiektem")
+        except Exception as e:
+            print(T("fleet: cannot read %s (%s) - not touching it. Fix the file first.")
+                  % (cfgp, e), file=sys.stderr)
+            return 1
+    c["fleet_dir"] = path
+    # flock na tym samym pliku, ktorego uzywaja guard i pasek menu
+    import fcntl
+    lock = open(os.path.join(BASE, "config.lock"), "w")
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        tmp = cfgp + ".tmp"
+        with open(tmp, "w") as f:
+            json.dump(c, f, indent=2, ensure_ascii=False)
+        os.replace(tmp, cfgp)
+    finally:
+        fcntl.flock(lock, fcntl.LOCK_UN)
+        lock.close()
     print(T("fleet_dir saved: %s (the agent starts publishing within a minute)") % path)
     return 0
 

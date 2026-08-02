@@ -319,7 +319,11 @@ def chip_juz_goracy():
     if (st.get("level") or 0) >= 2:
         return True, T("the guard reports a hot machine")
     chip = st.get("chip_c")
-    prog = (st.get("thresholds") or {}).get("soc_pause_c") or cfg().get("soc_pause_c", 85.0)
+    # Guard publikuje progi jako {"pause": ..., "kill": ...} (guard.py, status_write).
+    # Wczesniej bylo tu "soc_pause_c", czyli klucz, ktorego nikt nie zapisuje - odczyt
+    # zawsze zwracal None i po cichu spadal na config. Na maszynie bezwentylatorowej,
+    # gdzie kalibracja obniza prog do 78 C, oznaczalo to decyzje wedlug 85 C.
+    prog = (st.get("thresholds") or {}).get("pause") or cfg().get("soc_pause_c", 85.0)
     try:
         if chip is not None and float(chip) >= float(prog) - 5.0:
             return True, "chip %.1f C" % float(chip)

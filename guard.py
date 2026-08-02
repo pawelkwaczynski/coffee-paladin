@@ -247,6 +247,9 @@ def ensure_dirs():
 # zzerajacy CPU i pauzuje go. Zdarzylo sie naprawde, 02.08.2026.
 WLASNE_NAZWY = ("coffee-paladin", "guard.py", "safe-run")
 
+# klucze configu, ktore mialy zly typ i zostaly zastapione defaultem (do zalogowania)
+_zle_typy = []
+
 
 def load_cfg():
     cfg = dict(DEFAULTS)
@@ -257,13 +260,53 @@ def load_cfg():
             cfg.update(user)
     except Exception:
         pass
+    # Wartosci z configu maja typ DEFAULTU, nie ten, ktory wpisal czlowiek.
+    # Bez tego jedna literowka ("cpu_min_percent": "dwadziescia") wywala petle
+    # przy kazdym cyklu: status.json przestaje byc zapisywany, nic nie jest
+    # pauzowane, a `heat` dalej melduje "dziala". Czyli strazak zywy i slepy.
+    for klucz, wzor in DEFAULTS.items():
+        wart = cfg.get(klucz)
+        if isinstance(wzor, bool):
+            if not isinstance(wart, bool):
+                cfg[klucz] = wzor
+                _zle_typy.append(klucz)
+        elif isinstance(wzor, (int, float)) and not isinstance(wart, bool):
+            try:
+                cfg[klucz] = type(wzor)(wart)
+            except (TypeError, ValueError):
+                cfg[klucz] = wzor
+                _zle_typy.append(klucz)
+        elif isinstance(wzor, list) and not isinstance(wart, list):
+            cfg[klucz] = list(wzor)
+            _zle_typy.append(klucz)
+        elif isinstance(wzor, str) and not isinstance(wart, str):
+            cfg[klucz] = wzor
+            _zle_typy.append(klucz)
+
+    # Progi MUSZA rosnac: wznowienie < pauza < ubicie. Bez tego jedna literowka
+    # zamienia bezpiecznik w mlynek (resume >= pause: pauza i wznowienie co cykl)
+    # albo w zabojce zadan (kill <= pause: SIGTERM przy zupelnie zdrowych 82 C).
+    for nizszy, wyzszy, margines in (("soc_resume_c", "soc_pause_c", 2.0),
+                                     ("soc_pause_c", "soc_kill_c", 2.0),
+                                     ("batt_pause_c", "batt_kill_c", 2.0)):
+        try:
+            n, w = float(cfg[nizszy]), float(cfg[wyzszy])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if n >= w:
+            cfg[nizszy] = w - margines
+            _zle_typy.append("%s (>= %s, obnizone do %.1f)" % (nizszy, wyzszy, cfg[nizszy]))
+
     # listy nietykalnych sa UZUPELNIANE o wlasne nazwy, nigdy nimi nie nadpisywane:
-    # uzytkownik moze dopisac swoje wzorce, ale nie moze przypadkiem odslonic demona
-    for klucz in ("never_patterns", "never_arg_patterns"):
-        lista = list(cfg.get(klucz) or [])
-        for nazwa in WLASNE_NAZWY:
-            if nazwa not in lista:
-                lista.append(nazwa)
+    # uzytkownik moze dopisac swoje wzorce, ale nie moze przypadkiem odslonic demona.
+    # Puste stringi wylatuja: "" pasuje do KAZDEJ nazwy procesu, wiec jedna pusta
+    # linia na liscie oslepia bezpiecznik i nic tego nie sygnalizuje.
+    for klucz in ("never_patterns", "never_arg_patterns", "never_extra", "managed_patterns"):
+        lista = [w for w in (cfg.get(klucz) or []) if isinstance(w, str) and w.strip()]
+        if klucz in ("never_patterns", "never_arg_patterns"):
+            for nazwa in WLASNE_NAZWY:
+                if nazwa not in lista:
+                    lista.append(nazwa)
         cfg[klucz] = lista
     return cfg
 
@@ -434,6 +477,41 @@ RU = {
     "Measuring and alerting only - nothing is paused. Enable protection in the menu bar (one click).":
         "Только измеряю и предупреждаю - ничего не приостанавливается. Включите защиту в меню (один клик).",
     "another coffee-paladin daemon is already running - this one exits": "другой демон coffee-paladin уже работает - этот завершается",
+    "PAUSED %s (pid %d, %.0f%% CPU) - %s": "ПАУЗА  %s (pid %d, %.0f%% CPU) - %s",
+    "[DRY-RUN] would pause %s (pid %d, %.0f%% CPU) - %s": "[НАБЛЮДЕНИЕ] поставил бы на паузу %s (pid %d, %.0f%% CPU) - %s",
+    "FAILED to pause %s (pid %d) - not permitted to send the signal": "НЕ УДАЛОСЬ поставить на паузу %s (pid %d) - нет прав на отправку сигнала",
+    "RESUMED %s (pid %d) - %s": "ВОЗОБНОВЛЕНО %s (pid %d) - %s",
+    "[DRY-RUN] would terminate %s (pid %d) - %s": "[НАБЛЮДЕНИЕ] завершил бы %s (pid %d) - %s",
+    "TERMINATED (SIGTERM) %s (pid %d) - %s": "ЗАВЕРШЕНО (SIGTERM) %s (pid %d) - %s",
+    "SIGKILL %s (pid %d)": "SIGKILL %s (pid %d)",
+    "[DRY-RUN] would demote %s (pid %d)": "[НАБЛЮДЕНИЕ] понизил бы %s (pid %d)",
+    "DEMOTED %s (pid %d) -> background QoS/E-cores (hot for >%d min)": "ПОНИЖЕНО %s (pid %d) -> фоновый QoS/E-ядра (жарко дольше %d мин)",
+    "PROMOTED %s (pid %d) -> back on P-cores (machine cooled down)": "ПОВЫШЕНО %s (pid %d) -> обратно на P-ядра (машина остыла)",
+    "unknown argument: %s": "неизвестный аргумент: %s",
+    "usage: coffee-paladin [--once | status]   (no arguments = run the daemon)": "использование: coffee-paladin [--once | status]   (без аргументов = запуск демона)",
+    "!!! HARD SHUTDOWN DETECTED - ": "!!! ОБНАРУЖЕНО ЖЁСТКОЕ ОТКЛЮЧЕНИЕ - ",
+    "manual freeze: there was nothing to freeze": "ручная заморозка: замораживать было нечего",
+    "PAUSE >%d min - terminating job %s (pid %s)": "ПАУЗА >%d мин - завершаю задачу %s (pid %s)",
+    "LOOP ERROR: %r": "ОШИБКА ЦИКЛА: %r",
+    "guard startup - nothing is left frozen": "запуск стража - ничего не осталось замороженным",
+    "guard is shutting down": "страж завершает работу",
+    "nothing to freeze": "нечего замораживать",
+    "Mac went down without a clean shutdown. Guard's last heartbeat: %s, system booted: %s.": "Mac выключился без штатного завершения. Последний сигнал стража: %s, система загружена: %s.",
+    "yes": "да",
+    "NO (macmon missing - running on battery temperature only)": "НЕТ (нет macmon - работаем только по температуре батареи)",
+    "coffee-paladin start | chip: pause>=%.0fC resume<=%.0fC kill>=%.0fC (sensor: %s) | battery: pause>=%.0fC kill>=%.0fC | state>=%s | battery gate: <=%d%% on battery": "coffee-paladin старт | чип: пауза>=%.0fC возобновление<=%.0fC завершение>=%.0fC (датчик: %s) | батарея: пауза>=%.0fC завершение>=%.0fC | состояние>=%s | порог батареи: <=%d%% без зарядки",
+    "state=%s chip=%s battery=%s fans=%s power=%s CPU_limit=%d%% load1=%.2f level=%d (%s)": "состояние=%s чип=%s батарея=%s вентиляторы=%s питание=%s лимит_CPU=%d%% load1=%.2f уровень=%d (%s)",
+    "  candidate: %-20s pid=%-7d %.0f%% CPU": "  кандидат: %-20s pid=%-7d %.0f%% CPU",
+    "AC": "сеть",
+    "battery %s%%": "батарея %s%%",
+    "calm": "спокойно",
+    "gone before pause: %s (pid %d)": "исчез до паузы: %s (pid %d)",
+    "FAILED to pause %s (pid %d) - errno %d, giving up on this pid": "НЕ УДАЛОСЬ поставить на паузу %s (pid %d) - errno %d, оставляю этот pid",
+    "STILL STOPPED after SIGCONT: %s (pid %d) - foreground terminal job, type 'fg' in its window": "ВСЁ ЕЩЁ ОСТАНОВЛЕН после SIGCONT: %s (pid %d) - задача переднего плана, наберите 'fg' в её окне",
+    "Thermal guard: job needs your hand": "Тепловой страж: задача требует вашего вмешательства",
+    "%s cannot resume by itself - switch to its terminal and type 'fg'.": "%s не может продолжить сам - перейдите в его терминал и наберите 'fg'.",
+    "Thermal guard: PROTECTION INCOMPLETE": "Тепловой страж: ЗАЩИТА НЕПОЛНАЯ",
+    "Could not pause: %s (%s). The Mac stays hot - intervene manually.": "Не удалось поставить на паузу: %s (%s). Mac остаётся горячим - вмешайтесь вручную.",
 }
 
 ZH = {
@@ -480,6 +558,41 @@ ZH = {
     "Measuring and alerting only - nothing is paused. Enable protection in the menu bar (one click).":
         "只测量和提醒 - 不暂停任何任务。请在菜单栏启用保护(一键)。",
     "another coffee-paladin daemon is already running - this one exits": "另一个 coffee-paladin 守护进程已在运行 - 本进程退出",
+    "PAUSED %s (pid %d, %.0f%% CPU) - %s": "已暂停  %s (pid %d, %.0f%% CPU) - %s",
+    "[DRY-RUN] would pause %s (pid %d, %.0f%% CPU) - %s": "[仅观察] 本会暂停 %s (pid %d, %.0f%% CPU) - %s",
+    "FAILED to pause %s (pid %d) - not permitted to send the signal": "暂停失败 %s (pid %d) - 没有发送信号的权限",
+    "RESUMED %s (pid %d) - %s": "已恢复 %s (pid %d) - %s",
+    "[DRY-RUN] would terminate %s (pid %d) - %s": "[仅观察] 本会关闭 %s (pid %d) - %s",
+    "TERMINATED (SIGTERM) %s (pid %d) - %s": "已关闭 (SIGTERM) %s (pid %d) - %s",
+    "SIGKILL %s (pid %d)": "SIGKILL %s (pid %d)",
+    "[DRY-RUN] would demote %s (pid %d)": "[仅观察] 本会降级 %s (pid %d)",
+    "DEMOTED %s (pid %d) -> background QoS/E-cores (hot for >%d min)": "已降级 %s (pid %d) -> 后台 QoS/能效核心(持续过热超过 %d 分钟)",
+    "PROMOTED %s (pid %d) -> back on P-cores (machine cooled down)": "已恢复 %s (pid %d) -> 回到性能核心(机器已降温)",
+    "unknown argument: %s": "未知参数:%s",
+    "usage: coffee-paladin [--once | status]   (no arguments = run the daemon)": "用法:coffee-paladin [--once | status]   (不带参数 = 运行守护进程)",
+    "!!! HARD SHUTDOWN DETECTED - ": "!!! 检测到硬关机 - ",
+    "manual freeze: there was nothing to freeze": "手动冻结:没有可冻结的进程",
+    "PAUSE >%d min - terminating job %s (pid %s)": "暂停超过 %d 分钟 - 结束任务 %s (pid %s)",
+    "LOOP ERROR: %r": "循环错误:%r",
+    "guard startup - nothing is left frozen": "守卫启动 - 没有残留的冻结进程",
+    "guard is shutting down": "守卫正在关闭",
+    "nothing to freeze": "没有可冻结的进程",
+    "Mac went down without a clean shutdown. Guard's last heartbeat: %s, system booted: %s.": "Mac 未经正常关机就断电。守卫最后心跳:%s,系统启动:%s。",
+    "yes": "是",
+    "NO (macmon missing - running on battery temperature only)": "否(缺少 macmon - 仅依据电池温度运行)",
+    "coffee-paladin start | chip: pause>=%.0fC resume<=%.0fC kill>=%.0fC (sensor: %s) | battery: pause>=%.0fC kill>=%.0fC | state>=%s | battery gate: <=%d%% on battery": "coffee-paladin 启动 | 芯片:暂停>=%.0fC 恢复<=%.0fC 终止>=%.0fC(传感器:%s)| 电池:暂停>=%.0fC 终止>=%.0fC | 状态>=%s | 电池阈值:未接电源时 <=%d%%",
+    "state=%s chip=%s battery=%s fans=%s power=%s CPU_limit=%d%% load1=%.2f level=%d (%s)": "状态=%s 芯片=%s 电池=%s 风扇=%s 电源=%s CPU限制=%d%% load1=%.2f 级别=%d (%s)",
+    "  candidate: %-20s pid=%-7d %.0f%% CPU": "  候选:%-20s pid=%-7d %.0f%% CPU",
+    "AC": "电源",
+    "battery %s%%": "电池 %s%%",
+    "calm": "平静",
+    "gone before pause: %s (pid %d)": "暂停前已消失:%s (pid %d)",
+    "FAILED to pause %s (pid %d) - errno %d, giving up on this pid": "暂停失败 %s (pid %d) - errno %d,放弃该 pid",
+    "STILL STOPPED after SIGCONT: %s (pid %d) - foreground terminal job, type 'fg' in its window": "SIGCONT 后仍处于停止状态:%s (pid %d) - 前台终端任务,请在其窗口输入 'fg'",
+    "Thermal guard: job needs your hand": "热量守卫:任务需要你处理",
+    "%s cannot resume by itself - switch to its terminal and type 'fg'.": "%s 无法自行恢复 - 切换到它的终端并输入 'fg'。",
+    "Thermal guard: PROTECTION INCOMPLETE": "热量守卫:保护不完整",
+    "Could not pause: %s (%s). The Mac stays hot - intervene manually.": "无法暂停:%s (%s)。Mac 仍然过热 - 请手动处理。",
 }
 
 ES = {
@@ -527,6 +640,41 @@ ES = {
     "Measuring and alerting only - nothing is paused. Enable protection in the menu bar (one click).":
         "Solo mido y aviso: no se pausa nada. Activa la protección en la barra de menús (un clic).",
     "another coffee-paladin daemon is already running - this one exits": "ya se está ejecutando otro demonio coffee-paladin - este termina",
+    "PAUSED %s (pid %d, %.0f%% CPU) - %s": "PAUSADO  %s (pid %d, %.0f%% CPU) - %s",
+    "[DRY-RUN] would pause %s (pid %d, %.0f%% CPU) - %s": "[SOLO OBSERVAR] pausaría %s (pid %d, %.0f%% CPU) - %s",
+    "FAILED to pause %s (pid %d) - not permitted to send the signal": "NO SE PUDO pausar %s (pid %d) - sin permiso para enviar la señal",
+    "RESUMED %s (pid %d) - %s": "REANUDADO %s (pid %d) - %s",
+    "[DRY-RUN] would terminate %s (pid %d) - %s": "[SOLO OBSERVAR] cerraría %s (pid %d) - %s",
+    "TERMINATED (SIGTERM) %s (pid %d) - %s": "CERRADO (SIGTERM) %s (pid %d) - %s",
+    "SIGKILL %s (pid %d)": "SIGKILL %s (pid %d)",
+    "[DRY-RUN] would demote %s (pid %d)": "[SOLO OBSERVAR] degradaría %s (pid %d)",
+    "DEMOTED %s (pid %d) -> background QoS/E-cores (hot for >%d min)": "DEGRADADO %s (pid %d) -> QoS de fondo/núcleos de eficiencia (caliente durante más de %d min)",
+    "PROMOTED %s (pid %d) -> back on P-cores (machine cooled down)": "PROMOVIDO %s (pid %d) -> de vuelta a los núcleos de rendimiento (la máquina se enfrió)",
+    "unknown argument: %s": "argumento desconocido: %s",
+    "usage: coffee-paladin [--once | status]   (no arguments = run the daemon)": "uso: coffee-paladin [--once | status]   (sin argumentos = ejecuta el demonio)",
+    "!!! HARD SHUTDOWN DETECTED - ": "!!! APAGADO BRUSCO DETECTADO - ",
+    "manual freeze: there was nothing to freeze": "congelación manual: no había nada que congelar",
+    "PAUSE >%d min - terminating job %s (pid %s)": "PAUSA de más de %d min - cierro la tarea %s (pid %s)",
+    "LOOP ERROR: %r": "ERROR DEL BUCLE: %r",
+    "guard startup - nothing is left frozen": "arranque del guardián - no queda nada congelado",
+    "guard is shutting down": "el guardián se está cerrando",
+    "nothing to freeze": "nada que congelar",
+    "Mac went down without a clean shutdown. Guard's last heartbeat: %s, system booted: %s.": "El Mac se apagó sin un cierre limpio. Última señal del guardián: %s, sistema arrancado: %s.",
+    "yes": "sí",
+    "NO (macmon missing - running on battery temperature only)": "NO (falta macmon - funcionando solo con la temperatura de la batería)",
+    "coffee-paladin start | chip: pause>=%.0fC resume<=%.0fC kill>=%.0fC (sensor: %s) | battery: pause>=%.0fC kill>=%.0fC | state>=%s | battery gate: <=%d%% on battery": "coffee-paladin inicio | chip: pausa>=%.0fC reanudación<=%.0fC cierre>=%.0fC (sensor: %s) | batería: pausa>=%.0fC cierre>=%.0fC | estado>=%s | umbral de batería: <=%d%% sin cargador",
+    "state=%s chip=%s battery=%s fans=%s power=%s CPU_limit=%d%% load1=%.2f level=%d (%s)": "estado=%s chip=%s batería=%s ventiladores=%s alimentación=%s límite_CPU=%d%% load1=%.2f nivel=%d (%s)",
+    "  candidate: %-20s pid=%-7d %.0f%% CPU": "  candidato: %-20s pid=%-7d %.0f%% CPU",
+    "AC": "red",
+    "battery %s%%": "batería %s%%",
+    "calm": "en calma",
+    "gone before pause: %s (pid %d)": "desapareció antes de la pausa: %s (pid %d)",
+    "FAILED to pause %s (pid %d) - errno %d, giving up on this pid": "NO SE PUDO pausar %s (pid %d) - errno %d, abandono este pid",
+    "STILL STOPPED after SIGCONT: %s (pid %d) - foreground terminal job, type 'fg' in its window": "SIGUE DETENIDO tras SIGCONT: %s (pid %d) - tarea en primer plano, escribe 'fg' en su ventana",
+    "Thermal guard: job needs your hand": "Guardián térmico: la tarea necesita tu intervención",
+    "%s cannot resume by itself - switch to its terminal and type 'fg'.": "%s no puede reanudarse solo - ve a su terminal y escribe 'fg'.",
+    "Thermal guard: PROTECTION INCOMPLETE": "Guardián térmico: PROTECCIÓN INCOMPLETA",
+    "Could not pause: %s (%s). The Mac stays hot - intervene manually.": "No se pudo pausar: %s (%s). El Mac sigue caliente - interviene manualmente.",
 }
 
 DICTS = {"pl": PL, "ru": RU, "zh": ZH, "es": ES}
@@ -866,9 +1014,49 @@ def pierwszoplanowy_na_tty(pid):
     return False
 
 
+# Rozszerzenia plikow, ktore sa DANYMI do przerobienia, nie tozsamoscia programu.
+# Sciezki do nich nie biora udzialu w dopasowaniu never_arg_patterns.
+ROZSZERZENIA_DANYCH = frozenset((
+    ".mkv", ".mp4", ".mov", ".avi", ".m4v", ".webm", ".wmv", ".mpg", ".mpeg", ".flv",
+    ".wav", ".mp3", ".aac", ".flac", ".m4a", ".aiff", ".ogg",
+    ".png", ".jpg", ".jpeg", ".heic", ".tif", ".tiff", ".gif", ".webp", ".raw", ".dng",
+    ".blend", ".psd", ".ai", ".prproj", ".aep", ".fcpbundle",
+    ".zip", ".tar", ".gz", ".bz2", ".xz", ".7z", ".dmg", ".iso", ".pkg",
+    ".csv", ".tsv", ".parquet", ".sqlite", ".db", ".pdf", ".epub",
+    ".gguf", ".safetensors", ".ckpt", ".pt", ".bin", ".npz", ".h5",
+))
+
+
 def full_args(pid):
     out = run(["ps", "-o", "args=", "-p", str(pid)])
     return out.strip()
+
+
+def args_bez_sciezek(pid):
+    """Linia polecen z wycietymi argumentami, ktore sa SCIEZKAMI do plikow danych.
+
+    never_arg_patterns ma rozpoznawac, CZYM jest proces (agent, edytor, serwer MCP),
+    a nie co przetwarza. Dopasowanie do surowej linii polecen myli jedno z drugim:
+    `ffmpeg -i ~/Desktop/claude_brain/wideo/rec.mkv` trafialo we wzorzec "claude"
+    i stawalo sie nietykalne, wiec Mac grzal sie dalej, a w logu byla cisza.
+    Zostaje wiec nazwa programu (argv[0]) i te argumenty, ktore nie wygladaja
+    na sciezki - czyli flagi i nazwy modulow, po ktorych naprawde poznajemy agenta.
+    """
+    czesci = full_args(pid).split()
+    if not czesci:
+        return ""
+    zostaw = []
+    for a in czesci:
+        # Wycinamy WYLACZNIE sciezki do PLIKOW Z DANYMI. Katalog, w ktorym leza
+        # dane, nie mowi nic o tozsamosci procesu, a potrafi ja falszywie nadac:
+        # `ffmpeg -i ~/Desktop/claude_brain/wideo/rec.mkv` trafialo we wzorzec
+        # "claude" i stawalo sie nietykalne. Reszta sciezek zostaje w calosci,
+        # bo tam tozsamosc naprawde bywa w katalogu: node_modules/typescript-
+        # language-server/lib/cli.js albo ~/.vscode/extensions/...
+        if "/" in a and os.path.splitext(a)[1].lower() in ROZSZERZENIA_DANYCH:
+            continue
+        zostaw.append(a)
+    return " ".join(zostaw).lower()
 
 
 def top_lists(n=3):
@@ -1023,7 +1211,7 @@ def pick_targets(cfg, procs, saferun):
                 continue
             if proc_age_seconds(pid) < cfg.get("unknown_min_seconds", 120):
                 continue
-        args = full_args(pid).lower()
+        args = args_bez_sciezek(pid)
         if any(n.lower() in args for n in (cfg.get("never_arg_patterns") or [])):
             continue
         if cfg.get("skip_foreground_tty", True) and pierwszoplanowy_na_tty(pid):
@@ -1102,6 +1290,11 @@ def do_pause(cfg, st, targets, reason, manual=False, lvl_krytyczny=False):
             st["paused"][key] = {"since": now(), "comm": comm, "pgid": pgid, "cpu": cpu,
                                  "manual": manual}
             changed = True
+            # Zapis NATYCHMIAST, nie na koncu cyklu: gdyby demon zginal w oknie miedzy
+            # SIGSTOP a koncem iteracji (SIGKILL, aktualizacja, kickstart -k), proces
+            # zostalby zamrozony BEZ wpisu w stanie - czyli na zawsze, bo nikt by
+            # o nim nie wiedzial. Jeden fsync na pauze jest tanszy niz taki sierota.
+            save_state(st)
             log(T("PAUSED %s (pid %d, %.0f%% CPU) - %s") % (comm, pid, cpu, reason))
         elif blad == errno.ESRCH:
             # proces zdazyl zniknac miedzy odczytem ps a sygnalem - to normalne, nie awaria
@@ -1185,7 +1378,7 @@ def do_terminate(cfg, st, reason, only_keys=None):
             # grupa moze zyc mimo smierci lidera (dzieci ignoruja TERM) — killpg
             # na martwej grupie po prostu odbije sie bledem, ktory polykamy
             if info.get("pgid") or alive(pid):
-                if sig(pid, info.get("pgid"), signal.SIGKILL):
+                if sig(pid, info.get("pgid"), signal.SIGKILL) == 0:
                     log("SIGKILL %s (pid %d)" % (info.get("comm", "?"), pid))
     return bool(victims)
 
@@ -1441,11 +1634,11 @@ def statystyki_dnia():
             for line in f:
                 if not line.startswith(dzis):
                     continue
-                if "PAUZA " in line:
+                if "PAUZA " in line or "PAUSED " in line:
                     pauzy += 1
-                elif "WZNOWIONE" in line:
+                elif "WZNOWIONE" in line or "RESUMED" in line:
                     wznowienia += 1
-                elif "SIGTERM" in line or "koncze zadanie" in line:
+                elif "SIGTERM" in line or "koncze zadanie" in line or "terminating job" in line:
                     ubicia += 1
     except Exception:
         pass
@@ -1924,20 +2117,6 @@ def main():
     cfg = load_cfg()
     st = load_state()
 
-    if st["paused"]:
-        try:
-            stan_mtime = os.path.getmtime(STATE_PATH)
-        except Exception:
-            stan_mtime = 0
-        if stan_mtime >= boot_time():
-            do_resume(cfg, st, T("guard startup - nothing is left frozen"))
-        else:
-            # stan sprzed rebootu: PID-y moga nalezec do zupelnie obcych procesow
-            log("stale state from before boot - dropping %d paused entries without signaling"
-                % len(st["paused"]))
-            st["paused"] = {}
-        save_state(st)
-
     # `coffee-paladin status` bylo pulapka: konczylo sie kodem 0 bez slowa, co wyglada
     # na sukces. Teraz jest aliasem --once, a kazdy nieznany argument mowi, co umiemy (B6).
     znane = {"--once", "status"}
@@ -1960,6 +2139,24 @@ def main():
         for pid, cpu, comm, _ in targets[:5]:
             print(T("  candidate: %-20s pid=%-7d %.0f%% CPU") % (comm, pid, cpu))
         return 0
+
+    # Sprzatanie po poprzednim demonie robi WYLACZNIE demon. Kiedys ten blok stal
+    # przed obsluga --once/status, wiec `coffee-paladin status` odmrazal wszystko,
+    # co pauzowal DZIALAJACY demon, i czyscil mu state.json - a demon dalej myslal,
+    # ze trzyma te procesy zamrozone (znalezione w bramce jakosci 02.08.2026).
+    if st["paused"]:
+        try:
+            stan_mtime = os.path.getmtime(STATE_PATH)
+        except Exception:
+            stan_mtime = 0
+        if stan_mtime >= boot_time():
+            do_resume(cfg, st, T("guard startup - nothing is left frozen"))
+        else:
+            # stan sprzed rebootu: PID-y moga nalezec do zupelnie obcych procesow
+            log("stale state from before boot - dropping %d paused entries without signaling"
+                % len(st["paused"]))
+            st["paused"] = {}
+        save_state(st)
 
     stop = {"flag": False}
 

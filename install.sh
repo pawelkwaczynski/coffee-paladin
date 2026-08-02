@@ -138,7 +138,7 @@ else
 fi
 
 # 5. pasek menu (osobny agent — mozna wylaczyc nie ruszajac bezpiecznika)
-if [ -x "$BIN/heatbar" ] && [ -f "$SRC/pl.pawel.coffee-paladin-bar.plist" ]; then
+if [ -x "$BIN/coffee-paladin-bar" ] && [ -f "$SRC/pl.pawel.coffee-paladin-bar.plist" ]; then
   HB="$HOME/Library/LaunchAgents/pl.pawel.coffee-paladin-bar.plist"
   sed "s|__HOME__|$HOME|g" "$SRC/pl.pawel.coffee-paladin-bar.plist" > "$HB"
   launchctl bootout "gui/$UID/pl.pawel.coffee-paladin-bar" 2>/dev/null
