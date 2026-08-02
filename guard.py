@@ -53,7 +53,11 @@ HW_PATH = os.path.join(BASE, "hardware.json")     # wykryty sprzet (dla About my
 MANAGED_DIR = os.path.join(BASE, "managed")   # pliki <pid>.json od safe-run
 MAX_LOG_BYTES = 5 * 1024 * 1024
 
-LEVELS = {"nominal": 0, "fair": 1, "serious": 2, "critical": 3, "unknown": 1}
+# "unknown" to NIE jest "lekko cieplo". To znaczy, ze thermalstate nie odpowiedzial.
+# Mapowanie na 1 sprawialo, ze Mac bez baterii i bez macmona (mini, Studio) siedzial
+# na poziomie 1 w nieskonczonosc: nigdy nie osiagal 2, wiec nigdy niczego nie pauzowal,
+# a w pasku i we flocie wygladal na zdrowa, lekko cieplawa maszyne.
+LEVELS = {"nominal": 0, "fair": 1, "serious": 2, "critical": 3, "unknown": 0}
 
 DEFAULTS = {
     "poll_seconds": 15,
@@ -989,7 +993,7 @@ def soc_sensors(max_age=10.0):
     UWAGA: na macOS 26 sensory przez IOHIDEventSystem sa juz zablokowane dla procesow
     bez uprawnien (dlatego wlasny czujnik Swift zwracal zero) — IOReport nadal dziala.
     """
-    if time.time() - _soc_cache["t"] < max_age:
+    if 0 <= time.monotonic() - _soc_cache["t"] < max_age:
         return _soc_cache["val"]
     val = None
     for exe in ("/opt/homebrew/bin/macmon", "macmon"):
@@ -1021,7 +1025,7 @@ def soc_sensors(max_age=10.0):
             "watts": float(d.get("all_power") or 0.0),
         }
         break
-    _soc_cache["t"] = time.time()
+    _soc_cache["t"] = time.monotonic()
     _soc_cache["val"] = val
     return val
 
@@ -1414,8 +1418,8 @@ def do_pause(cfg, st, targets, reason, manual=False, lvl_krytyczny=False):
             continue
         blad = sig(pid, pgid, signal.SIGSTOP)
         if blad == 0:
-            st["paused"][key] = {"since": now(), "comm": comm, "pgid": pgid, "cpu": cpu,
-                                 "manual": manual}
+            st["paused"][key] = {"since": now(), "since_mono": time.monotonic(),
+                                 "comm": comm, "pgid": pgid, "cpu": cpu, "manual": manual}
             changed = True
             # Zapis NATYCHMIAST, nie na koncu cyklu: gdyby demon zginal w oknie miedzy
             # SIGSTOP a koncem iteracji (SIGKILL, aktualizacja, kickstart -k), proces
@@ -1889,7 +1893,13 @@ def auto_calibrate(cfg, hw):
     kalibracja odpalila sie tylko przy pierwszym uruchomieniu na danym sprzecie —
     swiadome, reczne progi uzytkownika sa swiete.
     """
-    tag = "%s|%s|fans=%s" % (hw.get("model_id"), hw.get("chip"), hw.get("fan_count"))
+    # Znacznik musi zawierac TAKZE informacje o czujniku. Bez macmona `fan_count`
+    # wynosi 0 tak samo jak na prawdziwym Airze - wiec kalibracja zapisywala tag
+    # "fans=0", a po doinstalowaniu macmona Air dostawal ten sam tag i progi
+    # bezwentylatorowe (78/70/88) nie byly nadawane NIGDY. Akurat na maszynie,
+    # dla ktorej prog ma najwieksze znaczenie.
+    tag = "%s|%s|fans=%s|sensor=%s" % (hw.get("model_id"), hw.get("chip"),
+                                       hw.get("fan_count"), bool(hw.get("chip_sensor")))
     try:
         with open(CFG_PATH) as f:
             _na_dysku = json.load(f)
@@ -2134,7 +2144,7 @@ def fleet_write(cfg, status):
         hw = _hw_cache_fleet()
         out["model"] = hw.get("model")
         out["serial"] = hw.get("serial")
-        out["guard_version"] = "2.1.0"
+        out["guard_version"] = "2.1.1"
         tmp = os.path.join(d, ".%s.tmp" % hostname())
         with open(tmp, "w") as f:
             json.dump(out, f, ensure_ascii=False)
@@ -2185,6 +2195,9 @@ def status_write(state, temp, soc, soc_t, ac, pct, speed, load, lvl, why, target
         "top_ram_list": st.get("_top_ram", []),
         "last_hard_shutdown": st.get("_ostatni_pad"),
         "thresholds": {"pause": st.get("_prog_pauza"), "kill": st.get("_prog_ubicie")},
+        # False = brak czujnika chipa (macmon). Pasek, flota i agenci maja o tym wiedziec,
+        # bo wtedy ochrona opiera sie na samej baterii, ktora reaguje minuty pozniej.
+        "chip_sensor": soc is not None,
     }
     tmp = STATUS_PATH + ".tmp"
     try:
@@ -2395,6 +2408,16 @@ def main():
            czujnik_chipa, cfg["batt_pause_c"], cfg["batt_kill_c"],
            cfg["pause_on_thermal_state"], cfg.get("batt_pct_pause", 10)))
 
+    # Brak czujnika chipa to nie drobiazg: zostaje sama bateria, ktora reaguje
+    # z kilkuminutowym opoznieniem. Dotad jedynym sladem byla jedna linia w logu,
+    # ktorej nikt nie czyta - a `heat` i `fleet` dalej meldowaly, ze wszystko gra.
+    _bez_czujnika = soc_temp_c() is None
+    if _bez_czujnika:
+        notify(cfg, T("Thermal guard: PROTECTION INCOMPLETE"),
+               T("No chip temperature sensor (macmon missing). Only battery temperature "
+                 "is watched, and it reacts minutes late. Fix: brew install macmon"),
+               key="nosensor")
+
     crit_polls = 0
     cpu_hist = {}
     tick = 0
@@ -2497,8 +2520,19 @@ def main():
                              and (soc_t is None or soc_t < cfg.get("soc_pause_c", 88) - 10)
                              and (temp is None or temp < cfg["batt_pause_c"] - 3))
             limit_min = cfg.get("max_pause_minutes_batt", 240) if tylko_bateria else cfg["max_pause_minutes"]
+            # Ile ta pauza trwa NAPRAWDE. Zegar scienny potrafi skoczyc (NTP, korekta
+            # RTC, powrot z uspienia): skok o 3 h ubijal SIGTERM-em zadanie zapauzowane
+            # minute wczesniej, a cofniecie zegara wylaczalo limit na dobre. monotonic()
+            # nie przezywa restartu demona, ale demon i tak wznawia wszystko przy starcie,
+            # wiec zaden wpis nie zyje dluzej niz jeden przebieg petli.
+            def _dlugosc_pauzy(v):
+                m = v.get("since_mono")
+                if m is not None:
+                    return max(0.0, time.monotonic() - m)
+                return max(0.0, now() - v.get("since", now()))
+
             przeterminowane = [k for k, v in st["paused"].items()
-                               if now() - v["since"] > limit_min * 60 and not v.get("manual")]
+                               if _dlugosc_pauzy(v) > limit_min * 60 and not v.get("manual")]
             if przeterminowane:
                 for k in przeterminowane:
                     log(T("PAUSE >%d min - terminating job %s (pid %s)")
@@ -2508,6 +2542,10 @@ def main():
 
             for _p in [p for p in _nie_da_sie if not alive(p)]:
                 del _nie_da_sie[_p]
+            # Lista dla paska i dla agentow odswiezana TU, nie tylko przy nowej pauzie.
+            # Wczesniej `unpausable` niosl nazwe dawno martwego procesu az do nastepnej
+            # proby pauzy, wiec agent AI w kolko meldowal niepelna ochrone.
+            st["_unpausable"] = sorted(set(_nie_da_sie.values()))
             # Zegar degradacji przezywa pauzy: wpis znika dopiero ze SMIERCIA procesu,
             # nie z wypadnieciem z targets (SIGSTOP zeruje pcpu w <5 s i przy starym
             # przycinaniu najgoretszy job mial zegar kasowany co pauze - patrz B3).

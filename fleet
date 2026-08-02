@@ -78,6 +78,7 @@ PL = {
         "Wybierz numer (TEN SAM folder trzeba ustawic na kazdej maszynie):",
     "cancelled": "anulowano",
     "fleet: cannot read %s (%s) - not touching it. Fix the file first.": "fleet: nie umiem odczytac %s (%s) - nie ruszam pliku. Napraw go najpierw.",
+    "no chip sensor - battery temperature only": "brak czujnika chipa - tylko temperatura baterii",
 }
 
 RU = {
@@ -109,6 +110,7 @@ RU = {
         "Выберите номер (ТА ЖЕ папка должна быть задана на каждой машине):",
     "cancelled": "отменено",
     "fleet: cannot read %s (%s) - not touching it. Fix the file first.": "fleet: не могу прочитать %s (%s) - не трогаю файл. Сначала исправьте его.",
+    "no chip sensor - battery temperature only": "нет датчика чипа - только температура батареи",
 }
 
 ZH = {
@@ -140,6 +142,7 @@ ZH = {
         "选择一个编号(每台机器必须设置同一个文件夹):",
     "cancelled": "已取消",
     "fleet: cannot read %s (%s) - not touching it. Fix the file first.": "fleet:无法读取 %s(%s)- 不改动该文件。请先修复它。",
+    "no chip sensor - battery temperature only": "无芯片传感器 - 仅电池温度",
 }
 
 ES = {
@@ -171,6 +174,7 @@ ES = {
         "Elige un número (la MISMA carpeta debe configurarse en cada máquina):",
     "cancelled": "cancelado",
     "fleet: cannot read %s (%s) - not touching it. Fix the file first.": "fleet: no puedo leer %s (%s) - no toco el archivo. Arréglalo primero.",
+    "no chip sensor - battery temperature only": "sin sensor del chip - solo temperatura de la batería",
 }
 
 DICTS = {"pl": PL, "ru": RU, "zh": ZH, "es": ES}
@@ -322,6 +326,8 @@ def issues_for(h):
         out.append(T("fans dead at %.0f C") % chip)
     if not h.get("on_ac", True) and h.get("battery_pct") is not None and h["battery_pct"] <= 20:
         out.append(T("battery %d%% unplugged") % h["battery_pct"])
+    if h.get("chip_sensor") is False:
+        out.append(T("no chip sensor - battery temperature only"))
     if (h.get("disk_used_pct") or 0) >= 92:
         out.append(T("disk %d%% full") % h["disk_used_pct"])
     if h.get("paused"):

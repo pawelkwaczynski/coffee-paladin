@@ -24,7 +24,7 @@ import tempfile
 import sys
 import time
 
-VERSION = "2.1.0"   # bump razem z guard_version/heatbar VERSION/README (checklista release)
+VERSION = "2.1.1"   # bump razem z guard_version/heatbar VERSION/README (checklista release)
 
 HOME = os.path.expanduser("~")
 BASE = os.environ.get("TG_BASE") or os.path.join(HOME, ".coffee-paladin")
@@ -90,6 +90,7 @@ PL = {
     "AC": "zasilacz",
     "battery": "bateria",
     "thermal-report: unknown argument: %s": "thermal-report: nieznany argument: %s",
+    "thermal-report: cannot write %s (%s)": "thermal-report: nie moge zapisac %s (%s)",
 }
 
 RU = {
@@ -118,6 +119,7 @@ RU = {
     "AC": "адаптер",
     "battery": "батарея",
     "thermal-report: unknown argument: %s": "thermal-report: неизвестный аргумент: %s",
+    "thermal-report: cannot write %s (%s)": "thermal-report: не могу записать %s (%s)",
 }
 
 ZH = {
@@ -146,6 +148,7 @@ ZH = {
     "AC": "电源适配器",
     "battery": "电池",
     "thermal-report: unknown argument: %s": "thermal-report:未知参数:%s",
+    "thermal-report: cannot write %s (%s)": "thermal-report:无法写入 %s(%s)",
 }
 
 ES = {
@@ -174,6 +177,7 @@ ES = {
     "AC": "adaptador",
     "battery": "batería",
     "thermal-report: unknown argument: %s": "thermal-report: argumento desconocido: %s",
+    "thermal-report: cannot write %s (%s)": "thermal-report: no puedo escribir %s (%s)",
 }
 
 DICTS = {"pl": PL, "ru": RU, "zh": ZH, "es": ES}
@@ -457,8 +461,14 @@ def main():
     W.append("FOCUS FRAME")
 
     tekst = "\n".join(W) + "\n"
-    with open(cel, "w") as f:
-        f.write(tekst)
+    try:
+        with open(cel, "w") as f:
+            f.write(tekst)
+    except OSError as e:
+        # To narzedzie odpala sie dokladnie wtedy, gdy dysk jest pelny albo po padzie -
+        # traceback jest wtedy najgorsza mozliwa odpowiedzia.
+        print(T("thermal-report: cannot write %s (%s)") % (cel, e), file=sys.stderr)
+        return 1
 
     # PDF przez systemowy cupsfilter (textutil nie umie pisac PDF — sprawdzone).
     # Monospace zostaje z natury zrodla tekstowego; gdy sie nie uda, raport tekstowy
