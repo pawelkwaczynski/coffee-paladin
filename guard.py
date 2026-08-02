@@ -378,6 +378,9 @@ def load_cfg():
     # Zamiast odrzucac cala konfiguracje, przycinamy pojedyncza wartosc do sensownej
     # granicy i mowimy o tym w logu.
     for klucz, dolna, gorna in (("poll_seconds", 1, 300),
+                                ("min_pause_seconds", 0, 3600),
+                                ("fan_alert_polls", 1, 100),
+                                ("state_confirm_polls", 1, 100),
                                 ("max_pause_minutes", 1, 10080),
                                 ("max_pause_minutes_batt", 1, 10080),
                                 ("kill_after_polls", 1, 100),
@@ -391,6 +394,14 @@ def load_cfg():
                              if klucz in DEFAULTS else min(max(v, dolna), gorna)
                 _zle_typy.append("%s = %s poza zakresem %s-%s - przyciete do %s"
                                  % (klucz, v, dolna, gorna, cfg[klucz]))
+
+    # Minimalny czas pauzy dluzszy niz limit pauzy to maszynka do zabijania: wznowienie
+    # nigdy nie nastapi, a kazda pauza konczy sie SIGTERM-em. Przycinamy i mowimy o tym.
+    _limit_s = cfg.get("max_pause_minutes", 45) * 60
+    if isinstance(cfg.get("min_pause_seconds"), (int, float)) and cfg["min_pause_seconds"] >= _limit_s:
+        cfg["min_pause_seconds"] = max(0, int(_limit_s / 3))
+        _zle_typy.append("min_pause_seconds >= max_pause_minutes - przyciete do %d s"
+                         % cfg["min_pause_seconds"])
 
     # listy nietykalnych sa UZUPELNIANE o wlasne nazwy, nigdy nimi nie nadpisywane:
     # uzytkownik moze dopisac swoje wzorce, ale nie moze przypadkiem odslonic demona.
@@ -1378,6 +1389,12 @@ def pick_targets(cfg, procs, saferun):
             continue
         low = comm.lower()
         if pid in saferun:
+            # Nietykalny zostaje nietykalny NIEZALEZNIE od zrodla. Wpis w managed/
+            # omijal dotad wszystkie listy, wiec nieaktualna albo podlozona rejestracja
+            # potrafila zamrozic powloke uzytkownika albo agenta AI - czyli dokladnie
+            # to, przed czym lista `never` mial bronic.
+            if any(n in low for n in never):
+                continue
             out.append((pid, cpu, comm, saferun[pid]))
             continue
         if any(n in low for n in never):
@@ -1402,33 +1419,45 @@ def pick_targets(cfg, procs, saferun):
         out.append((pid, cpu, comm, None))
     out.sort(key=lambda x: -x[1])
 
-    # Gdy CPU potomkow jest rolowane do rodzica (`count_children`), ten sam procesor
-    # trafial na liste DWA razy: raz jako rodzic z suma poddrzewa, raz jako dziecko
-    # z wlasnym zuzyciem. Zmierzone: "kandydat: bash pid=98754 276% CPU" obok
-    # "kandydat: ffmpeg pid=7025 276% CPU", podczas gdy `ps` dawal dla basha 0,0%.
-    # Pauzowaniu to nie szkodzi (SIGSTOP na grupe obejmuje oba), ale licznik ciezkich
-    # procesow i lista w oknie potwierdzenia klamaly dwukrotnie. Zostawiamy NAJWYZSZEGO
-    # przodka - to jego zamrozenie zatrzymuje cale poddrzewo i powstrzymuje nowe dzieci.
-    if drzewo:
-        rodzic = {}
-        for pid, ppid, cpu, comm in procs:
-            rodzic[pid] = ppid
-        wybrane = {t[0] for t in out}
-        bez_potomkow = []
-        for t in out:
-            p = rodzic.get(t[0])
-            ma_przodka = False
-            glebokosc = 0
-            while p and p > 1 and glebokosc < 40:
-                if p in wybrane:
-                    ma_przodka = True
-                    break
-                p = rodzic.get(p)
-                glebokosc += 1
-            if not ma_przodka:
-                bez_potomkow.append(t)
-        out = bez_potomkow
     return out
+
+
+def bez_potomkow(cele, procs):
+    """Lista DO POKAZANIA: bez procesow, ktorych przodek juz na niej jest.
+
+    Gdy CPU potomkow jest rolowane do rodzica (`count_children`), ten sam procesor
+    trafia na liste dwa razy: raz jako rodzic z suma poddrzewa, raz jako dziecko
+    z wlasnym zuzyciem. Zmierzone: "bash 276% CPU" obok "ffmpeg 276% CPU", przy
+    `ps` dla basha 0,0%. Licznik ciezkich procesow i okno potwierdzenia klamaly
+    dwukrotnie.
+
+    UWAGA, kosztowna lekcja: ta funkcja sluzy WYLACZNIE do prezentacji. Przez dwie
+    godziny 02.08 filtrowala liste CELOW i to bylo grozne - `pgid` jest znany tylko
+    dla zadan z `safe-run`, wiec dla reszty `sig()` robi `os.kill(pid, SIGSTOP)` na
+    JEDNYM procesie. SIGSTOP na rodzicu nie zatrzymuje istniejacych dzieci, tylko
+    powstrzymuje powstawanie nowych. Orkiestrator z dziecmi byl wiec meldowany jako
+    zapauzowany, podczas gdy dzieci mielily dalej - falszywe poczucie bezpieczenstwa
+    na maszynie po przegrzaniu. Sygnal MUSI trafiac w cale poddrzewo.
+    """
+    if not cele:
+        return cele
+    rodzic = {pid: ppid for pid, ppid, cpu, comm in procs}
+    wybrane = {t[0] for t in cele}
+    out = []
+    for t in cele:
+        p = rodzic.get(t[0])
+        ma_przodka = False
+        glebokosc = 0
+        while p and p > 1 and glebokosc < 40:
+            if p in wybrane:
+                ma_przodka = True
+                break
+            p = rodzic.get(p)
+            glebokosc += 1
+        if not ma_przodka:
+            out.append(t)
+    return out
+
 
 
 # ---------------------------------------------------------------- akcje
@@ -1497,8 +1526,14 @@ def do_pause(cfg, st, targets, reason, manual=False, lvl_krytyczny=False):
             continue
         blad = sig(pid, pgid, signal.SIGSTOP)
         if blad == 0:
+            # POWOD pauzy trafia do wpisu. Bez tego bramka "wznawiaj dopiero na
+            # zasilaczu" stosowala sie do KAZDEJ pauzy, takze czysto termicznej:
+            # przy baterii 11-24% zadanie zapauzowane z powodu goracego chipu nie
+            # wracalo nigdy, mimo ze bramka baterii (10%) nie zostala przekroczona.
             st["paused"][key] = {"since": now(), "since_mono": time.monotonic(),
                                  "mono_id": _MONO_ID,
+                                 "powod": "bateria" if "batt" in (reason or "").lower()
+                                          or "bateri" in (reason or "").lower() else "termika",
                                  "comm": comm, "pgid": pgid, "cpu": cpu, "manual": manual}
             changed = True
             # Zapis NATYCHMIAST, nie na koncu cyklu: gdyby demon zginal w oknie miedzy
@@ -2019,7 +2054,11 @@ def auto_calibrate(cfg, hw):
                     _na_dysku = {}
                 _na_dysku["dry_run"] = True
                 tmp = CFG_PATH + ".tmp"
-                with open(tmp, "w") as f:
+                # 0600, nie umask: w config.json siedzi temat ntfy. `ensure_dirs`
+                # zaciska prawa tylko przy starcie, wiec zapis kalibracyjny/migracyjny
+                # cofal utwardzenie az do nastepnego restartu.
+                with os.fdopen(os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC,
+                                       0o600), "w") as f:
                     json.dump(_na_dysku, f, indent=2, ensure_ascii=False, sort_keys=True)
                 os.replace(tmp, CFG_PATH)
         except Exception:
@@ -2252,9 +2291,14 @@ def fleet_write(cfg, status):
         pass                      # flota jest dodatkiem — nie moze polozyc bezpiecznika
 
 
-def status_write(state, temp, soc, soc_t, ac, pct, speed, load, lvl, why, targets, st, disk=None):
+def status_write(state, temp, soc, soc_t, ac, pct, speed, load, lvl, why, targets, st, disk=None,
+                 pokaz=None):
     """Migawka dla paska menu (`heatbar`). Pasek nic sam nie mierzy — czyta ten plik,
     wiec kosztuje zero CPU i zawsze pokazuje dokladnie to, co widzi guard."""
+    # Do POKAZANIA idzie lista bez potomkow (inaczej ten sam procesor liczy sie dwa
+    # razy), ale sygnaly leca do PELNEJ listy `targets` — patrz komentarz przy
+    # `bez_potomkow`, to rozroznienie kosztowalo nas dziurawa ochrone drzew procesow.
+    do_pokazania = pokaz if pokaz is not None else (targets or [])
     top = targets[0] if targets else None
     data = {
         "time": ts(), "thermal_state": state, "level": lvl, "reason": why,
@@ -2276,7 +2320,7 @@ def status_write(state, temp, soc, soc_t, ac, pct, speed, load, lvl, why, target
         # degradacja na E-cores jest NIEWIDOCZNA w temperaturze (44 C wyglada jak sukces
         # chlodzenia), a tnie tempo zadania nawet 11x - musi byc jawna w migawce
         "demoted": [v.get("comm", "?") for v in st.get("demoted_info", {}).values()],
-        "heavy_count": len(targets),
+        "heavy_count": len(do_pokazania),
         "top_proc": top[2] if top else None,
         "top_cpu": round(top[1]) if top else None,
         "manual_pause": bool(st.get("reczna_pauza")),
@@ -2298,7 +2342,7 @@ def status_write(state, temp, soc, soc_t, ac, pct, speed, load, lvl, why, target
         # obiecywalo wiec zatrzymac procesy, ktorych straznik nigdy by nie ruszyl,
         # i podawalo inna liczbe niz licznik obok.
         "freeze_candidates": [{"pid": t[0], "name": t[2], "cpu": round(t[1])}
-                              for t in (targets or [])],
+                              for t in do_pokazania],
         "top_ram_list": st.get("_top_ram", []),
         "last_hard_shutdown": st.get("_ostatni_pad"),
         "thresholds": {"pause": st.get("_prog_pauza"), "kill": st.get("_prog_ubicie")},
@@ -2354,17 +2398,29 @@ def snapshot(cfg):
     saferun, saferun_normal = managed_pids_from_saferun()
     targets = pick_targets(cfg, procs, saferun)
     lvl, why = severity(cfg, state, temp, speed, soc_t, ac, pct)
-    return state, temp, speed, load, targets, lvl, why, soc, soc_t, ac, pct, saferun_normal
+    # `do_pokazania` jedzie osobno od `targets`: sygnaly leca do PELNEJ listy (inaczej
+    # dzieci nie dostaja SIGSTOP), a licznik i okno potwierdzenia pokazuja liste bez
+    # potomkow (inaczej ten sam procesor liczy sie dwa razy).
+    return (state, temp, speed, load, targets, lvl, why, soc, soc_t, ac, pct,
+            saferun_normal, bez_potomkow(targets, procs))
+
+
+_fan_zero = {"n": 0}
 
 
 def fan_alarm(cfg, soc, soc_t, st):
     """Chip goracy, a wentylatory stoja = awaria chlodzenia (zatarty wentylator,
     odlaczona tasma, zapchany uklad). Tylko krzyczy — pauzowanie zostawiamy termice,
     zeby blad odczytu nie zabijal obliczen."""
+    # Licznik NIE moze przezyc braku danych ani restartu demona: inaczej "trzy odczyty
+    # z rzedu" znaczy "trzy odczyty kiedykolwiek", a po restarcie z licznikiem 2 pierwszy
+    # rozbieg wentylatorow alarmuje natychmiast. Dlatego zyje w module, nie w state.json.
     if not cfg.get("fan_check", True) or not soc or soc_t is None:
+        _fan_zero["n"] = 0
         return
     fans = soc.get("fans") or []
     if not fans:
+        _fan_zero["n"] = 0
         return
     hot = soc_t >= cfg.get("fan_alert_temp_c", 75.0)
     dead = max(fans) == 0
@@ -2372,8 +2428,9 @@ def fan_alarm(cfg, soc, soc_t, st):
     # "goraco i 0 obr/min" to najczesciej ROZBIEG, nie awaria - alarm z 02.08 10:32:43
     # (75,9 C, oba na zerze) okazal sie wlasnie tym: chwile pozniej kręcily 2300-2900.
     # Prawdziwa awaria chlodzenia utrzymuje sie; przelotna nie. Liczymy z rzedu.
-    st["_fan_zero_polls"] = (st.get("_fan_zero_polls", 0) + 1) if (hot and dead) else 0
-    if hot and dead and st["_fan_zero_polls"] >= cfg.get("fan_alert_polls", 3):
+    _fan_zero["n"] = (_fan_zero["n"] + 1) if (hot and dead) else 0
+    st["_fan_zero_polls"] = _fan_zero["n"]          # tylko do podgladu w state.json
+    if hot and dead and _fan_zero["n"] >= cfg.get("fan_alert_polls", 3):
         if now() - st.get("fan_alarm_at", 0) > 600:
             st["fan_alarm_at"] = now()
             msg = (T("COOLING FAILURE? chip %.1f C while both fans report 0 rpm") % soc_t)
@@ -2451,7 +2508,7 @@ def main():
 
     if "--once" in sys.argv or "status" in sys.argv:
         (state, temp, speed, load, targets, lvl, why,
-         soc, soc_t, ac, pct, _saferun_normal) = snapshot(cfg)
+         soc, soc_t, ac, pct, _saferun_normal, _pokaz) = snapshot(cfg)
         fans = ",".join(str(x) for x in (soc.get("fans") if soc else [])) or "n/d"
         print(T("state=%s chip=%s battery=%s fans=%s power=%s CPU_limit=%d%% load1=%.2f level=%d (%s)") % (
             state, ("%.1f C" % soc_t) if soc_t else "n/d",
@@ -2543,7 +2600,7 @@ def main():
             obserwowane_cfg = loguj_zmiany_configu(obserwowane_cfg, cfg)
             reap_bg()
             (state, temp, speed, load, targets, lvl, why,
-             soc, soc_t, ac, pct, saferun_normal) = snapshot(cfg)
+             soc, soc_t, ac, pct, saferun_normal, do_pokazania) = snapshot(cfg)
             fan_alarm(cfg, soc, soc_t, st)
             obsluz_rozkaz(cfg, st, targets)
 
@@ -2561,7 +2618,7 @@ def main():
             if tick % 20 == 0 or not st.get("_disk"):
                 st["_disk"] = disk_usage()
             snap_dict = status_write(state, temp, soc, soc_t, ac, pct, speed, load, lvl, why,
-                                     targets, st, st.get("_disk"))
+                                     targets, st, st.get("_disk"), pokaz=do_pokazania)
             if tick % 4 == 0 and snap_dict:      # flota co ~1 min wystarczy
                 fleet_write(cfg, snap_dict)
 
@@ -2598,6 +2655,18 @@ def main():
                     if alive(pid):
                         sig(pid, info.get("pgid"), signal.SIGSTOP)
 
+            # POTWIERDZENIE STANU SYSTEMOWEGO. Gdy jedynym powodem poziomu >=2 jest
+            # `thermalState` (a prog chipu NIE jest przekroczony), wymagamy kilku
+            # odczytow z rzedu. To druga polowa leku na migotanie z 10:46: minimalny
+            # czas pauzy rozrzedzal oscylacje, ale to dopiero potwierdzanie wejscia
+            # daje realna histereze na tym wyzwalaczu.
+            prog_chipu = cfg.get("soc_pause_c", 95.0)
+            sam_stan = (lvl >= 2 and (soc_t is None or soc_t < prog_chipu)
+                        and (temp is None or temp < cfg["batt_pause_c"]))
+            st["_state_polls"] = (st.get("_state_polls", 0) + 1) if sam_stan else 0
+            if sam_stan and st["_state_polls"] < cfg.get("state_confirm_polls", 2):
+                lvl = 1        # jeszcze nie ufamy pojedynczemu skokowi thermalState
+
             if lvl >= 3:
                 crit_polls += 1
                 banner(cfg, T("Thermal guard: CRITICAL overheating"),
@@ -2618,18 +2687,32 @@ def main():
                     cool = False
                 # po pauzie z powodu baterii wznawiamy dopiero na zasilaczu (albo po doladowaniu)
                 powered = ac or pct is None or pct >= cfg.get("batt_pct_resume", 25)
+                # MARTWE WPISY sprzatamy TU, niezaleznie od do_resume. Wczesniej jedynym
+                # miejscem, ktore je usuwalo, bylo do_resume - a to ono jest zablokowane
+                # flaga recznej pauzy. Powstawal stan absorbujacy: Pawel mrozi cos recznie,
+                # ubija to z terminala, wpis zostaje na zawsze, `reczna_pauza` zostaje
+                # na zawsze, i od tej chwili guard PAUZUJE, ale NIGDY nie wznawia -
+                # kazde kolejne zadanie dostaje SIGTERM po limicie czasu.
+                for _k in [k for k in list(st["paused"]) if not alive(int(k))]:
+                    del st["paused"][_k]
+                # flaga liczona z danych, a nie trzymana osobno - nie da sie rozjechac
+                st["reczna_pauza"] = any(v.get("manual") for v in st["paused"].values())
+
                 # MINIMALNY CZAS PAUZY. Bez tego wyzwalacz stanu systemowego (ktory
                 # histerezy nie ma) daje oscylacje: pauza -> 15 s -> "warunki wrocily
                 # do normy" -> pauza, w kolko, przy chipie dziesiec stopni ponizej
                 # progu. Zadanie skacze, a nic sie nie chlodzi.
                 min_p = max(0, cfg.get("min_pause_seconds", 60))
-                najmlodsza = min((_wiek_pauzy(v) for v in st["paused"].values()),
-                                 default=min_p + 1)
-                dosc_dlugo = najmlodsza >= min_p
-                # reczne zamrozenie z paska ma pierwszenstwo — nie odmrazamy za plecami Pawla
-                if (st["paused"] and cool and powered and dosc_dlugo
-                        and not st.get("reczna_pauza")):
-                    do_resume(cfg, st, T("conditions are back to normal"))
+                # PER WPIS, nie wszystko-albo-nic: wczesniej brano najmlodsza pauze
+                # z calej paczki, wiec swiezo zamrozony proces przytrzymywal ffmpeg
+                # stojacy od godziny. Przy migotaniu stanu nowe kandydatury pojawiaja
+                # sie cyklicznie i najstarsza pauza mogla czekac az do SIGTERM-a.
+                # Reczne zamrozenie z paska ma pierwszenstwo - tych nie ruszamy.
+                gotowe = [k for k, v in st["paused"].items()
+                          if _wiek_pauzy(v) >= min_p and not v.get("manual")
+                          and (powered or v.get("powod") != "bateria")]
+                if gotowe and cool:
+                    do_resume(cfg, st, T("conditions are back to normal"), only_keys=gotowe)
                 do_promote(cfg, st, cpu_hist, soc_t)
                 do_demote(cfg, st, targets, cpu_hist, soc_t, saferun_normal)
 

@@ -101,12 +101,20 @@ cfg2["never_patterns"] = []
 cfg2["never_extra"] = []
 cele = g.pick_targets(cfg2, procs, {})
 pidy = [t[0] for t in cele]
-test("ffmpeg NIE jest osobnym kandydatem obok swojego rodzica", 200 not in pidy,
-     "kandydaci: %s" % pidy)
-test("bash (najwyzszy przodek) zostaje na liscie", 100 in pidy, "kandydaci: %s" % pidy)
-test("niezalezny proces zostaje", 300 in pidy, "kandydaci: %s" % pidy)
+# NAJWAZNIEJSZE: lista CELOW musi zawierac dzieci. Przez dwie godziny 02.08 filtr
+# dzialal na tej liscie i to bylo grozne - `pgid` jest znany tylko dla zadan safe-run,
+# wiec SIGSTOP szedl do JEDNEGO procesu, a dzieci mielily dalej przy logu "zapauzowano".
+test("dziecko ZOSTAJE na liscie celow (inaczej nie dostanie SIGSTOP)", 200 in pidy,
+     "cele: %s" % pidy)
+test("rodzic tez jest celem", 100 in pidy, "cele: %s" % pidy)
 test("CPU rodzica niesie sume poddrzewa",
      any(t[0] == 100 and t[1] >= 280 for t in cele), "cele: %s" % cele)
+
+# ...a dopiero lista DO POKAZANIA jest odchudzona, zeby licznik nie klamal dwukrotnie
+pokaz = [t[0] for t in g.bez_potomkow(cele, procs)]
+test("na liscie do pokazania dziecka juz nie ma", 200 not in pokaz, "pokaz: %s" % pokaz)
+test("najwyzszy przodek zostaje", 100 in pokaz, "pokaz: %s" % pokaz)
+test("niezalezny proces zostaje", 300 in pokaz, "pokaz: %s" % pokaz)
 
 shutil.rmtree(BASE, ignore_errors=True)
 print("\nWYNIK: %d/%d" % (zaliczone, wszystkie))
