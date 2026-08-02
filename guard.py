@@ -875,12 +875,24 @@ def play_sound(cfg, key):
 def push(cfg, title, text):
     """Push na telefon przez ntfy.sh — dziala wszedzie, gdzie stoi aplikacja ntfy z tym
     samym tematem. Popen + limit czasu: brak internetu nie moze zatrzymac petli."""
+    # `notify: false` musi wyciszyc TAKZE push. Bramka byla dotad tylko w notify(),
+    # a banner() wolal push() bezposrednio - wiec przy wylaczonych powiadomieniach
+    # telefon i tak dostawal wiadomosc co 180 s przez caly czas poziomu krytycznego.
+    if not cfg.get("notify", True):
+        return
     topic = (cfg.get("ntfy_topic") or "").strip()
-    if not topic:
+    # Temat idzie do URL-a bez cytowania, wiec musi byc bezpieczny sam z siebie.
+    # Zmierzone: "sekret#tajne" publikuje na "sekret" (curl obcina fragment), a
+    # "sekret?tajne" - na "sekret" z ogonem jako parametrami sterujacymi ntfy.
+    # Czyli uzytkownik mysli, ze ma temat 12-znakowy, a ma 6-znakowy.
+    if not topic or not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", topic):
+        if topic:
+            log("ntfy: temat %r ma niedozwolone znaki albo dlugosc - push wylaczony "
+                "(dozwolone: litery, cyfry, _ i -, do 64 znakow)" % topic[:80])
         return
     popen_bg(["curl", "-s", "-m", "10",
-              "-H", "Title: %s" % title.replace("\n", " "),
-              "-d", text, "https://ntfy.sh/%s" % topic])
+              "-H", "Title: %s" % title.replace("\n", " ").replace("\r", " "),
+              "--data-raw", text, "https://ntfy.sh/%s" % topic])
 
 
 def notify(cfg, title, text, key="default"):
@@ -1206,11 +1218,22 @@ def managed_pids_from_saferun():
                 if alive(pid):
                     # PID moze zostac ponownie uzyty po padzie guarda: sprawdzamy, czy
                     # biezacy proces w ogole przypomina zarejestrowane polecenie
-                    cmd0 = os.path.basename(((d.get("cmd") or [""])[0] or "")).lower()
-                    comm = run(["ps", "-o", "comm=", "-c", "-p", str(pid)]).strip().lower()
-                    if comm and cmd0 and comm not in cmd0 and cmd0 not in comm:
-                        os.unlink(path)
-                        continue
+                    # Tozsamosc sprawdzamy po CZASIE STARTU procesu, nie po nazwie.
+                    # Poprzednio porownywalismy `ps comm` (nazwa INTERPRETERA: bash,
+                    # Python) z basename polecenia (kompresor.sh) - dla kazdego skryptu
+                    # z shebangiem to sie nie zgadzalo, wiec guard kasowal wlasna
+                    # rejestracje zaraz po jej powstaniu. Skutek zaobserwowany na zywym
+                    # zadaniu 02.08.2026: managed/ pusty przy dzialajacej kompresji,
+                    # `jobs: []` w statusie, utracony pgid i flaga "normal".
+                    zarejestrowany_start = d.get("started")
+                    if zarejestrowany_start:
+                        wiek = proc_age_seconds(pid)
+                        realny_start = now() - wiek
+                        # 90 s luzu: etime ma rozdzielczosc sekundy, a rejestracja
+                        # powstaje chwile po starcie procesu
+                        if wiek and abs(realny_start - float(zarejestrowany_start)) > 90:
+                            os.unlink(path)     # PID przejety przez inny proces
+                            continue
                     res[pid] = int(d.get("pgid", pid))
                     if d.get("normal"):
                         normalne.add(pid)

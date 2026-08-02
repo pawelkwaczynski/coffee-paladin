@@ -433,8 +433,9 @@ def guard_zyje():
 def main():
     opt, cmd = parse()
     for d in (BASE, MANAGED_DIR):
-        if not os.path.isdir(d):
-            os.makedirs(d, 0o700)     # patrz guard.ensure_dirs: te pliki nie sa publiczne
+        # exist_ok: przy kilku safe-run odpalonych naraz na swiezej instalacji trzy
+        # z czterech wywalaly sie FileExistsError i zadania w ogole nie ruszaly
+        os.makedirs(d, 0o700, exist_ok=True)   # patrz guard.ensure_dirs: nie publiczne
 
     state, temp = thermal_state(), batt_temp()
     limit = cfg().get("batt_pause_c", 40.0)
@@ -530,6 +531,12 @@ def main():
         (", " + T("terminated by the time budget")) if killed_by_time else ""))
     if rc is not None and rc < 0 and -rc in (signal.SIGTERM, signal.SIGKILL):
         print(T("safe-run: the job was stopped by signal %d - check ~/.coffee-paladin/guard.log") % -rc)
+    # Zadanie ubite sygnalem daje rc ujemne (-15 SIGTERM, -9 SIGKILL). Zwracanie 0
+    # znaczylo, ze `safe-run ... && nastepny_krok` szedl dalej po zadaniu przerwanym
+    # w polowie - np. kolejka kompresji kasowala zrodlo po nieukonczonym enkodowaniu.
+    # 128+sygnal to konwencja powloki dla "zabity sygnalem".
+    if rc and rc < 0:
+        return 128 - rc
     return rc if rc and rc > 0 else 0
 
 
