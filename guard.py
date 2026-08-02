@@ -921,6 +921,31 @@ def pokolenia(path):
     return zrotowane
 
 
+_CICHE_AWARIE = {}
+
+
+def cicha_awaria(gdzie, e):
+    """Polkniety wyjatek w sciezce krytycznej PRZESTAJE byc cichy.
+
+    W demonie bezpieczenstwa `except Exception: pass` w zapisie dowodu albo stanu
+    znaczy: "dowod nie powstal, a nikt sie nie dowie". Ruff naliczyl 107 takich miejsc,
+    z czego 14 w funkcjach, ktore decyduja o ochronie albo o materiale dowodowym.
+    Przeplywu NIE zmieniamy - demon ma dzialac dalej takze wtedy, gdy dysk jest pelny -
+    ale kazda taka awaria trafia do logu (raz na 10 min na miejsce) i do licznika
+    widocznego w status.json. Nadal polykamy, juz nie milczymy.
+    """
+    _CICHE_AWARIE[gdzie] = _CICHE_AWARIE.get(gdzie, 0) + 1
+    znacznik = "_ostatni_log_" + gdzie
+    teraz = now()
+    if teraz - _CICHE_AWARIE.get(znacznik, 0) >= 600:
+        _CICHE_AWARIE[znacznik] = teraz
+        try:
+            log("SWALLOWED in %s: %s: %s (%d time(s) so far)"
+                % (gdzie, type(e).__name__, e, _CICHE_AWARIE[gdzie]))
+        except Exception:
+            pass
+
+
 def log(msg, tag=None):
     """Wpis do guard.log. `tag` to STABILNY znacznik ASCII zdarzenia.
 
@@ -944,6 +969,27 @@ def log(msg, tag=None):
         sys.stdout.flush()
 
 
+def _ubij_grupe(p):
+    """Ubija CALA grupe procesow dziecka, potem zbiera zwloki.
+
+    Sam `p.kill()` zostawia wnuki przy zyciu - a to one potrafia wisiec godzinami.
+    Gdy grupy nie da sie odczytac (dziecko juz zniknelo), spadamy na zwykly kill.
+    """
+    if p is None:
+        return
+    try:
+        os.killpg(os.getpgid(p.pid), signal.SIGKILL)
+    except OSError:
+        try:
+            p.kill()
+        except Exception:
+            pass
+    try:
+        p.communicate(timeout=2)          # zbieramy zwloki, inaczej zostaje zombie
+    except Exception:
+        pass
+
+
 def run(cmd, timeout=10):
     """Uruchamia polecenie i ZAWSZE po sobie sprzata.
 
@@ -955,23 +1001,23 @@ def run(cmd, timeout=10):
     """
     p = None
     try:
-        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+        # WLASNA GRUPA PROCESOW. `p.kill()` siega tylko bezposredniego dziecka, wiec
+        # polecenie, ktore samo cos odpali (np. powloka z zadaniem w tle), zostawialo
+        # osieroconego WNUKA zyjacego dalej. Odtworzone 02.08.2026 i zglaszane przez
+        # fuzzer rundy 2: po powrocie z run() zostawal proces potomny. Przy demonie
+        # dzialajacym latami takie osierocone procesy sie kumuluja.
+        # Zadne z polecen wolanych przez run() (ps, sysctl, pmset, ioreg, macmon)
+        # nie potrzebuje terminala, wiec odlaczenie sesji nic nie kosztuje.
+        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                             start_new_session=True)
         out, _ = p.communicate(timeout=timeout)
         return out.decode("utf-8", "replace")
     except subprocess.TimeoutExpired:
-        try:
-            p.kill()
-            p.communicate(timeout=2)      # zbieramy zwloki, inaczej zostaje zombie
-        except Exception:
-            pass
+        _ubij_grupe(p)
         return ""
     except Exception:
         if p is not None and p.poll() is None:
-            try:
-                p.kill()
-                p.communicate(timeout=2)
-            except Exception:
-                pass
+            _ubij_grupe(p)
         return ""
 
 
@@ -1657,8 +1703,8 @@ def load_state():
             d.setdefault("demoted", [])
             d.setdefault("demoted_info", {})
             return d
-    except Exception:
-        pass
+    except Exception as e:
+        cicha_awaria("load_state", e)
     return {"paused": {}, "demoted": [], "demoted_info": {}}
 
 
@@ -1668,8 +1714,9 @@ def save_state(st):
         with open(tmp, "w") as f:
             json.dump(st, f, indent=1)
         os.replace(tmp, STATE_PATH)
-    except Exception:
-        pass
+    except Exception as e:
+        # bez zapisu stanu po restarcie nikt nie wznowi zapauzowanych procesow
+        cicha_awaria("save_state", e)
 
 
 def sig(pid, pgid, s):
@@ -1983,8 +2030,9 @@ def zapisz_zdarzenie(rodzaj, opis, kontekst=None, synthetic=False, kiedy=None):
             if kontekst:
                 wpis["context"] = kontekst
             f.write(json.dumps(wpis, ensure_ascii=False) + "\n")
-    except Exception:
-        pass
+    except Exception as e:
+        # dowod, ktory nie powstal, jest gorszy niz brak dowodu - musi zostac slad
+        cicha_awaria("zapisz_zdarzenie", e)
 
 
 def pad_juz_zapisany(epoch_padu, tolerancja=90.0):
@@ -2534,7 +2582,10 @@ def fleet_write(cfg, status):
         hw = _hw_cache_fleet()
         out["model"] = hw.get("model")
         out["serial"] = hw.get("serial")
-        out["guard_version"] = "2.1.9"
+        out["guard_version"] = "2.1.10"
+        _bledy = {k: v for k, v in _CICHE_AWARIE.items() if not k.startswith("_ostatni_log_")}
+        if _bledy:
+            out["swallowed_errors"] = _bledy
         tmp = os.path.join(d, ".%s.tmp" % hostname())
         with open(tmp, "w") as f:
             json.dump(out, f, ensure_ascii=False)
@@ -2607,8 +2658,8 @@ def status_write(state, temp, soc, soc_t, ac, pct, speed, load, lvl, why, target
         with open(tmp, "w") as f:
             json.dump(data, f, ensure_ascii=False)
         os.replace(tmp, STATUS_PATH)   # podmiana atomowa — pasek nigdy nie zlapie polowy pliku
-    except Exception:
-        pass
+    except Exception as e:
+        cicha_awaria("status_write", e)   # pasek pokazuje wtedy stare dane jako biezace
     return data
 
 
@@ -2624,16 +2675,16 @@ def hist_write(row):
             with open(HIST_PATH) as f:
                 if f.readline() != HIST_HEADER:
                     os.rename(HIST_PATH, HIST_PATH.replace(".csv", "_old.csv"))
-    except Exception:
-        pass
+    except Exception as e:
+        cicha_awaria("hist_write/naglowek", e)
     new = not os.path.exists(HIST_PATH)
     try:
         with open(HIST_PATH, "a") as f:
             if new:
                 f.write(HIST_HEADER)
             f.write(",".join(str(x) for x in row) + "\n")
-    except Exception:
-        pass
+    except Exception as e:
+        cicha_awaria("hist_write", e)   # brak pomiarow = pusta os czasu w dowodzie
 
 
 # ---------------------------------------------------------------- petla

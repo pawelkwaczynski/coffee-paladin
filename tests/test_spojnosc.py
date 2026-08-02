@@ -81,13 +81,44 @@ for binarka in ("coffee-paladin", "coffee-paladin-bar", "heat", "safe-run", "the
     if '"$BIN/%s"' % binarka not in uninst:
         bledy.append("uninstall.sh nie usuwa %s" % binarka)
 
-# 5. Znaczniki logu uzywane przez guard sa znane wszystkim parserom
-tagi = set(re.findall(r'tag="([A-Z]+)"', zrodlo))
-for plik in ("thermal-report", "heat"):
-    tresc = io.open(os.path.join(SRC,plik)).read()
-    brak = [t for t in tagi if "[%s]" % t not in tresc]
-    if brak:
-        bledy.append("%s nie zna znacznikow: %s" % (plik, brak))
+# 5. Znaczniki logu uzywane przez guard sa znane wszystkim parserom.
+#    ASERCJA BYLA "GREPEM PO ZRODLE": sprawdzala, czy napis "[PAUSE]" WYSTEPUJE w pliku -
+#    a wiec przechodzila takze wtedy, gdy napis siedzial w komentarzu albo w martwym
+#    kodzie, i wtedy, gdy parser byl zepsuty. Teraz karmimy parsery PRAWDZIWA linia
+#    logu z kazdym znacznikiem i sprawdzamy, czy naprawde ja policzyly (glowa 2, poz. 20).
+tagi = sorted(set(re.findall(r'tag="([A-Z]+)"', zrodlo)))
+try:
+    import shutil as _sh5
+    import tempfile as _tf5
+    _t5 = _tf5.mkdtemp()
+    os.environ["TG_BASE"] = _t5
+    _dzis = __import__("time").strftime("%Y-%m-%d")
+    with io.open(os.path.join(_t5, "guard.log"), "w", encoding="utf-8") as _f:
+        for _tag in tagi:
+            _f.write("%s 10:00:00+0200  [%s] proces testowy (pid 1) - powod\n" % (_dzis, _tag))
+    _g5 = importlib.machinery.SourceFileLoader('tag_g', os.path.join(SRC, 'guard.py')).load_module()
+    _stat = _g5.statystyki_dnia() if hasattr(_g5, "statystyki_dnia") else None
+    if _stat is not None and not any(v for v in _stat.values()):
+        bledy.append("statystyki_dnia nie rozpoznaly ZADNEGO ze znacznikow %s "
+                     "- parser logu jest zepsuty albo znaczniki sie rozjechaly" % tagi)
+    # thermal-report: KARMIMY go logiem i sprawdzamy, czy naprawde policzyl kazda linie.
+    # Poprzednia wersja szukala literalu "[PAUSE]" w zrodle - i zglosila falszywy alarm,
+    # bo parser uzywa alternatywy w regexie (\[(PAUSE|RESUME|...)\]), gdzie takiego
+    # ciagu po prostu nie ma. Grep po zrodle myli OBECNOSC NAPISU z DZIALANIEM kodu;
+    # dokladnie o to chodzilo w pozycji 20.
+    import subprocess as _sp5
+    _cel5 = os.path.join(_t5, "raport.txt")
+    _sp5.run([sys.executable, os.path.join(SRC, "thermal-report"), "--file", _cel5, "--days", "2"],
+             capture_output=True, text=True, timeout=120,
+             env=dict(os.environ, TG_BASE=_t5, TG_LANG="en"))
+    _raport = io.open(_cel5, encoding="utf-8", errors="replace").read()
+    _nieznane = [t for t in tagi if ("[%s]" % t) not in _raport]
+    if _nieznane:
+        bledy.append("thermal-report NIE POLICZYL linii ze znacznikami %s - "
+                     "raport dowodowy gubi te interwencje" % _nieznane)
+    _sh5.rmtree(_t5, ignore_errors=True)
+except Exception as _e5:
+    bledy.append("nie moge sprawdzic znacznikow logu: %s: %s" % (type(_e5).__name__, _e5))
 
 # 6. `pokolenia()` istnieje w guard.py i w thermal-report jako CELOWA kopia (narzedzia sa
 #    samodzielne, nie importuja demona) - obie musza dawac ten sam wynik. Kopia logiki to dlug,

@@ -118,6 +118,8 @@ PL = {
     "the guard reports a hot machine": "guard zglasza goraca maszyne",
     "safe-run: already inside a supervised job - running the command directly":
         "safe-run: jestesmy juz w nadzorowanym zadaniu - uruchamiam polecenie wprost",
+    "safe-run: WARNING - the guard's snapshot is stale, the daemon is probably not running. This job will start, but NOTHING will supervise its temperature.":
+        "safe-run: UWAGA - migawka bezpiecznika jest nieswieza, demon najpewniej nie dziala. Zadanie wystartuje, ale NIKT nie bedzie pilnowal jego temperatury.",
 }
 
 RU = {
@@ -147,6 +149,8 @@ RU = {
     "the guard reports a hot machine": "страж сообщает о горячей машине",
     "safe-run: already inside a supervised job - running the command directly":
         "safe-run: уже внутри контролируемой задачи - запускаю команду напрямую",
+    "safe-run: WARNING - the guard's snapshot is stale, the daemon is probably not running. This job will start, but NOTHING will supervise its temperature.":
+        "safe-run: ВНИМАНИЕ - снимок защиты устарел, демон скорее всего не работает. Задача запустится, но НИКТО не будет следить за её температурой.",
 }
 
 ZH = {
@@ -176,6 +180,8 @@ ZH = {
     "the guard reports a hot machine": "守卫报告机器过热",
     "safe-run: already inside a supervised job - running the command directly":
         "safe-run: 已在受监管的任务中 - 直接运行该命令",
+    "safe-run: WARNING - the guard's snapshot is stale, the daemon is probably not running. This job will start, but NOTHING will supervise its temperature.":
+        "safe-run: 警告 - 守护的快照已过期,守护进程很可能没有运行。任务会启动,但没有任何程序会监控其温度。",
 }
 
 ES = {
@@ -205,6 +211,8 @@ ES = {
     "the guard reports a hot machine": "el guardián informa de una máquina caliente",
     "safe-run: already inside a supervised job - running the command directly":
         "safe-run: ya dentro de una tarea supervisada - ejecuto el comando directamente",
+    "safe-run: WARNING - the guard's snapshot is stale, the daemon is probably not running. This job will start, but NOTHING will supervise its temperature.":
+        "safe-run: AVISO - la instantanea del guardian esta obsoleta, el demonio probablemente no esta en marcha. La tarea arrancara, pero NADIE vigilara su temperatura.",
 }
 
 DICTS = {"pl": PL, "ru": RU, "zh": ZH, "es": ES}
@@ -390,7 +398,12 @@ def chip_juz_goracy():
     except Exception:
         return False, ""          # brak migawki: nie blokujemy, guard i tak ostrzeze
     if (time.time() - os.path.getmtime(os.path.join(BASE, "status.json"))) > 120:
-        return False, ""          # migawka nieswieza: nie ma na czym opierac decyzji
+        # Nieswieza migawka nie znaczy "chlodno" - znaczy, ze DEMON NAJPEWNIEJ NIE ZYJE,
+        # czyli nikt nie bedzie pilnowal temperatury tego zadania. Zadania mimo to NIE
+        # blokujemy: safe-run ma dzialac takze tam, gdzie demona nie ma wcale, a odmowa
+        # startu byloby gorsza od braku nadzoru. Ale przestajemy o tym MILCZEC - dotad
+        # uzytkownik dostawal "stan termiczny=nominal" i mysli, ze jest pilnowany.
+        return False, "STALE"
     try:
         if float(st.get("level") or 0) >= 2:
             return True, T("the guard reports a hot machine")
@@ -517,6 +530,11 @@ def main():
     state, temp = thermal_state(), batt_temp()
     limit = cfg().get("batt_pause_c", 40.0)
     chip_hot, chip_powod = chip_juz_goracy()
+    if chip_powod == "STALE":
+        chip_powod = ""
+        print(T("safe-run: WARNING - the guard's snapshot is stale, the daemon is probably "
+                "not running. This job will start, but NOTHING will supervise its "
+                "temperature."), file=sys.stderr)
     hot = state in HOT or (temp is not None and temp >= limit - 2) or chip_hot
     print(T("safe-run: thermal state=%s, battery=%s, time budget=%.1f h") % (
         state, ("%.1f C" % temp) if temp else T("n/a"), opt["hours"]))

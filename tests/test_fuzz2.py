@@ -845,14 +845,19 @@ def fuzz_chip_swiezosc(seed, n):
                          "swieza migawka mowi chip %.1f C przy progu %.1f, a safe-run i tak "
                          "PUSZCZA ciezkie zadanie" % (chip, prog), "WYSOKA",
                          klucz="przepuszcza-goraco")
-            # oracle 2: migawka starsza niz 120 s = guard nie zyje (pisze co 15 s),
-            # a wlasnie wtedy nikt nie pilnuje temperatury
-            if wiek > 130 and goraco is False and isinstance(chip, float) and chip >= 90:
+            # oracle 2: migawka starsza niz 120 s = guard nie zyje (pisze co 15 s).
+            # DECYZJA PRODUKTOWA z 02.08.2026: zadania NIE blokujemy - safe-run ma dzialac
+            # takze tam, gdzie demona nie ma wcale, a odmowa startu byloby gorsza od braku
+            # nadzoru. Wymagamy natomiast, zeby funkcja to ZASYGNALIZOWALA: drugi element
+            # krotki to "STALE", na podstawie ktorego safe-run wypisuje ostrzezenie
+            # "zadanie wystartuje, ale NIKT nie bedzie pilnowal jego temperatury".
+            # Cisza byla defektem; przepuszczenie zadania nie jest.
+            if wiek > 130 and goraco is False and r[1] != "STALE":
                 s.bzdura({"wiek_s": wiek, "status": tresc},
-                         "migawka sprzed %.0f s pokazuje %.1f C, ale safe-run traktuje ja jako "
-                         "'brak danych' i puszcza zadanie. Nieswieza migawka znaczy, ze demon "
-                         "NIE ZYJE - czyli nikt nie pilnuje temperatury tego zadania"
-                         % (wiek, chip), "SREDNIA", klucz="nieswieza-migawka-przepuszcza")
+                         "migawka sprzed %.0f s (demon najpewniej nie zyje), a funkcja nie "
+                         "sygnalizuje tego przez 'STALE' - safe-run nie ostrzeze uzytkownika, "
+                         "ze jego zadanie NIE BEDZIE nadzorowane" % wiek,
+                         "SREDNIA", klucz="nieswieza-migawka-bez-ostrzezenia")
             if wiek < 0 and goraco is False and isinstance(chip, float) and chip >= 95:
                 s.bzdura({"wiek_s": wiek, "status": tresc},
                          "migawka z PRZYSZLOSCI (zegar/NTP) jest traktowana jak swieza albo jak "
