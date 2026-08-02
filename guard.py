@@ -52,6 +52,7 @@ AWAKE_PATH = os.path.join(BASE, "awake.json")     # reczny keep-awake z paska (t
 HW_PATH = os.path.join(BASE, "hardware.json")     # wykryty sprzet (dla About my Mac i kalibracji)
 MANAGED_DIR = os.path.join(BASE, "managed")   # pliki <pid>.json od safe-run
 MAX_LOG_BYTES = 5 * 1024 * 1024
+MAX_LOG_GENERACJI = 5        # ile zrotowanych pokolen trzymamy (patrz rotate())
 
 # "unknown" to NIE jest "lekko cieplo". To znaczy, ze thermalstate nie odpowiedzial.
 # Mapowanie na 1 sprawialo, ze Mac bez baterii i bez macmona (mini, Studio) siedzial
@@ -805,11 +806,55 @@ def T(s):
     return DICTS.get(LANG, {}).get(s, s)
 
 def rotate(path):
+    """Rotacja z NUMEROWANYMI pokoleniami: .1 najswiezsze, .N najstarsze.
+
+    Wczesniej bylo jedno `os.replace(path, path + ".1")`, wiec KAZDA kolejna rotacja
+    nadpisywala .1 i kasowala dowody bezpowrotnie. Odtworzone 02.08.2026: szczyt
+    98,7 C wpadal do history.csv, po pierwszej rotacji `thermal-report --days 2`
+    pokazywal 44,0 C (bo czytal tylko plik biezacy), a po drugiej rotacji odczyt
+    98,7 C nie istnial juz nigdzie na dysku. To jest jedyny powod, dla ktorego ten
+    plik w ogole powstaje - dokument do serwisu albo do roszczenia gwarancyjnego.
+
+    Pokolen trzymamy MAX_LOG_GENERACJI; przy 5 MB na plik to ~30 MB sufitu na
+    strumien, czyli tanio za dowod, ktorego nie da sie odtworzyc.
+    """
     try:
-        if os.path.getsize(path) > MAX_LOG_BYTES:
-            os.replace(path, path + ".1")
-    except Exception:
+        if os.path.getsize(path) <= MAX_LOG_BYTES:
+            return
+    except OSError:
+        return
+    try:
+        najstarszy = "%s.%d" % (path, MAX_LOG_GENERACJI)
+        if os.path.exists(najstarszy):
+            os.remove(najstarszy)
+        for n in range(MAX_LOG_GENERACJI - 1, 0, -1):
+            zrodlo = "%s.%d" % (path, n)
+            if os.path.exists(zrodlo):
+                os.replace(zrodlo, "%s.%d" % (path, n + 1))
+        os.replace(path, path + ".1")
+    except OSError:
         pass
+
+
+def pokolenia(path):
+    """Plik biezacy razem ze zrotowanymi pokoleniami, OD NAJSTARSZEGO.
+
+    Kazdy czytelnik dowodow (thermal-report, statystyki) ma isc przez te liste,
+    a nie przez sam `path` - inaczej rotacja ucina dokumentowi historie w polowie
+    bez jednego slowa ostrzezenia.
+    """
+    zrotowane = []
+    n = 1
+    while True:
+        p = "%s.%d" % (path, n)
+        if not os.path.exists(p):
+            break
+        zrotowane.append(p)
+        n += 1
+    zrotowane.reverse()                    # .3, .2, .1 = chronologicznie
+    if os.path.exists(path):
+        zrotowane.append(path)
+    return zrotowane
 
 
 def log(msg, tag=None):

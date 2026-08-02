@@ -285,6 +285,47 @@ def czas_z(s):
 ZNANE_FLAGI = ("--help", "-h", "--days", "--dni", "--pdf", "--file", "--from", "--to", "--all")
 
 
+def pokolenia(path):
+    """Plik biezacy razem ze zrotowanymi pokoleniami, OD NAJSTARSZEGO.
+
+    CELOWA KOPIA `guard.pokolenia` - narzedzia w tym projekcie sa samodzielne i nie
+    importuja demona. Obie kopie pilnuje `tests/test_spojnosc.py`; zmieniasz jedna,
+    zmien druga.
+    """
+    zrotowane = []
+    n = 1
+    while True:
+        p = "%s.%d" % (path, n)
+        if not os.path.exists(p):
+            break
+        zrotowane.append(p)
+        n += 1
+    zrotowane.reverse()                    # .3, .2, .1 = chronologicznie
+    if os.path.exists(path):
+        zrotowane.append(path)
+    return zrotowane
+
+
+def wiersze(path, pomijaj_naglowek=False):
+    """Linie z pliku biezacego I ze wszystkich zrotowanych pokolen, chronologicznie.
+
+    Guard rotuje `guard.log` i `history.csv` przy 5 MB. Ten raport czytal WYLACZNIE
+    plik biezacy, wiec rotacja po cichu ucinala dokumentowi dowodowemu historie.
+    Odtworzone 02.08.2026: przed rotacja "PEAK MEASURED CHIP TEMPERATURE: 98.7 C",
+    po rotacji ten sam `--days 2` dawal 44,0 C - a odczyt 98,7 C dalej lezal na dysku,
+    tyle ze w pliku `.1`, do ktorego nikt nie zagladal.
+    """
+    for p in pokolenia(path):
+        try:
+            with open(p, encoding="utf-8", errors="replace") as f:
+                if pomijaj_naglowek:
+                    f.readline()
+                for linia in f:
+                    yield linia
+        except OSError:
+            continue
+
+
 def _alarmy_z_logu(w_zakresie):
     """Alarmy chlodzenia z guard.log, ktorych nie ma w events.log (instalacje sprzed 02.08).
 
@@ -292,14 +333,13 @@ def _alarmy_z_logu(w_zakresie):
     """
     out = []
     try:
-        with open(LOG, encoding="utf-8", errors="replace") as f:
-            for linia in f:
-                if ("[FANFAIL]" not in linia and "AWARIA CHLODZENIA" not in linia
-                        and "COOLING FAILURE" not in linia):
-                    continue
-                if not w_zakresie(czas_z(linia[:19])):
-                    continue
-                out.append(linia.rstrip())
+        for linia in wiersze(LOG):
+            if ("[FANFAIL]" not in linia and "AWARIA CHLODZENIA" not in linia
+                    and "COOLING FAILURE" not in linia):
+                continue
+            if not w_zakresie(czas_z(linia[:19])):
+                continue
+            out.append(linia.rstrip())
     except Exception:
         pass
     return out
@@ -431,40 +471,39 @@ def main():
     _juz_alarmy = []     # czasy alarmow z events.log — do deduplikacji tych z guard.log
     _wpisy = []          # (czas, linie) — sekcja krytyczna musi byc CHRONOLOGICZNA
     try:
-        with open(EVENTS, encoding="utf-8", errors="replace") as f:
-            for linia in f:
-                try:
-                    z = json.loads(linia)
-                except Exception:
-                    continue
-                if not isinstance(z, dict):
-                    continue
-                if z.get("synthetic"):
-                    continue          # wpisy testowe nie wchodza do dowodu dla serwisu
-                # `epoch` (od 02.08.2026) jest jednoznaczny; `time` to tekst bez strefy,
-                # wiec przy odczycie w innej strefie wpis potrafil wypasc z zakresu.
-                t_zdarzenia = z.get("epoch")
-                if not isinstance(t_zdarzenia, (int, float)):
-                    t_zdarzenia = czas_z(z.get("time", ""))
-                if not w_zakresie(t_zdarzenia):
-                    continue
-                zdarzen += 1
-                if "COOLING" in str(z.get("type", "")):
-                    _juz_alarmy.append(t_zdarzenia)
-                _linie = ["  [%s] %s — %s" % (z.get("time"), z.get("type"), z.get("description"))]
-                kontekst = z.get("context")
-                pomiary = kontekst.get("last_readings") if isinstance(kontekst, dict) else []
-                pomiary = [x for x in (pomiary or []) if isinstance(x, dict)]
-                if pomiary:
-                    _linie.append(T("      readings immediately before the event:"))
-                    for p in pomiary:
-                        _linie.append("        %s  chip %s C  wentylator %s obr/min  %s W  bateria %s%%  %s  load %s"
-                                 % (p.get("time", "?"), p.get("chip_C", "?"),
-                                    p.get("fan_rpm", "?"), p.get("watts", "?"),
-                                    p.get("battery_pct", "?"),
-                                    (T("AC") if p.get("on_ac") == "1" else T("battery")) if p.get("on_ac") is not None else "?",
-                                    p.get("load1", "?")))
-                _wpisy.append((t_zdarzenia, _linie))
+        for linia in wiersze(EVENTS):
+            try:
+                z = json.loads(linia)
+            except Exception:
+                continue
+            if not isinstance(z, dict):
+                continue
+            if z.get("synthetic"):
+                continue          # wpisy testowe nie wchodza do dowodu dla serwisu
+            # `epoch` (od 02.08.2026) jest jednoznaczny; `time` to tekst bez strefy,
+            # wiec przy odczycie w innej strefie wpis potrafil wypasc z zakresu.
+            t_zdarzenia = z.get("epoch")
+            if not isinstance(t_zdarzenia, (int, float)):
+                t_zdarzenia = czas_z(z.get("time", ""))
+            if not w_zakresie(t_zdarzenia):
+                continue
+            zdarzen += 1
+            if "COOLING" in str(z.get("type", "")):
+                _juz_alarmy.append(t_zdarzenia)
+            _linie = ["  [%s] %s — %s" % (z.get("time"), z.get("type"), z.get("description"))]
+            kontekst = z.get("context")
+            pomiary = kontekst.get("last_readings") if isinstance(kontekst, dict) else []
+            pomiary = [x for x in (pomiary or []) if isinstance(x, dict)]
+            if pomiary:
+                _linie.append(T("      readings immediately before the event:"))
+                for p in pomiary:
+                    _linie.append("        %s  chip %s C  wentylator %s obr/min  %s W  bateria %s%%  %s  load %s"
+                             % (p.get("time", "?"), p.get("chip_C", "?"),
+                                p.get("fan_rpm", "?"), p.get("watts", "?"),
+                                p.get("battery_pct", "?"),
+                                (T("AC") if p.get("on_ac") == "1" else T("battery")) if p.get("on_ac") is not None else "?",
+                                p.get("load1", "?")))
+            _wpisy.append((t_zdarzenia, _linie))
     except FileNotFoundError:
         pass
     # Alarmy wentylatorow trafiaja do events.log dopiero od 02.08.2026. Dla starszych
@@ -496,18 +535,17 @@ def main():
     W.append(T("\n## GUARD INTERVENTIONS\n"))
     inter = 0
     try:
-        with open(LOG, encoding="utf-8", errors="replace") as f:
-            for linia in f:
-                if not w_zakresie(czas_z(linia[:19])):
-                    continue
-                # Znacznik [PAUSE]/[RESUME]/[KILL]/[DEMOTE]/[PROMOTE]/[FANFAIL] jest ten sam we
-                # wszystkich jezykach. Slowa zostaja dla wpisow sprzed jego wprowadzenia:
-                # bez nich raport z maszyny rosyjskiej gubil kazdy wykryty twardy pad.
-                if re.search(r"\[(PAUSE|RESUME|KILL|DEMOTE|PROMOTE|FANFAIL)\]"
-                             r"|PAUSED|RESUMED|PAUZA|WZNOWIONE|SIGTERM|TERMINAT|koncze zadanie|DEMOTE|PROMOTE"
-                             r"|AWARIA|FAILURE|HARD SHUT|TWARDY|ОБНАРУЖЕНО|检测到硬关机|APAGADO BRUSCO", linia):
-                    inter += 1
-                    W.append("  " + linia.rstrip())
+        for linia in wiersze(LOG):
+            if not w_zakresie(czas_z(linia[:19])):
+                continue
+            # Znacznik [PAUSE]/[RESUME]/[KILL]/[DEMOTE]/[PROMOTE]/[FANFAIL] jest ten sam we
+            # wszystkich jezykach. Slowa zostaja dla wpisow sprzed jego wprowadzenia:
+            # bez nich raport z maszyny rosyjskiej gubil kazdy wykryty twardy pad.
+            if re.search(r"\[(PAUSE|RESUME|KILL|DEMOTE|PROMOTE|FANFAIL)\]"
+                         r"|PAUSED|RESUMED|PAUZA|WZNOWIONE|SIGTERM|TERMINAT|koncze zadanie|DEMOTE|PROMOTE"
+                         r"|AWARIA|FAILURE|HARD SHUT|TWARDY|ОБНАРУЖЕНО|检测到硬关机|APAGADO BRUSCO", linia):
+                inter += 1
+                W.append("  " + linia.rstrip())
     except FileNotFoundError:
         pass
     if not inter:
@@ -519,38 +557,36 @@ def main():
     szczyt = (0, "")
     odrzucone, odrzucony_max = 0, 0.0
     try:
-        with open(HIST, encoding="utf-8", errors="replace") as f:
-            f.readline()                  # naglowek CSV - pomijamy
-            for linia in f:
-                c = linia.strip().split(",")
-                if len(c) < 12 or not w_zakresie(czas_z(c[0])):
-                    continue
-                ile += 1
-                try:
-                    # Zakres fizyczny: jedna ucieta linijka po padzie zasilania podmieniala
-                    # kluczowa liczbe dokumentu na "999.9 C (USZKODZONY WIERSZ)".
-                    #
-                    # Gorna granica to 110 C, nie 150: T_j max Apple Silicon lezy przy
-                    # ~105-110 C, a prog ubicia guarda przy 100 C. Odczyt 120 C znaczy
-                    # zepsuty czujnik, nie gorety krzem - a w dokumencie roszczeniowym
-                    # jest prezentem dla drugiej strony ("wasze dane sa bez wartosci").
-                    #
-                    # Wiersza poza pasmem NIE pomijamy po cichu: on i tak stoi nizej na osi
-                    # czasu, wiec milczenie robilo z dokumentu cos, co samo sobie przeczy -
-                    # "PEAK 88.8 C" tuz nad widoczna linijka 999.9 C. Dowod ma byc
-                    # OZNACZONY, nie wyrzucony (ta sama lekcja co podloga 30-dniowa).
-                    v = float(c[2]) if c[2] else 0.0
-                    if v != v:                       # NaN
-                        pass
-                    elif 0.0 < v <= 110.0 and czas_z(c[0]):
-                        if v > szczyt[0]:
-                            szczyt = (v, c[0])
-                    elif v > 110.0 and v != float("inf"):
-                        odrzucone += 1
-                        odrzucony_max = max(odrzucony_max, v)
-                except (ValueError, OverflowError):
+        for linia in wiersze(HIST, pomijaj_naglowek=True):
+            c = linia.strip().split(",")
+            if len(c) < 12 or not w_zakresie(czas_z(c[0])):
+                continue
+            ile += 1
+            try:
+                # Zakres fizyczny: jedna ucieta linijka po padzie zasilania podmieniala
+                # kluczowa liczbe dokumentu na "999.9 C (USZKODZONY WIERSZ)".
+                #
+                # Gorna granica to 110 C, nie 150: T_j max Apple Silicon lezy przy
+                # ~105-110 C, a prog ubicia guarda przy 100 C. Odczyt 120 C znaczy
+                # zepsuty czujnik, nie gorety krzem - a w dokumencie roszczeniowym
+                # jest prezentem dla drugiej strony ("wasze dane sa bez wartosci").
+                #
+                # Wiersza poza pasmem NIE pomijamy po cichu: on i tak stoi nizej na osi
+                # czasu, wiec milczenie robilo z dokumentu cos, co samo sobie przeczy -
+                # "PEAK 88.8 C" tuz nad widoczna linijka 999.9 C. Dowod ma byc
+                # OZNACZONY, nie wyrzucony (ta sama lekcja co podloga 30-dniowa).
+                v = float(c[2]) if c[2] else 0.0
+                if v != v:                       # NaN
                     pass
-                W.append("  " + ", ".join(c[:12]))
+                elif 0.0 < v <= 110.0 and czas_z(c[0]):
+                    if v > szczyt[0]:
+                        szczyt = (v, c[0])
+                elif v > 110.0 and v != float("inf"):
+                    odrzucone += 1
+                    odrzucony_max = max(odrzucony_max, v)
+            except (ValueError, OverflowError):
+                pass
+            W.append("  " + ", ".join(c[:12]))
     except FileNotFoundError:
         pass
     naglowek_osi = []

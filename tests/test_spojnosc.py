@@ -89,7 +89,29 @@ for plik in ("thermal-report", "heat"):
     if brak:
         bledy.append("%s nie zna znacznikow: %s" % (plik, brak))
 
-print("SPRAWDZEN: 5 kategorii")
+# 6. `pokolenia()` istnieje w guard.py i w thermal-report jako CELOWA kopia (narzedzia sa
+#    samodzielne, nie importuja demona) - obie musza dawac ten sam wynik. Kopia logiki to dlug,
+#    ktory zawsze wraca; tu jest przynajmniej pilnowany.
+try:
+    import shutil as _sh
+    import tempfile as _tf
+    _t = _tf.mkdtemp()
+    _p = os.path.join(_t, "history.csv")
+    for _n in ("", ".1", ".2", ".3"):
+        io.open(_p + _n, "w").write("x")
+    _g = importlib.machinery.SourceFileLoader('pg', os.path.join(SRC, 'guard.py')).load_module()
+    _tr = importlib.machinery.SourceFileLoader('ptr', os.path.join(SRC, 'thermal-report')).load_module()
+    if not hasattr(_tr, "pokolenia"):
+        bledy.append("thermal-report nie ma pokolenia() - rotacja znowu utnie dowody")
+    elif _g.pokolenia(_p) != _tr.pokolenia(_p):
+        bledy.append("pokolenia() rozjechalo sie miedzy guard.py a thermal-report: %s vs %s"
+                     % ([os.path.basename(x) for x in _g.pokolenia(_p)],
+                        [os.path.basename(x) for x in _tr.pokolenia(_p)]))
+    _sh.rmtree(_t, ignore_errors=True)
+except Exception as _e:
+    bledy.append("nie moge porownac pokolenia(): %s: %s" % (type(_e).__name__, _e))
+
+print("SPRAWDZEN: 6 kategorii")
 if bledy:
     for b in bledy: print("  BLAD: %s" % b)
     sys.exit(1)
