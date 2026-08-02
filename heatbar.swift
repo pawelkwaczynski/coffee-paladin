@@ -84,11 +84,12 @@ let PL: [String: String] = [
     "Today: %d x pause": "Dziś: %d x pauza", ", %d x kill": ", %d x ubicie",
     "Resume paused jobs": "Wznów wstrzymane zadania",
     "Freeze all heavy jobs now": "Wstrzymaj ciężkie zadania",
+    "A freeze is not a kill. The process stops between two instructions, keeps its memory and its open files, and carries on from the same place when you switch this off. It is safe.": "Wstrzymanie to nie zabicie. Proces staje między dwiema instrukcjami, zachowuje pamięć i otwarte pliki, a po wyłączeniu przełącznika liczy dalej od tego samego miejsca. Bezpiecznie.",
+    "What a freeze does NOT protect: anything waiting on the network or watching a clock will notice the gap. A download or an upload can drop, a server can disconnect you, a video call freezes, a game stops responding.": "Czego wstrzymanie NIE chroni: cokolwiek czeka na sieć albo pilnuje zegara, zauważy przerwę. Pobieranie albo wysyłka mogą się zerwać, serwer może Cię rozłączyć, rozmowa wideo zamarznie, gra przestanie odpowiadać.",
+    "The paladin will NEVER touch the system, Finder, your terminal or your AI agent.": "Paladyn NIGDY nie ruszy systemu, Findera, Twojego terminala ani Twojego agenta AI.",
     "Freeze all of them": "Wstrzymaj wszystkie",
     "Freeze heavy jobs now?": "Wstrzymać teraz ciężkie zadania?",
     "Nothing heavy is running right now. Anything that gets heavy will be frozen until you switch this back off.": "Nic ciężkiego teraz nie chodzi. Cokolwiek się rozpędzi, zostanie wstrzymane, dopóki nie przesuniesz przełącznika z powrotem.",
-    "A freeze is not a kill. The process stops between two instructions, keeps its memory and its open files, and carries on from the same place when you switch this off. Local computation - a render, a compile, ffmpeg - loses nothing.": "Wstrzymanie to nie zabicie. Proces staje między dwiema instrukcjami, zachowuje pamięć i otwarte pliki, a po wyłączeniu przełącznika liczy dalej od tego samego miejsca. Liczenie lokalne, czyli render, kompilacja czy ffmpeg, nie traci nic.",
-    "What a freeze does NOT protect: anything waiting on the network or watching a clock will notice the gap. A download or an upload can drop, a server can disconnect you, a video call freezes, a game goes unresponsive. The paladin will not touch the system, Finder, your terminal or your AI agent.": "Czego wstrzymanie NIE chroni: cokolwiek czeka na sieć albo pilnuje zegara, zauważy przerwę. Pobieranie albo wysyłka może się zerwać, serwer może rozłączyć, rozmowa wideo zamarznie, gra przestanie odpowiadać. Paladyn nie ruszy systemu, Findera, Twojego terminala ani Twojego agenta AI.",
     "Freeze": "Wstrzymaj",
     "Pause jobs when the Mac overheats": "Włącz pauzowanie przy przegrzaniu",
     "OFF - the Mac is only being watched": "WYŁĄCZONE — Mac jest tylko obserwowany",
@@ -318,11 +319,12 @@ let RU: [String: String] = [
     ", %d x kill": ", %d x завершение",
     "Resume paused jobs": "Возобновить приостановленные задачи",
     "Freeze all heavy jobs now": "Приостановить тяжёлые задачи",
+    "A freeze is not a kill. The process stops between two instructions, keeps its memory and its open files, and carries on from the same place when you switch this off. It is safe.": "Приостановка - не убийство. Процесс замирает между двумя инструкциями, сохраняет память и открытые файлы и продолжит с того же места, когда вы выключите переключатель. Это безопасно.",
+    "What a freeze does NOT protect: anything waiting on the network or watching a clock will notice the gap. A download or an upload can drop, a server can disconnect you, a video call freezes, a game stops responding.": "Что приостановка НЕ защищает: всё, что ждёт сеть или следит за часами, заметит паузу. Загрузка или выгрузка может оборваться, сервер может вас отключить, видеозвонок замрёт, игра перестанет отвечать.",
+    "The paladin will NEVER touch the system, Finder, your terminal or your AI agent.": "Паладин НИКОГДА не тронет систему, Finder, ваш терминал и вашего ИИ-агента.",
     "Freeze all of them": "Приостановить все",
     "Freeze heavy jobs now?": "Приостановить тяжёлые задачи сейчас?",
     "Nothing heavy is running right now. Anything that gets heavy will be frozen until you switch this back off.": "Сейчас ничего тяжёлого не работает. Всё, что станет тяжёлым, будет приостановлено, пока вы не выключите этот переключатель.",
-    "A freeze is not a kill. The process stops between two instructions, keeps its memory and its open files, and carries on from the same place when you switch this off. Local computation - a render, a compile, ffmpeg - loses nothing.": "Приостановка - не убийство. Процесс замирает между двумя инструкциями, сохраняет память и открытые файлы и продолжит с того же места, когда вы выключите переключатель. Локальные вычисления - рендер, сборка, ffmpeg - ничего не теряют.",
-    "What a freeze does NOT protect: anything waiting on the network or watching a clock will notice the gap. A download or an upload can drop, a server can disconnect you, a video call freezes, a game goes unresponsive. The paladin will not touch the system, Finder, your terminal or your AI agent.": "Что приостановка НЕ защищает: всё, что ждёт сеть или следит за часами, заметит паузу. Загрузка или выгрузка может оборваться, сервер может отключить, видеозвонок замрёт, игра перестанет отвечать. Паладин не тронет систему, Finder, ваш терминал и вашего ИИ-агента.",
     "Freeze": "Приостановить",
     "Pause jobs when the Mac overheats": "Приостанавливать задачи при перегреве",
     "OFF - the Mac is only being watched": "ВЫКЛЮЧЕНО — Mac только под наблюдением",
@@ -522,11 +524,12 @@ let ZH: [String: String] = [
     ", %d x kill": "，%d 次终止",
     "Resume paused jobs": "恢复已暂停的任务",
     "Freeze all heavy jobs now": "立即暂停繁重任务",
+    "A freeze is not a kill. The process stops between two instructions, keeps its memory and its open files, and carries on from the same place when you switch this off. It is safe.": "暂停不是终止。进程停在两条指令之间，保留内存和已打开的文件，你关掉开关后会从原地继续。是安全的。",
+    "What a freeze does NOT protect: anything waiting on the network or watching a clock will notice the gap. A download or an upload can drop, a server can disconnect you, a video call freezes, a game stops responding.": "暂停不能保护什么：任何等待网络或盯着时钟的东西都会察觉到这段空白。下载或上传可能中断，服务器可能把你断开，视频通话会卡住，游戏会失去响应。",
+    "The paladin will NEVER touch the system, Finder, your terminal or your AI agent.": "圣骑士绝不会碰系统、访达、你的终端或你的 AI 代理。",
     "Freeze all of them": "全部暂停",
     "Freeze heavy jobs now?": "现在暂停繁重任务？",
     "Nothing heavy is running right now. Anything that gets heavy will be frozen until you switch this back off.": "目前没有繁重任务在运行。之后出现的繁重任务都会被暂停，直到你关掉这个开关。",
-    "A freeze is not a kill. The process stops between two instructions, keeps its memory and its open files, and carries on from the same place when you switch this off. Local computation - a render, a compile, ffmpeg - loses nothing.": "暂停不是终止。进程停在两条指令之间，保留内存和已打开的文件，你关掉开关后会从原地继续。本地计算，比如渲染、编译、ffmpeg，不会有任何损失。",
-    "What a freeze does NOT protect: anything waiting on the network or watching a clock will notice the gap. A download or an upload can drop, a server can disconnect you, a video call freezes, a game goes unresponsive. The paladin will not touch the system, Finder, your terminal or your AI agent.": "暂停不能保护什么：任何等待网络或盯着时钟的东西都会察觉到这段空白。下载或上传可能中断，服务器可能把你断开，视频通话会卡住，游戏会失去响应。圣骑士不会碰系统、访达、你的终端或你的 AI 代理。",
     "Freeze": "暂停",
     "Pause jobs when the Mac overheats": "过热时暂停任务",
     "OFF - the Mac is only being watched": "已关闭 —— 仅在观察这台 Mac",
@@ -726,11 +729,12 @@ let ES: [String: String] = [
     ", %d x kill": ", %d x terminación",
     "Resume paused jobs": "Reanudar tareas en pausa",
     "Freeze all heavy jobs now": "Pausar las tareas pesadas",
+    "A freeze is not a kill. The process stops between two instructions, keeps its memory and its open files, and carries on from the same place when you switch this off. It is safe.": "Pausar no es matar. El proceso se detiene entre dos instrucciones, conserva su memoria y sus archivos abiertos, y sigue desde el mismo punto cuando desactivas esto. Es seguro.",
+    "What a freeze does NOT protect: anything waiting on the network or watching a clock will notice the gap. A download or an upload can drop, a server can disconnect you, a video call freezes, a game stops responding.": "Lo que una pausa NO protege: todo lo que espera a la red o vigila un reloj notará el hueco. Una descarga o una subida puede cortarse, un servidor puede desconectarte, una videollamada se congela, un juego deja de responder.",
+    "The paladin will NEVER touch the system, Finder, your terminal or your AI agent.": "El paladín NUNCA tocará el sistema, el Finder, tu terminal ni tu agente de IA.",
     "Freeze all of them": "Pausar todas",
     "Freeze heavy jobs now?": "¿Pausar ahora las tareas pesadas?",
     "Nothing heavy is running right now. Anything that gets heavy will be frozen until you switch this back off.": "Ahora mismo no hay nada pesado en marcha. Todo lo que se vuelva pesado quedará en pausa hasta que vuelvas a desactivar esto.",
-    "A freeze is not a kill. The process stops between two instructions, keeps its memory and its open files, and carries on from the same place when you switch this off. Local computation - a render, a compile, ffmpeg - loses nothing.": "Pausar no es matar. El proceso se detiene entre dos instrucciones, conserva su memoria y sus archivos abiertos, y sigue desde el mismo punto cuando desactivas esto. El cálculo local (un render, una compilación, ffmpeg) no pierde nada.",
-    "What a freeze does NOT protect: anything waiting on the network or watching a clock will notice the gap. A download or an upload can drop, a server can disconnect you, a video call freezes, a game goes unresponsive. The paladin will not touch the system, Finder, your terminal or your AI agent.": "Lo que una pausa NO protege: todo lo que espera a la red o vigila un reloj notará el hueco. Una descarga o una subida puede cortarse, un servidor puede desconectarte, una videollamada se congela, un juego deja de responder. El paladín no tocará el sistema, el Finder, tu terminal ni tu agente de IA.",
     "Freeze": "Pausar",
     "Pause jobs when the Mac overheats": "Pausar tareas cuando el Mac se recalienta",
     "OFF - the Mac is only being watched": "DESACTIVADO: el Mac solo está siendo observado",
@@ -3485,72 +3489,130 @@ Remember: while this switch is off, NOTHING protects the Mac. Flip it back on wh
     /// Okno potwierdzenia przed recznym zamrozeniem: co konkretnie stanie, z mozliwoscia
     /// odznaczenia pojedynczych procesow. Lista pochodzi z `freeze_candidates` w migawce,
     /// czyli z tego samego zbioru, na ktorym zadziala demon - nie z listy "top CPU".
-    /// Zwraca nil przy anulowaniu, albo liste PID-ow do zamrozenia (pusta = wszystkie).
+    ///
+    /// WLASNE okno, nie NSAlert: alert trzyma ikone przyklejona do lewej krawedzi
+    /// i rezerwuje na nia pas naglowka. Paladyn ma stac na srodku, nad tytulem.
+    /// Zwraca nil przy anulowaniu, albo liste PID-ow (pusta = zamroz wszystko, co sie kwalifikuje).
     func potwierdzZamrozenie(_ s: Snap?) -> [Int]? {
         let kandydaci = s?.freezeCandidates ?? []
-        let a = NSAlert()
-        a.alertStyle = .informational
-        if let ikona = NSImage(contentsOfFile: base + "/paladin_welcome.png") { a.icon = ikona }
-        a.messageText = T("Freeze heavy jobs now?")
+        let SZER: CGFloat = 360
+        let MARG: CGFloat = 20
+        let WYS_WIERSZA: CGFloat = 20
 
-        var tresc = ""
-        if kandydaci.isEmpty {
-            tresc = T("Nothing heavy is running right now. Anything that gets heavy "
-                      + "will be frozen until you switch this back off.") + "\n\n"
+        func akapit(_ tekst: String, _ rozmiar: CGFloat, _ kolor: NSColor) -> (NSTextField, CGFloat) {
+            let p = NSTextField(wrappingLabelWithString: tekst)
+            p.font = .systemFont(ofSize: rozmiar)
+            p.textColor = kolor
+            p.alignment = .left
+            p.preferredMaxLayoutWidth = SZER - 2 * MARG
+            return (p, p.sizeThatFits(NSSize(width: SZER - 2 * MARG, height: 400)).height)
         }
-        tresc += T("A freeze is not a kill. The process stops between two instructions, "
-                   + "keeps its memory and its open files, and carries on from the same "
-                   + "place when you switch this off. Local computation - a render, a "
-                   + "compile, ffmpeg - loses nothing.")
-        tresc += "\n\n"
-        tresc += T("What a freeze does NOT protect: anything waiting on the network or "
-                   + "watching a clock will notice the gap. A download or an upload can "
-                   + "drop, a server can disconnect you, a video call freezes, a game "
-                   + "goes unresponsive. The paladin will not touch the system, Finder, "
-                   + "your terminal or your AI agent.")
-        a.informativeText = tresc
+
+        let (a1, h1) = akapit(T("A freeze is not a kill. The process stops between two "
+            + "instructions, keeps its memory and its open files, and carries on from the "
+            + "same place when you switch this off. It is safe."), 11, .labelColor)
+        let (a2, h2) = akapit(T("What a freeze does NOT protect: anything waiting on the "
+            + "network or watching a clock will notice the gap. A download or an upload can "
+            + "drop, a server can disconnect you, a video call freezes, a game stops "
+            + "responding."), 11, .secondaryLabelColor)
+        let (a3, h3) = akapit(T("The paladin will NEVER touch the system, Finder, your "
+            + "terminal or your AI agent."), 11, .labelColor)
+
+        let hLista: CGFloat = kandydaci.isEmpty ? 0
+            : WYS_WIERSZA * CGFloat(kandydaci.count + 1) + 8
+        let (pusty, hPusty) = akapit(T("Nothing heavy is running right now. Anything that "
+            + "gets heavy will be frozen until you switch this back off."), 11, .secondaryLabelColor)
+        let hPustego: CGFloat = kandydaci.isEmpty ? hPusty + 10 : 0
+
+        let hOkna = 18 + 44 + 8 + 20 + 12 + hLista + hPustego
+                  + h1 + 10 + h2 + 10 + h3 + 16 + 32 + 18
+        let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: SZER, height: hOkna),
+                           styleMask: [.titled, .fullSizeContentView],
+                           backing: .buffered, defer: false)
+        win.titlebarAppearsTransparent = true
+        win.titleVisibility = .hidden
+        win.isMovableByWindowBackground = true
+        win.level = .modalPanel
+        win.center()
+        let tlo = NSVisualEffectView(frame: NSRect(x: 0, y: 0, width: SZER, height: hOkna))
+        tlo.material = .popover
+        tlo.state = .active
+        win.contentView = tlo
+
+        var y = hOkna - 18 - 44
+        let ikonaV = NSImageView(frame: NSRect(x: (SZER - 44) / 2, y: y, width: 44, height: 44))
+        if let img = NSImage(contentsOfFile: base + "/paladin_welcome.png") { ikonaV.image = img }
+        ikonaV.imageScaling = .scaleProportionallyUpOrDown
+        tlo.addSubview(ikonaV)
+
+        y -= 8 + 20
+        let tytul = NSTextField(labelWithString: T("Freeze heavy jobs now?"))
+        tytul.font = .boldSystemFont(ofSize: 13)
+        tytul.alignment = .center
+        tytul.frame = NSRect(x: 0, y: y, width: SZER, height: 20)
+        tlo.addSubview(tytul)
 
         var przelaczniki: [NSButton] = []
-        if !kandydaci.isEmpty {
-            let SZER: CGFloat = 300, WYS: CGFloat = 22
-            let widok = NSView(frame: NSRect(x: 0, y: 0, width: SZER,
-                                             height: WYS * CGFloat(kandydaci.count + 1) + 6))
-            var y = widok.frame.height - WYS
+        y -= 12
+        if kandydaci.isEmpty {
+            y -= hPusty + 10
+            pusty.frame = NSRect(x: MARG, y: y, width: SZER - 2 * MARG, height: hPusty)
+            tlo.addSubview(pusty)
+        } else {
+            y -= WYS_WIERSZA
             let wszystkie = NSButton(checkboxWithTitle: T("Freeze all of them"),
-                                     target: nil, action: nil)
+                                     target: self, action: #selector(przelaczWszystkie(_:)))
             wszystkie.state = .on
-            wszystkie.frame = NSRect(x: 0, y: y, width: SZER, height: WYS)
             wszystkie.font = .systemFont(ofSize: 12, weight: .medium)
-            widok.addSubview(wszystkie)
-            y -= WYS + 6
+            wszystkie.frame = NSRect(x: MARG, y: y, width: SZER - 2 * MARG, height: WYS_WIERSZA)
+            tlo.addSubview(wszystkie)
             for k in kandydaci {
+                y -= WYS_WIERSZA
                 let c = NSButton(checkboxWithTitle: "\(k.name)   \(k.cpu)% CPU   pid \(k.pid)",
                                  target: nil, action: nil)
                 c.state = .on
                 c.tag = k.pid
-                c.frame = NSRect(x: 16, y: y, width: SZER - 16, height: WYS)
                 c.font = .systemFont(ofSize: 11)
                 // szary, zeby wybor procesow nie krzyczal mocniej niz sama decyzja
                 c.contentTintColor = .secondaryLabelColor
-                widok.addSubview(c)
+                c.frame = NSRect(x: MARG + 16, y: y, width: SZER - 2 * MARG - 16, height: WYS_WIERSZA)
+                tlo.addSubview(c)
                 przelaczniki.append(c)
-                y -= WYS
             }
-            wszystkie.target = self
-            wszystkie.action = #selector(przelaczWszystkie(_:))
-            wszystkieCheckbox = wszystkie
+            y -= 8
             checkboxyProcesow = przelaczniki
-            a.accessoryView = widok
         }
 
-        a.addButton(withTitle: T("Freeze"))
-        a.addButton(withTitle: T("Cancel"))
-        let odp = a.runModal()
-        defer { wszystkieCheckbox = nil; checkboxyProcesow = [] }
-        guard odp == .alertFirstButtonReturn else { return nil }
+        for (p, h) in [(a1, h1), (a2, h2), (a3, h3)] {
+            y -= h
+            p.frame = NSRect(x: MARG, y: y, width: SZER - 2 * MARG, height: h)
+            tlo.addSubview(p)
+            y -= 10
+        }
+
+        y -= 6 + 32
+        let szerB: CGFloat = 110, luka: CGFloat = 10
+        let xB = (SZER - (2 * szerB + luka)) / 2
+        for (i, tytulB) in [T("Freeze"), T("Cancel")].enumerated() {
+            let b = NSButton(title: tytulB, target: self, action: #selector(zamknijZamrozenie(_:)))
+            b.bezelStyle = .rounded
+            b.tag = i
+            b.frame = NSRect(x: xB + CGFloat(i) * (szerB + luka), y: y, width: szerB, height: 32)
+            if i == 0 { b.keyEquivalent = "\r" }
+            tlo.addSubview(b)
+        }
+
+        NSApp.activate(ignoringOtherApps: true)
+        let wynik = NSApp.runModal(for: win)
+        win.orderOut(nil)
+        defer { checkboxyProcesow = [] }
+        guard wynik.rawValue == 0 else { return nil }
         if przelaczniki.isEmpty { return [] }
-        let wybrane = przelaczniki.filter { $0.state == .on }.map { $0.tag }
-        return wybrane
+        return przelaczniki.filter { $0.state == .on }.map { $0.tag }
+    }
+
+    @objc func zamknijZamrozenie(_ sender: NSButton) {
+        NSApp.stopModal(withCode: NSApplication.ModalResponse(rawValue: sender.tag))
     }
 
     @objc func przelaczWszystkie(_ sender: NSButton) {
