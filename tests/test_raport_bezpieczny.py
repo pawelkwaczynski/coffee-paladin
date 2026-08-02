@@ -125,6 +125,46 @@ for opis, args in (
     rc, out, err = uruchom("--file", cel, *args)
     test("%s -> kod 0" % opis, rc == 0, "rc=%d stderr=%r" % (rc, err[:70]))
 
+# ---------------------------------------------------------------- poz. 9
+print("\n=== poz. 9: dlugi raport skracany JAWNIE, bez gubienia dowodu ===")
+czysc()
+# 12 000 pomiarow, w tym jeden GORACY z interwencja - musi przetrwac skracanie
+t0 = time.time() - 60 * 86400
+with io.open(os.path.join(BASE, "history.csv"), "w", encoding="utf-8") as f:
+    f.write("time,thermal_state,chip_C,gpu_C,batt_C,fan,W,batt_pct,ac,cpu,load,level\n")
+    for i in range(12000):
+        stempel = time.strftime("%Y-%m-%d %H:%M:%S+0200", time.localtime(t0 + i * 15))
+        if i == 7777:
+            f.write("%s,critical,99.4,60.0,40.0,4800,60.0,80,1,60,9.10,3\n" % stempel)
+        else:
+            f.write("%s,nominal,%.1f,45.0,31.0,0,12.5,90,1,100,2.30,0\n" % (stempel, 40 + i % 20))
+
+cel = os.path.join(BASE, "duzy.txt")
+uruchom("--file", cel, "--all")
+tekst = io.open(cel, encoding="utf-8").read()
+wierszy_osi = len([l for l in tekst.splitlines() if l.startswith("  20")])
+
+test("18. dlugi raport zostal skrocony", wierszy_osi < 12000,
+     "na osi %d wierszy z 12000" % wierszy_osi)
+test("19. ...i dokument MOWI, ze skrocil (nie po cichu)",
+     "TIMELINE SHORTENED" in tekst)
+test("20. szczyt 99,4 C nadal wykryty", "PEAK MEASURED CHIP TEMPERATURE: 99.4 C" in tekst,
+     "brak szczytu")
+test("21. GORACY wiersz z interwencja PRZETRWAL skracanie",
+     "critical, 99.4" in tekst,
+     "wiersz dowodowy wyrzucony przy skracaniu - to bylby dokladnie ten blad, "
+     "ktorego ta pozycja dotyczy")
+
+# przypadek przeciwny: maly zbior nietkniety
+czysc()
+daj_pomiary()
+cel = os.path.join(BASE, "maly.txt")
+uruchom("--file", cel, "--all")
+maly = io.open(cel, encoding="utf-8").read()
+test("22. maly zbior: zadnego skracania i wszystkie wiersze na miejscu",
+     "TIMELINE SHORTENED" not in maly
+     and len([l for l in maly.splitlines() if l.startswith("  20")]) == 1)
+
 shutil.rmtree(BASE, ignore_errors=True)
 ok = sum(wyniki)
 print("\nWYNIK: %d/%d" % (ok, len(wyniki)))

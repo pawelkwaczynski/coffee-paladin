@@ -25,6 +25,8 @@ import tempfile
 import sys
 import time
 
+MAX_WIERSZY_OSI = 5000   # sufit osi czasu w raporcie, patrz komentarz przy skracaniu
+
 VERSION = "2.1.8"   # bump razem z guard_version/heatbar VERSION/README (checklista release)
 
 HOME = os.path.expanduser("~")
@@ -106,6 +108,8 @@ PL = {
         "thermal-report: --to wymaga daty w formacie RRRR-MM-DD",
     "thermal-report: the range ends before it starts (--from is after --to)":
         "thermal-report: zakres konczy sie przed poczatkiem (--from jest pozniej niz --to)",
+    "  TIMELINE SHORTENED: showing %d of %d measurements. Every reading within 10 C of the peak\n     and every reading with an intervention was kept; the calm rest is sampled evenly.\n     Full data: history.csv (and its rotated generations).":
+        "  OS CZASU SKROCONA: pokazano %d z %d pomiarow. Zostaly WSZYSTKIE odczyty w granicach 10 C\n     od szczytu i wszystkie z interwencja; spokojna reszta jest probkowana rownomiernie.\n     Pelne dane: history.csv (razem ze zrotowanymi pokoleniami).",
 }
 
 RU = {
@@ -169,6 +173,8 @@ RU = {
         "thermal-report: --to требует дату в формате ГГГГ-ММ-ДД",
     "thermal-report: the range ends before it starts (--from is after --to)":
         "thermal-report: период заканчивается раньше, чем начинается (--from позже --to)",
+    "  TIMELINE SHORTENED: showing %d of %d measurements. Every reading within 10 C of the peak\n     and every reading with an intervention was kept; the calm rest is sampled evenly.\n     Full data: history.csv (and its rotated generations).":
+        "  ХРОНОЛОГИЯ СОКРАЩЕНА: показано %d из %d измерений. Сохранены ВСЕ значения в пределах 10 C\n     от пика и все с вмешательством; спокойный остаток прорежен равномерно.\n     Полные данные: history.csv (вместе с ротированными поколениями).",
 }
 
 ZH = {
@@ -232,6 +238,8 @@ ZH = {
         "thermal-report: --to 需要 YYYY-MM-DD 格式的日期",
     "thermal-report: the range ends before it starts (--from is after --to)":
         "thermal-report: 范围的结束早于开始(--from 晚于 --to)",
+    "  TIMELINE SHORTENED: showing %d of %d measurements. Every reading within 10 C of the peak\n     and every reading with an intervention was kept; the calm rest is sampled evenly.\n     Full data: history.csv (and its rotated generations).":
+        "  时间轴已缩减:显示 %d / %d 条测量。保留了距峰值 10 C 以内的全部读数\n     以及全部发生干预的读数;其余平稳部分按等间隔抽样。\n     完整数据:history.csv(含其轮转世代)。",
 }
 
 ES = {
@@ -295,6 +303,8 @@ ES = {
         "thermal-report: --to necesita una fecha AAAA-MM-DD",
     "thermal-report: the range ends before it starts (--from is after --to)":
         "thermal-report: el rango termina antes de empezar (--from es posterior a --to)",
+    "  TIMELINE SHORTENED: showing %d of %d measurements. Every reading within 10 C of the peak\n     and every reading with an intervention was kept; the calm rest is sampled evenly.\n     Full data: history.csv (and its rotated generations).":
+        "  LINEA TEMPORAL ACORTADA: se muestran %d de %d mediciones. Se conservaron TODAS las lecturas\n     a menos de 10 C del pico y todas con intervencion; el resto tranquilo se muestrea de forma uniforme.\n     Datos completos: history.csv (y sus generaciones rotadas).",
 }
 
 DICTS = {"pl": PL, "ru": RU, "zh": ZH, "es": ES}
@@ -670,6 +680,7 @@ def main():
     ile = 0
     szczyt = (0, "")
     odrzucone, odrzucony_max = 0, 0.0
+    osie = []
     try:
         for linia in wiersze(HIST, pomijaj_naglowek=True):
             c = linia.strip().split(",")
@@ -700,9 +711,36 @@ def main():
                     odrzucony_max = max(odrzucony_max, v)
             except (ValueError, OverflowError):
                 pass
-            W.append("  " + ", ".join(c[:12]))
+            # zbieramy do listy zamiast dopisywac od razu: dopiero majac calosc wiemy,
+            # ktore wiersze sa GORACE, a wiec ktorych nie wolno wyrzucic przy skracaniu
+            try:
+                poziom = int(float(c[11])) if c[11] else 0
+            except (ValueError, IndexError):
+                poziom = 0
+            osie.append(("  " + ", ".join(c[:12]), v if v == v else 0.0, poziom))
     except FileNotFoundError:
         pass
+
+    # --- os czasu bywa nie do uniesienia -------------------------------------------
+    # Pelna historia to 5 MB na plik x 6 pokolen. Zmierzone: `--all` dawal raport
+    # 27 MB / 341 975 linii, czyli ~6200 stron PDF - dokumentu tej wielkosci nie da sie
+    # nikomu wyslac ani wydrukowac, a `--pdf` na nim to zaproszenie do problemow.
+    # Skracamy, ale NIE gubimy dowodu: zostaja WSZYSTKIE wiersze goretsze niz 10 C
+    # ponizej szczytu i wszystkie z niezerowym poziomem interwencji, reszta jest
+    # probkowana rownomiernie. I mowimy o tym wprost - skrocenie po cichu byloby tym
+    # samym bledem, co ciche odrzucanie wierszy z pozycji 5.
+    prog_goracy = max(0.0, szczyt[0] - 10.0)
+    skrocono = 0
+    if len(osie) > MAX_WIERSZY_OSI:
+        istotne = [i for i, (_, v, lv) in enumerate(osie) if v >= prog_goracy > 0 or lv > 0]
+        budzet = max(1, MAX_WIERSZY_OSI - len(istotne))
+        reszta = [i for i in range(len(osie)) if i not in set(istotne)]
+        krok = max(1, len(reszta) // budzet) if reszta else 1
+        wybrane = sorted(set(istotne) | set(reszta[::krok]))
+        skrocono = len(osie) - len(wybrane)
+        osie = [osie[i] for i in wybrane]
+    for tekst_wiersza, _v, _lv in osie:
+        W.append(tekst_wiersza)
     # BRAK POMIAROW to nie to samo co BRAK ZDARZEN. Przy pustym katalogu danych dokument
     # wypelnial sie samymi "(brak - nie wykryto...)" i pusta osia czasu, czyli wygladal
     # jak dowod ZDROWIA maszyny - a znaczyl tylko tyle, ze nikt niczego nie mierzyl
@@ -717,6 +755,12 @@ def main():
                       "range predates the installation."))
 
     naglowek_osi = []
+    if skrocono:
+        naglowek_osi.append(
+            T("  TIMELINE SHORTENED: showing %d of %d measurements. Every reading within 10 C "
+              "of the peak\n     and every reading with an intervention was kept; the calm rest "
+              "is sampled evenly.\n     Full data: history.csv (and its rotated generations).")
+            % (len(osie), len(osie) + skrocono))
     if szczyt[0]:
         naglowek_osi.append(T("  PEAK MEASURED CHIP TEMPERATURE: %.1f C (%s)") % szczyt)
     if odrzucone:
