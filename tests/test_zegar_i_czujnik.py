@@ -84,6 +84,61 @@ for hw in ({"model_id": "Mac15,12", "chip": "M3", "fan_count": 0, "chip_sensor":
 test("Air przed macmonem i po nim ma ROZNE znaczniki kalibracji", len(tagi) == 2,
      "znaczniki: %s" % tagi)
 
+print("\n4. zegar monotoniczny zaczyna od zera w kazdym procesie")
+# Apple'owy /usr/bin/python3 - ten, ktorym launchd uruchamia demona - liczy
+# time.monotonic() od zera dla kazdego procesu. Dwa miejsca w guardzie zakladaly
+# inaczej i oba sie na tym wywrocily na zywym Macu 02.08.2026.
+
+# 4a. Cache czujnika: wartosc startowa 0.0 wygladala jak "odczyt sprzed chwili",
+#     wiec przez pierwsze 10 s zycia demona soc_sensors() oddawalo None bez pytania
+#     macmona - straznik meldowal "brak czujnika chipa" i pilnowal samej baterii.
+test("cache czujnika nie udaje odczytu przed pierwszym odczytem",
+     g._soc_cache["t"] is None, "wartosc startowa = %r" % (g._soc_cache["t"],))
+
+# Odtwarzamy dokladnie warunki demona: swiezy proces, zegar monotoniczny od zera,
+# ani jednego odczytu za soba.
+zapamietane = dict(g._soc_cache)
+prawdziwy_run, prawdziwy_mono = g.run, time.monotonic
+odczyty = [0]
+
+
+def zliczajacy_run(cmd, timeout=10):
+    if "macmon" in cmd[0]:
+        odczyty[0] += 1
+    return prawdziwy_run(cmd, timeout=timeout)
+
+
+try:
+    g.run = zliczajacy_run
+    g.time.monotonic = lambda: 0.05          # tyle, ile ma demon tuz po starcie
+    g.soc_sensors()
+    test("tuz po starcie demona straznik naprawde pyta czujnik chipa",
+         odczyty[0] == 1, "odczytow macmona: %d (0 = straznik uznal, ze czujnika nie ma)"
+         % odczyty[0])
+finally:
+    g.run, g.time.monotonic = prawdziwy_run, prawdziwy_mono
+    g._soc_cache.clear()
+    g._soc_cache.update(zapamietane)
+
+# 4b. Limit pauzy: pomiar monotoniczny poprzedniego demona wychodzi w nowym procesie
+#     ujemny, wiec pauza wygladala na swiezo zalozona i limit nie odpalal nigdy.
+#     Zadanie zamrozone przed restartem zostawaloby w stanie T na zawsze.
+for opis, wpis, oczekiwane in [
+    ("pauza tego demona, godzina - ubijamy",
+     {"since": g.now() - 3600, "since_mono": time.monotonic() - 3600,
+      "mono_id": g._MONO_ID}, True),
+    ("pauza po restarcie demona, godzina wg zegara sciennego - ubijamy",
+     {"since": g.now() - 3600, "since_mono": time.monotonic() + 50000,
+      "mono_id": "999:1"}, True),
+    ("pauza po restarcie demona, minuta - NIE ubijamy",
+     {"since": g.now() - 60, "since_mono": time.monotonic() + 50000,
+      "mono_id": "999:1"}, False),
+]:
+    m = wpis.get("since_mono")
+    d = (max(0.0, time.monotonic() - m) if m is not None and wpis.get("mono_id") == g._MONO_ID
+         else max(0.0, g.now() - wpis.get("since", g.now())))
+    test(opis, (d > limit) is oczekiwane, "dlugosc=%.0f s" % d)
+
 shutil.rmtree(BASE, ignore_errors=True)
 print("\nWYNIK: %d/%d" % (zaliczone, wszystkie))
 sys.exit(0 if zaliczone == wszystkie else 1)

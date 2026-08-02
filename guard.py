@@ -815,6 +815,11 @@ def run(cmd, timeout=10):
         return ""
 
 
+# Zegar monotoniczny ma sens tylko WEWNATRZ jednego procesu. Wpis o pauzie
+# przezywa restart demona (i dobrze - inaczej SIGKILL na straznika zostawialby
+# zamrozone procesy bez opiekuna), wiec trzeba wiedziec, czyj to pomiar.
+_MONO_ID = "%d:%d" % (os.getpid(), int(time.time()))
+
 _last_notify = {}
 
 # Krotko zyjace procesy pomocnicze (osascript/afplay/curl). Trzymamy referencje
@@ -980,7 +985,14 @@ def battery_temp_c():
     return best
 
 
-_soc_cache = {"t": 0.0, "val": None}
+# UWAGA na wartosc startowa. Wczesniej bylo 0.0 i to sie zemscilo: Apple'owy
+# /usr/bin/python3 (tym launchd uruchamia demona) liczy time.monotonic() OD ZERA
+# w kazdym procesie, wiec przez pierwsze 10 sekund zycia demona warunek swiezosci
+# wychodzil prawdziwy i soc_sensors() oddawalo startowe None, ani razu nie pytajac
+# macmona. Straznik meldowal wtedy "brak czujnika chipa" i przez pierwszy cykl
+# pilnowal wylacznie baterii. None znaczy "jeszcze nie czytalem" niezaleznie od
+# tego, od czego dany Python zaczyna liczyc.
+_soc_cache = {"t": None, "val": None}
 
 
 def soc_sensors(max_age=10.0):
@@ -993,7 +1005,7 @@ def soc_sensors(max_age=10.0):
     UWAGA: na macOS 26 sensory przez IOHIDEventSystem sa juz zablokowane dla procesow
     bez uprawnien (dlatego wlasny czujnik Swift zwracal zero) — IOReport nadal dziala.
     """
-    if 0 <= time.monotonic() - _soc_cache["t"] < max_age:
+    if _soc_cache["t"] is not None and 0 <= time.monotonic() - _soc_cache["t"] < max_age:
         return _soc_cache["val"]
     val = None
     for exe in ("/opt/homebrew/bin/macmon", "macmon"):
@@ -1419,6 +1431,7 @@ def do_pause(cfg, st, targets, reason, manual=False, lvl_krytyczny=False):
         blad = sig(pid, pgid, signal.SIGSTOP)
         if blad == 0:
             st["paused"][key] = {"since": now(), "since_mono": time.monotonic(),
+                                 "mono_id": _MONO_ID,
                                  "comm": comm, "pgid": pgid, "cpu": cpu, "manual": manual}
             changed = True
             # Zapis NATYCHMIAST, nie na koncu cyklu: gdyby demon zginal w oknie miedzy
@@ -2144,7 +2157,7 @@ def fleet_write(cfg, status):
         hw = _hw_cache_fleet()
         out["model"] = hw.get("model")
         out["serial"] = hw.get("serial")
-        out["guard_version"] = "2.1.1"
+        out["guard_version"] = "2.1.2"
         tmp = os.path.join(d, ".%s.tmp" % hostname())
         with open(tmp, "w") as f:
             json.dump(out, f, ensure_ascii=False)
@@ -2523,11 +2536,15 @@ def main():
             # Ile ta pauza trwa NAPRAWDE. Zegar scienny potrafi skoczyc (NTP, korekta
             # RTC, powrot z uspienia): skok o 3 h ubijal SIGTERM-em zadanie zapauzowane
             # minute wczesniej, a cofniecie zegara wylaczalo limit na dobre. monotonic()
-            # nie przezywa restartu demona, ale demon i tak wznawia wszystko przy starcie,
-            # wiec zaden wpis nie zyje dluzej niz jeden przebieg petli.
+            # nie przezywa restartu demona: nowy proces zaczyna liczyc od nowa (a pod
+            # Apple'owym pythonem dokladnie od zera), wiec pomiar starego demona wyszedlby
+            # ujemny i limit pauzy nigdy by nie zadzialal - zadanie zamrozone przed
+            # restartem zostaloby w stanie T na zawsze. Dlatego wpis niesie znacznik
+            # procesu, a cudzy pomiar wraca na zegar scienny, ktory jako jedyny znaczy
+            # to samo po obu stronach restartu.
             def _dlugosc_pauzy(v):
                 m = v.get("since_mono")
-                if m is not None:
+                if m is not None and v.get("mono_id") == _MONO_ID:
                     return max(0.0, time.monotonic() - m)
                 return max(0.0, now() - v.get("since", now()))
 
