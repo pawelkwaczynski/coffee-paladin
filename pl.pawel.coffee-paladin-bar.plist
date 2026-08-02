@@ -4,7 +4,7 @@
 <dict>
   <key>Label</key><string>pl.pawel.coffee-paladin-bar</string>
   <key>ProgramArguments</key>
-  <array><string>__HOME__/.local/bin/coffee-paladin-bar</string></array>
+  <array><string>__BAR_EXEC__</string></array>
   <key>RunAtLoad</key><true/>
   <!-- Wskrzeszamy TYLKO po awarii. Z KeepAlive=true "Zakoncz heatbar" z menu bylo bezuzyteczne:
        launchd natychmiast startowal go z powrotem. SuccessfulExit=false = restartuj, gdy proces

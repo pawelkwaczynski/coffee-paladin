@@ -1,11 +1,14 @@
 """Spojnosc miedzy plikami - rzeczy, ktore rozjezdzaja sie po kazdej przerobce.
 
-Piec kategorii, kazda z realnej wpadki:
+Osiem kategorii, kazda z realnej wpadki:
   1. string wolany przez T() bez wpisu w slowniku -> komunikat po angielsku w polskim UI;
   2. wersja w czterech miejscach naraz (guard, thermal-report, heatbar, plugin.json);
   3. narzedzie bez --help: `thermal-report --help` generowal RAPORT na Pulpicie (02.08.2026);
   4. install.sh tworzy cos, czego uninstall.sh nie usuwa (skill, symlinki, migawka floty);
   5. guard loguje znacznik, ktorego parser nie zna -> raport dowodowy gubi zdarzenia.
+  6. kopia pokolenia() w guard.py i thermal-report nie moze sie rozjechac;
+  7. parser czasu w czterech narzedziach musi dawac ten sam wynik;
+  8. bundle .app ma byc tworzony i usuwany symetrycznie, bez dotykania /Applications w tescie.
 
 Uruchomienie:  python3 tests/test_spojnosc.py
 Nie dotyka prawdziwego ~/.coffee-paladin.
@@ -80,6 +83,30 @@ uninst = io.open(os.path.join(SRC,'uninstall.sh')).read()
 for binarka in ("coffee-paladin", "coffee-paladin-bar", "heat", "safe-run", "thermal-report", "fleet", "thermalstate"):
     if '"$BIN/%s"' % binarka not in uninst:
         bledy.append("uninstall.sh nie usuwa %s" % binarka)
+
+# 4b. Bundle .app jest takim samym artefaktem instalacji jak binarki: jesli instalator
+#     stworzy go w dwoch mozliwych lokalizacjach, deinstalator ma zabrac obie. Test jest
+#     statyczny celowo - poprzednie kontrole instalatora odpalane na zywo zostawialy smieci
+#     w prawdziwym HOME i wymagaly recznego sprzatania po nieudanym tescie.
+if ('coffee-paladin.app' not in inst or 'APP_CONTENTS="$APP_BUNDLE/Contents"' not in inst
+        or 'APP_MACOS="$APP_CONTENTS/MacOS"' not in inst
+        or 'APP_RESOURCES="$APP_CONTENTS/Resources"' not in inst):
+    bledy.append("install.sh nie tworzy struktury coffee-paladin.app/Contents")
+if 'CFBundleExecutable' not in inst or 'CFBundleIdentifier' not in inst or 'LSUIElement' not in inst:
+    bledy.append("install.sh nie zapisuje wymaganych kluczy Info.plist dla bundle")
+if 'wersja_heatbar' not in inst or 'let VERSION = ' not in inst:
+    bledy.append("install.sh nie czyta wersji bundle z heatbar.swift")
+if 'tools/zrob_ikone.sh' not in inst or 'AppIcon.icns' not in inst:
+    bledy.append("install.sh nie buduje AppIcon.icns z osobnego narzedzia")
+if 'codesign -s - -f "$APP_BUNDLE"' not in inst:
+    bledy.append("install.sh nie podpisuje calego bundle ad hoc")
+if 'ln -s "$BAR_EXEC" "$BIN/coffee-paladin-bar"' not in inst:
+    bledy.append("install.sh nie zostawia symlinka zgodnosciowego coffee-paladin-bar")
+if '__BAR_EXEC__' not in io.open(os.path.join(SRC, 'pl.pawel.coffee-paladin-bar.plist')).read():
+    bledy.append("LaunchAgent paska nie ma placeholdera __BAR_EXEC__")
+for app in ('"/Applications/coffee-paladin.app"', '"$HOME/Applications/coffee-paladin.app"'):
+    if app not in uninst:
+        bledy.append("uninstall.sh nie usuwa bundle %s" % app)
 
 # 5. Znaczniki logu uzywane przez guard sa znane wszystkim parserom.
 #    ASERCJA BYLA "GREPEM PO ZRODLE": sprawdzala, czy napis "[PAUSE]" WYSTEPUJE w pliku -
@@ -164,7 +191,7 @@ try:
 except Exception as _e:
     bledy.append("nie moge porownac parsera stempla: %s: %s" % (type(_e).__name__, _e))
 
-print("SPRAWDZEN: 7 kategorii")
+print("SPRAWDZEN: 8 kategorii")
 if bledy:
     for b in bledy: print("  BLAD: %s" % b)
     sys.exit(1)

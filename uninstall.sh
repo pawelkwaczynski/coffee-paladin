@@ -8,6 +8,9 @@ for A in pl.pawel.coffee-paladin-bar pl.pawel.coffee-paladin; do
   launchctl bootout "gui/$UID/$A" 2>/dev/null
   rm -f "$HOME/Library/LaunchAgents/$A.plist"
 done
+for APP in "/Applications/coffee-paladin.app" "$HOME/Applications/coffee-paladin.app"; do
+  rm -rf "$APP"
+done
 # Nic nie moze zostac zamrozone. Demon wznawia wszystko przy SIGTERM, ale gdy launchd
 # dobije go SIGKILL-em (petla stala na macmon/system_profiler), procesy zostaja w SIGSTOP,
 # a --purge kasuje state.json - czyli jedyny slad po nich. Wtedy nikt ich juz nie wznowi.

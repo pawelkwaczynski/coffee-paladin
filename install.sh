@@ -9,6 +9,62 @@ BASE="$HOME/.coffee-paladin"
 AGENT="pl.pawel.coffee-paladin"
 PLIST="$HOME/Library/LaunchAgents/$AGENT.plist"
 
+sed_repl() {
+  printf '%s' "$1" | sed 's/[&|\\]/\\&/g'
+}
+
+wybierz_katalog_aplikacji() {
+  if [ -n "${COFFEE_PALADIN_APP_PARENT:-}" ]; then
+    printf '%s\n' "$COFFEE_PALADIN_APP_PARENT"
+  elif [ -d /Applications ] && [ -w /Applications ]; then
+    printf '%s\n' "/Applications"
+  else
+    printf '%s\n' "$HOME/Applications"
+  fi
+}
+
+wersja_heatbar() {
+  awk -F\" '/let VERSION = "/ {print $2; exit}' "$SRC/heatbar.swift"
+}
+
+zapisz_info_plist() {
+  local wersja="$1"
+  local cel="$2"
+  cat > "$cel" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleExecutable</key>
+  <string>coffee-paladin-bar</string>
+  <key>CFBundleIdentifier</key>
+  <string>pl.pawel.coffee-paladin</string>
+  <key>CFBundleName</key>
+  <string>coffee-paladin</string>
+  <key>CFBundleIconFile</key>
+  <string>AppIcon</string>
+  <key>CFBundleShortVersionString</key>
+  <string>$wersja</string>
+  <key>CFBundleVersion</key>
+  <string>$wersja</string>
+  <key>CFBundlePackageType</key>
+  <string>APPL</string>
+  <key>LSMinimumSystemVersion</key>
+  <string>14.0</string>
+  <key>LSUIElement</key>
+  <true/>
+</dict>
+</plist>
+PLIST
+}
+
+APP_PARENT="$(wybierz_katalog_aplikacji)"
+APP_BUNDLE="$APP_PARENT/coffee-paladin.app"
+APP_CONTENTS="$APP_BUNDLE/Contents"
+APP_MACOS="$APP_CONTENTS/MacOS"
+APP_RESOURCES="$APP_CONTENTS/Resources"
+BAR_EXEC="$APP_MACOS/coffee-paladin-bar"
+
 # Instalacje sprzed 2.0.0 trzymaly dane w ~/.thermal-guard i mialy inne etykiety uslug.
 # Automigracji juz nie ma (nikt jej nie potrzebuje), ale zostawienie WCZYTANYCH starych
 # uslug wskazujacych na nieistniejace binarki to cichy smiec w launchd - a osierocona
@@ -31,12 +87,14 @@ chmod 700 "$BASE" "$BASE/managed" 2>/dev/null || true
 
 # swieze konto / niekompletna paczka: sprawdz zrodla ZANIM cokolwiek ruszymy
 for f in guard.py safe-run heat thermal-report fleet thermalstate.swift heatbar.swift \
-         pl.pawel.coffee-paladin.plist pl.pawel.coffee-paladin-bar.plist; do
+         pl.pawel.coffee-paladin.plist pl.pawel.coffee-paladin-bar.plist \
+         branding/paladin.png tools/zrob_ikone.sh; do
   if [ ! -f "$SRC/$f" ]; then
     echo "  ❌ brak pliku zrodlowego: $SRC/$f — przerwano (niepelna paczka/klon?)"
     exit 1
   fi
 done
+echo "  ℹ️  bundle aplikacji: $APP_BUNDLE"
 
 # 0. ZALEZNOSCI. Bez swiftc tracisz NARAZ czujnik chipa i pasek menu - zostaje sam
 # bezpiecznik bateryjny, czyli polowa produktu. Dlatego pytamy o to NA POCZATKU,
@@ -118,8 +176,31 @@ fi
 
 # 1c. pasek menu — blad kompilacji ma byc WIDOCZNY, nie polkniety
 if command -v swiftc >/dev/null 2>&1; then
-  if swiftc -O -o "$BIN/coffee-paladin-bar" "$SRC/heatbar.swift" 2>"$BASE/heatbar_build.err"; then
-    echo "  ✅ coffee-paladin-bar (pasek menu) zbudowany"
+  HB_VERSION="$(wersja_heatbar)"
+  if [ -z "$HB_VERSION" ]; then
+    echo "  ⚠️  pasek NIE zbudowany — brak let VERSION w heatbar.swift"
+  else
+    mkdir -p "$APP_MACOS" "$APP_RESOURCES"
+  fi
+  if [ -n "${HB_VERSION:-}" ] && swiftc -O -o "$BAR_EXEC" "$SRC/heatbar.swift" 2>"$BASE/heatbar_build.err"; then
+    zapisz_info_plist "$HB_VERSION" "$APP_CONTENTS/Info.plist"
+    if "$SRC/tools/zrob_ikone.sh" "$SRC/branding/paladin.png" "$APP_RESOURCES/AppIcon.icns" \
+        >/dev/null 2>"$BASE/icon_build.err"; then
+      echo "  ✅ AppIcon.icns zbudowany z branding/paladin.png"
+    else
+      echo "  ⚠️  ikona NIE zbudowana — szczegoly: $BASE/icon_build.err"
+    fi
+    if command -v codesign >/dev/null 2>&1; then
+      codesign -s - -f "$APP_BUNDLE" >/dev/null 2>"$BASE/codesign.err" \
+        && echo "  ✅ bundle podpisany ad hoc" \
+        || echo "  ⚠️  podpis ad hoc nieudany — szczegoly: $BASE/codesign.err"
+    else
+      echo "  ⚠️  brak codesign — bundle zostal bez podpisu ad hoc"
+    fi
+    rm -f "$BIN/coffee-paladin-bar"
+    ln -s "$BAR_EXEC" "$BIN/coffee-paladin-bar"
+    echo "  ✅ coffee-paladin.app (pasek menu) -> $APP_BUNDLE"
+    echo "  ✅ coffee-paladin-bar -> $BAR_EXEC"
   else
     echo "  ⚠️  pasek NIE zbudowany — szczegoly: $BASE/heatbar_build.err (demon dziala bez paska)"
   fi
@@ -199,7 +280,9 @@ fi
 ma_pid() { launchctl list | awk -v l="$1" '$3==l && $1 != "-" {found=1} END {exit !found}'; }
 
 # 4. LaunchAgent (demon)
-sed "s|__HOME__|$HOME|g" "$SRC/pl.pawel.coffee-paladin.plist" > "$PLIST"
+HOME_SED="$(sed_repl "$HOME")"
+BAR_EXEC_SED="$(sed_repl "$BAR_EXEC")"
+sed "s|__HOME__|$HOME_SED|g" "$SRC/pl.pawel.coffee-paladin.plist" > "$PLIST"
 launchctl bootout "gui/$UID/$AGENT" 2>/dev/null
 sleep 3   # bootout jest asynchroniczny — bez tego bootstrap zwraca I/O error
 for _ in 1 2 3; do
@@ -214,9 +297,10 @@ else
 fi
 
 # 5. pasek menu (osobny agent — mozna wylaczyc nie ruszajac bezpiecznika)
-if [ -x "$BIN/coffee-paladin-bar" ] && [ -f "$SRC/pl.pawel.coffee-paladin-bar.plist" ]; then
+if [ -x "$BAR_EXEC" ] && [ -f "$SRC/pl.pawel.coffee-paladin-bar.plist" ]; then
   HB="$HOME/Library/LaunchAgents/pl.pawel.coffee-paladin-bar.plist"
-  sed "s|__HOME__|$HOME|g" "$SRC/pl.pawel.coffee-paladin-bar.plist" > "$HB"
+  sed -e "s|__HOME__|$HOME_SED|g" -e "s|__BAR_EXEC__|$BAR_EXEC_SED|g" \
+    "$SRC/pl.pawel.coffee-paladin-bar.plist" > "$HB"
   launchctl bootout "gui/$UID/pl.pawel.coffee-paladin-bar" 2>/dev/null
   sleep 3   # bootout jest asynchroniczny — jak przy demonie
   for _ in 1 2 3; do
