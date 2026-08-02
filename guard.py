@@ -1197,10 +1197,23 @@ def full_args(pid):
 # Programy, ktore SAME nic nie znacza - tozsamosc procesu niesie ich pierwszy argument
 # (skrypt albo modul). Dla nich argv[1] traktujemy jak nazwe programu.
 INTERPRETERY = frozenset((
-    "node", "nodejs", "deno", "bun", "python", "python3", "python3.9", "python3.11",
-    "python3.12", "python3.13", "ruby", "perl", "php", "java", "sh", "bash", "zsh",
-    "osascript", "tsx", "ts-node", "uv", "uvx", "pipx", "npx",
+    "node", "nodejs", "deno", "bun", "python", "ruby", "perl", "php", "java",
+    "sh", "bash", "zsh", "osascript", "tsx", "ts-node", "uv", "uvx", "pipx", "npx",
 ))
+
+# Nazwy z numerem wersji (python3.14, ruby3.3, node20, perl5.34). Twarda lista wersji
+# ZAWSZE zostaje w tyle za instalacja uzytkownika: 02.08.2026 lista konczyla sie na
+# python3.13, a `python3` na tej maszynie to juz 3.14 z homebrew. Skutek byl odwrotny
+# do zamierzonego - proces `python3.14 /sciezka/mcp_server.py` NIE byl rozpoznawany
+# jako interpreter, wiec sciezka skryptu leciala do kosza razem z danymi i agent AI
+# tracil ochrone przed SIGSTOP. Regula wersjonowana nie starzeje sie z kazdym wydaniem.
+INTERPRETER_WERSJONOWANY = re.compile(
+    r"^(python|ruby|perl|php|node|nodejs|deno|bun)[0-9]+(\.[0-9]+)*$")
+
+
+def jest_interpreterem(nazwa):
+    """`nazwa` to basename argv[0] po zdjeciu cudzyslowow, malymi literami."""
+    return nazwa in INTERPRETERY or bool(INTERPRETER_WERSJONOWANY.match(nazwa))
 
 
 def args_bez_sciezek(pid):
@@ -1227,7 +1240,7 @@ def args_bez_sciezek(pid):
     if not czesci:
         return ""
     zostaw = [czesci[0]]
-    interpreter = os.path.basename(czesci[0].strip('"\'')).lower() in INTERPRETERY
+    interpreter = jest_interpreterem(os.path.basename(czesci[0].strip('"\'')).lower())
     skrypt_wziety = not interpreter
     for a in czesci[1:]:
         if "/" not in a:

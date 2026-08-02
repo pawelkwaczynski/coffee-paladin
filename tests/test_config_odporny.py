@@ -121,17 +121,19 @@ wzorce = [w.lower() for w in g.load_cfg()["never_arg_patterns"]]
 
 
 def chroniony(cmd):
-    czesci = cmd.split()
-    if not czesci:
-        return False
-    zostaw = [czesci[0]]
-    interpreter = os.path.basename(czesci[0].strip('"\'')).lower() in g.INTERPRETERY
-    for i, a in enumerate(czesci[1:], start=1):
-        if interpreter and i == 1:
-            zostaw.append(a)
-        elif "/" not in a:
-            zostaw.append(a)
-    return any(w in " ".join(zostaw).lower() for w in wzorce)
+    """Wolamy PRAWDZIWA guard.args_bez_sciezek, nie wlasna kopie jej logiki.
+
+    Kopia stala tu wczesniej i zdazyla sie rozjechac z oryginalem (brala argv[1]
+    zawsze, a produkcja bierze pierwszy argument NIEBEDACY flaga). Test na kopii
+    przechodzi takze wtedy, gdy produkcja jest zepsuta - czyli nie testuje niczego.
+    """
+    stary = g.full_args
+    g.full_args = lambda pid, _w=cmd: _w
+    try:
+        args = g.args_bez_sciezek(1)
+    finally:
+        g.full_args = stary
+    return any(w in args for w in wzorce)
 
 
 for opis, cmd, oczekiwane in [
@@ -153,6 +155,19 @@ for opis, cmd, oczekiwane in [
      "node /usr/lib/node_modules/typescript-language-server/lib/cli.js", True),
     ("rozszerzenie VS Code pozostaje nietykalne",
      "python3 /Users/x/.vscode/extensions/foo/run.py", True),
+    # Twarda lista wersji interpreterow konczyla sie na python3.13, a `python3` na tej
+    # maszynie to juz 3.14 - agent uruchomiony pod pelna nazwa tracil ochrone.
+    ("agent pod python3.14 (wersja spoza twardej listy) ZACHOWUJE ochrone",
+     "python3.14 /Users/x/claude/agent.py", True),
+    ("agent pod /opt/homebrew/bin/python3.14 ZACHOWUJE ochrone",
+     "/opt/homebrew/bin/python3.14 /Users/x/.vscode/extensions/foo/run.py", True),
+    ("agent pod przyszla wersja (python3.20) ZACHOWUJE ochrone",
+     "python3.20 -m mcp.server", True),
+    ("agent pod node20 ZACHOWUJE ochrone", "node20 /opt/claude/mcp-server.js", True),
+    # przypadek PRZECIWNY: rozluznienie listy interpreterow nie moze uczynic
+    # zwyklego enkodera nietykalnym
+    ("wideo mielone przez python3.14 nadal jest pauzowalne",
+     "python3.14 /Users/x/skrypty/kompresor.py /Users/x/Desktop/claude_brain/rec.mkv", False),
 ]:
     test(opis, chroniony(cmd) is oczekiwane, "cmd: %s" % cmd[:60])
 
