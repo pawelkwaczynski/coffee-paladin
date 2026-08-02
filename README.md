@@ -1,4 +1,4 @@
-# coffee-paladin v2.1.10
+# coffee-paladin v2.2.1
 
 <p align="center">
   <img src="branding/paladin.gif" alt="coffee-paladin - the project mascot" width="260">

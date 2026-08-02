@@ -2538,8 +2538,13 @@ def _loguj_awake(msg):
     # Ujemna roznica (cofniety zegar) tez nie moze wyciszac na zawsze.
     odstep = t - _awake_log["kiedy"]
     if odstep < 0:
-        _awake_log["kiedy"] = t          # zegar skoczyl w tyl - zaczynamy liczyc od nowa
-        odstep = 0
+        # Zegar skoczyl w tyl (NTP, powrot z uspienia, zmiana strefy). Wczesniej
+        # zerowalismy tu odstep, co ZAMYKALO tlumik na kolejne 10 minut liczone od
+        # nowa - czyli zdarzenie wypadajace dokladnie na skok zegara przepadalo, a
+        # keep-awake nie zostawial sladu w logu. Skok zegara to sam w sobie powod,
+        # zeby wpis PRZEPUSCIC: to anomalia, ktora warto miec w czarnej skrzynce.
+        _awake_log["kiedy"] = t
+        odstep = 600
     if not isinstance(msg, str):
         msg = str(msg)
     if odstep < 600:
@@ -2582,7 +2587,7 @@ def fleet_write(cfg, status):
         hw = _hw_cache_fleet()
         out["model"] = hw.get("model")
         out["serial"] = hw.get("serial")
-        out["guard_version"] = "2.1.10"
+        out["guard_version"] = "2.2.1"
         _bledy = {k: v for k, v in _CICHE_AWARIE.items() if not k.startswith("_ostatni_log_")}
         if _bledy:
             out["swallowed_errors"] = _bledy

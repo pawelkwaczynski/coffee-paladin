@@ -954,7 +954,19 @@ def fuzz_report(seed, n):
                 s.bzdura(wej, "szczyt w raporcie %.1f C, a najwyzszy poprawny pomiar %.1f C"
                          % (float(m.group(1)), oczekiwany), "WYSOKA", klucz="zly-szczyt")
             if m and "MEASUREMENT TIMELINE" in tekst:
-                if tekst.index("PEAK MEASURED") > tekst.index("MEASUREMENT TIMELINE"):
+                # Szczyt ma stac POD naglowkiem sekcji, ale NAD wierszami pomiarow.
+                # Oracle porownywal go z pozycja NAGLOWKA, wiec kazde poprawne
+                # umieszczenie zglaszal jako "wewnatrz osi" - 229 falszywych trafien.
+                # Wlasciwa granica to pierwszy WIERSZ DANYCH.
+                # Granice liczymy OD NAGLOWKA SEKCJI. Wiersze zaczynajace sie od daty
+                # sa takze w sekcjach ZDARZENIA i INTERWENCJE, ktore stoja WYZEJ -
+                # szukanie w calym dokumencie trafialo w nie i dawalo granice mniejsza
+                # niz pozycja naglowka. Stad 229 falszywych trafien takze po pierwszej
+                # poprawce oracle'a.
+                _od = tekst.index("MEASUREMENT TIMELINE")
+                _wiersze = re.search(r"^  \d{4}-\d{2}-\d{2} ", tekst[_od:], re.M)
+                _granica = (_od + _wiersze.start()) if _wiersze else len(tekst)
+                if tekst.index("PEAK MEASURED") > _granica:
                     s.bzdura(wej, "wiersz ze szczytem jest WEWNATRZ osi pomiarow zamiast nad nia",
                              "NISKA", klucz="szczyt-nie-tam")
     finally:

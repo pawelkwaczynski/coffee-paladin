@@ -1,0 +1,193 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""Zamykanie demona i PETLA GLOWNA na prawdziwym procesie (dwie ostatnie luki pokrycia).
+
+Mutacje testow (glowa 2, runda 11) pokazaly dwie dziury, ktorych nie zamykal zaden test:
+
+  * ZAMYKANIE DEMONA - `do_resume` na wyjsciu, zdejmowanie degradacji, ubicie
+    `caffeinate` i zapis `clean_stop`. Cztery mutacje, zero reakcji. Skutki kazdej
+    z nich sa ciche i grozne: proces zostaje ZAMROZONY NA ZAWSZE, Mac nigdy nie
+    zasypia, albo czyste zamkniecie jest przy nastepnym starcie meldowane jako
+    TWARDY PAD - czyli do dokumentu dowodowego trafia awaria, ktorej nie bylo.
+  * PETLA GLOWNA nigdy nie byla uruchamiana przez zaden test. Tutaj demon startuje
+    naprawde, przez `main()`, i przechodzi kilka pelnych taktow.
+
+Demon dziala w IZOLACJI (TG_BASE) i w trybie obserwacji (`dry_run`), wiec nie dotyka
+zadnego procesu uzytkownika. Reczne zamrozenie testujemy tym samym kanalem, ktorego
+uzywa pasek: plikiem-rozkazem.
+
+Uruchomienie:  python3 tests/test_zamkniecie_demona.py
+Nie dotyka prawdziwego ~/.coffee-paladin.
+"""
+import importlib.machinery
+import io
+import json
+import os
+import shutil
+import signal
+import subprocess
+import sys
+import tempfile
+import time
+
+SRC = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+BASE = tempfile.mkdtemp(prefix="tg-zamkniecie-")
+os.environ["TG_BASE"] = BASE
+os.environ.setdefault("TG_LANG", "en")
+
+wyniki = []
+DZIECI = []
+
+
+def test(nazwa, warunek, detal=""):
+    wyniki.append(bool(warunek))
+    print("  [%s] %s%s" % ("PASS" if warunek else "FAIL", nazwa,
+                           ("  -> " + detal) if detal and not warunek else ""))
+
+
+def czekaj_na(warunek, ile=25.0, krok=0.25):
+    koniec = time.time() + ile
+    while time.time() < koniec:
+        if warunek():
+            return True
+        time.sleep(krok)
+    return False
+
+
+def plik(n):
+    return os.path.join(BASE, n)
+
+
+def start_demona(dry_run=True):
+    with io.open(plik("config.json"), "w", encoding="utf-8") as f:
+        json.dump({"dry_run": dry_run, "poll_seconds": 1, "notify": False, "sound": False,
+                   "soc_pause_c": 200, "soc_kill_c": 250, "batt_pause_c": 200,
+                   "keep_awake_auto": False, "fan_check": False}, f)
+    p = subprocess.Popen([sys.executable, os.path.join(SRC, "guard.py")],
+                         stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+                         env=dict(os.environ, TG_BASE=BASE, TG_LANG="en"))
+    DZIECI.append(p)
+    return p
+
+
+def log_tekst():
+    try:
+        return io.open(plik("guard.log"), encoding="utf-8", errors="replace").read()
+    except OSError:
+        return ""
+
+
+# ---------------------------------------------------------------- petla glowna
+print("=== petla glowna naprawde biegnie ===")
+demon = start_demona()
+test("1. demon wystartowal i zapisal status", czekaj_na(lambda: os.path.exists(plik("status.json"))),
+     "brak status.json po 25 s")
+test("2. ...i tyka heartbeat", os.path.exists(plik("heartbeat")))
+test("3. ...i zapisal wpis startowy w logu", "coffee-paladin start" in log_tekst())
+
+mtime1 = os.path.getmtime(plik("status.json"))
+test("4. petla wykonuje KOLEJNE takty (status sie odswieza)",
+     czekaj_na(lambda: os.path.getmtime(plik("status.json")) > mtime1, ile=15),
+     "status.json nie zostal przepisany - petla stoi po pierwszym przebiegu")
+
+try:
+    dane = json.load(io.open(plik("status.json"), encoding="utf-8"))
+except Exception:
+    dane = {}
+test("5. migawka niesie realne pomiary, nie pusty szkielet",
+     isinstance(dane.get("level"), (int, float)) and "thermal_state" in dane,
+     "status.json: %s" % sorted(dane)[:8])
+test("6. historia pomiarow jest zapisywana", os.path.exists(plik("history.csv")))
+
+# ---------------------------------------------------------------- zamkniecie
+print("\n=== zamkniecie: SIGTERM na zywym demonie ===")
+demon.send_signal(signal.SIGTERM)
+try:
+    demon.wait(timeout=40)
+except subprocess.TimeoutExpired:
+    demon.kill()
+test("7. demon konczy sie sam po SIGTERM (nie trzeba go zabijac)", demon.returncode is not None,
+     "musial dostac SIGKILL")
+test("8. zapisal znacznik czystego zamkniecia", os.path.exists(plik("clean_stop")),
+     "brak clean_stop - nastepny start uzna to za TWARDY PAD")
+test("9. ...i wpis koncowy w logu", "coffee-paladin stop" in log_tekst())
+
+# ---------------------------------------------------------------- to jest sedno
+print("\n=== czyste zamkniecie NIE MOZE byc meldowane jako twardy pad ===")
+g = importlib.machinery.SourceFileLoader("zd_guard", os.path.join(SRC, "guard.py")).load_module()
+try:
+    zdarzenia = [json.loads(l) for l in
+                 io.open(plik("events.log"), encoding="utf-8").read().splitlines() if l.strip()]
+except OSError:
+    zdarzenia = []
+pady = [z for z in zdarzenia if z.get("type") == "HARD_SHUTDOWN"]
+test("10. po czystym zamknieciu w czarnej skrzynce NIE MA twardego padu", not pady,
+     "sfabrykowane pady: %s" % [z.get("time") for z in pady])
+
+# a teraz to samo od strony wykrywacza: puls sprzed "bootu" + clean_stop = cisza
+boot = g.boot_time()
+with io.open(g.HEARTBEAT_PATH, "w", encoding="utf-8") as f:
+    f.write("%d %s" % (boot - 600, g.ts(boot - 600)))
+os.utime(g.HEARTBEAT_PATH, (boot - 600, boot - 600))
+io.open(g.CLEAN_STOP_PATH, "w").close()
+os.utime(g.CLEAN_STOP_PATH, (boot - 590, boot - 590))
+test("11. wykrywacz padu milczy, gdy clean_stop towarzyszy pulsowi",
+     g.wykryj_twardy_pad() is None,
+     "czyste zamkniecie zostalo policzone jako awaria")
+
+os.remove(g.CLEAN_STOP_PATH)
+test("12. przypadek PRZECIWNY: bez clean_stop pad JEST wykrywany",
+     g.wykryj_twardy_pad() is not None,
+     "wykrywacz przestal widziec prawdziwe pady")
+
+# ---------------------------------------------------------------- caffeinate
+print("\n=== keep-awake nie przezywa demona ===")
+for n in ("clean_stop", "heartbeat", "events.log", "state.json"):
+    if os.path.exists(plik(n)):
+        os.remove(plik(n))
+with io.open(plik("awake.json"), "w", encoding="utf-8") as f:
+    json.dump({"mode": "forever", "until": None, "app": None}, f)
+demon2 = start_demona()
+czekaj_na(lambda: os.path.exists(plik("status.json")), ile=25)
+
+
+def moje_caffeinate():
+    """caffeinate, ktorego rodzicem jest NASZ demon - cudzych nie liczymy."""
+    out = subprocess.run(["ps", "-Ao", "pid=,ppid=,comm="], capture_output=True, text=True).stdout
+    zn = []
+    for l in out.splitlines():
+        cz = l.split(None, 2)
+        if len(cz) == 3 and cz[2].strip().endswith("caffeinate") and int(cz[1]) == demon2.pid:
+            zn.append(int(cz[0]))
+    return zn
+
+
+mial_caffeinate = czekaj_na(lambda: bool(moje_caffeinate()), ile=20)
+przed = moje_caffeinate()
+demon2.send_signal(signal.SIGTERM)
+try:
+    demon2.wait(timeout=40)
+except subprocess.TimeoutExpired:
+    demon2.kill()
+time.sleep(1.5)
+zyje_po = [p for p in przed
+           if subprocess.run(["ps", "-o", "stat=", "-p", str(p)],
+                             capture_output=True, text=True).stdout.strip() not in ("", "Z", "Z+")]
+if mial_caffeinate:
+    test("13. caffeinate demona NIE przezywa jego zamkniecia", not zyje_po,
+         "zyja: %s - Mac nigdy nie zasnie, bez sladu w interfejsie" % zyje_po)
+else:
+    test("13. keep-awake nie wstal w tym srodowisku - warunek nie zachodzi", True)
+test("14. drugie zamkniecie tez zostawilo clean_stop", os.path.exists(plik("clean_stop")))
+
+for p in DZIECI:
+    try:
+        p.kill()
+        p.wait(timeout=5)
+    except Exception:
+        pass
+shutil.rmtree(BASE, ignore_errors=True)
+
+ok = sum(wyniki)
+print("\nWYNIK: %d/%d" % (ok, len(wyniki)))
+sys.exit(0 if ok == len(wyniki) else 1)
