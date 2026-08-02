@@ -1,0 +1,13 @@
+{
+  "name": "coffee-paladin",
+  "description": "Teaches the agent to check the Mac's thermal state before heavy work and to launch long jobs under supervision, so a build, render or model run cannot cook the machine.",
+  "version": "2.1.0",
+  "author": {
+    "name": "Paweł Kwaczyński",
+    "email": "kwaczynski.pawel@gmail.com"
+  },
+  "homepage": "https://github.com/pawelkwaczynski/coffee-paladin",
+  "repository": "https://github.com/pawelkwaczynski/coffee-paladin",
+  "license": "MIT",
+  "keywords": ["macos", "apple-silicon", "thermal", "overheating", "safety"]
+}
