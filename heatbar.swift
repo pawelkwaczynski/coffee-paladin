@@ -16,7 +16,7 @@
 
 import Cocoa
 
-let VERSION = "2.1.2"
+let VERSION = "2.1.3"
 let APPNAME = "coffee-paladin"
 let CODENAME = "Ristretto"
 let SIGNATURE = "\(APPNAME) v\(VERSION) \u{201E}\(CODENAME)\u{201D}  ·  by panbookovsky"
@@ -3337,13 +3337,27 @@ final class Bar: NSObject, NSMenuDelegate {
     /// Okno modalne odpalane z pozycji menu, ktora jest custom view (SwitchRow):
     /// menu wtedy NIE zamyka sie samo i dalej sledzi mysz, wiec runModal wchodzi
     /// w konflikt z jego petla zdarzen. Ta sama sztuczka co w HeaderRow.mouseUp.
+    /// Alert z paladynem zamiast domyslnej ikony.
+    ///
+    /// Gola binarka bez pakietu .app nie ma wlasnej ikony, wiec NSAlert siega po
+    /// systemowa - a ta wyglada jak pusta teczka. Bylo to poprawione w jednym miejscu
+    /// (wyjasnienie trybu obserwacji) i nieprzeniesione do pozostalych czterech.
+    /// Ikona zostaje po lewej, bo NSAlert nie pozwala jej wysrodkowac; tam, gdzie
+    /// paladyn ma stac na srodku, budujemy wlasne okno.
+    func alertPaladyna(_ styl: NSAlert.Style = .informational) -> NSAlert {
+        let a = NSAlert()
+        a.alertStyle = styl
+        if let ikona = NSImage(contentsOfFile: base + "/paladin_welcome.png") { a.icon = ikona }
+        return a
+    }
+
     func pokazModalnie(_ akcja: @escaping () -> Void) {
         item.menu?.cancelTracking()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { akcja() }
     }
 
     @objc func ntfyDialog() {
-        let a = NSAlert()
+        let a = alertPaladyna()
         a.messageText = T("Phone push (ntfy.sh)...")
         a.informativeText = T("The topic name is the ONLY protection: anyone who knows or guesses it can read your alerts and send fake ones. Click Generate for a random unguessable name. On your phone install the ntfy.sh app (from ntfy.sh - mind the lookalike apps) and subscribe to the same topic. Leave empty to disable.")
         let box = NSView(frame: NSRect(x: 0, y: 0, width: 300, height: 26))
@@ -3372,7 +3386,7 @@ final class Bar: NSObject, NSMenuDelegate {
                 "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-")
             if !temat.isEmpty &&
                 (temat.count > 64 || temat.rangeOfCharacter(from: dozwolone.inverted) != nil) {
-                let zle = NSAlert()
+                let zle = alertPaladyna(.warning)
                 zle.messageText = T("This topic will not work")
                 zle.informativeText = T("Use only letters, digits, _ and -, up to 64 characters. "
                     + "A space stops the push silently, and # or ? publish to a shorter topic "
@@ -3387,7 +3401,7 @@ final class Bar: NSObject, NSMenuDelegate {
     // --- nazwa we flocie
 
     @objc func fleetNameDialog() {
-        let a = NSAlert()
+        let a = alertPaladyna()
         a.messageText = T("Name this Mac in the fleet...")
         a.informativeText = T("With five identical MacBooks the system hostname says nothing. This name shows in the fleet table and menu on every machine. Empty = system hostname.")
         let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 280, height: 24))
@@ -3408,7 +3422,7 @@ final class Bar: NSObject, NSMenuDelegate {
     /// Tryb "tylko obserwuj" bywa niezrozumialy, a to najwazniejsza opcja dla kogos, kto boi sie
     /// oddac narzedziu wladze nad swoimi procesami — wiec tlumaczymy go wprost.
     @objc func explainDry() {
-        let a = NSAlert()
+        let a = alertPaladyna()
         a.messageText = T("Watch only (dry run)")
         a.informativeText = T("""
 Protection is now OFF - coffee-paladin has entered watch-only mode.
@@ -3423,12 +3437,6 @@ too eagerly, or not soon enough.
 
 Remember: while this switch is off, NOTHING protects the Mac. Flip it back on when you are done.
 """)
-        a.alertStyle = .informational
-        // domyslna ikona alertu golej binarki wyglada jak pusty folder - dajemy paladyna
-        if let ikona = NSImage(contentsOfFile: base + "/paladin_welcome.png")
-            ?? NSImage(systemSymbolName: "eye", accessibilityDescription: nil) {
-            a.icon = ikona
-        }
         a.addButton(withTitle: "OK")
         a.runModal()
     }
@@ -3889,14 +3897,66 @@ Remember: while this switch is off, NOTHING protects the Mac. Flip it back on wh
     /// w druga strone (ludzie myśleli, ze wylaczyli ochronę, a ona dzialala).
     /// Teraz etykieta i skutek sa te same, a przed nieodwracalnym krokiem pytamy.
     @objc func quit() {
-        let a = NSAlert()
-        a.alertStyle = .critical
-        a.messageText = T("Turn off thermal protection for this Mac?")
-        a.informativeText = T("The daemon and the menu bar both stop. Nothing will pause hot jobs until you start it again.")
-        a.addButton(withTitle: T("Quit anyway"))
-        a.addButton(withTitle: T("Cancel"))
+        // WLASNE okno, jak przy recznym wstrzymaniu: to najpowazniejsza decyzja
+        // w calym menu, wiec paladyn stoi na srodku, a nie doklejony do lewej
+        // krawedzi jak w NSAlert.
+        let SZER: CGFloat = 340, MARG: CGFloat = 20
+        let tresc = NSTextField(wrappingLabelWithString:
+            T("The daemon and the menu bar both stop. Nothing will pause hot jobs until you start it again."))
+        tresc.font = .systemFont(ofSize: 11)
+        tresc.textColor = .secondaryLabelColor
+        tresc.alignment = .center
+        tresc.preferredMaxLayoutWidth = SZER - 2 * MARG
+        let hTresci = tresc.sizeThatFits(NSSize(width: SZER - 2 * MARG, height: 300)).height
+
+        let hOkna = 18 + 44 + 8 + 20 + 10 + hTresci + 18 + 32 + 18
+        let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: SZER, height: hOkna),
+                           styleMask: [.titled, .fullSizeContentView],
+                           backing: .buffered, defer: false)
+        win.titlebarAppearsTransparent = true
+        win.titleVisibility = .hidden
+        win.isMovableByWindowBackground = true
+        win.level = .modalPanel
+        win.center()
+        let tlo = NSVisualEffectView(frame: NSRect(x: 0, y: 0, width: SZER, height: hOkna))
+        tlo.material = .popover
+        tlo.state = .active
+        win.contentView = tlo
+
+        var y = hOkna - 18 - 44
+        let ikonaV = NSImageView(frame: NSRect(x: (SZER - 44) / 2, y: y, width: 44, height: 44))
+        if let img = NSImage(contentsOfFile: base + "/paladin_welcome.png") { ikonaV.image = img }
+        ikonaV.imageScaling = .scaleProportionallyUpOrDown
+        tlo.addSubview(ikonaV)
+
+        y -= 8 + 20
+        let tytul = NSTextField(labelWithString: T("Turn off thermal protection for this Mac?"))
+        tytul.font = .boldSystemFont(ofSize: 13)
+        tytul.alignment = .center
+        tytul.frame = NSRect(x: 0, y: y, width: SZER, height: 20)
+        tlo.addSubview(tytul)
+
+        y -= 10 + hTresci
+        tresc.frame = NSRect(x: MARG, y: y, width: SZER - 2 * MARG, height: hTresci)
+        tlo.addSubview(tresc)
+
+        y -= 18 + 32
+        let szerB: CGFloat = 130, luka: CGFloat = 10
+        let xB = (SZER - (2 * szerB + luka)) / 2
+        for (i, tytulB) in [T("Quit anyway"), T("Cancel")].enumerated() {
+            let b = NSButton(title: tytulB, target: self, action: #selector(zamknijZamrozenie(_:)))
+            b.bezelStyle = .rounded
+            b.tag = i
+            b.frame = NSRect(x: xB + CGFloat(i) * (szerB + luka), y: y, width: szerB, height: 32)
+            // domyslnym klawiszem jest ANULUJ - Enter nie moze wylaczac ochrony
+            if i == 1 { b.keyEquivalent = "\r" }
+            tlo.addSubview(b)
+        }
+
         NSApp.activate(ignoringOtherApps: true)
-        guard a.runModal() == .alertFirstButtonReturn else { return }
+        let wynik = NSApp.runModal(for: win)
+        win.orderOut(nil)
+        guard wynik.rawValue == 0 else { return }
 
         // Demon idzie pierwszy - gdyby pasek zginal wczesniej, uzytkownik zostalby
         // z dzialajaca ochrona i bez zadnego sposobu, zeby ja zobaczyc.
