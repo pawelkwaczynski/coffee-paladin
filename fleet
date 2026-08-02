@@ -385,6 +385,9 @@ def setup():
 
 
 def main():
+    if "--help" in sys.argv or "-h" in sys.argv:
+        print(__doc__)
+        return 0
     if "--set-dir" in sys.argv:
         return set_dir(sys.argv[sys.argv.index("--set-dir") + 1])
     if "--setup" in sys.argv:

@@ -2,6 +2,13 @@
 # -*- coding: utf-8 -*-
 """heat - one command: how hot is this Mac and what is heating it up.
 
+Usage:
+  heat              temperatures, fans, power, what is burning CPU, guard state
+  heat --json       the same as JSON: own measurements plus the guard's snapshot
+  heat --stuck      processes stopped in state T, and who stopped them
+                    (a guard pause resumes by itself; the SIGTTIN trap does not)
+  heat --help       this text
+
 Language: TG_LANG=en|pl, or "lang" in ~/.coffee-paladin/config.json. Default: en.
 """
 
@@ -426,6 +433,9 @@ def stuck():
 
 
 def main():
+    if "--help" in sys.argv or "-h" in sys.argv:
+        print(__doc__)
+        return 0
     # EASTER EGG: jedna komenda `heat --paladin` - rysunek i pelny meldunek warty.
     # (Wczesniej byly trzy flagi dajace niemal to samo; zostala jedna, ktora mowi wszystko.)
     if "--stuck" in sys.argv:
