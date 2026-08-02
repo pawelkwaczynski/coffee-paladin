@@ -97,8 +97,8 @@ that a Mac mini at 100% CPU starts throttling after about an hour, and that ordi
 mounts gave them cases of temperature-related failures. They solved it with custom sleds
 and cold-air aisles. Your Mac on a desk has none of those things. Apple itself
 [once apologised for throttling](https://techcrunch.com/2018/07/24/apple-apologizes-issues-update-for-macbook-pro-thermal-throttling/)
-(clock dropping under heat). After their 2018 fix the same MacBooks got 35 to 70 percent
-faster(!). That is the cost of bad thermal management, priced by Apple itself. Ok, that
+(clock dropping under heat). After their 2018 fix the same MacBooks ran up to 70 percent
+faster - and the 13-inch up to twice as fast(!). That is the cost of bad thermal management, priced by Apple itself. Ok, that
 is big companies - but what if you are a student who closes the lid out of habit, with
 a process still running, and slides the laptop into a backpack? Apple specifies an
 [operating range of 10-35 °C ambient](https://support.apple.com/en-us/102336), and
@@ -904,7 +904,7 @@ rackowych mieli przypadki awarii związanych z temperaturą. Poradzili sobie, bo
 własne uchwyty i korytarze zimnego powietrza. Twój Mac na biurku nie ma żadnej z tych
 rzeczy. Samo Apple [przepraszało kiedyś za throttling](https://techcrunch.com/2018/07/24/apple-apologizes-issues-update-for-macbook-pro-thermal-throttling/)
 (dławienie zegarów przy przegrzaniu). Po ich poprawce z 2018 roku te same MacBooki
-przyspieszyły o 35 do 70 procent(!). Tyle kosztuje złe zarządzanie ciepłem, policzyło to
+były do 70 procent szybsze, a 13-calowy nawet dwukrotnie(!). Tyle kosztuje złe zarządzanie ciepłem, policzyło to
 samo Apple. Ok, mówimy o wielkich firmach, a co jeśli jesteś studentem i z przyzwyczajenia
 zamykasz laptop z otwartym procesem ładując go do plecaka? Apple podaje
 [przedział zakresu pracy na 10-35 °C otoczenia](https://support.apple.com/en-us/102336),
