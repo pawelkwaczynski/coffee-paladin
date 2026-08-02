@@ -203,6 +203,16 @@ def _num(v):
         return None
 
 
+def _czysty_tekst(s, limit=60):
+    """Tekst z obcej migawki bez znakow sterujacych i bez przesady w dlugosci.
+
+    Migawki leza we wspoldzielonym folderze (iCloud, SMB, SharePoint), wiec kazdy,
+    kto ma tam zapis, moze wstawic np. "\x1b[2J" - sekwencje czyszczaca ekran w srodku
+    tabeli, ktora skasuje juz wypisane wiersze razem z ostrzezeniem o awarii.
+    """
+    return "".join(c for c in str(s) if c.isprintable())[:limit]
+
+
 def load_hosts(d):
     """Wczytuje migawki, NORMALIZUJAC typy: zepsuty/reczny plik jednego hosta nie moze
     wywalic tabeli calej floty (liczby jako stringi, level spoza 0-3 itd.)."""
@@ -222,6 +232,10 @@ def load_hosts(d):
             if not isinstance(snap, dict):
                 continue
         except Exception:
+            # Zepsuty plik NIE moze znikac po cichu: host wypadal z tabeli, a operator
+            # widzial "all machines look fine". Zostaje w tabeli, oznaczony i policzony.
+            hosts.append({"host": name[:-5][:18], "_age": time.time() - os.path.getmtime(path),
+                          "_bad": True, "level": 0, "fans": []})
             continue
         for k in ("chip_c", "watts", "ram_used_gb", "ram_total_gb"):
             snap[k] = _num(snap.get(k))
@@ -232,7 +246,23 @@ def load_hosts(d):
         snap["level"] = min(max(int(lv), 0), 3) if lv is not None else 0
         fans = snap.get("fans")
         snap["fans"] = [int(f) for f in fans if _num(f) is not None] if isinstance(fans, list) else []
-        snap["_age"] = time.time() - os.path.getmtime(path)
+        # Pola, ktore ida prosto do renderu. Migawka pochodzi ze WSPOLDZIELONEGO
+        # folderu, wiec traktujemy ja jak dane z obcej maszyny: kazdy typ moze byc inny,
+        # a znaki sterujace ANSI w nazwie hosta potrafia skasowac juz wypisane wiersze.
+        for k in ("host", "model"):
+            v = snap.get(k)
+            snap[k] = _czysty_tekst(v) if isinstance(v, str) else (None if v is None else _czysty_tekst(str(v)))
+        p = snap.get("paused")
+        snap["paused"] = [_czysty_tekst(str(x))[:24] for x in p][:6] if isinstance(p, list) else []
+        if not isinstance(snap.get("stats"), dict):
+            snap["stats"] = {}
+        if not isinstance(snap.get("last_hard_shutdown"), dict):
+            snap["last_hard_shutdown"] = None
+        if not isinstance(snap.get("on_ac"), bool):
+            v = snap.get("on_ac")
+            snap["on_ac"] = True if v is None else str(v).strip().lower() in ("1", "true", "yes", "tak")
+        wiek = time.time() - os.path.getmtime(path)
+        snap["_age"] = max(wiek, 0.0)   # zegar drugiej maszyny bywa w przyszlosci
         snap.setdefault("host", name[:-5])
         hosts.append(snap)
     return hosts
@@ -430,7 +460,9 @@ def main():
             h["issues"] = issues_for(h)
             h["age_seconds"] = round(h.pop("_age"))
         print(json.dumps({"folder": d, "hosts": hosts}, ensure_ascii=False, indent=2))
-        return 0
+        # README obiecuje: "fleet --json plus the exit code plug into cron, Grafana or
+        # Slack". Bez tego --json zawsze zwracalo 0 i alarm w cronie nigdy nie strzelal.
+        return 2 if any(h["issues"] for h in hosts) else 0
 
     if "--watch" in sys.argv:
         while True:

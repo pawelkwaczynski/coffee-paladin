@@ -20,6 +20,7 @@ import json
 import os
 import re
 import subprocess
+import tempfile
 import sys
 import time
 
@@ -79,8 +80,8 @@ PL = {
     "\n## GUARD INTERVENTIONS\n": "\n## INTERWENCJE BEZPIECZNIKA\n",
     "  (none)": "  (brak)",
     "\n## MEASUREMENT TIMELINE\n": "\n## OS CZASU POMIAROW\n",
-    "  time, chip C, GPU C, battery C, fan rpm, W, battery %, on AC, CPU limit, load, level":
-        "  czas, chip C, GPU C, bateria C, obroty, W, bateria %, zasilacz, CPU limit, load, poziom",
+    "  time, state, chip C, GPU C, battery C, fan rpm, W, battery %, on AC, CPU limit, load, level":
+        "  czas, stan, chip C, GPU C, bateria C, obroty, W, bateria %, zasilacz, CPU limit, load, poziom",
     "  PEAK MEASURED CHIP TEMPERATURE: %.1f C (%s)": "  NAJWYZSZA ZMIERZONA TEMPERATURA CHIPA: %.1f C (%s)",
     "Measurements are collected by the algorithm every %d s (written every 5 min and on every event).":
         "Algorytmy zbieraja pomiary co %d s (zapis co 5 min oraz przy kazdym zdarzeniu).",
@@ -106,8 +107,8 @@ RU = {
     "\n## GUARD INTERVENTIONS\n": "\n## ВМЕШАТЕЛЬСТВА ЗАЩИТЫ\n",
     "  (none)": "  (нет)",
     "\n## MEASUREMENT TIMELINE\n": "\n## ХРОНОЛОГИЯ ИЗМЕРЕНИЙ\n",
-    "  time, chip C, GPU C, battery C, fan rpm, W, battery %, on AC, CPU limit, load, level":
-        "  время, чип C, GPU C, батарея C, об/мин, Вт, батарея %, адаптер, CPU limit, load, уровень",
+    "  time, state, chip C, GPU C, battery C, fan rpm, W, battery %, on AC, CPU limit, load, level":
+        "  время, состояние, чип C, GPU C, батарея C, об/мин, Вт, батарея %, адаптер, CPU limit, load, уровень",
     "  PEAK MEASURED CHIP TEMPERATURE: %.1f C (%s)": "  ПИКОВАЯ ТЕМПЕРАТУРА ЧИПА: %.1f C (%s)",
     "Measurements are collected by the algorithm every %d s (written every 5 min and on every event).":
         "Измерения собирает алгоритм каждые %d с (запись каждые 5 мин и при каждом событии).",
@@ -133,8 +134,8 @@ ZH = {
     "\n## GUARD INTERVENTIONS\n": "\n## 守护的干预\n",
     "  (none)": "  (无)",
     "\n## MEASUREMENT TIMELINE\n": "\n## 测量时间线\n",
-    "  time, chip C, GPU C, battery C, fan rpm, W, battery %, on AC, CPU limit, load, level":
-        "  时间, 芯片 C, GPU C, 电池 C, 风扇转速, W, 电池 %, 接电源, CPU limit, 负载, 级别",
+    "  time, state, chip C, GPU C, battery C, fan rpm, W, battery %, on AC, CPU limit, load, level":
+        "  时间, 状态, 芯片 C, GPU C, 电池 C, 风扇转速, W, 电池 %, 接电源, CPU limit, 负载, 级别",
     "  PEAK MEASURED CHIP TEMPERATURE: %.1f C (%s)": "  实测芯片峰值温度: %.1f C (%s)",
     "Measurements are collected by the algorithm every %d s (written every 5 min and on every event).":
         "算法每 %d 秒采集一次测量(每 5 分钟及每次事件时写入)。",
@@ -160,8 +161,8 @@ ES = {
     "\n## GUARD INTERVENTIONS\n": "\n## INTERVENCIONES DEL GUARD\n",
     "  (none)": "  (ninguna)",
     "\n## MEASUREMENT TIMELINE\n": "\n## CRONOLOGÍA DE MEDICIONES\n",
-    "  time, chip C, GPU C, battery C, fan rpm, W, battery %, on AC, CPU limit, load, level":
-        "  hora, chip C, GPU C, batería C, rpm, W, batería %, adaptador, CPU limit, carga, nivel",
+    "  time, state, chip C, GPU C, battery C, fan rpm, W, battery %, on AC, CPU limit, load, level":
+        "  hora, estado, chip C, GPU C, batería C, rpm, W, batería %, adaptador, CPU limit, carga, nivel",
     "  PEAK MEASURED CHIP TEMPERATURE: %.1f C (%s)": "  TEMPERATURA MÁXIMA MEDIDA DEL CHIP: %.1f C (%s)",
     "Measurements are collected by the algorithm every %d s (written every 5 min and on every event).":
         "El algoritmo toma mediciones cada %d s (escritura cada 5 min y en cada evento).",
@@ -354,7 +355,7 @@ def main():
         W.append(T("  (none)"))
 
     W.append(T("\n## MEASUREMENT TIMELINE\n"))
-    W.append(T("  time, chip C, GPU C, battery C, fan rpm, W, battery %, on AC, CPU limit, load, level"))
+    W.append(T("  time, state, chip C, GPU C, battery C, fan rpm, W, battery %, on AC, CPU limit, load, level"))
     ile = 0
     szczyt = (0, "")
     try:
@@ -366,8 +367,11 @@ def main():
                     continue
                 ile += 1
                 try:
-                    if c[2] and float(c[2]) > szczyt[0]:
-                        szczyt = (float(c[2]), c[0])
+                    # Zakres fizyczny: jedna ucieta linijka po padzie zasilania podmieniala
+                    # kluczowa liczbe dokumentu na "999.9 C (USZKODZONY WIERSZ)".
+                    v = float(c[2]) if c[2] else 0.0
+                    if 0.0 < v <= 120.0 and v > szczyt[0] and czas_z(c[0]):
+                        szczyt = (v, c[0])
                 except ValueError:
                     pass
                 W.append("  " + ", ".join(c[:12]))
@@ -396,7 +400,9 @@ def main():
     # Monospace zostaje z natury zrodla tekstowego; gdy sie nie uda, raport tekstowy
     # nadal istnieje i drukujemy sciezke tego, co jest.
     if "--pdf" in sys.argv:
-        pdf = cel.rsplit(".", 1)[0] + ".pdf"
+        # os.path.splitext, nie rsplit(".") - rsplit lapal kropke z nazwy KATALOGU,
+        # wiec `--file kat.z.kropka/raport` zapisywalo PDF poziom wyzej, pod inna nazwa.
+        pdf = os.path.splitext(cel)[0] + ".pdf"
         # PIERWSZA DROGA: HTML -> Chrome headless. Tylko tak wchodzi KOLOROWE logo
         # FOCUS FRAME w stopce (cupsfilter potrafi wylacznie czysty tekst).
         chrome = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
@@ -419,7 +425,12 @@ pre { white-space: pre-wrap; word-break: break-word; margin: 0; }
 .stopka { margin-top: 10mm; text-align: center; }
 .stopka img { width: 42mm; }
 </style><pre>%s</pre>%s""" % (tresc, stopka))
-                tmp_html = cel.rsplit(".", 1)[0] + ".html"
+                # HTML posredni idzie do katalogu tymczasowego. Wczesniej powstawal OBOK
+                # celu i byl kasowany bez pytania: `--pdf --file raport.txt` nadpisywalo
+                # i USUWALO czyjs raport.html. Do tego rsplit(".") lapal kropke z nazwy
+                # KATALOGU, wiec PDF potrafil wyladowac poza katalogiem docelowym.
+                _fd, tmp_html = tempfile.mkstemp(suffix=".html", prefix="thermal_report_")
+                os.close(_fd)
                 with open(tmp_html, "w") as f:
                     f.write(doc)
                 r = subprocess.run([chrome, "--headless", "--disable-gpu", "--no-pdf-header-footer",
@@ -430,7 +441,10 @@ pre { white-space: pre-wrap; word-break: break-word; margin: 0; }
                     print(pdf)
                     return 0
             except Exception:
-                pass
+                try:
+                    os.remove(tmp_html)   # timeout Chrome zostawial osierocony HTML
+                except Exception:
+                    pass
         # ZAPAS: cupsfilter (bez logo, ale zawsze dziala)
         try:
             with open(pdf, "wb") as f:
