@@ -10,6 +10,7 @@ Piec kategorii, kazda z realnej wpadki:
 Uruchomienie:  python3 tests/test_spojnosc.py
 Nie dotyka prawdziwego ~/.coffee-paladin.
 """
+import ast
 import importlib.machinery
 import io
 import json
@@ -21,15 +22,42 @@ SRC = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 os.environ["TG_BASE"] = tempfile.mkdtemp()
 bledy = []
 
-# 1. Kazdy string wolany przez T() w guard.py MA wpis we wszystkich 4 slownikach
-g = importlib.machinery.SourceFileLoader('g', os.path.join(SRC,'guard.py')).load_module()
-zrodlo = io.open(os.path.join(SRC,'guard.py'), encoding='utf-8').read()
-wolane = set(re.findall(r'T\("((?:[^"\\]|\\.)*)"\)', zrodlo))
-for nazwa in ("PL","RU","ZH","ES"):
-    d = getattr(g, nazwa)
-    brak = [k for k in wolane if k not in d]
-    if brak:
-        bledy.append("guard.py: %s nie ma %d tlumaczen (np. %r)" % (nazwa, len(brak), brak[0][:50]))
+# 1. Kazdy string wolany przez T() MA wpis we wszystkich 4 slownikach - w KAZDYM
+#    pliku z wlasnym slownikiem, nie tylko w guard.py. Sprawdzanie samego guarda bylo
+#    dziura: brakujace tlumaczenia w thermal-report i fleet przechodzily bez slowa
+#    (lista otwartych, pozycja 19), a AGENTS.md wymaga piatki EN/PL/RU/ZH/ES wszedzie.
+#    Czytamy AST, nie regex: regex zwracal SUROWY tekst zrodla, wiec "\n## BATTERY\n"
+#    wychodzilo jako backslash+n i nie pasowalo do klucza slownika, ktory ma prawdziwy
+#    znak nowej linii. Pierwsza wersja tej kontroli zglosila z tego powodu 6 nieistniejacych
+#    brakow. AST daje wartosc taka, jaka naprawde zobaczy T() - razem ze sklejaniem
+#    sasiadujacych literalow i escape'ami.
+def wolane_T(tekst):
+    wynik = set()
+    for w in ast.walk(ast.parse(tekst)):
+        if (isinstance(w, ast.Call) and isinstance(w.func, ast.Name) and w.func.id == "T"
+                and w.args and isinstance(w.args[0], ast.Constant)
+                and isinstance(w.args[0].value, str)):
+            wynik.add(w.args[0].value)
+    return wynik
+
+
+for plik in ("guard.py", "thermal-report", "fleet", "heat", "safe-run"):
+    sciezka = os.path.join(SRC, plik)
+    if not os.path.exists(sciezka):
+        continue
+    tresc = io.open(sciezka, encoding='utf-8').read()
+    mod = importlib.machinery.SourceFileLoader(
+        're_' + re.sub(r'\W', '_', plik), sciezka).load_module()
+    if not all(hasattr(mod, n) for n in ("PL", "RU", "ZH", "ES")):
+        continue                      # plik bez wlasnych slownikow
+    wolane = wolane_T(tresc)
+    for nazwa in ("PL", "RU", "ZH", "ES"):
+        d = getattr(mod, nazwa)
+        brak = sorted(k for k in wolane if k not in d)
+        if brak:
+            bledy.append("%s: %s nie ma %d tlumaczen (np. %r)"
+                         % (plik, nazwa, len(brak), brak[0][:60]))
+zrodlo = io.open(os.path.join(SRC, 'guard.py'), encoding='utf-8').read()
 
 # 2. Wersja jest ta sama we wszystkich czterech miejscach
 wersje = {}

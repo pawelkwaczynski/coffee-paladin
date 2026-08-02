@@ -80,6 +80,12 @@ PL = {
     "cancelled": "anulowano",
     "fleet: cannot read %s (%s) - not touching it. Fix the file first.": "fleet: nie umiem odczytac %s (%s) - nie ruszam pliku. Napraw go najpierw.",
     "no chip sensor - battery temperature only": "brak czujnika chipa - tylko temperatura baterii",
+    "HOT - %.0f C":
+        "GORACO - %.0f C",
+    "HOT - guard is intervening":
+        "GORACO - bezpiecznik interweniuje",
+    "unreadable snapshot":
+        "migawka nie do odczytania",
 }
 
 RU = {
@@ -112,6 +118,12 @@ RU = {
     "cancelled": "отменено",
     "fleet: cannot read %s (%s) - not touching it. Fix the file first.": "fleet: не могу прочитать %s (%s) - не трогаю файл. Сначала исправьте его.",
     "no chip sensor - battery temperature only": "нет датчика чипа - только температура батареи",
+    "HOT - %.0f C":
+        "ГОРЯЧО - %.0f C",
+    "HOT - guard is intervening":
+        "ГОРЯЧО - защита вмешивается",
+    "unreadable snapshot":
+        "снимок не читается",
 }
 
 ZH = {
@@ -144,6 +156,12 @@ ZH = {
     "cancelled": "已取消",
     "fleet: cannot read %s (%s) - not touching it. Fix the file first.": "fleet:无法读取 %s(%s)- 不改动该文件。请先修复它。",
     "no chip sensor - battery temperature only": "无芯片传感器 - 仅电池温度",
+    "HOT - %.0f C":
+        "过热 - %.0f C",
+    "HOT - guard is intervening":
+        "过热 - 守护正在干预",
+    "unreadable snapshot":
+        "快照无法读取",
 }
 
 ES = {
@@ -176,6 +194,12 @@ ES = {
     "cancelled": "cancelado",
     "fleet: cannot read %s (%s) - not touching it. Fix the file first.": "fleet: no puedo leer %s (%s) - no toco el archivo. Arréglalo primero.",
     "no chip sensor - battery temperature only": "sin sensor del chip - solo temperatura de la batería",
+    "HOT - %.0f C":
+        "CALIENTE - %.0f C",
+    "HOT - guard is intervening":
+        "CALIENTE - el guardián está interviniendo",
+    "unreadable snapshot":
+        "instantánea ilegible",
 }
 
 DICTS = {"pl": PL, "ru": RU, "zh": ZH, "es": ES}

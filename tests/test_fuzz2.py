@@ -892,22 +892,25 @@ def fuzz_report(seed, n):
                 s.bzdura(cel, "sciezka PDF wyszla dziwna: %r" % pdf, "SREDNIA",
                          klucz="pdf-zla-nazwa")
 
-            # --- b) szczyt temperatury z history.csv (z sanity-checkiem 0 < v <= 120)
+            # --- b) szczyt temperatury z history.csv (pasmo wiarygodnosci 0 < v <= 110;
+            #        gorna granica zeszla ze 150 na 110 - T_j max Apple Silicon, patrz
+            #        komentarz w thermal-report. Wiersze powyzej maja byc POLICZONE
+            #        i opisane osobna linijka, a nie po cichu pominiete.)
             wiersze = []
             oczekiwany = 0.0
             for _ in range(s.rng.randint(0, 12)):
                 r = s.rng.random()
                 if r < 0.6:
-                    v = round(s.rng.uniform(30, 119), 1)
+                    v = round(s.rng.uniform(30, 109), 1)
                     wiersze.append("%s 10:00:00,nominal,%s,,,0,10,90,1,100,2.0,0" % (dzis, v))
                     oczekiwany = max(oczekiwany, v)
                 elif r < 0.7:
-                    v = s.rng.choice(["999.9", "1e400", "nan", "-5", "0", "120.1", ""])
+                    v = s.rng.choice(["999.9", "1e400", "nan", "-5", "0", "120.1", "110.5", ""])
                     wiersze.append("%s 10:00:00,nominal,%s,,,0,10,90,1,100,2.0,0" % (dzis, v))
                 elif r < 0.8:
                     wiersze.append("%s 10:00:00,nominal,88.8" % dzis)        # ucieta linia
                 elif r < 0.9:
-                    wiersze.append("2000-01-01 10:00:00,nominal,118.0,,,0,10,90,1,100,2.0,0")
+                    wiersze.append("2000-01-01 10:00:00,nominal,108.0,,,0,10,90,1,100,2.0,0")
                 else:
                     wiersze.append(s.rng.choice(["", ",,,,,,,,,,,,", "A" * 2000,
                                                  "\x00,\x00,\x00,,,0,0,0,0,0,0,0"]))

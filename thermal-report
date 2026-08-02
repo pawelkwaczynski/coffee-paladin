@@ -84,6 +84,8 @@ PL = {
     "  time, state, chip C, GPU C, battery C, fan rpm, W, battery %, on AC, CPU limit, load, level":
         "  czas, stan, chip C, GPU C, bateria C, obroty, W, bateria %, zasilacz, CPU limit, load, poziom",
     "  PEAK MEASURED CHIP TEMPERATURE: %.1f C (%s)": "  NAJWYZSZA ZMIERZONA TEMPERATURA CHIPA: %.1f C (%s)",
+    "  DISCARDED AS IMPLAUSIBLE: %d row(s) over 110 C (highest %.1f C) - shown in the timeline below, not counted towards the peak":
+        "  ODRZUCONE JAKO NIEWIARYGODNE: %d wiersz(y) powyzej 110 C (najwyzszy %.1f C) - widoczne na osi czasu ponizej, nie liczone do szczytu",
     "Measurements are collected by the algorithm every %d s (written every 5 min and on every event).":
         "Algorytmy zbieraja pomiary co %d s (zapis co 5 min oraz przy kazdym zdarzeniu).",
     "Chip temperature is read through IOReport, battery temperature through AppleSmartBattery.":
@@ -113,6 +115,8 @@ RU = {
     "  time, state, chip C, GPU C, battery C, fan rpm, W, battery %, on AC, CPU limit, load, level":
         "  время, состояние, чип C, GPU C, батарея C, об/мин, Вт, батарея %, адаптер, CPU limit, load, уровень",
     "  PEAK MEASURED CHIP TEMPERATURE: %.1f C (%s)": "  ПИКОВАЯ ТЕМПЕРАТУРА ЧИПА: %.1f C (%s)",
+    "  DISCARDED AS IMPLAUSIBLE: %d row(s) over 110 C (highest %.1f C) - shown in the timeline below, not counted towards the peak":
+        "  ОТБРОШЕНО КАК НЕДОСТОВЕРНОЕ: %d строк(и) выше 110 C (максимум %.1f C) - видно на шкале времени ниже, не учтено в пике",
     "Measurements are collected by the algorithm every %d s (written every 5 min and on every event).":
         "Измерения собирает алгоритм каждые %d с (запись каждые 5 мин и при каждом событии).",
     "Chip temperature is read through IOReport, battery temperature through AppleSmartBattery.":
@@ -121,6 +125,26 @@ RU = {
     "battery": "батарея",
     "thermal-report: unknown argument: %s": "thermal-report: неизвестный аргумент: %s",
     "thermal-report: cannot write %s (%s)": "thermal-report: не могу записать %s (%s)",
+    "coffee-paladin - THERMAL AND POWER REPORT":
+        "coffee-paladin - ОТЧЁТ О ТЕМПЕРАТУРЕ И ПИТАНИИ",
+    "generated: %s":
+        "создан: %s",
+    "range: last %d days":
+        "период: последние %d дн.",
+    "range: everything on record":
+        "период: всё, что записано",
+    "range: %s - %s":
+        "период: %s - %s",
+    "  system set up: %s":
+        "  система настроена: %s",
+    "  fans: %s":
+        "  вентиляторы: %s",
+    "  Neural Engine: %d cores":
+        "  Neural Engine: %d ядер",
+    "  disk: %s GB total, %s GB free":
+        "  диск: %s ГБ всего, %s ГБ свободно",
+    "  guard thresholds: pause >=%s C, kill >=%s C":
+        "  пороги защиты: пауза >=%s C, остановка >=%s C",
 }
 
 ZH = {
@@ -142,6 +166,8 @@ ZH = {
     "  time, state, chip C, GPU C, battery C, fan rpm, W, battery %, on AC, CPU limit, load, level":
         "  时间, 状态, 芯片 C, GPU C, 电池 C, 风扇转速, W, 电池 %, 接电源, CPU limit, 负载, 级别",
     "  PEAK MEASURED CHIP TEMPERATURE: %.1f C (%s)": "  实测芯片峰值温度: %.1f C (%s)",
+    "  DISCARDED AS IMPLAUSIBLE: %d row(s) over 110 C (highest %.1f C) - shown in the timeline below, not counted towards the peak":
+        "  因不可信而排除:%d 行超过 110 C(最高 %.1f C)- 在下方时间轴中可见,不计入峰值",
     "Measurements are collected by the algorithm every %d s (written every 5 min and on every event).":
         "算法每 %d 秒采集一次测量(每 5 分钟及每次事件时写入)。",
     "Chip temperature is read through IOReport, battery temperature through AppleSmartBattery.":
@@ -150,6 +176,26 @@ ZH = {
     "battery": "电池",
     "thermal-report: unknown argument: %s": "thermal-report:未知参数:%s",
     "thermal-report: cannot write %s (%s)": "thermal-report:无法写入 %s(%s)",
+    "coffee-paladin - THERMAL AND POWER REPORT":
+        "coffee-paladin - 温度与电源报告",
+    "generated: %s":
+        "生成时间: %s",
+    "range: last %d days":
+        "范围: 最近 %d 天",
+    "range: everything on record":
+        "范围: 全部记录",
+    "range: %s - %s":
+        "范围: %s - %s",
+    "  system set up: %s":
+        "  系统安装时间: %s",
+    "  fans: %s":
+        "  风扇: %s",
+    "  Neural Engine: %d cores":
+        "  Neural Engine: %d 核",
+    "  disk: %s GB total, %s GB free":
+        "  磁盘: 共 %s GB, 可用 %s GB",
+    "  guard thresholds: pause >=%s C, kill >=%s C":
+        "  守护阈值: 暂停 >=%s C, 终止 >=%s C",
 }
 
 ES = {
@@ -171,6 +217,8 @@ ES = {
     "  time, state, chip C, GPU C, battery C, fan rpm, W, battery %, on AC, CPU limit, load, level":
         "  hora, estado, chip C, GPU C, batería C, rpm, W, batería %, adaptador, CPU limit, carga, nivel",
     "  PEAK MEASURED CHIP TEMPERATURE: %.1f C (%s)": "  TEMPERATURA MÁXIMA MEDIDA DEL CHIP: %.1f C (%s)",
+    "  DISCARDED AS IMPLAUSIBLE: %d row(s) over 110 C (highest %.1f C) - shown in the timeline below, not counted towards the peak":
+        "  DESCARTADO POR INVEROSÍMIL: %d fila(s) por encima de 110 C (máxima %.1f C) - visible en la línea temporal de abajo, no cuenta para el pico",
     "Measurements are collected by the algorithm every %d s (written every 5 min and on every event).":
         "El algoritmo toma mediciones cada %d s (escritura cada 5 min y en cada evento).",
     "Chip temperature is read through IOReport, battery temperature through AppleSmartBattery.":
@@ -179,6 +227,26 @@ ES = {
     "battery": "batería",
     "thermal-report: unknown argument: %s": "thermal-report: argumento desconocido: %s",
     "thermal-report: cannot write %s (%s)": "thermal-report: no puedo escribir %s (%s)",
+    "coffee-paladin - THERMAL AND POWER REPORT":
+        "coffee-paladin - INFORME TÉRMICO Y DE ALIMENTACIÓN",
+    "generated: %s":
+        "generado: %s",
+    "range: last %d days":
+        "rango: últimos %d días",
+    "range: everything on record":
+        "rango: todo lo registrado",
+    "range: %s - %s":
+        "rango: %s - %s",
+    "  system set up: %s":
+        "  sistema instalado: %s",
+    "  fans: %s":
+        "  ventiladores: %s",
+    "  Neural Engine: %d cores":
+        "  Neural Engine: %d núcleos",
+    "  disk: %s GB total, %s GB free":
+        "  disco: %s GB en total, %s GB libres",
+    "  guard thresholds: pause >=%s C, kill >=%s C":
+        "  umbrales del guardián: pausa >=%s C, terminación >=%s C",
 }
 
 DICTS = {"pl": PL, "ru": RU, "zh": ZH, "es": ES}
@@ -449,6 +517,7 @@ def main():
     W.append(T("  time, state, chip C, GPU C, battery C, fan rpm, W, battery %, on AC, CPU limit, load, level"))
     ile = 0
     szczyt = (0, "")
+    odrzucone, odrzucony_max = 0, 0.0
     try:
         with open(HIST, encoding="utf-8", errors="replace") as f:
             f.readline()                  # naglowek CSV - pomijamy
@@ -460,16 +529,39 @@ def main():
                 try:
                     # Zakres fizyczny: jedna ucieta linijka po padzie zasilania podmieniala
                     # kluczowa liczbe dokumentu na "999.9 C (USZKODZONY WIERSZ)".
+                    #
+                    # Gorna granica to 110 C, nie 150: T_j max Apple Silicon lezy przy
+                    # ~105-110 C, a prog ubicia guarda przy 100 C. Odczyt 120 C znaczy
+                    # zepsuty czujnik, nie gorety krzem - a w dokumencie roszczeniowym
+                    # jest prezentem dla drugiej strony ("wasze dane sa bez wartosci").
+                    #
+                    # Wiersza poza pasmem NIE pomijamy po cichu: on i tak stoi nizej na osi
+                    # czasu, wiec milczenie robilo z dokumentu cos, co samo sobie przeczy -
+                    # "PEAK 88.8 C" tuz nad widoczna linijka 999.9 C. Dowod ma byc
+                    # OZNACZONY, nie wyrzucony (ta sama lekcja co podloga 30-dniowa).
                     v = float(c[2]) if c[2] else 0.0
-                    if 0.0 < v <= 150.0 and v > szczyt[0] and czas_z(c[0]):
-                        szczyt = (v, c[0])
-                except ValueError:
+                    if v != v:                       # NaN
+                        pass
+                    elif 0.0 < v <= 110.0 and czas_z(c[0]):
+                        if v > szczyt[0]:
+                            szczyt = (v, c[0])
+                    elif v > 110.0 and v != float("inf"):
+                        odrzucone += 1
+                        odrzucony_max = max(odrzucony_max, v)
+                except (ValueError, OverflowError):
                     pass
                 W.append("  " + ", ".join(c[:12]))
     except FileNotFoundError:
         pass
+    naglowek_osi = []
     if szczyt[0]:
-        W.insert(len(W) - ile - 1, T("  PEAK MEASURED CHIP TEMPERATURE: %.1f C (%s)") % szczyt)
+        naglowek_osi.append(T("  PEAK MEASURED CHIP TEMPERATURE: %.1f C (%s)") % szczyt)
+    if odrzucone:
+        naglowek_osi.append(
+            T("  DISCARDED AS IMPLAUSIBLE: %d row(s) over 110 C (highest %.1f C) - shown in "
+              "the timeline below, not counted towards the peak") % (odrzucone, odrzucony_max))
+    # jedna wstawka, zeby kolejnosc nie zalezala od tego, ile linijek akurat wchodzi
+    W[len(W) - ile - 1:len(W) - ile - 1] = naglowek_osi
 
     W.append("\n" + "=" * 78)
     try:

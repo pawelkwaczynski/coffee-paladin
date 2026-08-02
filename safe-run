@@ -90,6 +90,8 @@ PL = {
     "all": "wszystkie",
     "efficiency only": "tylko energooszczedne (E)",
     "the guard reports a hot machine": "guard zglasza goraca maszyne",
+    "safe-run: already inside a supervised job - running the command directly":
+        "safe-run: jestesmy juz w nadzorowanym zadaniu - uruchamiam polecenie wprost",
 }
 
 RU = {
@@ -117,6 +119,8 @@ RU = {
     "all": "все",
     "efficiency only": "только энергоэффективные (E)",
     "the guard reports a hot machine": "страж сообщает о горячей машине",
+    "safe-run: already inside a supervised job - running the command directly":
+        "safe-run: уже внутри контролируемой задачи - запускаю команду напрямую",
 }
 
 ZH = {
@@ -144,6 +148,8 @@ ZH = {
     "all": "全部",
     "efficiency only": "仅能效核心 (E)",
     "the guard reports a hot machine": "守卫报告机器过热",
+    "safe-run: already inside a supervised job - running the command directly":
+        "safe-run: 已在受监管的任务中 - 直接运行该命令",
 }
 
 ES = {
@@ -171,6 +177,8 @@ ES = {
     "all": "todos",
     "efficiency only": "solo los de eficiencia (E)",
     "the guard reports a hot machine": "el guardián informa de una máquina caliente",
+    "safe-run: already inside a supervised job - running the command directly":
+        "safe-run: ya dentro de una tarea supervisada - ejecuto el comando directamente",
 }
 
 DICTS = {"pl": PL, "ru": RU, "zh": ZH, "es": ES}
