@@ -276,9 +276,25 @@ def sh(cmd, timeout=30):
 
 
 def czas_z(s):
+    """Epoch ABSOLUTNY ze stempla z offsetem albo bez (pliki sprzed 2.1.8).
+
+    CELOWA KOPIA `guard.czas_abs` - narzedzia w tym projekcie sa samodzielne i nie
+    importuja demona. Obie kopie pilnuje `tests/test_spojnosc.py`.
+
+    Bez tego zdarzenia byly filtrowane po polu `epoch` (absolutnym), a historia
+    i guard.log po TEKSCIE interpretowanym w strefie CZYTELNIKA - wiec ten sam
+    katalog danych dawal dwa rozne dokumenty dowodowe. Odtworzone 02.08.2026:
+    pad zapisany 23:30 w Warszawie znikal z sekcji krytycznej przy czytaniu
+    w Auckland, a os czasu i `[KILL]` z tej samej sekundy zostawaly.
+    """
+    s = (s or "").strip()
+    if len(s) < 19:
+        return 0
     try:
-        return time.mktime(time.strptime(s, "%Y-%m-%d %H:%M:%S"))
-    except Exception:
+        if len(s) >= 24 and s[19] in "+-":
+            return datetime.datetime.strptime(s[:24], "%Y-%m-%d %H:%M:%S%z").timestamp()
+        return time.mktime(time.strptime(s[:19], "%Y-%m-%d %H:%M:%S"))
+    except (ValueError, OverflowError):
         return 0
 
 
@@ -337,7 +353,7 @@ def _alarmy_z_logu(w_zakresie):
             if ("[FANFAIL]" not in linia and "AWARIA CHLODZENIA" not in linia
                     and "COOLING FAILURE" not in linia):
                 continue
-            if not w_zakresie(czas_z(linia[:19])):
+            if not w_zakresie(czas_z(linia[:24])):
                 continue
             out.append(linia.rstrip())
     except Exception:
@@ -513,7 +529,7 @@ def main():
     # istnieje dla instalacji SPRZED tej zmiany, wiec musi pomijac to, co juz przyszlo
     # z events.log - inaczej kazdy alarm liczy sie DWA razy w dokumencie roszczeniowym.
     for linia in _alarmy_z_logu(w_zakresie):
-        _t = czas_z(linia[:19])
+        _t = czas_z(linia[:24])
         if any(abs(_t - e) <= 2 for e in _juz_alarmy):
             continue
         zdarzen += 1
@@ -536,7 +552,7 @@ def main():
     inter = 0
     try:
         for linia in wiersze(LOG):
-            if not w_zakresie(czas_z(linia[:19])):
+            if not w_zakresie(czas_z(linia[:24])):
                 continue
             # Znacznik [PAUSE]/[RESUME]/[KILL]/[DEMOTE]/[PROMOTE]/[FANFAIL] jest ten sam we
             # wszystkich jezykach. Slowa zostaja dla wpisow sprzed jego wprowadzenia:

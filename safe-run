@@ -29,6 +29,7 @@ thread options). The temperature itself is always the guard's job.
 Language: TG_LANG=en|pl, or "lang" in ~/.coffee-paladin/config.json. Default: en.
 """
 
+import datetime
 import json
 import os
 import signal
@@ -47,6 +48,25 @@ AGENT_LABEL = "pl.pawel.coffee-paladin"
 
 
 SUPPORTED_LANGS = ("en", "pl", "ru", "zh", "es")
+
+
+def czas_abs(s):
+    """Epoch ABSOLUTNY ze stempla `ts()` - z offsetem albo bez (pliki sprzed 2.1.8).
+
+    CELOWA KOPIA `guard.czas_abs` - narzedzia w tym projekcie sa samodzielne i nie
+    importuja demona. Wszystkie kopie pilnuje `tests/test_spojnosc.py`.
+    Bez tolerancji na offset ten parser rzucalby ValueError na KAZDYM nowym wierszu
+    history.csv i po cichu pomijal wszystkie swieze pomiary.
+    """
+    s = (s or "").strip()
+    if len(s) < 19:
+        return 0.0
+    try:
+        if len(s) >= 24 and s[19] in "+-":
+            return datetime.datetime.strptime(s[:24], "%Y-%m-%d %H:%M:%S%z").timestamp()
+        return time.mktime(time.strptime(s[:19], "%Y-%m-%d %H:%M:%S"))
+    except (ValueError, OverflowError):
+        return 0.0
 
 
 def _lang():
@@ -432,7 +452,9 @@ def max_temp_since(t0):
                 if len(p) < 3 or not p[2]:
                     continue
                 try:
-                    when = time.mktime(time.strptime(p[0], "%Y-%m-%d %H:%M:%S"))
+                    when = czas_abs(p[0])
+                    if not when:
+                        continue
                 except Exception:
                     continue
                 if when >= t0:

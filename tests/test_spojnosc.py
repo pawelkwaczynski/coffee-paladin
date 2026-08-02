@@ -111,7 +111,29 @@ try:
 except Exception as _e:
     bledy.append("nie moge porownac pokolenia(): %s: %s" % (type(_e).__name__, _e))
 
-print("SPRAWDZEN: 6 kategorii")
+# 7. parser stempla czasu zyje w CZTERECH plikach jako celowa kopia (guard.czas_abs,
+#    thermal-report.czas_z, heat.czas_abs, safe-run.czas_abs). Wszystkie musza dawac ten
+#    sam wynik, w tym na stemplu z offsetem, legacy i na smieciu - inaczej jedno narzedzie
+#    po cichu pominie kazdy swiezy wiersz history.csv.
+try:
+    _probki = ["2026-08-02 23:30:00+0200", "2026-08-02 23:30:00", "2026-08-02 23:30:00-0800",
+               "xyzzy", "", "2026-13-45 99:99:99"]
+    _impl = {}
+    for _plik, _nazwa in (("guard.py", "czas_abs"), ("thermal-report", "czas_z"),
+                          ("heat", "czas_abs"), ("safe-run", "czas_abs")):
+        _m = importlib.machinery.SourceFileLoader(
+            'cz_' + re.sub(r'\W', '_', _plik), os.path.join(SRC, _plik)).load_module()
+        if not hasattr(_m, _nazwa):
+            bledy.append("%s nie ma %s() - stempel z offsetem wywali mu parsowanie" % (_plik, _nazwa))
+            continue
+        _impl[_plik] = [getattr(_m, _nazwa)(x) for x in _probki]
+    if len(set(tuple(v) for v in _impl.values())) > 1:
+        bledy.append("parser stempla rozjechal sie miedzy plikami: %s"
+                     % {k: v for k, v in _impl.items()})
+except Exception as _e:
+    bledy.append("nie moge porownac parsera stempla: %s: %s" % (type(_e).__name__, _e))
+
+print("SPRAWDZEN: 7 kategorii")
 if bledy:
     for b in bledy: print("  BLAD: %s" % b)
     sys.exit(1)

@@ -27,6 +27,7 @@ Usage:
 Language of messages: TG_LANG=en|pl, or "lang" in config.json. Default: en.
 """
 
+import datetime
 import json
 import os
 import re
@@ -249,7 +250,40 @@ def now():
 
 
 def ts(t=None):
-    return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(t if t else now()))
+    """Stempel czasu do artefaktow dowodowych - ZAWSZE z offsetem strefy.
+
+    Do 2.1.7 bylo to gole `%Y-%m-%d %H:%M:%S`, czyli czas lokalny bez informacji,
+    ktory to lokalny. Zdarzenia w events.log filtrowane sa po polu `epoch`
+    (absolutnym), a historia i guard.log po TEKSCIE - wiec ten sam katalog danych
+    dawal dwa rozne dokumenty. Odtworzone 02.08.2026: pad zapisany 23:30 w Warszawie,
+    raport `--from/--to` na ten sam dzien pokazuje w Auckland ZERO zdarzen
+    krytycznych, a tuz obok drukuje oś czasu i `[KILL]` z tej samej sekundy oraz
+    chip 98,7 C. Dokument roszczeniowy sam sobie przeczy.
+
+    Format ma 24 znaki, a jego pierwsze 19 to dokladnie stary stempel - dzieki temu
+    kazdy istniejacy parser bioracy `linia[:19]` dziala dalej bez zmian, a nowy
+    moze wziac `linia[:24]` i policzyc czas absolutny.
+    """
+    return time.strftime("%Y-%m-%d %H:%M:%S%z", time.localtime(t if t else now()))
+
+
+def czas_abs(s):
+    """Epoch ABSOLUTNY ze stempla `ts()` - z offsetem albo bez (pliki sprzed 2.1.8).
+
+    Ze stemplem z offsetem wynik jest ten sam w kazdej strefie na swiecie. Bez
+    offsetu nie da sie zgadnac, wiec interpretujemy lokalnie (tak jak dzialalo
+    do tej pory) - i to jest dokladnie ta niejednoznacznosc, dla ktorej offset
+    zostal dopisany. Zwraca 0.0 przy smieciu, nigdy nie rzuca.
+    """
+    s = (s or "").strip()
+    if len(s) < 19:
+        return 0.0
+    try:
+        if len(s) >= 24 and s[19] in "+-":
+            return datetime.datetime.strptime(s[:24], "%Y-%m-%d %H:%M:%S%z").timestamp()
+        return time.mktime(time.strptime(s[:19], "%Y-%m-%d %H:%M:%S"))
+    except (ValueError, OverflowError):
+        return 0.0
 
 
 def ensure_dirs():
