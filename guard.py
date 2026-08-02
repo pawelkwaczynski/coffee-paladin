@@ -96,7 +96,19 @@ DEFAULTS = {
     "fan_alert_temp_c": 70.0,   # powyzej tej temperatury chipa wentylatory MUSZA sie krecic
     "cpu_min_percent": 20.0,    # tylko procesy powyzej tego zuzycia sa ruszane
     "max_pause_minutes": 45,    # dluzej niz to w pauzie -> lagodne ubicie (jest checkpoint)
+    "fan_alert_polls": 3,       # tyle odczytow z rzedu "goraco + 0 obr/min" -> alarm
     "kill_after_polls": 4,      # tyle kolejnych odczytow krytycznych -> SIGTERM
+    # Progi chipu maja histereze (pauza 95 / wznowienie 87), ale drugi wyzwalacz —
+    # stan termiczny systemu (`thermalState`) — jest binarny i histerezy NIE MA.
+    # Efekt zmierzony 02.08 10:46-10:48: szesc par pauza/wznowienie w cyklach
+    # 15-sekundowych przy chipie 84-85 C, czyli DZIESIEC stopni ponizej progu pauzy.
+    # Zadanie skakalo, a nic sie nie chlodzilo. Raz wstrzymany proces zostaje
+    # wstrzymany co najmniej tyle sekund, zeby pauza mogla cokolwiek dac.
+    "min_pause_seconds": 60,
+    # ...a pauza z samego stanu systemowego (bez przekroczenia progu chipu) wymaga
+    # POTWIERDZENIA w kolejnym cyklu. Pojedynczy skok `thermalState` na "serious"
+    # potrafi trwac jeden odczyt.
+    "state_confirm_polls": 2,
     "demote_after_minutes": 5,  # goracy chip + proces mielacy dluzej niz to -> background QoS (E-cores)
     "demote_cpu_percent": 60.0,
     # degradacja TYLKO gdy chip >= tego progu (None = soc_resume_c + 4); powrot na
@@ -1389,6 +1401,33 @@ def pick_targets(cfg, procs, saferun):
             continue          # interaktywna sesja na pierwszym planie - patrz funkcja wyzej
         out.append((pid, cpu, comm, None))
     out.sort(key=lambda x: -x[1])
+
+    # Gdy CPU potomkow jest rolowane do rodzica (`count_children`), ten sam procesor
+    # trafial na liste DWA razy: raz jako rodzic z suma poddrzewa, raz jako dziecko
+    # z wlasnym zuzyciem. Zmierzone: "kandydat: bash pid=98754 276% CPU" obok
+    # "kandydat: ffmpeg pid=7025 276% CPU", podczas gdy `ps` dawal dla basha 0,0%.
+    # Pauzowaniu to nie szkodzi (SIGSTOP na grupe obejmuje oba), ale licznik ciezkich
+    # procesow i lista w oknie potwierdzenia klamaly dwukrotnie. Zostawiamy NAJWYZSZEGO
+    # przodka - to jego zamrozenie zatrzymuje cale poddrzewo i powstrzymuje nowe dzieci.
+    if drzewo:
+        rodzic = {}
+        for pid, ppid, cpu, comm in procs:
+            rodzic[pid] = ppid
+        wybrane = {t[0] for t in out}
+        bez_potomkow = []
+        for t in out:
+            p = rodzic.get(t[0])
+            ma_przodka = False
+            glebokosc = 0
+            while p and p > 1 and glebokosc < 40:
+                if p in wybrane:
+                    ma_przodka = True
+                    break
+                p = rodzic.get(p)
+                glebokosc += 1
+            if not ma_przodka:
+                bez_potomkow.append(t)
+        out = bez_potomkow
     return out
 
 
@@ -1522,6 +1561,15 @@ def do_resume(cfg, st, reason):
         del st["paused"][key]
     notify(cfg, T("Thermal guard: cooled down"), T("Resumed paused jobs (%s)") % reason, "resume")
     return True
+
+
+def _wiek_pauzy(v):
+    """Ile sekund trwa ta pauza. Zegar monotoniczny tylko w obrebie tego procesu
+    (patrz `mono_id`), inaczej scienny — bo tylko on znaczy to samo po restarcie."""
+    m = v.get("since_mono")
+    if m is not None and v.get("mono_id") == _MONO_ID:
+        return max(0.0, time.monotonic() - m)
+    return max(0.0, now() - v.get("since", now()))
 
 
 def do_terminate(cfg, st, reason, only_keys=None):
@@ -2320,7 +2368,12 @@ def fan_alarm(cfg, soc, soc_t, st):
         return
     hot = soc_t >= cfg.get("fan_alert_temp_c", 75.0)
     dead = max(fans) == 0
-    if hot and dead:
+    # Wentylatory rozbiegaja sie z zera przez kilka sekund. Pojedynczy odczyt
+    # "goraco i 0 obr/min" to najczesciej ROZBIEG, nie awaria - alarm z 02.08 10:32:43
+    # (75,9 C, oba na zerze) okazal sie wlasnie tym: chwile pozniej kręcily 2300-2900.
+    # Prawdziwa awaria chlodzenia utrzymuje sie; przelotna nie. Liczymy z rzedu.
+    st["_fan_zero_polls"] = (st.get("_fan_zero_polls", 0) + 1) if (hot and dead) else 0
+    if hot and dead and st["_fan_zero_polls"] >= cfg.get("fan_alert_polls", 3):
         if now() - st.get("fan_alarm_at", 0) > 600:
             st["fan_alarm_at"] = now()
             msg = (T("COOLING FAILURE? chip %.1f C while both fans report 0 rpm") % soc_t)
@@ -2565,8 +2618,17 @@ def main():
                     cool = False
                 # po pauzie z powodu baterii wznawiamy dopiero na zasilaczu (albo po doladowaniu)
                 powered = ac or pct is None or pct >= cfg.get("batt_pct_resume", 25)
+                # MINIMALNY CZAS PAUZY. Bez tego wyzwalacz stanu systemowego (ktory
+                # histerezy nie ma) daje oscylacje: pauza -> 15 s -> "warunki wrocily
+                # do normy" -> pauza, w kolko, przy chipie dziesiec stopni ponizej
+                # progu. Zadanie skacze, a nic sie nie chlodzi.
+                min_p = max(0, cfg.get("min_pause_seconds", 60))
+                najmlodsza = min((_wiek_pauzy(v) for v in st["paused"].values()),
+                                 default=min_p + 1)
+                dosc_dlugo = najmlodsza >= min_p
                 # reczne zamrozenie z paska ma pierwszenstwo — nie odmrazamy za plecami Pawla
-                if st["paused"] and cool and powered and not st.get("reczna_pauza"):
+                if (st["paused"] and cool and powered and dosc_dlugo
+                        and not st.get("reczna_pauza")):
                     do_resume(cfg, st, T("conditions are back to normal"))
                 do_promote(cfg, st, cpu_hist, soc_t)
                 do_demote(cfg, st, targets, cpu_hist, soc_t, saferun_normal)
@@ -2588,14 +2650,8 @@ def main():
             # restartem zostaloby w stanie T na zawsze. Dlatego wpis niesie znacznik
             # procesu, a cudzy pomiar wraca na zegar scienny, ktory jako jedyny znaczy
             # to samo po obu stronach restartu.
-            def _dlugosc_pauzy(v):
-                m = v.get("since_mono")
-                if m is not None and v.get("mono_id") == _MONO_ID:
-                    return max(0.0, time.monotonic() - m)
-                return max(0.0, now() - v.get("since", now()))
-
             przeterminowane = [k for k, v in st["paused"].items()
-                               if _dlugosc_pauzy(v) > limit_min * 60 and not v.get("manual")]
+                               if _wiek_pauzy(v) > limit_min * 60 and not v.get("manual")]
             if przeterminowane:
                 for k in przeterminowane:
                     log(T("PAUSE >%d min - terminating job %s (pid %s)")
