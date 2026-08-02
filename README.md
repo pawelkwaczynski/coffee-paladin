@@ -1056,7 +1056,7 @@ baterii, wykryte twarde pady z odczytami, interwencje bezpiecznika i pełną oś
 </p>
 <p align="center"><sub>Prawdziwy wpis z tego dziennika: <code>!!! AWARIA CHŁODZENIA? chip 75.0 C, a oba wentylatory 0 obr/min</code>.</sub></p>
 <p align="center">
-  <img src="docs/screens/export_report.webp" alt="Raport dla serwisu: PDF albo tekst" width="420">
+  <img src="docs/screens/export_report_pl.webp" alt="Raport dla serwisu: PDF albo tekst" width="420">
 </p>
 <p align="center"><sub>Jeden klik zamienia czarną skrzynkę w dokument, który serwis przyjmie.</sub></p>
 ## Skąd biorą się dane
@@ -1167,7 +1167,7 @@ cat ~/.claude/skills/coffee-paladin/SKILL.md    # co dostał Twój agent
 ## Flota: wszystkie Maki w jednej tabeli
 
 <p align="center">
-  <img src="docs/screens/fleet.webp" alt="Flota Apple: dwa Maki, jeden milczy" width="620">
+  <img src="docs/screens/fleet_pl.webp" alt="Flota Apple: dwa Maki, jeden milczy" width="620">
 </p>
 <p align="center"><sub>Dwie maszyny: jedna raportuje, druga milczy od 9 godzin. Nazwy maszyn zamazane.</sub></p>
 
