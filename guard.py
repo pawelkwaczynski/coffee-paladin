@@ -252,7 +252,7 @@ def now():
 def ts(t=None):
     """Stempel czasu do artefaktow dowodowych - ZAWSZE z offsetem strefy.
 
-    Do 2.1.7 bylo to gole `%Y-%m-%d %H:%M:%S`, czyli czas lokalny bez informacji,
+    Do 2.1.7 wlacznie bylo to gole `%Y-%m-%d %H:%M:%S`, czyli czas lokalny bez informacji,
     ktory to lokalny. Zdarzenia w events.log filtrowane sa po polu `epoch`
     (absolutnym), a historia i guard.log po TEKSCIE - wiec ten sam katalog danych
     dawal dwa rozne dokumenty. Odtworzone 02.08.2026: pad zapisany 23:30 w Warszawie,
@@ -1964,7 +1964,7 @@ def wykryj_twardy_pad():
             return None                       # puls z biezacej sesji — nic sie nie stalo
 
         # --- poziom pewnosci zamiast milczenia ---------------------------------------
-        # Do 2.1.7 kazdy przypadek "podejrzany" konczyl sie `return None`, czyli CISZA.
+        # Do 2.1.7 wlacznie kazdy przypadek "podejrzany" konczyl sie `return None`, czyli CISZA.
         # To najgorsze mozliwe zachowanie czarnej skrzynki: rozladowany RTC albo skok NTP
         # kasowal dowod bezpowrotnie, a podloga 30-dniowa WYRZUCALA go zamiast oznaczyc.
         # W druga strone: demon ubity SIGKILL-em albo `launchctl bootout` przed normalnym
@@ -2431,7 +2431,7 @@ def fleet_write(cfg, status):
         hw = _hw_cache_fleet()
         out["model"] = hw.get("model")
         out["serial"] = hw.get("serial")
-        out["guard_version"] = "2.1.7"
+        out["guard_version"] = "2.1.8"
         tmp = os.path.join(d, ".%s.tmp" % hostname())
         with open(tmp, "w") as f:
             json.dump(out, f, ensure_ascii=False)
