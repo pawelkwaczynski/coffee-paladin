@@ -249,6 +249,7 @@ WLASNE_NAZWY = ("coffee-paladin", "guard.py", "safe-run")
 
 # klucze configu, ktore mialy zly typ i zostaly zastapione defaultem (do zalogowania)
 _zle_typy = []
+_ostatnio_odrzucone = {"v": None}
 
 
 def load_cfg():
@@ -270,12 +271,18 @@ def load_cfg():
             if not isinstance(wart, bool):
                 cfg[klucz] = wzor
                 _zle_typy.append(klucz)
-        elif isinstance(wzor, (int, float)) and not isinstance(wart, bool):
-            try:
-                cfg[klucz] = type(wzor)(wart)
-            except (TypeError, ValueError):
+        elif isinstance(wzor, (int, float)):
+            # bool jest w Pythonie podklasa int, wiec `poll_seconds: true` przeszloby
+            # jako 1 sekunda - demon odpytywalby 15x czesciej, na goracym chipie.
+            if isinstance(wart, bool):
                 cfg[klucz] = wzor
                 _zle_typy.append(klucz)
+            else:
+                try:
+                    cfg[klucz] = type(wzor)(wart)
+                except (TypeError, ValueError):
+                    cfg[klucz] = wzor
+                    _zle_typy.append(klucz)
         elif isinstance(wzor, list) and not isinstance(wart, list):
             cfg[klucz] = list(wzor)
             _zle_typy.append(klucz)
@@ -286,21 +293,49 @@ def load_cfg():
     # Progi MUSZA rosnac: wznowienie < pauza < ubicie. Bez tego jedna literowka
     # zamienia bezpiecznik w mlynek (resume >= pause: pauza i wznowienie co cykl)
     # albo w zabojce zadan (kill <= pause: SIGTERM przy zupelnie zdrowych 82 C).
-    for nizszy, wyzszy, margines in (("soc_resume_c", "soc_pause_c", 2.0),
-                                     ("soc_pause_c", "soc_kill_c", 2.0),
-                                     ("batt_pause_c", "batt_kill_c", 2.0)):
-        try:
-            n, w = float(cfg[nizszy]), float(cfg[wyzszy])
-        except (KeyError, TypeError, ValueError):
-            continue
-        if n >= w:
-            cfg[nizszy] = w - margines
-            _zle_typy.append("%s (>= %s, obnizone do %.1f)" % (nizszy, wyzszy, cfg[nizszy]))
+    PARY_PROGOW = (("soc_resume_c", "soc_pause_c"), ("soc_pause_c", "soc_kill_c"),
+                   ("batt_resume_c", "batt_pause_c"), ("batt_pause_c", "batt_kill_c"))
+    # Korekta MUSI byc powtarzana: obnizenie soc_pause_c w drugiej parze potrafi
+    # zlamac relacje ustalona w pierwszej. Trzy przebiegi wystarczaja na cztery pary.
+    for _ in range(3):
+        zmienione = False
+        for nizszy, wyzszy in PARY_PROGOW:
+            try:
+                n, w = float(cfg[nizszy]), float(cfg[wyzszy])
+            except (KeyError, TypeError, ValueError):
+                continue
+            if n >= w:
+                cfg[nizszy] = w - 2.0
+                _zle_typy.append("%s (>= %s, obnizone do %.1f)" % (nizszy, wyzszy, cfg[nizszy]))
+                zmienione = True
+        if not zmienione:
+            break
+    # Po korekcie prog moze wyladowac poza fizycznym sensem (ktos wpisuje soc_kill_c: 0,
+    # zeby "wylaczyc ubijanie", i przeciaga za soba pauze na -2 C). Wtedy cala rodzina
+    # progow wraca do wartosci domyslnych - lepiej znane 85/76/90 niz wlasny absurd.
+    for rodzina, zakres in ((("soc_resume_c", "soc_pause_c", "soc_kill_c"), (40.0, 110.0)),
+                            (("batt_resume_c", "batt_pause_c", "batt_kill_c"), (20.0, 60.0))):
+        if any(k in cfg and not (zakres[0] <= float(cfg[k]) <= zakres[1]) for k in rodzina
+               if isinstance(cfg.get(k), (int, float))):
+            for k in rodzina:
+                if k in DEFAULTS:
+                    cfg[k] = DEFAULTS[k]
+            _zle_typy.append("progi %s poza zakresem %.0f-%.0f - przywrocone domyslne"
+                             % (rodzina[0].split("_")[0], zakres[0], zakres[1]))
 
     # listy nietykalnych sa UZUPELNIANE o wlasne nazwy, nigdy nimi nie nadpisywane:
     # uzytkownik moze dopisac swoje wzorce, ale nie moze przypadkiem odslonic demona.
     # Puste stringi wylatuja: "" pasuje do KAZDEJ nazwy procesu, wiec jedna pusta
     # linia na liscie oslepia bezpiecznik i nic tego nie sygnalizuje.
+    # Lista odrzuconych wartosci jest LOGOWANA i czyszczona przy kazdym wczytaniu.
+    # Wczesniej tylko rosla (load_cfg leci co cykl petli, ~5760 wpisow na dobe),
+    # a uzytkownik nie dostawal zadnego sygnalu, ze jego prog zostal po cichu zmieniony.
+    if _zle_typy:
+        odrzucone = sorted(set(_zle_typy))
+        del _zle_typy[:]
+        if odrzucone != _ostatnio_odrzucone["v"]:
+            _ostatnio_odrzucone["v"] = odrzucone
+            log("CONFIG: odrzucone albo poprawione wartosci: %s" % ", ".join(odrzucone))
     for klucz in ("never_patterns", "never_arg_patterns", "never_extra", "managed_patterns"):
         lista = [w for w in (cfg.get(klucz) or []) if isinstance(w, str) and w.strip()]
         if klucz in ("never_patterns", "never_arg_patterns"):

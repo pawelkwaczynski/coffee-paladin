@@ -9,11 +9,26 @@ BASE="$HOME/.coffee-paladin"
 AGENT="pl.pawel.coffee-paladin"
 PLIST="$HOME/Library/LaunchAgents/$AGENT.plist"
 
+# Instalacje sprzed 2.0.0 trzymaly dane w ~/.thermal-guard i mialy inne etykiety uslug.
+# Automigracji juz nie ma (nikt jej nie potrzebuje), ale zostawienie WCZYTANYCH starych
+# uslug wskazujacych na nieistniejace binarki to cichy smiec w launchd - a osierocona
+# historia pomiarow to material dowodowy, ktory user moze chciec zachowac.
+for OLD in pl.pawel.thermal-guard pl.pawel.heatbar; do
+  launchctl bootout "gui/$(id -u)/$OLD" 2>/dev/null || true
+  rm -f "$HOME/Library/LaunchAgents/$OLD.plist"
+done
+if [ -d "$HOME/.thermal-guard" ]; then
+  echo "  ⚠️  znaleziono ~/.thermal-guard (dane sprzed zmiany nazwy)."
+  echo "     Historia pomiarow i czarna skrzynka zostaly tam - przenies je recznie,"
+  echo "     jesli sa Ci potrzebne:  mv ~/.thermal-guard/history.csv ~/.coffee-paladin/"
+fi
+
 echo "== coffee-paladin: instalacja na $(scutil --get ComputerName 2>/dev/null || hostname) =="
 mkdir -p "$BIN" "$BASE" "$BASE/managed" "$HOME/Library/LaunchAgents"
 
 # swieze konto / niekompletna paczka: sprawdz zrodla ZANIM cokolwiek ruszymy
-for f in guard.py safe-run heat thermal-report fleet thermalstate.swift heatbar.swift; do
+for f in guard.py safe-run heat thermal-report fleet thermalstate.swift heatbar.swift \
+         pl.pawel.coffee-paladin.plist pl.pawel.coffee-paladin-bar.plist; do
   if [ ! -f "$SRC/$f" ]; then
     echo "  ❌ brak pliku zrodlowego: $SRC/$f — przerwano (niepelna paczka/klon?)"
     exit 1
@@ -43,10 +58,10 @@ fi
 
 # 1c. pasek menu — blad kompilacji ma byc WIDOCZNY, nie polkniety
 if command -v swiftc >/dev/null 2>&1; then
-  if swiftc -O -o "$BIN/coffee-paladin-bar" "$SRC/heatbar.swift" 2>/tmp/heatbar_build.err; then
+  if swiftc -O -o "$BIN/coffee-paladin-bar" "$SRC/heatbar.swift" 2>"$BASE/heatbar_build.err"; then
     echo "  ✅ coffee-paladin-bar (pasek menu) zbudowany"
   else
-    echo "  ⚠️  pasek NIE zbudowany — szczegoly: /tmp/heatbar_build.err (demon dziala bez paska)"
+    echo "  ⚠️  pasek NIE zbudowany — szczegoly: $BASE/heatbar_build.err (demon dziala bez paska)"
   fi
 fi
 
