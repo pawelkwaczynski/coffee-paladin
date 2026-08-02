@@ -654,14 +654,30 @@ def fuzz_wykryj_twardy_pad(seed, n):
 
 LOG = os.path.join(TMP, "guard.log")
 
-# jak wyglada wpis o pauzie w kazdym z pieciu jezykow (z DICTS w guard.py)
-WZORY_PAUZ = {
-    "en": "PAUSED ffmpeg (pid 1, 99%% CPU) - chip 90 C",
-    "pl": "PAUZA  ffmpeg (pid 1, 99%% CPU) - chip 90 C",
-    "ru": "ПАУЗА  ffmpeg (pid 1, 99%% CPU)",
-    "zh": "已暂停  ffmpeg (pid 1, 99%% CPU)",
-    "es": "PAUSADO  ffmpeg (pid 1, 99%% CPU)",
-}
+# Wpisy budujemy Z TYCH SAMYCH SLOWNIKOW, ktorych uzywa guard - dzieki temu test
+# nie zestarzeje sie przy poprawce tlumaczen.
+K_PAUZA = "PAUSED %s (pid %d, %.0f%% CPU) - %s"
+K_WZNOW = "RESUMED %s (pid %d) - %s"
+K_UBICIE = "TERMINATED (SIGTERM) %s (pid %d) - %s"
+K_ZAPOWIEDZ = "PAUSE >%d min - terminating job %s (pid %s)"
+
+
+def _wpis(lang, klucz, args):
+    return (guard.DICTS.get(lang, {}).get(klucz, klucz)) % args
+
+
+WPISY = {}
+for _l in ("en", "pl", "ru", "zh", "es"):
+    WPISY[_l] = {
+        "pauza": _wpis(_l, K_PAUZA, ("ffmpeg", 1, 99, "chip 90 C")),
+        "wznow": _wpis(_l, K_WZNOW, ("ffmpeg", 1, "cooled down")),
+        "ubicie": _wpis(_l, K_UBICIE, ("ffmpeg", 1, "chip 95 C")),
+        "zapowiedz": _wpis(_l, K_ZAPOWIEDZ, (45, "ffmpeg", 1)),
+    }
+
+
+TRIGGERY = ("PAUZA ", "PAUSED ", "WZNOWIONE", "RESUMED", "SIGTERM",
+            "koncze zadanie", "terminating job")
 
 
 def fuzz_statystyki_dnia(seed, n):
@@ -678,22 +694,30 @@ def fuzz_statystyki_dnia(seed, n):
             s.n += 1
             linie = []
             oczek = {"pauses": 0, "resumes": 0, "kills": 0}
+            zapowiedzi = 0
+            zatrute = False        # smieci, ktore SAME zawieraja slowo-klucz
+            lang = list(WPISY)[i % 5] if i < 40 else s.rng.choice(list(WPISY))
             for _ in range(s.rng.randint(0, 20)):
                 r = s.rng.random()
-                lang = s.rng.choice(list(WZORY_PAUZ))
-                if r < 0.4:
-                    linie.append("%s 10:00:00  %s" % (dzis, WZORY_PAUZ[lang]))
+                if r < 0.35:
+                    linie.append("%s 10:00:00  %s" % (dzis, WPISY[lang]["pauza"]))
                     oczek["pauses"] += 1
-                elif r < 0.6:
-                    linie.append("%s 10:00:00  RESUMED ffmpeg (pid 1) - cool" % dzis)
+                elif r < 0.55:
+                    linie.append("%s 10:00:00  %s" % (dzis, WPISY[lang]["wznow"]))
                     oczek["resumes"] += 1
-                elif r < 0.7:
-                    linie.append("%s 10:00:00  SIGTERM ffmpeg" % dzis)
+                elif r < 0.70:
+                    linie.append("%s 10:00:00  %s" % (dzis, WPISY[lang]["ubicie"]))
                     oczek["kills"] += 1
+                elif r < 0.78:
+                    linie.append("%s 10:00:00  %s" % (dzis, WPISY[lang]["zapowiedz"]))
+                    zapowiedzi += 1
                 else:
-                    linie.append(s.rng.choice(smieci))
+                    x = s.rng.choice(smieci)
+                    linie.append(x)
+                    zatrute = zatrute or any(w in x for w in TRIGGERY)
             if i < len(smieci):
                 linie.append(smieci[i])
+                zatrute = zatrute or any(w in smieci[i] for w in TRIGGERY)
             tresc = "\n".join(linie) + "\n"
             with open(LOG, "wb") as f:
                 f.write(tresc.encode("utf-8", "surrogateescape"))
@@ -705,14 +729,27 @@ def fuzz_statystyki_dnia(seed, n):
             if not isinstance(st, dict) or set(st) != {"pauses", "resumes", "kills"}:
                 s.bzdura(skroc(tresc, 200), "zwrocono %r" % (st,), "WYSOKA", klucz="zly-typ-wyniku")
                 continue
+            wej = {"jezyk_logu": lang, "log": skroc(tresc, 160)}
             if st["pauses"] < oczek["pauses"]:
-                brakuje = oczek["pauses"] - st["pauses"]
-                s.bzdura(skroc(tresc, 200),
-                         "policzono %d pauz zamiast %d - wpisy w ru/zh/es NIE sa rozpoznawane "
-                         "(funkcja zna tylko 'PAUZA '/'PAUSED '), wiec statystyki dnia w pasku "
-                         "sa zerowe na kazdym nie-polskim/nie-angielskim jezyku"
-                         % (st["pauses"], oczek["pauses"]), "SREDNIA", klucz="jezyki")
-                del brakuje
+                s.bzdura(wej,
+                         "jezyk %s: policzono %d pauz zamiast %d - funkcja szuka tylko "
+                         "'PAUZA '/'PAUSED ', wiec w ru/zh/es statystyki dnia w pasku sa ZEROWE"
+                         % (lang, st["pauses"], oczek["pauses"]), "SREDNIA", klucz="pauzy-jezyki")
+            if st["resumes"] < oczek["resumes"]:
+                s.bzdura(wej,
+                         "jezyk %s: policzono %d wznowien zamiast %d (szukane sa tylko "
+                         "'WZNOWIONE'/'RESUMED')" % (lang, st["resumes"], oczek["resumes"]),
+                         "SREDNIA", klucz="wznowienia-jezyki")
+            if st["kills"] < oczek["kills"]:
+                s.bzdura(wej, "jezyk %s: policzono %d ubic zamiast %d"
+                         % (lang, st["kills"], oczek["kills"]), "SREDNIA", klucz="ubicia-jezyki")
+            if zapowiedzi and not zatrute and st["pauses"] > oczek["pauses"]:
+                s.bzdura(wej,
+                         "jezyk %s: zapowiedz ubicia ('PAUZA >45 min - koncze zadanie') zostala "
+                         "policzona jako PAUZA (%d zamiast %d) - kolejnosc elif sprawia, ze wpis "
+                         "o ubiciu nigdy nie trafia do licznika kills"
+                         % (lang, st["pauses"], oczek["pauses"]), "SREDNIA",
+                         klucz="zapowiedz-jako-pauza")
     finally:
         if os.path.exists(LOG):
             os.unlink(LOG)
@@ -864,7 +901,10 @@ def fuzz_chip_juz_goracy(seed, n):
         try:
             r = saferun.chip_juz_goracy()
         except Exception as e:
-            s.blad(tresc, e, "WYSOKA")
+            # status.json guard zapisuje atomowo (tmp + os.replace) i zawsze jako dict,
+            # wiec takie tresci biora sie z recznej edycji, uszkodzenia FS albo obcego
+            # narzedzia - stad SREDNIA, mimo ze skutek (traceback w safe-run) jest ciezki
+            s.blad(tresc, e, "SREDNIA")
             continue
         if not (isinstance(r, tuple) and len(r) == 2 and isinstance(r[0], bool)
                 and isinstance(r[1], str)):

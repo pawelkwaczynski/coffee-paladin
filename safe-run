@@ -312,22 +312,29 @@ def chip_juz_goracy():
     try:
         with open(os.path.join(BASE, "status.json")) as f:
             st = json.load(f)
+        if not isinstance(st, dict):
+            return False, ""      # migawka moze byc null/lista/tekst po recznej edycji
     except Exception:
         return False, ""          # brak migawki: nie blokujemy, guard i tak ostrzeze
     if (time.time() - os.path.getmtime(os.path.join(BASE, "status.json"))) > 120:
         return False, ""          # migawka nieswieza: nie ma na czym opierac decyzji
-    if (st.get("level") or 0) >= 2:
-        return True, T("the guard reports a hot machine")
+    try:
+        if float(st.get("level") or 0) >= 2:
+            return True, T("the guard reports a hot machine")
+    except (TypeError, ValueError, OverflowError):
+        pass                      # poziom nie-liczbowy: idziemy dalej, do temperatury
     chip = st.get("chip_c")
     # Guard publikuje progi jako {"pause": ..., "kill": ...} (guard.py, status_write).
     # Wczesniej bylo tu "soc_pause_c", czyli klucz, ktorego nikt nie zapisuje - odczyt
     # zawsze zwracal None i po cichu spadal na config. Na maszynie bezwentylatorowej,
     # gdzie kalibracja obniza prog do 78 C, oznaczalo to decyzje wedlug 85 C.
-    prog = (st.get("thresholds") or {}).get("pause") or cfg().get("soc_pause_c", 85.0)
+    progi = st.get("thresholds")
+    prog = (progi.get("pause") if isinstance(progi, dict) else None) or cfg().get("soc_pause_c", 85.0)
     try:
-        if chip is not None and float(chip) >= float(prog) - 5.0:
-            return True, "chip %.1f C" % float(chip)
-    except (TypeError, ValueError):
+        c, p = float(chip), float(prog)
+        if c == c and c >= p - 5.0:          # c == c odsiewa NaN
+            return True, "chip %.1f C" % c
+    except (TypeError, ValueError, OverflowError):
         pass
     return False, ""
 

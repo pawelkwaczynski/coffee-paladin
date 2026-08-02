@@ -565,7 +565,9 @@ def main():
 
     try:
         with open(LOG) as f:
-            lines = [l.rstrip() for l in f if any(k in l for k in ("PAUSED", "RESUMED", "PAUZA", "WZNOWIONE", "TERMINATED", "SIGKILL", "DEMOT"))]
+            lines = [l.rstrip() for l in f if any(k in l for k in (
+                "[PAUSE]", "[RESUME]", "[KILL]", "[DEMOTE]", "[PROMOTE]", "[FANFAIL]",
+                "PAUSED", "RESUMED", "PAUZA", "WZNOWIONE", "TERMINATED", "SIGKILL", "DEMOT"))]
         if lines:
             print(T("\nRecent guard interventions:"))
             for l in lines[-5:]:

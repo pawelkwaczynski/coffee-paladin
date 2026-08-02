@@ -279,8 +279,16 @@ def load_cfg():
                 _zle_typy.append(klucz)
             else:
                 try:
-                    cfg[klucz] = type(wzor)(wart)
-                except (TypeError, ValueError):
+                    # OverflowError, bo 1e400 i 400-cyfrowy int wywalaly cala funkcje,
+                    # a load_cfg leci w main() bez oslony: demon w ogole nie wstawal.
+                    # NaN i nieskonczonosc przechodzily WSZYSTKIE porownania jako falsz,
+                    # wiec prog "nan" zamienial pick_targets w maszynke lapiaca kazdy
+                    # proces powyzej zera procent CPU - bez jednego slowa w logu.
+                    nowa = type(wzor)(wart)
+                    if isinstance(nowa, float) and (nowa != nowa or nowa in (float("inf"), float("-inf"))):
+                        raise ValueError("NaN albo nieskonczonosc")
+                    cfg[klucz] = nowa
+                except (TypeError, ValueError, OverflowError):
                     cfg[klucz] = wzor
                     _zle_typy.append(klucz)
         elif isinstance(wzor, list) and not isinstance(wart, list):
@@ -728,7 +736,17 @@ def rotate(path):
         pass
 
 
-def log(msg):
+def log(msg, tag=None):
+    """Wpis do guard.log. `tag` to STABILNY znacznik ASCII zdarzenia.
+
+    Tresc komunikatu jest tlumaczona na piec jezykow, a raport dowodowy, statystyki
+    w pasku i `heat` parsuja ten log. Dopoki szukaly polskich i angielskich slow,
+    maszyna z jezykiem rosyjskim gubila w raporcie KAZDY wykryty twardy pad - czyli
+    jedyny powod, dla ktorego ten dokument istnieje. Znacznik [PAUSE]/[RESUME]/...
+    jest ten sam we wszystkich jezykach i to po nim maja szukac parsery.
+    """
+    if tag:
+        msg = "[%s] %s" % (tag, msg)
     rotate(LOG_PATH)
     line = "%s  %s\n" % (ts(), msg)
     try:
@@ -1330,7 +1348,7 @@ def do_pause(cfg, st, targets, reason, manual=False, lvl_krytyczny=False):
             # zostalby zamrozony BEZ wpisu w stanie - czyli na zawsze, bo nikt by
             # o nim nie wiedzial. Jeden fsync na pauze jest tanszy niz taki sierota.
             save_state(st)
-            log(T("PAUSED %s (pid %d, %.0f%% CPU) - %s") % (comm, pid, cpu, reason))
+            log(T("PAUSED %s (pid %d, %.0f%% CPU) - %s") % (comm, pid, cpu, reason), tag="PAUSE")
         elif blad == errno.ESRCH:
             # proces zdazyl zniknac miedzy odczytem ps a sygnalem - to normalne, nie awaria
             log(T("gone before pause: %s (pid %d)") % (comm, pid))
@@ -1362,7 +1380,7 @@ def do_resume(cfg, st, reason):
             blad = sig(pid, info.get("pgid"), signal.SIGCONT)
             stan = run(["ps", "-o", "stat=", "-p", str(pid)]).strip()
             if blad == 0 and not stan.startswith("T"):
-                log(T("RESUMED %s (pid %d) - %s") % (info.get("comm", "?"), pid, reason))
+                log(T("RESUMED %s (pid %d) - %s") % (info.get("comm", "?"), pid, reason), tag="RESUME")
             elif stan.startswith("T"):
                 # SIGCONT poszedl, ale proces DALEJ stoi - klasyczna petla SIGTTIN
                 # (wznowiony w tle, chce czytac klawiature). Sam z tego nie wyjdzie.
@@ -1402,7 +1420,7 @@ def do_terminate(cfg, st, reason, only_keys=None):
         sig(pid, info.get("pgid"), signal.SIGCONT)
         sig(pid, info.get("pgid"), signal.SIGTERM)
         victims.append((pid, info))
-        log(T("TERMINATED (SIGTERM) %s (pid %d) - %s") % (info.get("comm", "?"), pid, reason))
+        log(T("TERMINATED (SIGTERM) %s (pid %d) - %s") % (info.get("comm", "?"), pid, reason), tag="KILL")
         del st["paused"][key]
     if victims:
         notify(cfg, T("Thermal guard: STOPPED"),
@@ -1468,7 +1486,7 @@ def do_demote(cfg, st, targets, cpu_hist, soc_t, saferun_normal=frozenset()):
         # i agent MUSZA ja widziec w status.json, a pid nikomu nic nie mowi
         st.setdefault("demoted_info", {})[str(pid)] = {"comm": comm}
         log(T("DEMOTED %s (pid %d) -> background QoS/E-cores (hot for >%d min)")
-            % (comm, pid, cfg["demote_after_minutes"]))
+            % (comm, pid, cfg["demote_after_minutes"]), tag="DEMOTE")
         # pauza ma dzwiek i push, a degradacja ma WIEKSZY trwaly wplyw na czas
         # zadania (pauza mija, spowolnienie zostaje) - wiec tez musi byc slyszalna
         notify(cfg, T("Thermal guard: job slowed down"),
@@ -1497,7 +1515,7 @@ def do_promote(cfg, st, cpu_hist, soc_t):
         # przed natychmiastowa ponowna degradacja
         cpu_hist[pid] = 0.0
         log(T("PROMOTED %s (pid %d) -> back on P-cores (machine cooled down)")
-            % (info.get("comm", "?"), pid))
+            % (info.get("comm", "?"), pid), tag="PROMOTE")
         notify(cfg, T("Thermal guard: full speed again"),
                T("%s is back on P-cores") % info.get("comm", "?"), "promote")
 
@@ -1669,12 +1687,14 @@ def statystyki_dnia():
             for line in f:
                 if not line.startswith(dzis):
                     continue
-                if "PAUZA " in line or "PAUSED " in line:
-                    pauzy += 1
-                elif "WZNOWIONE" in line or "RESUMED" in line:
-                    wznowienia += 1
-                elif "SIGTERM" in line or "koncze zadanie" in line or "terminating job" in line:
+                # Znacznik jest jezykowo neutralny; slowa zostaja dla wpisow sprzed
+                # wprowadzenia znacznikow (log rotuje sie, wiec to przejsciowe).
+                if "[KILL]" in line or "SIGTERM" in line or "koncze zadanie" in line:
                     ubicia += 1
+                elif "[PAUSE]" in line or "PAUZA " in line or "PAUSED " in line:
+                    pauzy += 1
+                elif "[RESUME]" in line or "WZNOWIONE" in line or "RESUMED" in line:
+                    wznowienia += 1
     except Exception:
         pass
     return {"pauses": pauzy, "resumes": wznowienia, "kills": ubicia}
@@ -2132,7 +2152,7 @@ def fan_alarm(cfg, soc, soc_t, st):
         if now() - st.get("fan_alarm_at", 0) > 600:
             st["fan_alarm_at"] = now()
             msg = (T("COOLING FAILURE? chip %.1f C while both fans report 0 rpm") % soc_t)
-            log("!!! " + msg)
+            log("!!! " + msg, tag="FANFAIL")
             notify(cfg, T("Fans stopped while the chip is hot"), msg, key="fan")
 
 
@@ -2360,7 +2380,7 @@ def main():
             if przeterminowane:
                 for k in przeterminowane:
                     log(T("PAUSE >%d min - terminating job %s (pid %s)")
-                        % (limit_min, st["paused"][k].get("comm"), k))
+                        % (limit_min, st["paused"][k].get("comm"), k), tag="KILL")
                 do_terminate(cfg, st, T("paused for longer than %d min") % limit_min,
                              only_keys=przeterminowane)
 

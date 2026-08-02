@@ -340,7 +340,12 @@ def main():
             for linia in f:
                 if not w_zakresie(czas_z(linia[:19])):
                     continue
-                if re.search(r"PAUSED|RESUMED|PAUZA|WZNOWIONE|SIGTERM|TERMINAT|koncze zadanie|AWARIA|FAILURE|HARD SHUT|TWARDY", linia):
+                # Znacznik [PAUSE]/[RESUME]/[KILL]/[DEMOTE]/[PROMOTE]/[FANFAIL] jest ten sam we
+                # wszystkich jezykach. Slowa zostaja dla wpisow sprzed jego wprowadzenia:
+                # bez nich raport z maszyny rosyjskiej gubil kazdy wykryty twardy pad.
+                if re.search(r"\[(PAUSE|RESUME|KILL|DEMOTE|PROMOTE|FANFAIL)\]"
+                             r"|PAUSED|RESUMED|PAUZA|WZNOWIONE|SIGTERM|TERMINAT|koncze zadanie"
+                             r"|AWARIA|FAILURE|HARD SHUT|TWARDY|ОБНАРУЖЕНО|检测到硬关机|APAGADO BRUSCO", linia):
                     inter += 1
                     W.append("  " + linia.rstrip())
     except FileNotFoundError:
