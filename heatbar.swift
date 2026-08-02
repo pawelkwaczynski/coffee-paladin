@@ -1,6 +1,6 @@
 // heatbar.swift - thermal state of the Mac in the menu bar.
 //
-// It measures nothing on its own: it reads ~/.coffee-paladin/status.json, which thermal-guard
+// It measures nothing on its own: it reads ~/.coffee-paladin/status.json, which the coffee-paladin daemon
 // writes on every cycle (every 15 s). That is why it costs no CPU and can never disagree with
 // the guard. Manual commands are passed back through a file and executed by the daemon, so
 // exactly one process ever decides what gets paused.

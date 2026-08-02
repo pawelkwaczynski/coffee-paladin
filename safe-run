@@ -6,7 +6,7 @@ safe-run - starts a heavy job under thermal supervision.
 What it does that a plain launch does not:
   1. checks BEFORE starting whether the Mac is already hot (and refuses to start),
   2. runs the job at low priority and background QoS (efficiency cores),
-  3. gives it its own process group, so thermal-guard can pause it together with its children,
+  3. gives it its own process group, so coffee-paladin can pause it together with its children,
   4. registers it in ~/.coffee-paladin/managed/ so the guard knows the job explicitly and
      never has to recognise it by name,
   5. enforces a time budget (6 h by default) - then SIGTERM, and SIGKILL 30 s later,

@@ -59,7 +59,7 @@ PL = {
         "   rekord temperatury baterii (caly cykl zycia): %.1f °C",
     "running ✅": "dziala ✅",
     "NOT RUNNING ❌  (launchctl kickstart -k gui/%d/%s)": "NIE DZIALA ❌  (launchctl kickstart -k gui/%d/%s)",
-    "   thermal-guard: %s": "   thermal-guard: %s",
+    "   coffee-paladin: %s": "   coffee-paladin: %s",
     "   ⏸  paused: %s (pid %s, since %s)": "   ⏸  wstrzymane: %s (pid %s, od %s)",
     "\nTop CPU right now:": "\nNajwiecej CPU teraz:",
     "\nPeak chip temperature in the last 24 h: %.1f °C (%s)":
@@ -84,7 +84,7 @@ RU = {
         "   рекорд температуры батареи (за всё время): %.1f °C",
     "running ✅": "работает ✅",
     "NOT RUNNING ❌  (launchctl kickstart -k gui/%d/%s)": "НЕ РАБОТАЕТ ❌  (launchctl kickstart -k gui/%d/%s)",
-    "   thermal-guard: %s": "   thermal-guard: %s",
+    "   coffee-paladin: %s": "   coffee-paladin: %s",
     "   ⏸  paused: %s (pid %s, since %s)": "   ⏸  приостановлено: %s (pid %s, с %s)",
     "\nTop CPU right now:": "\nБольше всего CPU сейчас:",
     "\nPeak chip temperature in the last 24 h: %.1f °C (%s)":
@@ -109,7 +109,7 @@ ZH = {
         "   电池温度纪录(整个生命周期): %.1f °C",
     "running ✅": "运行中 ✅",
     "NOT RUNNING ❌  (launchctl kickstart -k gui/%d/%s)": "未运行 ❌  (launchctl kickstart -k gui/%d/%s)",
-    "   thermal-guard: %s": "   thermal-guard: %s",
+    "   coffee-paladin: %s": "   coffee-paladin: %s",
     "   ⏸  paused: %s (pid %s, since %s)": "   ⏸  已暂停: %s (pid %s, 自 %s)",
     "\nTop CPU right now:": "\n当前 CPU 占用最高:",
     "\nPeak chip temperature in the last 24 h: %.1f °C (%s)":
@@ -134,7 +134,7 @@ ES = {
         "   récord de temperatura de la batería (toda su vida): %.1f °C",
     "running ✅": "funcionando ✅",
     "NOT RUNNING ❌  (launchctl kickstart -k gui/%d/%s)": "NO FUNCIONA ❌  (launchctl kickstart -k gui/%d/%s)",
-    "   thermal-guard: %s": "   thermal-guard: %s",
+    "   coffee-paladin: %s": "   coffee-paladin: %s",
     "   ⏸  paused: %s (pid %s, since %s)": "   ⏸  en pausa: %s (pid %s, desde %s)",
     "\nTop CPU right now:": "\nMayor uso de CPU ahora:",
     "\nPeak chip temperature in the last 24 h: %.1f °C (%s)":
@@ -428,7 +428,7 @@ def main():
         print(T("   battery temperature record (whole lifetime): %.1f °C") % lifetime)
 
     running = AGENT in sh(["launchctl", "list"]) or bool(sh(["pgrep", "-f", "guard.py"]).strip())
-    print(T("   thermal-guard: %s") % (T("running ✅") if running else T("NOT RUNNING ❌  (launchctl kickstart -k gui/%d/%s)") % (os.getuid(), AGENT)))
+    print(T("   coffee-paladin: %s") % (T("running ✅") if running else T("NOT RUNNING ❌  (launchctl kickstart -k gui/%d/%s)") % (os.getuid(), AGENT)))
 
     try:
         with open(STATE) as f:

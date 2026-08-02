@@ -3,7 +3,7 @@
 </p>
 <p align="center"><em>Shield the Process, Sip the Coffee</em></p>
 
-# coffee-paladin（thermal-guard）v1.9.0
+# coffee-paladin（coffee-paladin）v1.9.0
 
 **为 Apple Silicon Mac 打造的过热与电源保险丝 —— 从一台笔记本到整个机群。**
 它监测芯片温度、电池、风扇和供电状态，在机器把自己烤坏之前**冻结**繁重任务，
@@ -116,7 +116,7 @@ coffee-paladin 是**保险丝**——它会自己动手。
 `install.sh` 会把它放进 `~/.claude/skills/coffee-paladin/`（Claude Code 会自动读取；
 它是纯 Markdown，任何能读 skill 的助手都能用）。
 
-它教助手四件事：动手前先读 `~/.thermal-guard/status.json`（`level` 字段说了算：
+它教助手四件事：动手前先读 `~/.coffee-paladin/status.json`（`level` 字段说了算：
 `0` 开工、`1` 别并行、`2` 别开新的、`3` 停下并告诉人类）；繁重任务通过 `safe-run` 启动；
 **绝不**对 guard 冻结的进程发 `SIGCONT`；以及首先就别制造热量——后台任务必须有超时和清理，
 不要递归搜索 iCloud 同步目录。最后这条来自一次真实事故：一个 `grep`

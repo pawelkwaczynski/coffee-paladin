@@ -3,7 +3,7 @@
 </p>
 <p align="center"><em>Shield the Process, Sip the Coffee</em></p>
 
-# coffee-paladin (thermal-guard) v1.9.0
+# coffee-paladin (coffee-paladin) v1.9.0
 
 **Un fusible térmico y de energía para Macs con Apple Silicon — de un solo portátil
 a una flota entera.** Vigila la temperatura del chip, la batería, los ventiladores y la
@@ -135,7 +135,7 @@ Por eso el proyecto incluye un **skill para agentes de IA**; `install.sh` lo col
 `~/.claude/skills/coffee-paladin/` (Claude Code lo detecta solo, y al ser Markdown plano
 sirve para cualquier agente que lea skills).
 
-Le enseña cuatro cosas: mirar antes de empezar leyendo `~/.thermal-guard/status.json`
+Le enseña cuatro cosas: mirar antes de empezar leyendo `~/.coffee-paladin/status.json`
 (el campo `level` lo decide todo: `0` adelante, `1` no paralelices, `2` no empieces nada
 nuevo, `3` para y avisa a la persona); lanzar lo pesado con `safe-run`; **nunca** hacer
 `SIGCONT` a un proceso que el guard congeló; y no generar calor de entrada — ninguna tarea

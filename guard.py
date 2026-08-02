@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-thermal-guard - watches temperature and load on a Mac, without sudo.
+coffee-paladin - watches temperature and load on a Mac, without sudo.
 
 Every N seconds it reads:
   * macOS thermal pressure (thermalstate: nominal/fair/serious/critical)
@@ -292,8 +292,8 @@ PL = {
         "PROMOTE %s (pid %d) -> z powrotem na rdzenie P (maszyna ostygla)",
     "Thermal guard: hot": "Thermal guard: goraco",
     "unknown argument: %s": "nieznany argument: %s",
-    "usage: thermal-guard [--once | status]   (no arguments = run the daemon)":
-        "uzycie: thermal-guard [--once | status]   (bez argumentow = uruchom demona)",
+    "usage: coffee-paladin [--once | status]   (no arguments = run the daemon)":
+        "uzycie: coffee-paladin [--once | status]   (bez argumentow = uruchom demona)",
     "Thermal guard: job slowed down": "Thermal guard: zadanie zwolnione",
     "%s moved to E-cores (up to several times slower) - returns to full speed when the machine cools":
         "%s zepchniete na rdzenie E (nawet kilka razy wolniej) - wroci na pelna predkosc, gdy maszyna ostygnie",
@@ -340,9 +340,9 @@ PL = {
     "yes": "tak",
     "NO (macmon missing - running on battery temperature only)":
         "NIE (brak macmon - lecimy na samej baterii)",
-    "thermal-guard start | chip: pause>=%.0fC resume<=%.0fC kill>=%.0fC (sensor: %s)"
+    "coffee-paladin start | chip: pause>=%.0fC resume<=%.0fC kill>=%.0fC (sensor: %s)"
     " | battery: pause>=%.0fC kill>=%.0fC | state>=%s | battery gate: <=%d%% on battery":
-        "thermal-guard start | chip: pauza>=%.0fC wznow<=%.0fC ubicie>=%.0fC (czujnik: %s)"
+        "coffee-paladin start | chip: pauza>=%.0fC wznow<=%.0fC ubicie>=%.0fC (czujnik: %s)"
         " | bateria: pauza>=%.0fC ubicie>=%.0fC | stan>=%s | bramka baterii: <=%d%% bez zasilacza",
     "state=%s chip=%s battery=%s fans=%s power=%s CPU_limit=%d%% load1=%.2f level=%d (%s)":
         "stan=%s chip=%s bateria=%s wentylatory=%s zasilanie=%s CPU_limit=%d%% load1=%.2f poziom=%d (%s)",
@@ -366,7 +366,7 @@ PL = {
         "Mac jest krytycznie gorący (%s). Ciężkie zadania są zatrzymywane.",
     "The Mac is critically hot (%s). Watch-only mode - nothing is being stopped.":
         "Mac jest krytycznie gorący (%s). Tryb obserwacji - nic nie jest zatrzymywane.",
-    "thermal-guard: watch-only mode": "thermal-guard: tryb obserwacji",
+    "coffee-paladin: watch-only mode": "coffee-paladin: tryb obserwacji",
     "Measuring and alerting only - nothing is paused. Enable protection in the menu bar (one click).":
         "Tylko mierzę i alarmuję - nic nie jest wstrzymywane. Włącz ochronę w menu paska (jeden klik).",
 }
@@ -414,7 +414,7 @@ RU = {
         "Mac критически горячий (%s). Тяжёлые задачи останавливаются.",
     "The Mac is critically hot (%s). Watch-only mode - nothing is being stopped.":
         "Mac критически горячий (%s). Режим наблюдения - ничего не останавливается.",
-    "thermal-guard: watch-only mode": "thermal-guard: режим наблюдения",
+    "coffee-paladin: watch-only mode": "coffee-paladin: режим наблюдения",
     "Measuring and alerting only - nothing is paused. Enable protection in the menu bar (one click).":
         "Только измеряю и предупреждаю - ничего не приостанавливается. Включите защиту в меню (один клик).",
 }
@@ -459,7 +459,7 @@ ZH = {
         "Mac 已严重过热(%s)。正在停止繁重任务。",
     "The Mac is critically hot (%s). Watch-only mode - nothing is being stopped.":
         "Mac 已严重过热(%s)。仅观察模式 - 不停止任何任务。",
-    "thermal-guard: watch-only mode": "thermal-guard:仅观察模式",
+    "coffee-paladin: watch-only mode": "coffee-paladin:仅观察模式",
     "Measuring and alerting only - nothing is paused. Enable protection in the menu bar (one click).":
         "只测量和提醒 - 不暂停任何任务。请在菜单栏启用保护(一键)。",
 }
@@ -505,7 +505,7 @@ ES = {
         "El Mac está críticamente caliente (%s). Se están deteniendo las tareas pesadas.",
     "The Mac is critically hot (%s). Watch-only mode - nothing is being stopped.":
         "El Mac está críticamente caliente (%s). Modo observación: no se detiene nada.",
-    "thermal-guard: watch-only mode": "thermal-guard: modo observación",
+    "coffee-paladin: watch-only mode": "coffee-paladin: modo observación",
     "Measuring and alerting only - nothing is paused. Enable protection in the menu bar (one click).":
         "Solo mido y aviso: no se pausa nada. Activa la protección en la barra de menús (un clic).",
 }
@@ -1901,7 +1901,7 @@ def main():
     obce = [a for a in sys.argv[1:] if a not in znane]
     if obce:
         print(T("unknown argument: %s") % " ".join(obce), file=sys.stderr)
-        print(T("usage: thermal-guard [--once | status]   (no arguments = run the daemon)"),
+        print(T("usage: coffee-paladin [--once | status]   (no arguments = run the daemon)"),
               file=sys.stderr)
         return 2
 
@@ -1945,14 +1945,14 @@ def main():
         wynik_kalibracji = auto_calibrate(cfg, hw)
         cfg = load_cfg()          # kalibracja mogla dopisac progi
         if wynik_kalibracji == "watchonly" and cfg.get("dry_run"):
-            notify(cfg, T("thermal-guard: watch-only mode"),
+            notify(cfg, T("coffee-paladin: watch-only mode"),
                    T("Measuring and alerting only - nothing is paused. Enable protection in the menu bar (one click)."),
                    key="dryinfo")
     except Exception as e:
         log("CALIBRATION skipped: %r" % (e,))
 
     czujnik_chipa = T("yes") if soc_temp_c() is not None else T("NO (macmon missing - running on battery temperature only)")
-    log(T("thermal-guard start | chip: pause>=%.0fC resume<=%.0fC kill>=%.0fC (sensor: %s)"
+    log(T("coffee-paladin start | chip: pause>=%.0fC resume<=%.0fC kill>=%.0fC (sensor: %s)"
           " | battery: pause>=%.0fC kill>=%.0fC | state>=%s | battery gate: <=%d%% on battery")
         % (cfg.get("soc_pause_c", 92), cfg.get("soc_resume_c", 80), cfg.get("soc_kill_c", 100),
            czujnik_chipa, cfg["batt_pause_c"], cfg["batt_kill_c"],
@@ -2113,7 +2113,7 @@ def main():
             f.write(ts())
     except Exception:
         pass
-    log("thermal-guard stop")
+    log("coffee-paladin stop")
     return 0
 
 

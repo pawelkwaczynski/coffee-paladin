@@ -175,7 +175,7 @@ SAT-solver instances, each living about one second. Every child was too short-li
 a CPU threshold, and the parent itself used almost no CPU. Individually: nothing to see.
 Together: eight cores at 100 %.
 
-So thermal-guard:
+So coffee-paladin:
 
 - computes **CPU usage across the entire process subtree**, so an orchestrator that spawns
   short-lived children is correctly identified (that Python process showed up as **595 %**) and
@@ -228,7 +228,7 @@ Mac was. A wake lock without a thermal fuse is a promise to keep heating.
 > Mac awake while it cooks in a backpack. That is not a variant of the same feature;
 > it is the opposite philosophy, and everything else here is built on top of it.
 
-| | Caffeine | Amphetamine | thermal-guard |
+| | Caffeine | Amphetamine | coffee-paladin |
 |---|---|---|---|
 | Keeps the system computing | via display | yes | yes |
 | Lets the display sleep and lock | no | depends on setup | **always** |
@@ -241,7 +241,7 @@ Mac was. A wake lock without a thermal fuse is a promise to keep heating.
 
 **The screen sleeps. The math doesn't.** This is the second difference from the Caffeine
 family: classic keep-awake apps hold the *display* assertion (`caffeinate -d`) - the screen
-burns watts all night just to prove the machine is awake. thermal-guard holds only the
+burns watts all night just to prove the machine is awake. coffee-paladin holds only the
 *system* assertion (`caffeinate -is`): lock the screen (Ctrl+Cmd+Q), let the display sleep on
 its own schedule - the jobs keep computing in the dark, and the display (often the single
 biggest power draw during light work) costs you nothing. One caveat: keep the lid open -
@@ -325,9 +325,9 @@ There are excellent Mac monitoring tools - Stats, iStat Menus, TG Pro, Macs Fan 
 show you numbers, or drive the fans harder. **None of the popular ones touches the workload itself.** When the chip
 hits 90 °C at 3 a.m., a chart of it is not protection.
 
-thermal-guard occupies a different category:
+coffee-paladin occupies a different category:
 
-| | Monitoring apps | Fan controllers | **thermal-guard** |
+| | Monitoring apps | Fan controllers | **coffee-paladin** |
 |---|---|---|---|
 | Shows temperatures | yes | yes | yes |
 | Drives fans | - | yes | no (macOS does) |
@@ -449,7 +449,7 @@ no inbound network, nothing phoning home - the data is plain JSON you can open a
 | Microsoft 365 | a synced SharePoint library folder | The corporate route; IT already manages access. |
 | A NAS / file server | `/Volumes/<share>/FleetTG` | The render-farm route - fastest updates (no cloud sync delay). Make sure the share mounts at login. |
 
-**2. On every machine**, after installing thermal-guard, point the agent at the folder - one key
+**2. On every machine**, after installing coffee-paladin, point the agent at the folder - one key
 in the config:
 
 ```bash
@@ -547,7 +547,7 @@ IOReport is currently the surviving path.
 **The battery temperature unit is not fixed.** Different battery controllers report different
 scales: hundredths of a degree on one Mac (`3081` = 30.81 °C), tenths on another (`444` = 44.4 °C),
 and some fields whole degrees (`41` = 41 °C). A hardcoded divisor is wrong somewhere - it produced
-a reading of *444 °C* on one machine and *0.4 °C* on another. thermal-guard scales the raw value
+a reading of *444 °C* on one machine and *0.4 °C* on another. coffee-paladin scales the raw value
 into the range a lithium cell can physically be in instead of assuming a unit.
 
 **Why battery temperature alone is not enough.** It lags the chip by minutes and reads far lower.
@@ -600,7 +600,7 @@ and [Homebrew](https://brew.sh) so the installer can fetch `macmon`.
 
 ```bash
 git clone https://github.com/pawelkwaczynski/coffee-paladin.git
-cd thermal-guard
+cd coffee-paladin
 bash install.sh
 ```
 
@@ -630,7 +630,7 @@ Make sure `~/.local/bin` is on your `PATH`.
 [OK] thermal state: nominal   chip: 53.5 °C   battery: 30.6 °C   CPU available: 100%   load: 4.29
    fans: 4500 rpm, 4831 rpm
    power: AC adapter   draw: 32.6 W
-   thermal-guard: running ✅
+   coffee-paladin: running ✅
 ```
 
 Plus what is currently burning CPU, the 24-hour peak, and the guard's recent interventions.
@@ -724,7 +724,7 @@ Between M-series generations, not really: they all throttle themselves somewhere
 no reason to expect M5 or M6 to leave that range.
 
 **Cooling is what differs.** A fanless Mac (Air, 12-inch) dumps heat into the chassis and gets hot
-sooner, so a lower threshold - around 75-78 °C - is kinder to it. thermal-guard detects the
+sooner, so a lower threshold - around 75-78 °C - is kinder to it. coffee-paladin detects the
 absence of fans and simply skips the fan alarm there, but the temperature threshold is yours to
 set. That is exactly what the slider is for.
 
@@ -813,7 +813,7 @@ claim was checked against the running code first.
 ## Buy me a double espresso ☕︎
 
 This project literally runs on coffee - the release codename is "Ristretto" and the
-keep-awake fuse is my answer to Caffeine. If thermal-guard saved your Mac (or your render),
+keep-awake fuse is my answer to Caffeine. If coffee-paladin saved your Mac (or your render),
 buy me a coffee: **https://suppi.pl/panbookovsky**
 
 ## License
@@ -998,7 +998,7 @@ obietnica dalszego grzania.
 > podtrzymają czuwanie także wtedy, gdy Mac gotuje się w plecaku. To nie jest wariant
 > tej samej funkcji, to odwrotna filozofia - i cała reszta narzędzia stoi na niej.
 
-| | Caffeine | Amphetamine | thermal-guard |
+| | Caffeine | Amphetamine | coffee-paladin |
 |---|---|---|---|
 | Trzyma obliczenia | przez ekran | tak | tak |
 | Pozwala ekranowi zgasnąć i się zablokować | nie | zależnie od konfiguracji | **zawsze** |
@@ -1011,7 +1011,7 @@ obietnica dalszego grzania.
 
 **Ekran śpi. Obliczenia nie.** Druga różnica względem rodziny Caffeine: klasyczne aplikacje
 trzymają asercję *wyświetlacza* (`caffeinate -d`) - ekran pali waty całą noc tylko po to, żeby
-udowodnić, że Mac czuwa. thermal-guard trzyma wyłącznie asercję *systemu* (`caffeinate -is`):
+udowodnić, że Mac czuwa. coffee-paladin trzyma wyłącznie asercję *systemu* (`caffeinate -is`):
 zablokuj ekran (Ctrl+Cmd+Q), pozwól mu zgasnąć - zadania liczą dalej po ciemku, a wyświetlacz
 (przy lekkiej pracy często największy pojedynczy odbiornik energii) nie kosztuje nic. Jeden
 haczyk: klapa musi zostać otwarta - zamknięcie pokrywy wymusza sen mimo asercji (wyjątek:
@@ -1101,7 +1101,7 @@ Sama bateria nie wystarcza: pomiar z czasu pisania tego pliku to **chip 53,5 °C
 Tamte narzędzia **pokazują** liczby albo podkręcają wentylatory. Żadne nie dotyka samej pracy.
 Gdy chip dobija do 90 °C o trzeciej w nocy, wykres tego faktu nie jest żadną ochroną.
 
-| | Monitoring (Stats, iStat) | Sterowniki wentylatorów (TG Pro, MFC) | **thermal-guard** |
+| | Monitoring (Stats, iStat) | Sterowniki wentylatorów (TG Pro, MFC) | **coffee-paladin** |
 |---|---|---|---|
 | Pokazuje temperatury | tak | tak | tak |
 | Steruje wentylatorami | - | tak | nie (robi to macOS) |
@@ -1173,7 +1173,7 @@ renderujące, studia postprodukcji i pule CI. Przy kolejkach na nowe Maki rzędu
 i podwyżkach cen utrata jednej sztuki to nie drobna awaria, tylko realny przestój - każda
 uratowana maszyna to konkretny pieniądz.
 
-Flota w thermal-guard jest prosta: każdy Mac publikuje co około minutę migawkę JSON do
+Flota w coffee-paladin jest prosta: każdy Mac publikuje co około minutę migawkę JSON do
 wspólnego folderu, a `fleet` i pasek menu składają z tych plików jedną tabelę: temperatura,
 wentylatory, waty, RAM, stan, wstrzymane zadania i ostatni raport. Maszyny mają własne nazwy,
 model i numer seryjny; po 5 minutach ciszy dostają znacznik `NIE RAPORTUJE`. **„Serwerem" jest
@@ -1233,7 +1233,7 @@ przyszłość). Zgoda recenzentów niewiele dowodzi - sygnałem jest rozbieżno�
 
 ```bash
 git clone https://github.com/pawelkwaczynski/coffee-paladin.git
-cd thermal-guard
+cd coffee-paladin
 bash install.sh
 ```
 
@@ -1279,7 +1279,7 @@ najpierw sprawdzana w działającym kodzie.
 ## Postaw mi podwójne espresso ☕︎
 
 Ten projekt dosłownie opiera się na kawie - kodowa nazwa wydania to „Ristretto",
-a bezpiecznik keep-awake to moja odpowiedź na Caffeine. Jeśli thermal-guard uratował Ci Maca
+a bezpiecznik keep-awake to moja odpowiedź na Caffeine. Jeśli coffee-paladin uratował Ci Maca
 (albo render), postaw mi kawę: **https://suppi.pl/panbookovsky**
 
 ## Licencja
