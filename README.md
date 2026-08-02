@@ -1239,11 +1239,29 @@ przyszłość). Zgoda recenzentów niewiele dowodzi - sygnałem jest rozbieżno�
 
 ## Instalacja i użycie
 
+**Czego potrzebujesz:** Maca na Apple Silicon, narzędzi wiersza poleceń Xcode (dla `swiftc`)
+i [Homebrew](https://brew.sh) (instalator pobiera przez niego `macmon`).
+
+```bash
+xcode-select --install                                    # bez tego NIE BĘDZIE paska menu
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+```
+
+Bez `swiftc` tracisz **naraz** pasek menu i czujnik temperatury chipa - zostaje sam bezpiecznik
+bateryjny, czyli połowa produktu. Bez Homebrew nie ma `macmon`, więc guard nie widzi ani chipa,
+ani obrotów wentylatorów. Instalator sprawdza obie rzeczy na starcie i mówi, czego brakuje;
+`xcode-select --install` potrafi uruchomić sam, Homebrew zostawia Tobie - jego instalator prosi
+o hasło administratora i nie powinien iść przez cudzy skrypt.
+
 ```bash
 git clone https://github.com/pawelkwaczynski/coffee-paladin.git
 cd coffee-paladin
 bash install.sh
 ```
+
+**Świeża instalacja startuje w trybie obserwacji**: mierzy, zapisuje i alarmuje, ale niczego
+nie wstrzymuje, dopóki sam nie włączysz ochrony - jednym kliknięciem w pasku menu albo przez
+`"dry_run": false` w konfiguracji.
 
 - `heat` - jednym poleceniem: jak gorąco, co grzeje, czy bezpiecznik żyje
 - `safe-run --hours 8 --name render -- <polecenie>` - tak uruchamiaj ciężkie zadania

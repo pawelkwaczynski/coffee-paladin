@@ -38,6 +38,63 @@ for f in guard.py safe-run heat thermal-report fleet thermalstate.swift heatbar.
   fi
 done
 
+# 0. ZALEZNOSCI. Bez swiftc tracisz NARAZ czujnik chipa i pasek menu - zostaje sam
+# bezpiecznik bateryjny, czyli polowa produktu. Dlatego pytamy o to NA POCZATKU,
+# a nie ostrzegamy w polowie instalacji, gdy uzytkownik juz nie patrzy.
+#
+# `xcode-select --install` uruchamiamy sami: to narzedzie Apple, otwiera systemowe
+# okno i nie wymaga podawania hasla obcemu skryptowi.
+# HOMEBREW INSTALUJEMY TYLKO RECZNIE - jego instalator to `curl | bash` z zewnetrznego
+# adresu, proszacy o sudo. Skrypt, ktory robi to za uzytkownika bez pytania, uczy zlego
+# nawyku; podajemy komende i zostawiamy decyzje czlowiekowi.
+BRAKI=""
+if ! command -v swiftc >/dev/null 2>&1; then BRAKI="$BRAKI swiftc"; fi
+if ! command -v brew   >/dev/null 2>&1; then BRAKI="$BRAKI brew"; fi
+
+if [ -n "$BRAKI" ]; then
+  echo ""
+  echo "  ⚠️  BRAKUJE ZALEZNOSCI:$BRAKI"
+  case "$BRAKI" in *swiftc*)
+    echo "     • swiftc (Xcode command line tools) — bez niego NIE BEDZIE paska menu"
+    echo "       ani czujnika temperatury chipa. Zostanie sam bezpiecznik bateryjny." ;;
+  esac
+  case "$BRAKI" in *brew*)
+    echo "     • Homebrew — bez niego nie da sie pobrac macmon (temperatura chipa"
+    echo "       i obroty wentylatorow)." ;;
+  esac
+  echo ""
+  if [ -t 0 ] && [ -t 1 ]; then
+    case "$BRAKI" in *swiftc*)
+      printf "  Uruchomic teraz 'xcode-select --install'? [T/n] "
+      read -r ODP
+      case "${ODP:-T}" in
+        [TtYy]*|"")
+          xcode-select --install 2>/dev/null \
+            && echo "  → otworzylo sie okno Apple. Dokoncz instalacje i URUCHOM TEN SKRYPT PONOWNIE." \
+            || echo "  → narzedzia juz sa albo instalacja trwa. Poczekaj i uruchom skrypt ponownie."
+          echo ""
+          echo "  Przerywam, zeby nie zainstalowac polowy produktu."
+          exit 1 ;;
+        *) echo "  → pomijam. Pasek menu i czujnik chipa NIE zostana zainstalowane." ;;
+      esac ;;
+    esac
+    case "$BRAKI" in *brew*)
+      echo "  Homebrew zainstalujesz sam (swiadomie - to skrypt z zewnatrz, prosi o sudo):"
+      # shellcheck disable=SC2016  # celowo BEZ rozwijania: to komenda do skopiowania
+      echo '    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
+      printf "  Kontynuowac BEZ macmon? [T/n] "
+      read -r ODP2
+      case "${ODP2:-T}" in [Nn]*) echo "  Przerwano."; exit 1 ;; esac ;;
+    esac
+  else
+    echo "  (tryb nieinteraktywny — instaluje to, co sie da)"
+    case "$BRAKI" in *swiftc*) echo "     napraw:  xcode-select --install" ;; esac
+    # shellcheck disable=SC2016  # celowo BEZ rozwijania: to komenda do skopiowania
+    case "$BRAKI" in *brew*)   echo '     napraw:  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"' ;; esac
+  fi
+  echo ""
+fi
+
 # 1. czujnik stanu termicznego (Swift, bez sudo)
 if command -v swiftc >/dev/null 2>&1; then
   swiftc -O -o "$BIN/thermalstate" "$SRC/thermalstate.swift" && echo "  ✅ thermalstate skompilowany"
