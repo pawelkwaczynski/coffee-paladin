@@ -89,6 +89,7 @@ PL = {
     "safe-run: cores=%s, CPU limit=%d%%": "safe-run: rdzenie=%s, limit CPU=%d%%",
     "all": "wszystkie",
     "efficiency only": "tylko energooszczedne (E)",
+    "the guard reports a hot machine": "guard zglasza goraca maszyne",
 }
 
 RU = {
@@ -115,6 +116,7 @@ RU = {
     "safe-run: cores=%s, CPU limit=%d%%": "safe-run: ядра=%s, лимит CPU=%d%%",
     "all": "все",
     "efficiency only": "только энергоэффективные (E)",
+    "the guard reports a hot machine": "страж сообщает о горячей машине",
 }
 
 ZH = {
@@ -141,6 +143,7 @@ ZH = {
     "safe-run: cores=%s, CPU limit=%d%%": "safe-run: 核心=%s, CPU 限制=%d%%",
     "all": "全部",
     "efficiency only": "仅能效核心 (E)",
+    "the guard reports a hot machine": "守卫报告机器过热",
 }
 
 ES = {
@@ -167,6 +170,7 @@ ES = {
     "safe-run: cores=%s, CPU limit=%d%%": "safe-run: núcleos=%s, límite de CPU=%d%%",
     "all": "todos",
     "efficiency only": "solo los de eficiencia (E)",
+    "the guard reports a hot machine": "el guardián informa de una máquina caliente",
 }
 
 DICTS = {"pl": PL, "ru": RU, "zh": ZH, "es": ES}
@@ -294,6 +298,36 @@ def guard_hot():
         return False
 
 
+def chip_juz_goracy():
+    """Czy chip jest juz przy progu pauzy — wedlug migawki guarda.
+
+    thermal_state() (ProcessInfo.thermalState) na Apple Silicon potrafi pokazywac
+    "nominal" przy chipie na 92 C: system uznaje, ze radzi sobie wentylatorami.
+    Sprawdzone 02.08.2026 — safe-run wystartowal zadanie na maszynie, na ktorej
+    guard pauzowal ffmpeg co kilkanascie sekund. Dlatego pytamy o to, co guard
+    naprawde mierzy: jego wlasny poziom i temperature chipa wzgledem progu pauzy.
+
+    Zwraca (goraco, powod) — powod idzie do komunikatu, zeby odmowa byla zrozumiala.
+    """
+    try:
+        with open(os.path.join(BASE, "status.json")) as f:
+            st = json.load(f)
+    except Exception:
+        return False, ""          # brak migawki: nie blokujemy, guard i tak ostrzeze
+    if (time.time() - os.path.getmtime(os.path.join(BASE, "status.json"))) > 120:
+        return False, ""          # migawka nieswieza: nie ma na czym opierac decyzji
+    if (st.get("level") or 0) >= 2:
+        return True, T("the guard reports a hot machine")
+    chip = st.get("chip_c")
+    prog = (st.get("thresholds") or {}).get("soc_pause_c") or cfg().get("soc_pause_c", 85.0)
+    try:
+        if chip is not None and float(chip) >= float(prog) - 5.0:
+            return True, "chip %.1f C" % float(chip)
+    except (TypeError, ValueError):
+        pass
+    return False, ""
+
+
 def limited_wait(proc, pct, deadline):
     """Czeka na koniec zadania, wymuszajac limit CPU mikropauzami calej grupy.
 
@@ -359,13 +393,15 @@ def main():
 
     state, temp = thermal_state(), batt_temp()
     limit = cfg().get("batt_pause_c", 40.0)
-    hot = state in HOT or (temp is not None and temp >= limit - 2)
+    chip_hot, chip_powod = chip_juz_goracy()
+    hot = state in HOT or (temp is not None and temp >= limit - 2) or chip_hot
     print(T("safe-run: thermal state=%s, battery=%s, time budget=%.1f h") % (
         state, ("%.1f C" % temp) if temp else T("n/a"), opt["hours"]))
     print(T("safe-run: cores=%s, CPU limit=%d%%") % (
         T("all") if opt["normal"] else T("efficiency only"), int(opt["cpu_limit"])))
     if hot and not opt["allow_hot"]:
-        print(T("safe-run: REFUSING TO START - the Mac is already hot. Let it cool down or pass --allow-hot."))
+        print(T("safe-run: REFUSING TO START - the Mac is already hot. Let it cool down or pass --allow-hot.")
+              + ((" (%s)" % chip_powod) if chip_powod else ""))
         return 3
 
     if not guard_running():
