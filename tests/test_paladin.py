@@ -106,20 +106,29 @@ test("7. realne tlumaczenia powitania i etykiety wyjscia w 4 jezykach",
 
 # 8. regresja DWUCZESCIOWA: (a) zrodlo guarda kompiluje sie i przechodzi --once w IZOLACJI,
 #    (b) zywa instalacja Pawla dziala (to celowo dotyka prawdziwego ~/.coffee-paladin - read-only)
-import time, tempfile, py_compile
+import time, tempfile, py_compile, shutil
 st = os.path.expanduser("~/.coffee-paladin/status.json")
 wiek = time.time() - os.path.getmtime(st)
 log = io.open(os.path.expanduser("~/.coffee-paladin/guard.log"), encoding="utf-8", errors="replace").read()
 zrodlo_ok = True
+tmp = tempfile.mkdtemp(prefix="paladin_test_once_")
 try:
-    py_compile.compile(os.path.join(SRC, "guard.py"), doraise=True)
-    tmp = tempfile.mkdtemp()
+    # cfile w katalogu tymczasowym: bez tego py_compile zostawia __pycache__ w drzewie zrodel
+    py_compile.compile(os.path.join(SRC, "guard.py"),
+                       cfile=os.path.join(tmp, "guard.pyc"), doraise=True)
+    # TG_BASE jest OBOWIAZKOWE. `--once` NIE jest tylko-do-odczytu: wola
+    # managed_pids_from_saferun(), ktora robi os.unlink na plikach rejestracji, oraz
+    # ensure_dirs(), ktora robi chmod na katalogu danych. Bez tej zmiennej ten test
+    # kasowal rejestracje DZIALAJACYCH zadan safe-run w prawdziwym ~/.coffee-paladin
+    # (odtworzone 02.08.2026: zywy pid znikal z managed/ po jednym przebiegu).
     p = subprocess.run([sys.executable, os.path.join(SRC, "guard.py"), "--once"],
                        capture_output=True, text=True, timeout=60,
-                       env=dict(os.environ, TG_LANG="en"))
+                       env=dict(os.environ, TG_LANG="en", TG_BASE=tmp))
     zrodlo_ok = p.returncode == 0 and "state=" in p.stdout
 except Exception:
     zrodlo_ok = False
+finally:
+    shutil.rmtree(tmp, ignore_errors=True)
 test("8. regresja: zrodlo guarda kompiluje sie i raportuje + zywa instalacja zdrowa",
      zrodlo_ok and wiek < 60 and "LOOP ERROR" not in log and "BLAD petli" not in log,
      "zrodlo_ok=%s, wiek statusu: %.0fs" % (zrodlo_ok, wiek))
