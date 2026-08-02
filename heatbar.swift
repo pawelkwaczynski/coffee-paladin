@@ -16,7 +16,7 @@
 
 import Cocoa
 
-let VERSION = "2.1.3"
+let VERSION = "2.1.4"
 let APPNAME = "coffee-paladin"
 let CODENAME = "Ristretto"
 let SIGNATURE = "\(APPNAME) v\(VERSION) \u{201E}\(CODENAME)\u{201D}  ·  by panbookovsky"
@@ -3532,7 +3532,13 @@ Remember: while this switch is off, NOTHING protects the Mac. Flip it back on wh
             + "gets heavy will be frozen until you switch this back off."), 11, .secondaryLabelColor)
         let hPustego: CGFloat = kandydaci.isEmpty ? hPusty + 10 : 0
 
-        let hOkna = 18 + 44 + 8 + 20 + 12 + hLista + hPustego
+        let tytul = NSTextField(wrappingLabelWithString: T("Freeze heavy jobs now?"))
+        tytul.font = .boldSystemFont(ofSize: 13)
+        tytul.alignment = .center
+        tytul.preferredMaxLayoutWidth = SZER - 2 * MARG
+        let hTytulu = tytul.sizeThatFits(NSSize(width: SZER - 2 * MARG, height: 200)).height
+
+        let hOkna = 18 + 44 + 8 + hTytulu + 12 + hLista + hPustego
                   + h1 + 10 + h2 + 10 + h3 + 16 + 32 + 18
         let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: SZER, height: hOkna),
                            styleMask: [.titled, .fullSizeContentView],
@@ -3553,11 +3559,8 @@ Remember: while this switch is off, NOTHING protects the Mac. Flip it back on wh
         ikonaV.imageScaling = .scaleProportionallyUpOrDown
         tlo.addSubview(ikonaV)
 
-        y -= 8 + 20
-        let tytul = NSTextField(labelWithString: T("Freeze heavy jobs now?"))
-        tytul.font = .boldSystemFont(ofSize: 13)
-        tytul.alignment = .center
-        tytul.frame = NSRect(x: 0, y: y, width: SZER, height: 20)
+        y -= 8 + hTytulu
+        tytul.frame = NSRect(x: MARG, y: y, width: SZER - 2 * MARG, height: hTytulu)
         tlo.addSubview(tytul)
 
         var przelaczniki: [NSButton] = []
@@ -3909,7 +3912,17 @@ Remember: while this switch is off, NOTHING protects the Mac. Flip it back on wh
         tresc.preferredMaxLayoutWidth = SZER - 2 * MARG
         let hTresci = tresc.sizeThatFits(NSSize(width: SZER - 2 * MARG, height: 300)).height
 
-        let hOkna = 18 + 44 + 8 + 20 + 10 + hTresci + 18 + 32 + 18
+        // Tytul MUSI sie zawijac i miec marginesy. Jednoliniowa etykieta na cala
+        // szerokosc okna ucinala ogon zdania (po polsku gubil sie znak zapytania),
+        // a dluzsze tlumaczenia - rosyjskie i hiszpanskie - straciłyby wiecej.
+        let tytul = NSTextField(wrappingLabelWithString:
+            T("Turn off thermal protection for this Mac?"))
+        tytul.font = .boldSystemFont(ofSize: 13)
+        tytul.alignment = .center
+        tytul.preferredMaxLayoutWidth = SZER - 2 * MARG
+        let hTytulu = tytul.sizeThatFits(NSSize(width: SZER - 2 * MARG, height: 200)).height
+
+        let hOkna = 18 + 44 + 8 + hTytulu + 10 + hTresci + 18 + 32 + 18
         let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: SZER, height: hOkna),
                            styleMask: [.titled, .fullSizeContentView],
                            backing: .buffered, defer: false)
@@ -3929,11 +3942,8 @@ Remember: while this switch is off, NOTHING protects the Mac. Flip it back on wh
         ikonaV.imageScaling = .scaleProportionallyUpOrDown
         tlo.addSubview(ikonaV)
 
-        y -= 8 + 20
-        let tytul = NSTextField(labelWithString: T("Turn off thermal protection for this Mac?"))
-        tytul.font = .boldSystemFont(ofSize: 13)
-        tytul.alignment = .center
-        tytul.frame = NSRect(x: 0, y: y, width: SZER, height: 20)
+        y -= 8 + hTytulu
+        tytul.frame = NSRect(x: MARG, y: y, width: SZER - 2 * MARG, height: hTytulu)
         tlo.addSubview(tytul)
 
         y -= 10 + hTresci

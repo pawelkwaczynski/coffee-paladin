@@ -24,7 +24,7 @@ import tempfile
 import sys
 import time
 
-VERSION = "2.1.3"   # bump razem z guard_version/heatbar VERSION/README (checklista release)
+VERSION = "2.1.4"   # bump razem z guard_version/heatbar VERSION/README (checklista release)
 
 HOME = os.path.expanduser("~")
 BASE = os.environ.get("TG_BASE") or os.path.join(HOME, ".coffee-paladin")
