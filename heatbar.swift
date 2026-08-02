@@ -16,7 +16,7 @@
 
 import Cocoa
 
-let VERSION = "2.1.4"
+let VERSION = "2.1.5"
 let APPNAME = "coffee-paladin"
 let CODENAME = "Ristretto"
 let SIGNATURE = "\(APPNAME) v\(VERSION) \u{201E}\(CODENAME)\u{201D}  ·  by panbookovsky"
@@ -136,7 +136,7 @@ let PL: [String: String] = [
     "Sounds": "Dźwięki",
     "Name this Mac in the fleet...": "Nazwij tego Maca we flocie...",
     "With five identical MacBooks the system hostname says nothing. This name shows in the fleet table and menu on every machine. Empty = system hostname.":
-        "Przy pięciu identycznych MacBookach nazwa systemowa nic nie mówi. Ta nazwa pokazuje się w tabeli floty i w menu na każdej maszynie. Puste = nazwa systemowa.",
+        "Przy pięciu identycznych Macach nazwa systemowa nic nie mówi. Ta nazwa pokazuje się w tabeli floty i w menu na każdej maszynie. Puste = nazwa systemowa.",
     "Buy me a double espresso...": "Postaw mi podwójne espresso...",
     "Apple fleet": "Flota Apple",
     "battery": "bateria",
@@ -253,7 +253,7 @@ let PL: [String: String] = [
     "Enable protection (pause heavy jobs when hot)":
         "Włącz ochronę (wstrzymuj ciężkie zadania, gdy gorąco)",
     """
-Protection is now OFF - coffee-paladin has entered watch-only mode.
+Protection is now OFF\n- coffee-paladin has entered watch-only mode.
 
 It still measures everything (chip, GPU, battery, fans) and writes to the event log exactly \
 what it WOULD do - "would pause ffmpeg (630% CPU)" - but it sends no signal and never touches \
@@ -263,9 +263,9 @@ Use it to see whether the thresholds suit your machine before you let the paladi
 work. Open "Show the event log" after a heavy job and you will know if it would have interfered \
 too eagerly, or not soon enough.
 
-Remember: while this switch is off, NOTHING protects the Mac. Flip it back on when you are done.
+Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on when you are done.
 """: """
-Ochrona jest teraz WYŁĄCZONA - coffee-paladin przeszedł w tryb biernej obserwacji.
+Ochrona jest teraz WYŁĄCZONA\n- coffee-paladin przeszedł w tryb biernej obserwacji.
 
 Dalej mierzy wszystko (chip, GPU, baterię, wentylatory) i zapisuje w dzienniku zdarzeń \
 dokładnie to, co ZROBIŁBY - „wstrzymałbym ffmpeg (630% CPU)” - ale nie wysyła żadnego \
@@ -275,7 +275,7 @@ Służy do sprawdzenia, czy progi pasują do Twojej maszyny, zanim pozwolisz pal
 zamrażać realną pracę. Po ciężkim zadaniu otwórz „Pokaż dziennik zdarzeń” i zobaczysz, \
 czy wtrącałby się za gorliwie, czy odwrotnie - za późno.
 
-Pamiętaj: póki ten przełącznik jest wyłączony, NIC nie chroni Maca. Włącz go z powrotem, \
+Pamiętaj: póki ten przełącznik jest wyłączony, NIC nie chroni Maca.\nWłącz go z powrotem, \
 gdy skończysz.
 """,
 ]
@@ -1259,7 +1259,12 @@ final class Guide {
         let sekcje = [T(GUIDE_CAN), T(GUIDE_WILL), T(GUIDE_SET), T(GUIDE_NTFY)]
         for (i, s) in sekcje.enumerated() {
             let linie = s.split(separator: "\n", maxSplits: 1, omittingEmptySubsequences: false)
-            tekst.append(NSAttributedString(string: String(linie[0]) + "\n",
+            // Dwukropek i pusta linijka pod naglowkiem sekcji. Robione TU, przy skladaniu
+            // tekstu, a nie w slownikach: inaczej trzeba by ruszyc te same cztery naglowki
+            // w pieciu jezykach, czyli dwadziescia wpisow, i pilnowac ich przy kazdej zmianie.
+            var naglowek = String(linie[0]).trimmingCharacters(in: .whitespaces)
+            if !naglowek.hasSuffix(":") { naglowek += ":" }
+            tekst.append(NSAttributedString(string: naglowek + "\n\n",
                 attributes: [.font: NSFont.boldSystemFont(ofSize: 12), .foregroundColor: NSColor.labelColor]))
             if linie.count > 1 {
                 tekst.append(NSAttributedString(string: String(linie[1]),
@@ -3337,18 +3342,100 @@ final class Bar: NSObject, NSMenuDelegate {
     /// Okno modalne odpalane z pozycji menu, ktora jest custom view (SwitchRow):
     /// menu wtedy NIE zamyka sie samo i dalej sledzi mysz, wiec runModal wchodzi
     /// w konflikt z jego petla zdarzen. Ta sama sztuczka co w HeaderRow.mouseUp.
-    /// Alert z paladynem zamiast domyslnej ikony.
+    /// Okno z paladynem NA SRODKU: ikona, tytul, tresc, opcjonalny widok wlasny
+    /// (pole tekstowe, lista) i rzad przyciskow. Zwraca indeks klikanego przycisku.
     ///
-    /// Gola binarka bez pakietu .app nie ma wlasnej ikony, wiec NSAlert siega po
-    /// systemowa - a ta wyglada jak pusta teczka. Bylo to poprawione w jednym miejscu
-    /// (wyjasnienie trybu obserwacji) i nieprzeniesione do pozostalych czterech.
-    /// Ikona zostaje po lewej, bo NSAlert nie pozwala jej wysrodkowac; tam, gdzie
-    /// paladyn ma stac na srodku, budujemy wlasne okno.
-    func alertPaladyna(_ styl: NSAlert.Style = .informational) -> NSAlert {
-        let a = NSAlert()
-        a.alertStyle = styl
-        if let ikona = NSImage(contentsOfFile: base + "/paladin_welcome.png") { a.icon = ikona }
-        return a
+    /// Dlaczego nie NSAlert: gola binarka bez pakietu .app nie ma wlasnej ikony, wiec
+    /// alert siega po systemowa, ktora wyglada jak pusta teczka - a nawet po podmianie
+    /// na paladyna NSAlert trzyma ikone przyklejona do lewej krawedzi i nie pozwala jej
+    /// wysrodkowac. Skoro paladyn ma stac posrodku wszedzie, wszystkie te okna sa wlasne.
+    ///
+    /// Tytul i tresc sa ZAWIJANE i maja marginesy, a ich wysokosc jest mierzona
+    /// i wliczana w wysokosc okna: jednoliniowy tytul na cala szerokosc ucinal ogon
+    /// zdania (polskie "...tego Maca?" potrzebowalo 338 pt przy 300 dostepnych).
+    func oknoPaladyna(tytul: String, tresc: String, przyciski: [String],
+                      domyslny: Int = 0, dodatek: NSView? = nil,
+                      szerokosc SZER: CGFloat = 380,
+                      trescDoLewej: Bool = false) -> Int {
+        let MARG: CGFloat = 22
+
+        func zawijana(_ t: String, _ rozmiar: CGFloat, _ bold: Bool,
+                      _ kolor: NSColor, _ doLewej: Bool = false) -> (NSTextField, CGFloat) {
+            // Spacja nierozdzielajaca przed mysnikiem: bez tego zawijanie potrafilo
+            // zlamac wiersz DOKLADNIE przed " - " i nastepna linia zaczynala sie od
+            // samej kreski ("WYLACZONA" / "- coffee-paladin przeszedl w tryb...").
+            let zwiazany = t.replacingOccurrences(of: " - ", with: "\u{00A0}- ")
+            let p = NSTextField(wrappingLabelWithString: zwiazany)
+            p.font = bold ? .boldSystemFont(ofSize: rozmiar) : .systemFont(ofSize: rozmiar)
+            p.textColor = kolor
+            p.alignment = doLewej ? .left : .center
+            p.preferredMaxLayoutWidth = SZER - 2 * MARG
+            return (p, p.sizeThatFits(NSSize(width: SZER - 2 * MARG, height: 600)).height)
+        }
+
+        let (etTytul, hTytulu) = zawijana(tytul, 13, true, .labelColor)
+        let (etTresc, hTresci) = zawijana(tresc, 11, false, .secondaryLabelColor, trescDoLewej)
+        let hDodatku: CGFloat = dodatek.map { $0.frame.height + 14 } ?? 0
+
+        let hOkna = 18 + 44 + 8 + hTytulu + 10 + hTresci + hDodatku + 18 + 32 + 18
+        let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: SZER, height: hOkna),
+                           styleMask: [.titled, .fullSizeContentView],
+                           backing: .buffered, defer: false)
+        win.titlebarAppearsTransparent = true
+        win.titleVisibility = .hidden
+        win.isMovableByWindowBackground = true
+        win.level = .modalPanel
+        win.center()
+        let tlo = NSVisualEffectView(frame: NSRect(x: 0, y: 0, width: SZER, height: hOkna))
+        tlo.material = .popover
+        tlo.state = .active
+        win.contentView = tlo
+
+        var y = hOkna - 18 - 44
+        let ikonaV = NSImageView(frame: NSRect(x: (SZER - 44) / 2, y: y, width: 44, height: 44))
+        if let img = NSImage(contentsOfFile: base + "/paladin_welcome.png") { ikonaV.image = img }
+        ikonaV.imageScaling = .scaleProportionallyUpOrDown
+        tlo.addSubview(ikonaV)
+
+        y -= 8 + hTytulu
+        etTytul.frame = NSRect(x: MARG, y: y, width: SZER - 2 * MARG, height: hTytulu)
+        tlo.addSubview(etTytul)
+
+        y -= 10 + hTresci
+        etTresc.frame = NSRect(x: MARG, y: y, width: SZER - 2 * MARG, height: hTresci)
+        tlo.addSubview(etTresc)
+
+        if let d = dodatek {
+            y -= 14 + d.frame.height
+            d.frame = NSRect(x: (SZER - d.frame.width) / 2, y: y,
+                             width: d.frame.width, height: d.frame.height)
+            tlo.addSubview(d)
+        }
+
+        y -= 18 + 32
+        let luka: CGFloat = 10
+        let szerB = min((SZER - 2 * MARG - luka * CGFloat(przyciski.count - 1))
+                        / CGFloat(przyciski.count), 150)
+        let xB = (SZER - (szerB * CGFloat(przyciski.count)
+                          + luka * CGFloat(przyciski.count - 1))) / 2
+        for (i, t) in przyciski.enumerated() {
+            let b = NSButton(title: t, target: self, action: #selector(zamknijOknoPaladyna(_:)))
+            b.bezelStyle = .rounded
+            b.tag = i
+            b.frame = NSRect(x: xB + CGFloat(i) * (szerB + luka), y: y,
+                             width: szerB, height: 32)
+            if i == domyslny { b.keyEquivalent = "\r" }
+            tlo.addSubview(b)
+        }
+
+        NSApp.activate(ignoringOtherApps: true)
+        let wynik = NSApp.runModal(for: win)
+        win.orderOut(nil)
+        return wynik.rawValue
+    }
+
+    @objc func zamknijOknoPaladyna(_ sender: NSButton) {
+        NSApp.stopModal(withCode: NSApplication.ModalResponse(rawValue: sender.tag))
     }
 
     func pokazModalnie(_ akcja: @escaping () -> Void) {
@@ -3357,26 +3444,23 @@ final class Bar: NSObject, NSMenuDelegate {
     }
 
     @objc func ntfyDialog() {
-        let a = alertPaladyna()
-        a.messageText = T("Phone push (ntfy.sh)...")
-        a.informativeText = T("The topic name is the ONLY protection: anyone who knows or guesses it can read your alerts and send fake ones. Click Generate for a random unguessable name. On your phone install the ntfy.sh app (from ntfy.sh - mind the lookalike apps) and subscribe to the same topic. Leave empty to disable.")
-        let box = NSView(frame: NSRect(x: 0, y: 0, width: 300, height: 26))
-        let field = NSTextField(frame: NSRect(x: 0, y: 1, width: 196, height: 24))
+        let box = NSView(frame: NSRect(x: 0, y: 0, width: 320, height: 26))
+        let field = NSTextField(frame: NSRect(x: 0, y: 1, width: 210, height: 24))
         let current = GuardCfg.string("ntfy_topic", "")
         field.stringValue = current.isEmpty ? randomTopic() : current
         box.addSubview(field)
         let gen = NSButton(title: T("Generate"), target: self, action: #selector(ntfyGenerate))
         gen.bezelStyle = .rounded
         gen.controlSize = .small
-        gen.frame = NSRect(x: 202, y: 0, width: 98, height: 26)
+        gen.frame = NSRect(x: 216, y: 0, width: 104, height: 26)
         box.addSubview(gen)
         ntfyField = field
-        a.accessoryView = box
-        a.addButton(withTitle: "OK")
-        a.addButton(withTitle: "Cancel")
-        let result = a.runModal()
+        let result = oknoPaladyna(
+            tytul: T("Phone push (ntfy.sh)..."),
+            tresc: T("The topic name is the ONLY protection: anyone who knows or guesses it can read your alerts and send fake ones. Click Generate for a random unguessable name. On your phone install the ntfy.sh app (from ntfy.sh - mind the lookalike apps) and subscribe to the same topic. Leave empty to disable."),
+            przyciski: ["OK", T("Cancel")], dodatek: box)
         ntfyField = nil
-        if result == .alertFirstButtonReturn {
+        if result == 0 {
             // Temat idzie prosto do URL-a. Spacja albo nowa linia sprawiaja, ze curl
             // w ogole nic nie wysyla (i nikt sie o tym nie dowiaduje), a "#" i "?"
             // publikuja na KROTSZY temat, niz uzytkownik widzi w polu - czyli latwiejszy
@@ -3386,12 +3470,12 @@ final class Bar: NSObject, NSMenuDelegate {
                 "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-")
             if !temat.isEmpty &&
                 (temat.count > 64 || temat.rangeOfCharacter(from: dozwolone.inverted) != nil) {
-                let zle = alertPaladyna(.warning)
-                zle.messageText = T("This topic will not work")
-                zle.informativeText = T("Use only letters, digits, _ and -, up to 64 characters. "
-                    + "A space stops the push silently, and # or ? publish to a shorter topic "
-                    + "than the one you typed.")
-                zle.runModal()
+                _ = oknoPaladyna(
+                    tytul: T("This topic will not work"),
+                    tresc: T("Use only letters, digits, _ and -, up to 64 characters. "
+                        + "A space stops the push silently, and # or ? publish to a shorter topic "
+                        + "than the one you typed."),
+                    przyciski: ["OK"])
                 return
             }
             GuardCfg.set(["ntfy_topic": temat])
@@ -3401,16 +3485,12 @@ final class Bar: NSObject, NSMenuDelegate {
     // --- nazwa we flocie
 
     @objc func fleetNameDialog() {
-        let a = alertPaladyna()
-        a.messageText = T("Name this Mac in the fleet...")
-        a.informativeText = T("With five identical MacBooks the system hostname says nothing. This name shows in the fleet table and menu on every machine. Empty = system hostname.")
-        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 280, height: 24))
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 300, height: 24))
         field.stringValue = GuardCfg.string("fleet_label", "")
         field.placeholderString = T("e.g. render-01, studio-mini, mbp-14")
-        a.accessoryView = field
-        a.addButton(withTitle: "OK")
-        a.addButton(withTitle: "Cancel")
-        if a.runModal() == .alertFirstButtonReturn {
+        if oknoPaladyna(tytul: T("Name this Mac in the fleet..."),
+                        tresc: T("With five identical MacBooks the system hostname says nothing. This name shows in the fleet table and menu on every machine. Empty = system hostname."),
+                        przyciski: ["OK", T("Cancel")], dodatek: field) == 0 {
             GuardCfg.set(["fleet_label": field.stringValue.trimmingCharacters(in: .whitespaces)])
         }
     }
@@ -3422,10 +3502,8 @@ final class Bar: NSObject, NSMenuDelegate {
     /// Tryb "tylko obserwuj" bywa niezrozumialy, a to najwazniejsza opcja dla kogos, kto boi sie
     /// oddac narzedziu wladze nad swoimi procesami — wiec tlumaczymy go wprost.
     @objc func explainDry() {
-        let a = alertPaladyna()
-        a.messageText = T("Watch only (dry run)")
-        a.informativeText = T("""
-Protection is now OFF - coffee-paladin has entered watch-only mode.
+        let tresc = T("""
+Protection is now OFF\n- coffee-paladin has entered watch-only mode.
 
 It still measures everything (chip, GPU, battery, fans) and writes to the event log exactly \
 what it WOULD do - "would pause ffmpeg (630% CPU)" - but it sends no signal and never touches \
@@ -3435,10 +3513,10 @@ Use it to see whether the thresholds suit your machine before you let the paladi
 work. Open "Show the event log" after a heavy job and you will know if it would have interfered \
 too eagerly, or not soon enough.
 
-Remember: while this switch is off, NOTHING protects the Mac. Flip it back on when you are done.
+Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on when you are done.
 """)
-        a.addButton(withTitle: "OK")
-        a.runModal()
+        _ = oknoPaladyna(tytul: T("Watch only (dry run)"), tresc: tresc,
+                         przyciski: ["OK"], szerokosc: 440)
     }
 
     @objc func enableProtection() { GuardCfg.set(["dry_run": false]) }

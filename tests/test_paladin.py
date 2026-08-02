@@ -243,7 +243,12 @@ test("14. panel paladyna: klikalna nazwa + kotwica pod ikona paska",
 test("15. Quit zatrzymuje DEMONA i pasek, po potwierdzeniu w oknie",
      'bootout", "gui/\\(uid)/pl.pawel.coffee-paladin"' in hb
      and 'bootout", "gui/\\(uid)/pl.pawel.coffee-paladin-bar"' in hb
-     and "NSAlert()" in hb
+     # Potwierdzenie MUSI byc, ale test nie moze pilnowac klasy okna: od 2.1.5 to
+     # wlasne okno z paladynem na srodku, nie NSAlert. Pilnujemy skutku - pytania
+     # przed nieodwracalnym krokiem i tego, ze wyjscie nastepuje TYLKO po zgodzie.
+     and 'T("Turn off thermal protection for this Mac?")' in hb
+     and "NSApp.runModal(for: win)" in hb
+     and "guard wynik.rawValue == 0 else { return }" in hb
      and "protection keeps running" not in hb,     # stara, mylaca obietnica ma zniknac
      "brak zatrzymania demona albo zostala stara etykieta")
 
