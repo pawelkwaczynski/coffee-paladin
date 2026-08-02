@@ -1909,7 +1909,7 @@ def keep_awake_update(cfg, targets, lvl, st=None):
             _caff["proc"] = subprocess.Popen(
                 ["caffeinate", "-is"],
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            log("KEEP-AWAKE start (heavy job running, machine cool)")
+            _loguj_awake("KEEP-AWAKE start (heavy job running, machine cool)")
             play_sound(cfg, "awake")   # Funk: paladyn bierze kubek
         except Exception:
             _caff["proc"] = None
@@ -1924,8 +1924,28 @@ def keep_awake_update(cfg, targets, lvl, st=None):
             except Exception:
                 pass
         _caff["proc"] = None
-        log("KEEP-AWAKE stop (job done, hot, or disabled)")
+        _loguj_awake("KEEP-AWAKE stop (job done, hot, or disabled)")
     return _caff["proc"] is not None and _caff["proc"].poll() is None
+
+
+_awake_log = {"ostatni": "", "kiedy": 0.0, "pominiete": 0}
+
+
+def _loguj_awake(msg):
+    """Keep-awake wlacza sie i wylacza w rytm pauz - przy jednym enkoderze x265
+    to bylo 209 wpisow na godzine, wiecej niz samych pauz. Zdarzenie jest prawdziwe,
+    ale jako log to szum, ktory topi wpisy istotne dla czarnej skrzynki. Logujemy
+    wiec zmiane stanu nie czesciej niz co 10 minut, a przy nastepnym wpisie mowimy,
+    ile przelaczen sie w tym czasie zmiescilo.
+    """
+    t = now()
+    if msg == _awake_log["ostatni"] or t - _awake_log["kiedy"] < 600:
+        _awake_log["pominiete"] += 1
+        _awake_log["ostatni"] = msg
+        return
+    ile = _awake_log["pominiete"]
+    _awake_log.update({"ostatni": msg, "kiedy": t, "pominiete": 0})
+    log(msg + (" [+%d przelaczen w miedzyczasie]" % ile if ile else ""))
 
 
 _hw_fleet = {"v": None}
