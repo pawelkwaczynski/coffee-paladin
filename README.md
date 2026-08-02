@@ -565,7 +565,11 @@ York). It runs in one command against an isolated HOME and never touches your re
 
 ```bash
 T=$(mktemp -d) && python3 tests/test_wykryj_twardy_pad.py "$T"; rm -rf "$T"
-python3 tests/test_paladin.py          # 15 checks: CLI, menu bar, artwork, translations
+python3 tests/test_paladin.py          # 21 checks: CLI, menu bar, artwork, translations
+python3 tests/test_config_odporny.py   # 24 checks: a config must not blind the guard
+python3 tests/test_safe_run_hot.py     #  8 checks: safe-run refuses to start when hot
+python3 tests/test_demote_promote.py   # 20 checks: demotion to E-cores and back
+python3 tests/test_b2_node.py          # 17 checks: node is judged by its command line
 ```
 
 **What actually runs, and what it does not.** The suites above are plain Python - no test
@@ -1204,7 +1208,11 @@ Detektor twardego padu (kod piszący dowody gwarancyjne) ma własną matrycę 16
 łącznie ze zmianami stref czasowych i artefaktami z backupów. Jedno polecenie, izolowany HOME,
 prawdziwa czarna skrzynka nietknięta:
 `T=$(mktemp -d) && python3 tests/test_wykryj_twardy_pad.py "$T"; rm -rf "$T"`
-`python3 tests/test_paladin.py` - 15 sprawdzeń: CLI, pasek menu, grafika, tłumaczenia.
+`python3 tests/test_paladin.py` - 21 sprawdzeń: CLI, pasek menu, grafika, tłumaczenia.
+`python3 tests/test_config_odporny.py` - 24 sprawdzenia: config nie może oślepić strażnika.
+`python3 tests/test_safe_run_hot.py` - 8 sprawdzeń: safe-run odmawia startu na gorącej maszynie.
+`python3 tests/test_demote_promote.py` - 20 sprawdzeń: degradacja na E-cores i powrót.
+`python3 tests/test_b2_node.py` - 17 sprawdzeń: node oceniany po linii poleceń, nie po nazwie.
 
 **Co naprawdę się kręci, a co nie.** Powyższe zestawy to czysty Python - żadnego frameworka,
 nic do doinstalowania, i z założenia nie dotykają Twojej prawdziwej czarnej skrzynki. Do tego
@@ -1246,7 +1254,7 @@ bash install.sh
   (Ustawienia > „Nazwij tego Maca we flocie" - przy pięciu identycznych MacBookach nazwa
   systemowa nic nie mówi), modelem w wierszu i numerem seryjnym w podpowiedzi, ze znacznikiem
   „NIE RAPORTUJE" (cache w tle, otwarcie menu nigdy nie czeka na iCloud/SMB)
-- `thermal-report --dni 14` - raport dowodowy dla serwisu
+- `thermal-report --days 14` - raport dowodowy dla serwisu
 
 Progi w `~/.coffee-paladin/config.json`. **Nie ustawiaj progu chipa na 45 °C** - bezczynny M4 Pro
 ma 40-55 °C, a Apple Silicon dławi się dopiero koło 100-108 °C. 45 °C to właściwa liczba dla
