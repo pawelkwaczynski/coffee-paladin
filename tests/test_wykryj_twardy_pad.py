@@ -1,5 +1,36 @@
-import importlib.util, os, sys, time
-home = sys.argv[1]; base = os.path.join(home, ".coffee-paladin"); os.makedirs(base, exist_ok=True)
+import importlib.util, os, shutil, sys, tempfile, time
+
+# --- BRAMKA IZOLACJI -------------------------------------------------------------
+# Ten test KASUJE heartbeat, clean_stop i events.log w <HOME>/.coffee-paladin, czyli
+# czarna skrzynke do raportu gwarancyjnego. Wczesniej HOME szedl prosto z sys.argv[1]
+# bez sprawdzenia, wiec `python3 tests/test_wykryj_twardy_pad.py ~` niszczyl prawdziwe
+# dowody. Argument jest teraz opcjonalny - bez niego test robi wlasna piaskownice.
+MARKER = ".piaskownica-testu"
+
+
+def odmow(powod):
+    print("ODMOWA: %s" % powod, file=sys.stderr)
+    print("Ten test kasuje heartbeat/clean_stop/events.log. Uruchom bez argumentu "
+          "albo podaj pusty katalog, np. $(mktemp -d).", file=sys.stderr)
+    sys.exit(2)
+
+
+sprzatac = len(sys.argv) < 2
+home = (tempfile.mkdtemp(prefix="paladin_pad_") if sprzatac
+        else os.path.abspath(os.path.expanduser(sys.argv[1])))
+prawdziwy_home = os.path.realpath(os.path.expanduser("~"))
+if os.path.realpath(home) == prawdziwy_home:
+    odmow("wskazany katalog to prawdziwy katalog domowy (%s)" % prawdziwy_home)
+if prawdziwy_home.startswith(os.path.realpath(home).rstrip("/") + "/"):
+    odmow("prawdziwy katalog domowy lezy wewnatrz %s" % home)
+
+base = os.path.join(home, ".coffee-paladin")
+# marker odroznia wlasna piaskownice od cudzych danych i pozwala powtorzyc przebieg
+if os.path.exists(base) and not os.path.exists(os.path.join(base, MARKER)):
+    odmow("%s juz istnieje i nie jest piaskownica tego testu" % base)
+os.makedirs(base, exist_ok=True)
+open(os.path.join(base, MARKER), "w").close()
+# ---------------------------------------------------------------------------------
 spec = importlib.util.spec_from_file_location("g", os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "guard.py"))
 g = importlib.util.module_from_spec(spec); spec.loader.exec_module(g)
 g.HOME, g.BASE = home, base
@@ -59,4 +90,11 @@ C = [tz("Europe/Warsaw", "Europe/Warsaw"),
      tz("Pacific/Kiritimati", "Pacific/Midway"),
      tz("Europe/Warsaw", "America/New_York", legacy=True)]
 os.environ["TZ"] = "Europe/Warsaw"; time.tzset()
-print(f"\nWYNIK: A {sum(A)}/{len(A)}   B {sum(B)}/{len(B)}   C {sum(C)}/{len(C)}")
+if sprzatac:
+    shutil.rmtree(home, ignore_errors=True)
+zaliczone, wszystkie = sum(A) + sum(B) + sum(C), len(A) + len(B) + len(C)
+print(f"\nWYNIK: A {sum(A)}/{len(A)}   B {sum(B)}/{len(B)}   C {sum(C)}/{len(C)}"
+      f"   RAZEM {zaliczone}/{wszystkie}")
+# Bez tego plik nigdy nie konczyl sie kodem bledu - byl "zielony" wylacznie dlatego,
+# ze nikt nie patrzyl na kod wyjscia, a jest pierwsza komenda w AGENTS.md.
+sys.exit(0 if zaliczone == wszystkie else 1)
