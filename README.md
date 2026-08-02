@@ -602,16 +602,31 @@ as the future). Agreement between reviewers proves little; the divergence is the
 Requires macOS on Apple Silicon, Xcode command line tools (`xcode-select --install`) for `swiftc`,
 and [Homebrew](https://brew.sh) so the installer can fetch `macmon`.
 
+**Homebrew (recommended):**
+
+```bash
+brew install pawelkwaczynski/tap/coffee-paladin
+bash "$(brew --prefix)/share/coffee-paladin/install.sh"
+```
+
+**From source:**
+
 ```bash
 git clone https://github.com/pawelkwaczynski/coffee-paladin.git
 cd coffee-paladin
 bash install.sh
 ```
 
-The installer compiles the two Swift helpers, installs the scripts into `~/.local/bin`, writes a
-default config into `~/.coffee-paladin/config.json` (it will **not** overwrite an existing one),
-and loads two LaunchAgents - the daemon and, separately, the menu bar app, so you can disable the
-latter without touching the safety net.
+Both give you the same version. The installer compiles the two Swift helpers, installs the scripts
+into `~/.local/bin`, writes a default config into `~/.coffee-paladin/config.json` (it will **not**
+overwrite an existing one), and loads two LaunchAgents - the daemon and, separately, the menu bar
+app, so you can disable the latter without touching the safety net.
+
+The menu bar app is installed as **`coffee-paladin.app` in your Applications folder** - with an
+icon, a version Finder can read, and a signature on the whole bundle. It still sets `LSUIElement`,
+so it stays out of the Dock and out of Cmd+Tab. Nothing is downloaded pre-built: the app is
+compiled on your machine from the sources you just fetched, so Gatekeeper has nothing to quarantine
+and you never see the "unidentified developer" warning.
 
 **A fresh install starts in watch-only mode.** It measures, logs and alerts - with sound - but
 pauses nothing, until you enable protection yourself: one click in the menu bar (*Enable
@@ -1253,11 +1268,26 @@ ani obrotów wentylatorów. Instalator sprawdza obie rzeczy na starcie i mówi, 
 `xcode-select --install` potrafi uruchomić sam, Homebrew zostawia Tobie - jego instalator prosi
 o hasło administratora i nie powinien iść przez cudzy skrypt.
 
+**Przez Homebrew (najprościej):**
+
+```bash
+brew install pawelkwaczynski/tap/coffee-paladin
+bash "$(brew --prefix)/share/coffee-paladin/install.sh"
+```
+
+**Ze źródeł:**
+
 ```bash
 git clone https://github.com/pawelkwaczynski/coffee-paladin.git
 cd coffee-paladin
 bash install.sh
 ```
+
+Obie drogi dają tę samą wersję. Pasek menu instaluje się jako **`coffee-paladin.app`
+w Aplikacjach** - z ikoną, wersją widoczną w Finderze i podpisem na całym pakiecie. Nadal ma
+ustawione `LSUIElement`, więc nie zaśmieca Docka ani Cmd+Tab. Nic nie jest pobierane w postaci
+gotowej binarki: aplikacja kompiluje się na Twoim Macu ze źródeł, więc Gatekeeper nie ma czego
+poddawać kwarantannie i nie zobaczysz ostrzeżenia o „niezidentyfikowanym deweloperze".
 
 **Świeża instalacja startuje w trybie obserwacji**: mierzy, zapisuje i alarmuje, ale niczego
 nie wstrzymuje, dopóki sam nie włączysz ochrony - jednym kliknięciem w pasku menu albo przez

@@ -260,8 +260,20 @@ zrob_png "icon_256x256@2x.png" 512
 zrob_png "icon_512x512.png" 512
 zrob_png "icon_512x512@2x.png" 1024
 
+# SPRAWDZONE 02.08.2026: `iconutil` na macOS 26 dziala poprawnie i to ON robi ikone
+# w normalnym przebiegu (11 warstw, razem z wariantami retina ic11-ic14).
+# W raporcie z budowy tego skryptu padla teza, ze "iconutil odrzuca nawet poprawny
+# iconset" - jest NIEPRAWDZIWA. Zweryfikowane trzema proba mi: czysty iconset z PIL,
+# iconset z tego generatora i porownanie bajtowe ikony w gotowym bundle. Najpewniej
+# odrzucany byl WCZESNIEJSZY, wadliwy PNG z tego skryptu (koder PNG jest tu wlasny),
+# a wina spadla na cudze narzedzie.
+#
+# Sciezka awaryjna ZOSTAJE, bo nic nie kosztuje, ale daje ikone GORSZA: 7 warstw
+# zamiast 11, bez wariantow retina. Dlatego krzyczy w stderr - jesli kiedys sie
+# odpali, to znaczy, ze cos jest nie tak z PNG i trzeba to naprawic, a nie przemilczec.
 if ! /usr/bin/iconutil -c icns "$ICONSET" -o "$WYJSCIE"; then
-  echo "iconutil odrzucil iconset; zapisuje awaryjnie icns z tych samych PNG" >&2
+  echo "UWAGA: iconutil odrzucil iconset - zapisuje ikone AWARYJNIE (gorsza: 7 warstw," >&2
+  echo "       bez retina). Sprawdz PNG w iconsecie, to NIE jest normalny przebieg." >&2
   /usr/bin/python3 - "$ICONSET" "$WYJSCIE" <<'PY'
 import os
 import struct
