@@ -1923,6 +1923,36 @@ def zapisz_zdarzenie(rodzaj, opis, kontekst=None, synthetic=False, kiedy=None):
         pass
 
 
+def pad_juz_zapisany(epoch_padu, tolerancja=90.0):
+    """Czy ten sam twardy pad juz jest w czarnej skrzynce?
+
+    Rozstrzyga MOMENT ZDARZENIA (`epoch`), nie moment wykrycia: ten sam pad wykryty
+    przy trzech kolejnych startach demona ma trzy rozne `detected_at`, ale jeden
+    `epoch`. Tolerancja 90 s obejmuje przypadek, w ktorym puls raz przyszedl z tresci
+    pliku, a raz z mtime (fallback) - to samo zdarzenie, minimalnie inna liczba.
+
+    Dwa PRAWDZIWE pady o tym samym czasie ostatniego pulsu nie istnieja: miedzy nimi
+    musi byc boot i przynajmniej jeden przebieg demona, ktory tyka heartbeat.
+    """
+    try:
+        with open(EVENTS_PATH, encoding="utf-8", errors="replace") as f:
+            linie = f.readlines()
+    except OSError:
+        return False
+    # ogon wystarczy: duble powstaja przy kolejnych startach, czyli obok siebie
+    for linia in reversed(linie[-200:]):
+        try:
+            z = json.loads(linia)
+        except ValueError:
+            continue
+        if not isinstance(z, dict) or z.get("type") != "HARD_SHUTDOWN" or z.get("synthetic"):
+            continue
+        e = z.get("epoch")
+        if isinstance(e, (int, float)) and abs(e - epoch_padu) <= tolerancja:
+            return True
+    return False
+
+
 def wykryj_twardy_pad():
     """Czy poprzednia sesja skonczyla sie twardym zgasnieciem?
 
@@ -2004,6 +2034,15 @@ def wykryj_twardy_pad():
                     ogon.append(dict(zip(naglowek, w.strip().split(","))))
         except Exception:
             pass
+        # Ten sam pad wolno opisac DOKLADNIE RAZ. Jesli demon ginie zanim zdazy tyknac
+        # heartbeat (pad w pierwszych sekundach po starcie, launchd restartujacy w petli),
+        # to przy kazdym kolejnym starcie widzi ten sam stary puls i zapisuje to samo
+        # zdarzenie od nowa. Odtworzone 02.08.2026: trzy starty = trzy identyczne wpisy
+        # z tym samym `epoch`, ktore w dokumencie roszczeniowym wygladaja jak TRZY osobne
+        # awarie. Zawyzony licznik awarii jest w takim dokumencie gorszy niz jego brak -
+        # druga strona wykaze, ze dane sa niewiarygodne, i podwazy caly raport.
+        if pad_juz_zapisany(puls):
+            return None
         opis = (T("Mac went down without a clean shutdown. Guard's last heartbeat: %s, "
                 "system booted: %s.") % (ts(puls), ts(boot)))
         if pewnosc == "low":

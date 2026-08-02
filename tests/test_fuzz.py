@@ -606,7 +606,11 @@ def fuzz_wykryj_twardy_pad(seed, n):
                 else str(s.rng.choice([BOOT - 600, BOOT + 1, 0, -1, 1e18])))
             czysty = s.rng.random() < 0.3
             hv = s.rng.choice(hist_warianty)
-            for p in (HB, CLEAN, HIST):
+            # EVENTS tez: kazdy przypadek fuzzera ma byc NIEZALEZNY. Bez tego drugi
+            # przypadek z tym samym pulsem trafia w deduplikacje twardego padu
+            # (guard.pad_juz_zapisany, od 2.1.9) i oracle bledy odczytuje to jako
+            # "pad przeoczony" - a to jest dokladnie zamierzone zachowanie.
+            for p in (HB, CLEAN, HIST, EVENTS):
                 if os.path.exists(p):
                     os.unlink(p)
             if hb is not None:

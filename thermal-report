@@ -94,6 +94,18 @@ PL = {
     "battery": "bateria",
     "thermal-report: unknown argument: %s": "thermal-report: nieznany argument: %s",
     "thermal-report: cannot write %s (%s)": "thermal-report: nie moge zapisac %s (%s)",
+    "  !! NO MEASUREMENTS IN THIS RANGE. This document does NOT show that nothing happened -\n     it shows that nothing was recorded. Possible reasons: the guard was not running,\n     the data was deleted, or the range predates the installation.":
+        "  !! BRAK POMIAROW W TYM ZAKRESIE. Ten dokument NIE pokazuje, ze nic sie nie stalo -\n     pokazuje, ze niczego nie zarejestrowano. Mozliwe powody: bezpiecznik nie dzialal,\n     dane zostaly usuniete, albo zakres jest sprzed instalacji.",
+    "thermal-report: %s needs a number of days":
+        "thermal-report: %s wymaga liczby dni",
+    "thermal-report: number of days must be 1 or more (got %s)":
+        "thermal-report: liczba dni musi wynosic co najmniej 1 (podano %s)",
+    "thermal-report: --from needs a date as YYYY-MM-DD":
+        "thermal-report: --from wymaga daty w formacie RRRR-MM-DD",
+    "thermal-report: --to needs a date as YYYY-MM-DD":
+        "thermal-report: --to wymaga daty w formacie RRRR-MM-DD",
+    "thermal-report: the range ends before it starts (--from is after --to)":
+        "thermal-report: zakres konczy sie przed poczatkiem (--from jest pozniej niz --to)",
 }
 
 RU = {
@@ -145,6 +157,18 @@ RU = {
         "  диск: %s ГБ всего, %s ГБ свободно",
     "  guard thresholds: pause >=%s C, kill >=%s C":
         "  пороги защиты: пауза >=%s C, остановка >=%s C",
+    "  !! NO MEASUREMENTS IN THIS RANGE. This document does NOT show that nothing happened -\n     it shows that nothing was recorded. Possible reasons: the guard was not running,\n     the data was deleted, or the range predates the installation.":
+        "  !! НЕТ ИЗМЕРЕНИЙ ЗА ЭТОТ ПЕРИОД. Документ НЕ показывает, что ничего не случилось -\n     он показывает, что ничего не записано. Возможные причины: защита не работала,\n     данные удалены, либо период предшествует установке.",
+    "thermal-report: %s needs a number of days":
+        "thermal-report: %s требует число дней",
+    "thermal-report: number of days must be 1 or more (got %s)":
+        "thermal-report: число дней должно быть не меньше 1 (указано %s)",
+    "thermal-report: --from needs a date as YYYY-MM-DD":
+        "thermal-report: --from требует дату в формате ГГГГ-ММ-ДД",
+    "thermal-report: --to needs a date as YYYY-MM-DD":
+        "thermal-report: --to требует дату в формате ГГГГ-ММ-ДД",
+    "thermal-report: the range ends before it starts (--from is after --to)":
+        "thermal-report: период заканчивается раньше, чем начинается (--from позже --to)",
 }
 
 ZH = {
@@ -196,6 +220,18 @@ ZH = {
         "  磁盘: 共 %s GB, 可用 %s GB",
     "  guard thresholds: pause >=%s C, kill >=%s C":
         "  守护阈值: 暂停 >=%s C, 终止 >=%s C",
+    "  !! NO MEASUREMENTS IN THIS RANGE. This document does NOT show that nothing happened -\n     it shows that nothing was recorded. Possible reasons: the guard was not running,\n     the data was deleted, or the range predates the installation.":
+        "  !! 此范围内没有任何测量数据。本文件并不能证明什么都没发生 -\n     它只说明什么都没有被记录。可能原因:守护未运行、数据被删除,\n     或该范围早于安装时间。",
+    "thermal-report: %s needs a number of days":
+        "thermal-report: %s 需要天数",
+    "thermal-report: number of days must be 1 or more (got %s)":
+        "thermal-report: 天数必须至少为 1(收到 %s)",
+    "thermal-report: --from needs a date as YYYY-MM-DD":
+        "thermal-report: --from 需要 YYYY-MM-DD 格式的日期",
+    "thermal-report: --to needs a date as YYYY-MM-DD":
+        "thermal-report: --to 需要 YYYY-MM-DD 格式的日期",
+    "thermal-report: the range ends before it starts (--from is after --to)":
+        "thermal-report: 范围的结束早于开始(--from 晚于 --to)",
 }
 
 ES = {
@@ -247,6 +283,18 @@ ES = {
         "  disco: %s GB en total, %s GB libres",
     "  guard thresholds: pause >=%s C, kill >=%s C":
         "  umbrales del guardián: pausa >=%s C, terminación >=%s C",
+    "  !! NO MEASUREMENTS IN THIS RANGE. This document does NOT show that nothing happened -\n     it shows that nothing was recorded. Possible reasons: the guard was not running,\n     the data was deleted, or the range predates the installation.":
+        "  !! SIN MEDICIONES EN ESTE RANGO. Este documento NO demuestra que no pasara nada -\n     demuestra que no se registro nada. Posibles causas: el guardian no estaba en marcha,\n     los datos se borraron, o el rango es anterior a la instalacion.",
+    "thermal-report: %s needs a number of days":
+        "thermal-report: %s necesita un numero de dias",
+    "thermal-report: number of days must be 1 or more (got %s)":
+        "thermal-report: el numero de dias debe ser 1 o mas (recibido %s)",
+    "thermal-report: --from needs a date as YYYY-MM-DD":
+        "thermal-report: --from necesita una fecha AAAA-MM-DD",
+    "thermal-report: --to needs a date as YYYY-MM-DD":
+        "thermal-report: --to necesita una fecha AAAA-MM-DD",
+    "thermal-report: the range ends before it starts (--from is after --to)":
+        "thermal-report: el rango termina antes de empezar (--from es posterior a --to)",
 }
 
 DICTS = {"pl": PL, "ru": RU, "zh": ZH, "es": ES}
@@ -305,6 +353,24 @@ def czas_z(s):
 
 
 ZNANE_FLAGI = ("--help", "-h", "--days", "--dni", "--pdf", "--file", "--from", "--to", "--all")
+
+
+def wolna_nazwa(sciezka):
+    """Sciezka, ktora NA PEWNO nie nadpisze cudzego pliku.
+
+    `--pdf` sklada nazwe PDF-a z nazwy raportu, wiec `--file wyniki.txt` celowal
+    w `wyniki.pdf` - i kasowal go, jesli ktos juz taki mial. Odtworzone 02.08.2026
+    na cudzym pliku: nadpisany bez slowa. Zamiast pytac (raport bywa uruchamiany
+    z crona i z menu paska) bierzemy wolna nazwe i drukujemy ja na koncu.
+    """
+    if not os.path.exists(sciezka):
+        return sciezka
+    baza, roz = os.path.splitext(sciezka)
+    for n in range(2, 1000):
+        kandydat = "%s-%d%s" % (baza, n, roz)
+        if not os.path.exists(kandydat):
+            return kandydat
+    return sciezka
 
 
 def pokolenia(path):
@@ -382,10 +448,19 @@ def main():
     dni = 7
     for flaga in ("--days", "--dni"):          # --dni zostaje dla zgodnosci
         if flaga in sys.argv:
+            # Zly zakres NIE moze byc przyjety po cichu. `--days` bez liczby i
+            # `--days abc` konczyly sie kodem 0 i raportem za DOMYSLNE 7 dni - czyli
+            # dokument opisywal inny okres niz zamowiony, nie mowiac o tym ani slowa.
+            # W dokumencie dowodowym to falszywy negatyw: "w tym okresie nic nie bylo".
             try:
                 dni = int(sys.argv[sys.argv.index(flaga) + 1])
-            except Exception:
-                pass
+            except (IndexError, ValueError):
+                print(T("thermal-report: %s needs a number of days") % flaga, file=sys.stderr)
+                return 2
+            if dni < 1:
+                print(T("thermal-report: number of days must be 1 or more (got %s)") % dni,
+                      file=sys.stderr)
+                return 2
             break
     cel = None
     for flaga in ("--file", "--plik"):
@@ -398,6 +473,13 @@ def main():
     if cel is None:
         cel = os.path.join(HOME, "Desktop",
                            "thermal_report_%s.txt" % time.strftime("%Y%m%d_%H%M"))
+    # UWAGA dla nastepnego czytelnika: `cel` NIE przechodzi przez wolna_nazwa(), a PDF tak -
+    # i to jest celowe, nie przeoczenie. Nazwe pliku tekstowego uzytkownik podaje SAM
+    # (`--file`), wiec ma prawo oczekiwac dokladnie jej; podmiana na "raport-2.txt"
+    # zepsulaby kazdy skrypt i wpis w cronie. Nazwy PDF-a nikt nie wybiera - jest
+    # wyprowadzana z nazwy raportu, wiec kolizja z cudzym plikiem jest NIEZAMIERZONA
+    # i niewidoczna. Chronimy przed nazwa, ktorej uzytkownik nie wybieral.
+    # Nazwa domyslna niesie znacznik do minuty, wiec sama z siebie nie koliduje.
 
     def _data(s):
         return time.mktime(time.strptime(s, "%Y-%m-%d"))
@@ -412,8 +494,11 @@ def main():
     if "--from" in sys.argv:
         try:
             granica = _data(sys.argv[sys.argv.index("--from") + 1])
-        except Exception:
-            pass
+        except (IndexError, ValueError, OverflowError):
+            # literowka w dacie spadala po cichu na "ostatnie 7 dni" i drukowala
+            # w naglowku zakres, o ktory nikt nie prosil
+            print(T("thermal-report: --from needs a date as YYYY-MM-DD"), file=sys.stderr)
+            return 2
     if "--to" in sys.argv:
         try:
             # Doba przy zmianie czasu ma 23 albo 25 godzin. Dodanie stalych 86400 s
@@ -423,8 +508,15 @@ def main():
             _txt = sys.argv[sys.argv.index("--to") + 1]
             _d = datetime.datetime.strptime(_txt, "%Y-%m-%d").date() + datetime.timedelta(days=1)
             gorna = time.mktime(_d.timetuple())
-        except Exception:
-            pass
+        except (IndexError, ValueError, OverflowError):
+            print(T("thermal-report: --to needs a date as YYYY-MM-DD"), file=sys.stderr)
+            return 2
+    if gorna is not None and granica >= gorna:
+        # odwrocony zakres dawal PUSTY raport z kodem 0 - czyta sie go jak "w tym
+        # okresie nic sie nie dzialo", a znaczy tylko tyle, ze zakres nie ma dlugosci
+        print(T("thermal-report: the range ends before it starts (--from is after --to)"),
+              file=sys.stderr)
+        return 2
     if "--from" in sys.argv or "--to" in sys.argv:
         zakres_opis = T("range: %s - %s") % (
             time.strftime("%Y-%m-%d", time.localtime(granica)),
@@ -611,6 +703,19 @@ def main():
             W.append("  " + ", ".join(c[:12]))
     except FileNotFoundError:
         pass
+    # BRAK POMIAROW to nie to samo co BRAK ZDARZEN. Przy pustym katalogu danych dokument
+    # wypelnial sie samymi "(brak - nie wykryto...)" i pusta osia czasu, czyli wygladal
+    # jak dowod ZDROWIA maszyny - a znaczyl tylko tyle, ze nikt niczego nie mierzyl
+    # (demon nie dzialal, dane skasowano, albo zakres jest sprzed instalacji).
+    # W dokumencie roszczeniowym to roznica fundamentalna, wiec mowimy o niej NA GORZE,
+    # gdzie nie da sie jej przeoczyc, a nie na dole pusta tabelka.
+    if ile == 0:
+        W.insert(3, "")
+        W.insert(4, T("  !! NO MEASUREMENTS IN THIS RANGE. This document does NOT show that "
+                      "nothing happened -\n     it shows that nothing was recorded. Possible "
+                      "reasons: the guard was not running,\n     the data was deleted, or the "
+                      "range predates the installation."))
+
     naglowek_osi = []
     if szczyt[0]:
         naglowek_osi.append(T("  PEAK MEASURED CHIP TEMPERATURE: %.1f C (%s)") % szczyt)
@@ -649,7 +754,13 @@ def main():
     if "--pdf" in sys.argv:
         # os.path.splitext, nie rsplit(".") - rsplit lapal kropke z nazwy KATALOGU,
         # wiec `--file kat.z.kropka/raport` zapisywalo PDF poziom wyzej, pod inna nazwa.
-        pdf = os.path.splitext(cel)[0] + ".pdf"
+        # NIGDY nie piszemy wprost do celu: `open(pdf,"wb")` obcinal cudzy plik do 0 B,
+        # zanim cokolwiek zdazylo sie wygenerowac, a `--print-to-pdf` nadpisywal go
+        # w calosci. Generujemy obok, podmieniamy dopiero po sukcesie.
+        pdf = wolna_nazwa(os.path.splitext(cel)[0] + ".pdf")
+        _fd_pdf, tmp_pdf = tempfile.mkstemp(suffix=".pdf", prefix=".thermal_report_",
+                                            dir=os.path.dirname(os.path.abspath(pdf)) or ".")
+        os.close(_fd_pdf)
         # PIERWSZA DROGA: HTML -> Chrome headless. Tylko tak wchodzi KOLOROWE logo
         # FOCUS FRAME w stopce (cupsfilter potrafi wylacznie czysty tekst).
         chrome = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
@@ -681,10 +792,11 @@ pre { white-space: pre-wrap; word-break: break-word; margin: 0; }
                 with open(tmp_html, "w") as f:
                     f.write(doc)
                 r = subprocess.run([chrome, "--headless", "--disable-gpu", "--no-pdf-header-footer",
-                                    "--print-to-pdf=" + pdf, "file://" + tmp_html],
+                                    "--print-to-pdf=" + tmp_pdf, "file://" + tmp_html],
                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=180)
                 os.remove(tmp_html)
-                if r.returncode == 0 and os.path.exists(pdf) and os.path.getsize(pdf) > 1000:
+                if r.returncode == 0 and os.path.exists(tmp_pdf) and os.path.getsize(tmp_pdf) > 1000:
+                    os.replace(tmp_pdf, pdf)
                     print(pdf)
                     return 0
             except Exception:
@@ -694,14 +806,20 @@ pre { white-space: pre-wrap; word-break: break-word; margin: 0; }
                     pass
         # ZAPAS: cupsfilter (bez logo, ale zawsze dziala)
         try:
-            with open(pdf, "wb") as f:
+            with open(tmp_pdf, "wb") as f:
                 r = subprocess.run(["cupsfilter", cel], stdout=f,
                                    stderr=subprocess.DEVNULL, timeout=120)
-            if r.returncode == 0 and os.path.getsize(pdf) > 1000:
+            if r.returncode == 0 and os.path.getsize(tmp_pdf) > 1000:
+                os.replace(tmp_pdf, pdf)
                 print(pdf)
                 return 0
-            os.remove(pdf)
         except Exception:
+            pass
+        # kasujemy WLASNY plik roboczy - nigdy celu. Wczesniej stalo tu
+        # `os.remove(pdf)`, czyli usuniecie pliku, ktory mogl nalezec do kogos innego.
+        try:
+            os.remove(tmp_pdf)
+        except OSError:
             pass
     print(cel)
     return 0

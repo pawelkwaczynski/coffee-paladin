@@ -45,9 +45,16 @@ def test(nazwa, warunek, detal=""):
                            ("  -> " + detal) if detal and not warunek else ""))
 
 
-def scena(puls, czyste=None):
-    """Czysty katalog danych z konkretnym pulsem (i opcjonalnym clean_stop)."""
-    for p in (g.HEARTBEAT_PATH, g.CLEAN_STOP_PATH, g.EVENTS_PATH):
+def scena(puls, czyste=None, czysc_events=True):
+    """Katalog danych z konkretnym pulsem (i opcjonalnym clean_stop).
+
+    `czysc_events=False` zostawia events.log - potrzebne tam, gdzie sprawdzamy
+    deduplikacje, bo ona wlasnie czyta to, co juz zapisano.
+    """
+    pliki = [g.HEARTBEAT_PATH, g.CLEAN_STOP_PATH]
+    if czysc_events:
+        pliki.append(g.EVENTS_PATH)
+    for p in pliki:
         if os.path.exists(p):
             os.remove(p)
     with io.open(g.HEARTBEAT_PATH, "w", encoding="utf-8") as f:
@@ -125,6 +132,40 @@ w = zapisane()
 test("12. zdarzenie niesie zmierzona luke puls->boot",
      bool(w) and isinstance(w.get("context", {}).get("gap_to_boot_s"), (int, float)),
      "context=%s" % (w and list((w.get("context") or {}).keys())))
+
+# --- pozycja 4: ten sam pad wolno opisac DOKLADNIE RAZ ---
+print("\n=== jeden pad = jeden wpis ===")
+
+
+def ile_hard():
+    try:
+        linie = [l for l in io.open(g.EVENTS_PATH, encoding="utf-8").read().splitlines() if l.strip()]
+        return sum(1 for l in linie if json.loads(l).get("type") == "HARD_SHUTDOWN")
+    except Exception:
+        return -1
+
+
+# demon ginie, zanim tyknie heartbeat -> przy kazdym starcie widzi ten sam stary puls
+os.remove(g.EVENTS_PATH) if os.path.exists(g.EVENTS_PATH) else None
+scena(BOOT - 600)                      # start 1: zapisuje
+przed = ile_hard()
+for _ in range(4):                     # cztery kolejne starty, heartbeat sie NIE zmienia
+    g.wykryj_twardy_pad()
+test("13. piec startow z tym samym pulsem daje JEDEN wpis, nie piec",
+     ile_hard() == 1, "wpisow: %d (po pierwszym starcie: %d)" % (ile_hard(), przed))
+
+test("14. powtorne wykrycie zwraca None (bez drugiego powiadomienia)",
+     g.wykryj_twardy_pad() is None)
+
+# przypadek PRZECIWNY: dwa ROZNE pady to dwa wpisy
+scena(BOOT - 4000, czysc_events=False)   # inny moment ostatniego pulsu = inna awaria
+test("15. drugi, INNY pad jest zapisany osobno", ile_hard() == 2,
+     "wpisow: %d" % ile_hard())
+
+# i granica: roznica ponizej tolerancji to nadal ten sam pad
+scena(BOOT - 4000 + 30, czysc_events=False)
+test("16. puls przesuniety o 30 s (fallback na mtime) to nadal TEN SAM pad",
+     ile_hard() == 2, "wpisow: %d" % ile_hard())
 
 shutil.rmtree(BASE, ignore_errors=True)
 ok = sum(wyniki)
