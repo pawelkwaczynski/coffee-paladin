@@ -988,10 +988,18 @@ _last_notify = {}
 _bg_procs = []
 
 
-def popen_bg(cmd):
+def popen_bg(cmd, stdin_data=None):
+    """Proces w tle. `stdin_data` podajemy tam, gdzie argumentu NIE WOLNO pokazac
+    w `ps` - argv widzi kazdy uzytkownik maszyny, stdin nie."""
     try:
-        _bg_procs.append(subprocess.Popen(cmd, stdout=subprocess.DEVNULL,
-                                          stderr=subprocess.DEVNULL))
+        p = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                             stdin=subprocess.PIPE if stdin_data is not None else None)
+        if stdin_data is not None:
+            try:
+                p.stdin.write(stdin_data.encode("utf-8"))
+            finally:
+                p.stdin.close()
+        _bg_procs.append(p)
     except Exception:
         pass
 
@@ -1059,9 +1067,17 @@ def push(cfg, title, text):
             log("ntfy: temat %r ma niedozwolone znaki albo dlugosc - push wylaczony "
                 "(dozwolone: litery, cyfry, _ i -, do 64 znakow)" % topic[:80])
         return
-    popen_bg(["curl", "-s", "-m", "10",
-              "-H", "Title: %s" % title.replace("\n", " ").replace("\r", " "),
-              "--data-raw", text, "https://ntfy.sh/%s" % topic])
+    # TEMAT NIE MOZE STAC W ARGV. `ps -Ao args=` czyta kazdy uzytkownik maszyny, a temat
+    # ntfy jest JEDYNYM zabezpieczeniem tego kanalu: kto go zna, czyta cudze alerty
+    # (temperatury, nazwy zadan, twarde pady) i moze wysylac falszywe. Dotad siedzial
+    # w URL-u przy KAZDYM powiadomieniu. Dlatego publikujemy przez JSON na stdin:
+    # w argv zostaje samo "curl -s -m 10 -H Content-Type... -d @- https://ntfy.sh/".
+    # `-d @-` czyta cialo ze stdin, wiec ani temat, ani tresc nie wychodza na zewnatrz.
+    cialo = json.dumps({"topic": topic,
+                        "title": title.replace("\n", " ").replace("\r", " "),
+                        "message": text}, ensure_ascii=False)
+    popen_bg(["curl", "-s", "-m", "10", "-H", "Content-Type: application/json",
+              "-d", "@-", "https://ntfy.sh/"], stdin_data=cialo)
 
 
 def notify(cfg, title, text, key="default"):
@@ -1401,6 +1417,16 @@ def managed_pids_from_saferun():
                 continue
             path = os.path.join(MANAGED_DIR, name)
             try:
+                # Rejestracja steruje sygnalami, wiec musi nalezec do NAS i nie moze byc
+                # zapisywalna dla nikogo innego. Na Macu z kilkoma kontami plik 0666
+                # w managed/ to gotowa dzwignia: kto go podmieni, wskazuje guardowi
+                # cel do zamrozenia. Katalog jest 0700 (ensure_dirs), ale plik moze
+                # zostac z wczesniejszej instalacji albo z recznego kopiowania.
+                st_pliku = os.lstat(path)
+                if st_pliku.st_uid != os.getuid() or (st_pliku.st_mode & 0o022):
+                    log("ignoring managed registration with unsafe ownership/permissions: %s"
+                        % name)
+                    continue
                 with open(path) as f:
                     d = json.load(f)
                 pid = int(d["pid"])
@@ -1423,7 +1449,17 @@ def managed_pids_from_saferun():
                         if wiek and abs(realny_start - float(zarejestrowany_start)) > 90:
                             os.unlink(path)     # PID przejety przez inny proces
                             continue
-                    res[pid] = int(d.get("pgid", pid))
+                    # PGID BIERZEMY Z JADRA, nie z pliku. Rejestracja to zwykly JSON
+                    # na dysku; `pgid` przepisany z niej doslownie kierowal SIGSTOP
+                    # i SIGKILL do DOWOLNEJ grupy procesow, ktora ktos tam wpisal.
+                    # Odtworzone 02.08.2026: plik {"pid": A, "pgid": B} - guard
+                    # sygnalizowal grupe B, czyli NIE zarejestrowane zadanie.
+                    # Jadro zna prawde i nie da sie jej podmienic edycja pliku.
+                    try:
+                        res[pid] = os.getpgid(pid)
+                    except OSError:
+                        # proces zniknal miedzy alive() a tym wywolaniem
+                        continue
                     if d.get("normal"):
                         normalne.add(pid)
                 else:
@@ -1496,6 +1532,20 @@ def cpu_z_dziecmi(procs):
     return suma
 
 
+_NIETYKALNI_PODCIAG = {}
+
+
+def _loguj_nietykalny_podciag(comm, wzorzec, cpu):
+    """Raz na 10 minut na proces - log ma informowac, nie zalewac."""
+    teraz = now()
+    if teraz - _NIETYKALNI_PODCIAG.get(comm, 0) < 600:
+        return
+    _NIETYKALNI_PODCIAG[comm] = teraz
+    log("%s uses %.0f%% CPU but is untouchable: its name contains the never-pause "
+        "pattern %r (partial match). Rename it or narrow never_patterns if this is wrong."
+        % (comm, cpu, wzorzec))
+
+
 def pick_targets(cfg, procs, saferun):
     """Procesy ktore wolno pauzowac, posortowane po CPU malejaco."""
     me = os.getpid()
@@ -1519,7 +1569,21 @@ def pick_targets(cfg, procs, saferun):
                 continue
             out.append((pid, cpu, comm, saferun[pid]))
             continue
-        if any(n in low for n in never):
+        trafienie = next((n for n in never if n in low), None)
+        if trafienie:
+            # DOPASOWANIE PO PODCIAGU JEST SWIADOME i ma zostac. Asymetria ryzyka jest
+            # jednoznaczna: falszywa ochrona znaczy "Mac grzeje sie dalej", a utrata
+            # ochrony znaczy "zamrozony agent AI albo powloka uzytkownika" - czyli
+            # smierc procesu i utrata pracy (Neo, 31.07.2026). AGENTS.md zakazuje
+            # oslabiania tej listy i to jest sluszne.
+            #
+            # Kosztem jest to, ze `mds_solver` czy `sshd-worker` sa nietykalne przez
+            # `mds` i `sshd`. Nie zawezamy dopasowania - ale przestajemy o tym MILCZEC:
+            # gdy naprawde goracy proces jest pomijany przez CZESCIOWE dopasowanie,
+            # mowimy o tym w logu. Uzytkownik dostaje odpowiedz na pytanie "dlaczego
+            # bezpiecznik nie rusza tego, co mi grzeje Maca", zamiast ciszy.
+            if low != trafienie and cpu >= cfg.get("unknown_cpu_percent", 50.0):
+                _loguj_nietykalny_podciag(comm, trafienie, cpu)
             continue
         if not any(p in low for p in patterns):
             # Lista nazw jest z natury dziurawa — wlasne binarki (b3core, cadical, solvery)
