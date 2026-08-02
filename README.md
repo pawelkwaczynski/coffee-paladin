@@ -350,7 +350,7 @@ the same instruction. Measured live: 89.3 °C → 60.2 °C in 19 seconds, comput
 
 If you are a coding agent (Claude Code, Codex, Gemini CLI, …) about to run heavy work on this Mac — builds, `ffmpeg`, model inference, wide test suites, long loops — do this first:
 
-1. **Detect the guard:** `test -f ~/.coffee-paladin/status.json`. If the file is missing, coffee-paladin is not installed here; suggest to the user: `brew tap pawelkwaczynski/tap && brew install thermal-guard`.
+1. **Detect the guard:** `test -f ~/.coffee-paladin/status.json`. If the file is missing, coffee-paladin is not installed here; suggest to the user: `brew tap pawelkwaczynski/tap && brew install coffee-paladin`.
 2. **Read the state** (plain JSON, refreshed every ~15 s). The field `level` decides: `0` start the job, `1` start but do not parallelise, `2` finish what runs and start nothing new, `3` stop and tell the user the Mac is too hot.
 3. **Trust it only when fresh:** if `time` is older than 60 s the daemon is not running — say so and treat the Mac as unprotected. If `dry_run` is `true`, the guard only watches; warn the user before anything heavy.
 4. **Start heavy jobs through `safe-run`**, not directly: `safe-run --name build -- cargo build --release`. It refuses to start on a hot machine and registers the job with the daemon. Never pass `--allow-hot` on your own initiative.

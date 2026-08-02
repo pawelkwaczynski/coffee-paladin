@@ -156,14 +156,14 @@ DEFAULTS = {
     # (node z claude/mcp/language-server w argumentach), NIE kazdy node - zwykly
     # `node build.js` ma byc pauzowalny, bo to dokladnie ten przypadek, dla ktorego
     # narzedzie powstalo (znalazl Codex przy recenzji skilla, 01.08.2026)
-    "never_arg_patterns": ["thermal-guard", "thermal_guard", "guard.py", "safe-run",
+    "never_arg_patterns": ["coffee-paladin", "guard.py", "safe-run",
                            "claude", "codex", "cursor", "mcp", "language-server", ".vscode"],
     # czego NIE wolno ruszac nigdy (nadrzedne wobec powyzszego)
     "never_patterns": [
         "kernel_task", "windowserver", "launchd", "loginwindow", "logd", "opendirectoryd",
         "backupd", "mds", "mdworker", "spotlight", "fileproviderd", "cloudd", "bird",
         "finder", "dock", "terminal", "ghostty", "iterm", "zsh", "bash", "sshd", "ssh",
-        "guard.py", "thermal-guard", "safe-run", "code helper", "electron",
+        "guard.py", "coffee-paladin", "safe-run", "code helper", "electron",
         # demony systemowe: potrafia dlugo zjadac rdzen, ale odrzucaja SIGSTOP albo psuja
         # sie po zamrozeniu — probowanie ich tylko zasmieca log i blokuje prawdziwe cele
         "duetexpertd", "suggestd", "photoanalysisd", "mediaanalysisd", "coreaudiod",
@@ -1870,13 +1870,6 @@ def fan_alarm(cfg, soc, soc_t, st):
 
 
 def main():
-    # migracja ze starej nazwy: instalacje sprzed v2.1 trzymaly dane w ~/.thermal-guard
-    stary_dom = os.path.join(HOME, ".thermal-guard")
-    if os.path.isdir(stary_dom) and not os.path.isdir(BASE) and "TG_BASE" not in os.environ:
-        try:
-            os.rename(stary_dom, BASE)
-        except OSError:
-            pass
     ensure_dirs()
     cfg = load_cfg()
     st = load_state()
@@ -1895,7 +1888,7 @@ def main():
             st["paused"] = {}
         save_state(st)
 
-    # `thermal-guard status` bylo pulapka: konczylo sie kodem 0 bez slowa, co wyglada
+    # `coffee-paladin status` bylo pulapka: konczylo sie kodem 0 bez slowa, co wyglada
     # na sukces. Teraz jest aliasem --once, a kazdy nieznany argument mowi, co umiemy (B6).
     znane = {"--once", "status"}
     obce = [a for a in sys.argv[1:] if a not in znane]

@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Instructions for coding agents working in this repository (coffee-paladin; the Homebrew formula is still named `thermal-guard`).
+Instructions for coding agents working in this repository (coffee-paladin).
 
 ## What this is
 

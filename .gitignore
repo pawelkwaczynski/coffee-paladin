@@ -3,6 +3,5 @@ __pycache__/
 .DS_Store
 # nigdy nie commitujemy danych z dzialajacej instalacji — zawieraja nazwy procesow,
 # numery seryjne i os czasu pracy komputera
-.thermal-guard/
 raport_termiczny_*.txt
 ratunek_*/

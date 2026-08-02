@@ -9,16 +9,6 @@ BASE="$HOME/.coffee-paladin"
 AGENT="pl.pawel.coffee-paladin"
 PLIST="$HOME/Library/LaunchAgents/$AGENT.plist"
 
-# MIGRACJA ze starej nazwy (thermal-guard, do v2.0.0): katalog danych i uslugi
-if [ -d "$HOME/.thermal-guard" ] && [ ! -d "$HOME/.coffee-paladin" ]; then
-  mv "$HOME/.thermal-guard" "$HOME/.coffee-paladin"
-  echo "  🔁 migracja: ~/.thermal-guard -> ~/.coffee-paladin"
-fi
-for OLD in pl.pawel.thermal-guard pl.pawel.heatbar; do
-  launchctl bootout "gui/$(id -u)/$OLD" 2>/dev/null || true
-  rm -f "$HOME/Library/LaunchAgents/$OLD.plist"
-done
-
 echo "== coffee-paladin: instalacja na $(scutil --get ComputerName 2>/dev/null || hostname) =="
 mkdir -p "$BIN" "$BASE" "$BASE/managed" "$HOME/Library/LaunchAgents"
 
@@ -55,7 +45,6 @@ fi
 if command -v swiftc >/dev/null 2>&1; then
   if swiftc -O -o "$BIN/coffee-paladin-bar" "$SRC/heatbar.swift" 2>/tmp/heatbar_build.err; then
     echo "  ✅ coffee-paladin-bar (pasek menu) zbudowany"
-    ln -sf "$BIN/coffee-paladin-bar" "$BIN/heatbar"
   else
     echo "  ⚠️  pasek NIE zbudowany — szczegoly: /tmp/heatbar_build.err (demon dziala bez paska)"
   fi
@@ -63,7 +52,6 @@ fi
 
 # 2. skrypty
 install -m 755 "$SRC/guard.py"  "$BIN/coffee-paladin"
-ln -sf "$BIN/coffee-paladin" "$BIN/thermal-guard"
 install -m 755 "$SRC/safe-run"  "$BIN/safe-run"
 install -m 755 "$SRC/heat"      "$BIN/heat"
 install -m 755 "$SRC/thermal-report" "$BIN/thermal-report"

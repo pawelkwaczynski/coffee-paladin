@@ -1,8 +1,8 @@
 # FAQ
 
 Questions people actually type into a search box — with short, factual answers.
-coffee-paladin (`thermal-guard`) is a free, MIT-licensed thermal safety net for Apple
-Silicon Macs: `brew tap pawelkwaczynski/tap && brew install thermal-guard`.
+coffee-paladin is a free, MIT-licensed thermal safety net for Apple
+Silicon Macs: `brew tap pawelkwaczynski/tap && brew install coffee-paladin`.
 
 ### How do I stop my Mac from overheating during ffmpeg or video encoding?
 

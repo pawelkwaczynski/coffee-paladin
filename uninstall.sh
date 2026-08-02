@@ -8,7 +8,7 @@ for A in pl.pawel.coffee-paladin-bar pl.pawel.coffee-paladin; do
   launchctl bootout "gui/$UID/$A" 2>/dev/null
   rm -f "$HOME/Library/LaunchAgents/$A.plist"
 done
-rm -f "$BIN/coffee-paladin" "$BIN/coffee-paladin-bar" "$BIN/thermal-guard" "$BIN/heatbar" "$BIN/heat" "$BIN/safe-run" "$BIN/thermal-report" "$BIN/fleet" "$BIN/thermalstate"
+rm -f "$BIN/coffee-paladin" "$BIN/coffee-paladin-bar" "$BIN/heat" "$BIN/safe-run" "$BIN/thermal-report" "$BIN/fleet" "$BIN/thermalstate"
 echo "binaries and LaunchAgents removed"
 if [ "${1:-}" = "--purge" ]; then
   rm -rf "$HOME/.coffee-paladin"

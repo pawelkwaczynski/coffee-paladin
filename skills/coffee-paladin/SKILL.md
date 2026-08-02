@@ -5,7 +5,7 @@ description: Cooperate with the coffee-paladin thermal guard on this Mac. Use AL
 
 # Working with the paladin on watch
 
-This Mac runs **coffee-paladin** (`thermal-guard`): a daemon that pauses heavy processes
+This Mac runs **coffee-paladin**: a daemon that pauses heavy processes
 when the chip gets too hot, instead of letting the machine cook itself. It is on your side -
 but only if you talk to it. An agent that starts eight parallel jobs without looking at the
 temperature is exactly the thing this tool exists to survive.
