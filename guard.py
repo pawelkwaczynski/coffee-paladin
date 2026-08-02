@@ -275,14 +275,20 @@ def czas_abs(s):
     do tej pory) - i to jest dokladnie ta niejednoznacznosc, dla ktorej offset
     zostal dopisany. Zwraca 0.0 przy smieciu, nigdy nie rzuca.
     """
-    s = (s or "").strip()
+    # Parser danych z pliku dowodowego: MA nigdy nie rzucac, bo jeden smieciowy wiersz
+    # nie moze wywalic calego dokumentu. Pierwsza wersja tej funkcji zawezila `except`
+    # do (ValueError, OverflowError) i stracila odpornosc na nie-stringi - fuzzer
+    # rundy 1 zlapal to od razu: wejscie 123 dawalo AttributeError, b"..." TypeError.
+    if not isinstance(s, str):
+        return 0.0
+    s = s.strip()
     if len(s) < 19:
         return 0.0
     try:
         if len(s) >= 24 and s[19] in "+-":
             return datetime.datetime.strptime(s[:24], "%Y-%m-%d %H:%M:%S%z").timestamp()
         return time.mktime(time.strptime(s[:19], "%Y-%m-%d %H:%M:%S"))
-    except (ValueError, OverflowError):
+    except Exception:      # noqa: BLE001 - kontrakt: nigdy nie rzuca
         return 0.0
 
 
@@ -579,6 +585,12 @@ PL = {
     "Measuring and alerting only - nothing is paused. Enable protection in the menu bar (one click).":
         "Tylko mierzę i alarmuję - nic nie jest wstrzymywane. Włącz ochronę w menu paska (jeden klik).",
     "another coffee-paladin daemon is already running - this one exits": "inny demon coffee-paladin juz dziala - ten sie wylacza",
+    "CONFIDENCE: LOW - %s.":
+        "WIARYGODNOSC: NISKA - %s.",
+    "the last heartbeat is %d days before boot - the clock was most likely wrong (dead RTC, NTP jump) or the data came from a backup":
+        "ostatni puls jest %d dni przed startem systemu - zegar byl najpewniej zly (rozladowany RTC, skok NTP) albo dane pochodza z kopii zapasowej",
+    "%.1f h passed between the last heartbeat and boot - the guard may have been killed long before the Mac actually went down":
+        "miedzy ostatnim pulsem a startem systemu uplynelo %.1f h - bezpiecznik mogl zostac ubity dlugo przed tym, jak Mac naprawde zgasl",
 }
 
 # Powiadomienia i alerty w pozostalych jezykach paska (ru/zh/es). Tlumaczymy to, co widzi
@@ -664,6 +676,12 @@ RU = {
     "Thermal guard: PROTECTION INCOMPLETE": "Тепловой страж: ЗАЩИТА НЕПОЛНАЯ",
     "No chip temperature sensor (macmon missing). Only battery temperature is watched, and it reacts minutes late. Fix: brew install macmon": "Нет датчика температуры чипа (отсутствует macmon). Отслеживается только батарея, а она реагирует с задержкой в несколько минут. Решение: brew install macmon",
     "Could not pause: %s (%s). The Mac stays hot - intervene manually.": "Не удалось поставить на паузу: %s (%s). Mac остаётся горячим - вмешайтесь вручную.",
+    "CONFIDENCE: LOW - %s.":
+        "ДОСТОВЕРНОСТЬ: НИЗКАЯ - %s.",
+    "the last heartbeat is %d days before boot - the clock was most likely wrong (dead RTC, NTP jump) or the data came from a backup":
+        "последний пульс на %d дн. раньше загрузки - часы почти наверняка были неверны (севший RTC, скачок NTP) либо данные из резервной копии",
+    "%.1f h passed between the last heartbeat and boot - the guard may have been killed long before the Mac actually went down":
+        "между последним пульсом и загрузкой прошло %.1f ч - защита могла быть убита задолго до того, как Mac реально погас",
 }
 
 ZH = {
@@ -746,6 +764,12 @@ ZH = {
     "Thermal guard: PROTECTION INCOMPLETE": "热量守卫:保护不完整",
     "No chip temperature sensor (macmon missing). Only battery temperature is watched, and it reacts minutes late. Fix: brew install macmon": "没有芯片温度传感器（缺少 macmon）。只能监测电池温度，而它要慢上几分钟才有反应。解决办法：brew install macmon",
     "Could not pause: %s (%s). The Mac stays hot - intervene manually.": "无法暂停:%s (%s)。Mac 仍然过热 - 请手动处理。",
+    "CONFIDENCE: LOW - %s.":
+        "可信度:低 - %s。",
+    "the last heartbeat is %d days before boot - the clock was most likely wrong (dead RTC, NTP jump) or the data came from a backup":
+        "最后一次心跳比开机早 %d 天 - 时钟很可能不正确(RTC 电池耗尽、NTP 跳变),或数据来自备份",
+    "%.1f h passed between the last heartbeat and boot - the guard may have been killed long before the Mac actually went down":
+        "最后一次心跳与开机之间相隔 %.1f 小时 - 守护可能在 Mac 真正断电之前很久就被杀掉了",
 }
 
 ES = {
@@ -829,6 +853,12 @@ ES = {
     "Thermal guard: PROTECTION INCOMPLETE": "Guardián térmico: PROTECCIÓN INCOMPLETA",
     "No chip temperature sensor (macmon missing). Only battery temperature is watched, and it reacts minutes late. Fix: brew install macmon": "No hay sensor de temperatura del chip (falta macmon). Solo se vigila la bateria, que reacciona con minutos de retraso. Solucion: brew install macmon",
     "Could not pause: %s (%s). The Mac stays hot - intervene manually.": "No se pudo pausar: %s (%s). El Mac sigue caliente - interviene manualmente.",
+    "CONFIDENCE: LOW - %s.":
+        "FIABILIDAD: BAJA - %s.",
+    "the last heartbeat is %d days before boot - the clock was most likely wrong (dead RTC, NTP jump) or the data came from a backup":
+        "el último latido es %d días anterior al arranque - el reloj casi seguro estaba mal (RTC agotada, salto de NTP) o los datos vienen de una copia de seguridad",
+    "%.1f h passed between the last heartbeat and boot - the guard may have been killed long before the Mac actually went down":
+        "pasaron %.1f h entre el último latido y el arranque - el guardián pudo morir mucho antes de que el Mac se apagara de verdad",
 }
 
 DICTS = {"pl": PL, "ru": RU, "zh": ZH, "es": ES}
@@ -1932,11 +1962,31 @@ def wykryj_twardy_pad():
                 puls = os.path.getmtime(HEARTBEAT_PATH)
         if not boot or puls >= boot:
             return None                       # puls z biezacej sesji — nic sie nie stalo
-        if puls < boot - 30 * 86400:
-            # puls "starszy" niz 30 dni przed bootem = artefakt (test, backup, zly zegar);
-            # wpisanie takiej daty do dowodu gwarancyjnego podkopaloby caly raport
-            log("heartbeat implausibly old (%s) - ignoring as unreliable, not recording" % ts(puls))
-            return None
+
+        # --- poziom pewnosci zamiast milczenia ---------------------------------------
+        # Do 2.1.7 kazdy przypadek "podejrzany" konczyl sie `return None`, czyli CISZA.
+        # To najgorsze mozliwe zachowanie czarnej skrzynki: rozladowany RTC albo skok NTP
+        # kasowal dowod bezpowrotnie, a podloga 30-dniowa WYRZUCALA go zamiast oznaczyc.
+        # W druga strone: demon ubity SIGKILL-em albo `launchctl bootout` przed normalnym
+        # restartem zostawia puls sprzed bootu bez clean_stop - i zdarzenie bylo
+        # FABRYKOWANE jako twardy pad w dniu, w ktorym Mac dzialal poprawnie.
+        #
+        # Zadnego z tych przypadkow nie da sie rozstrzygnac lokalnie i tanio. Dlatego
+        # dowod zapisujemy ZAWSZE, ale z jawna ocena wiarygodnosci - dokument dowodowy
+        # ma mowic prawde takze o tym, jak bardzo jest pewny. Rozstrzyga czlowiek
+        # w serwisie, nie heurystyka w demonie.
+        pewnosc, powod_pewnosci = "high", ""
+        luka = boot - puls                    # ile uplynelo miedzy ostatnim pulsem a bootem
+        if luka > 30 * 86400:
+            pewnosc = "low"
+            powod_pewnosci = T(
+                "the last heartbeat is %d days before boot - the clock was most likely wrong "
+                "(dead RTC, NTP jump) or the data came from a backup") % int(luka // 86400)
+        elif luka > 12 * 3600:
+            pewnosc = "low"
+            powod_pewnosci = T(
+                "%.1f h passed between the last heartbeat and boot - the guard may have been "
+                "killed long before the Mac actually went down") % (luka / 3600.0)
         czyste = os.path.getmtime(CLEAN_STOP_PATH) if os.path.exists(CLEAN_STOP_PATH) else 0
         # znacznik czystego zamkniecia liczy sie TYLKO gdy pochodzi sprzed biezacego bootu —
         # clean_stop z aktualnej sesji albo artefakt (backup, cp -p, zegar z przyszlosci)
@@ -1956,9 +2006,16 @@ def wykryj_twardy_pad():
             pass
         opis = (T("Mac went down without a clean shutdown. Guard's last heartbeat: %s, "
                 "system booted: %s.") % (ts(puls), ts(boot)))
-        zapisz_zdarzenie("HARD_SHUTDOWN", opis, {"last_readings": ogon}, kiedy=puls)
+        if pewnosc == "low":
+            opis += " " + T("CONFIDENCE: LOW - %s.") % powod_pewnosci
+        zapisz_zdarzenie("HARD_SHUTDOWN", opis,
+                         {"last_readings": ogon, "confidence": pewnosc,
+                          "confidence_reason": powod_pewnosci,
+                          "gap_to_boot_s": round(luka, 1)},
+                         kiedy=puls)
         log(T("!!! HARD SHUTDOWN DETECTED - ") + opis)
-        return {"time": ts(puls), "description": opis, "readings": ogon}
+        return {"time": ts(puls), "description": opis, "readings": ogon,
+                "confidence": pewnosc}
     except Exception:
         return None
 

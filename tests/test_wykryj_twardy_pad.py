@@ -65,7 +65,12 @@ A = [run("1. twardy pad, brak clean_stop", "PAD", puls=boot-600),
      run("4. clean_stop z przyszłości nie wycisza", "PAD", puls=boot-600, czyste=time.time()+86400),
      run("5. stary clean_stop (3 dni) nie wycisza", "PAD", puls=boot-600, czyste=boot-3*86400),
      run("6. puls z bieżącej sesji", "cicho", puls=boot+60),
-     run("7. fantom 1970 (podłoga 30 dni)", "cicho", puls=833377),
+     # ZMIANA DECYZJI 02.08.2026 (pozycja 3): podłoga 30-dniowa WYRZUCAŁA dowód zamiast
+     # go oznaczyć — czyli czarna skrzynka milczała dokładnie wtedy, gdy zegar był zepsuty
+     # (rozładowany RTC, skok NTP). Teraz zdarzenie jest ZAPISYWANE z `confidence: low`
+     # i podanym powodem; ocenę zostawiamy człowiekowi w serwisie.
+     # Szczegóły i przypadki przeciwne: tests/test_pewnosc_padu.py.
+     run("7. fantom 1970: zapisany, ale z niską wiarygodnością", "PAD", puls=833377),
      run("8. restore bez -p: mtime=teraz, epoch prawdziwy", "PAD", puls=boot-600, mtime=time.time())]
 
 print("\n=== B. warianty formatu pliku ===")
