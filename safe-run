@@ -410,7 +410,7 @@ def main():
     opt, cmd = parse()
     for d in (BASE, MANAGED_DIR):
         if not os.path.isdir(d):
-            os.makedirs(d, 0o755)
+            os.makedirs(d, 0o700)     # patrz guard.ensure_dirs: te pliki nie sa publiczne
 
     state, temp = thermal_state(), batt_temp()
     limit = cfg().get("batt_pause_c", 40.0)
@@ -453,7 +453,11 @@ def main():
             pass          # bez blokady snu jest gorzej, ale zadanie ma ruszyc
 
     reg = os.path.join(MANAGED_DIR, "%d.json" % proc.pid)
-    with open(reg, "w") as f:
+    # 0600: plik zawiera PELNA linie polecen zadania - sciezki projektow, nazwy plikow,
+    # czasem tokeny w argumentach. Na Macu z kilkoma kontami nie ma powodu, zeby czytal
+    # to ktokolwiek poza wlascicielem.
+    _fd = os.open(reg, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(_fd, "w") as f:
         # "normal": czlowiek jawnie kazal leciec na wszystkich rdzeniach - guard
         # nie moze 5 minut pozniej po cichu cofnac tej decyzji degradacja na E-cores
         json.dump({"pid": proc.pid, "pgid": proc.pid, "name": opt["name"],

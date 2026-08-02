@@ -25,6 +25,9 @@ fi
 
 echo "== coffee-paladin: instalacja na $(scutil --get ComputerName 2>/dev/null || hostname) =="
 mkdir -p "$BIN" "$BASE" "$BASE/managed" "$HOME/Library/LaunchAgents"
+# katalog danych tylko dla wlasciciela: config.json trzyma temat ntfy (jedyne
+# zabezpieczenie powiadomien), a managed/ pelne linie polecen zadan
+chmod 700 "$BASE" "$BASE/managed" 2>/dev/null || true
 
 # swieze konto / niekompletna paczka: sprawdz zrodla ZANIM cokolwiek ruszymy
 for f in guard.py safe-run heat thermal-report fleet thermalstate.swift heatbar.swift \
@@ -104,6 +107,7 @@ if [ ! -f "$BASE/config.json" ]; then
   "notify": true
 }
 JSON
+  chmod 600 "$BASE/config.json"
   echo "  ✅ config.json (chip 85/90 °C, bateria 40/45 °C, bramka 10 %)"
   echo "  ℹ️  START W TRYBIE OBSERWACJI: guard mierzy i alarmuje, ale niczego nie wstrzymuje."
   echo "      Ochronę włączysz w menu paska (🌡 > jeden klik) albo: dry_run=false w config.json"

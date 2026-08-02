@@ -236,9 +236,23 @@ def ts(t=None):
 
 
 def ensure_dirs():
+    """Katalog danych tylko dla wlasciciela.
+
+    Na Macu z kilkoma kontami 0755 znaczylo, ze kazdy lokalny uzytkownik czyta
+    `config.json` - a tam siedzi `ntfy_topic`, ktory dokumentacja sama nazywa
+    JEDYNYM zabezpieczeniem powiadomien: kto go zna, czyta cudze alerty i moze
+    wysylac falszywe. W `managed/` leza dodatkowo pelne linie polecen zadan.
+    """
     for d in (BASE, MANAGED_DIR):
         if not os.path.isdir(d):
-            os.makedirs(d, 0o755)
+            os.makedirs(d, 0o700)
+    # istniejace instalacje: zaciesniamy prawa przy kazdym starcie (tanie, idempotentne)
+    for sciezka, prawa in ((BASE, 0o700), (MANAGED_DIR, 0o700), (CFG_PATH, 0o600)):
+        try:
+            if os.path.exists(sciezka) and (os.stat(sciezka).st_mode & 0o077):
+                os.chmod(sciezka, prawa)
+        except OSError:
+            pass
 
 
 # Nazwy, ktorymi wola sie samo narzedzie. Musza byc na liscie nietykalnych ZAWSZE,
