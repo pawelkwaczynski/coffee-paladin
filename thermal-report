@@ -27,7 +27,7 @@ import time
 
 MAX_WIERSZY_OSI = 5000   # sufit osi czasu w raporcie, patrz komentarz przy skracaniu
 
-VERSION = "2.1.8"   # bump razem z guard_version/heatbar VERSION/README (checklista release)
+VERSION = "2.1.9"   # bump razem z guard_version/heatbar VERSION/README (checklista release)
 
 HOME = os.path.expanduser("~")
 BASE = os.environ.get("TG_BASE") or os.path.join(HOME, ".coffee-paladin")
