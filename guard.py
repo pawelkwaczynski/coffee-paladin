@@ -241,6 +241,13 @@ def ensure_dirs():
             os.makedirs(d, 0o755)
 
 
+# Nazwy, ktorymi wola sie samo narzedzie. Musza byc na liscie nietykalnych ZAWSZE,
+# nawet gdy config zostal zapisany przed zmiana nazwy - inaczej druga instancja
+# (albo instancja z innego katalogu) widzi demona jako zwykly proces "Python"
+# zzerajacy CPU i pauzuje go. Zdarzylo sie naprawde, 02.08.2026.
+WLASNE_NAZWY = ("coffee-paladin", "guard.py", "safe-run")
+
+
 def load_cfg():
     cfg = dict(DEFAULTS)
     try:
@@ -250,6 +257,14 @@ def load_cfg():
             cfg.update(user)
     except Exception:
         pass
+    # listy nietykalnych sa UZUPELNIANE o wlasne nazwy, nigdy nimi nie nadpisywane:
+    # uzytkownik moze dopisac swoje wzorce, ale nie moze przypadkiem odslonic demona
+    for klucz in ("never_patterns", "never_arg_patterns"):
+        lista = list(cfg.get(klucz) or [])
+        for nazwa in WLASNE_NAZWY:
+            if nazwa not in lista:
+                lista.append(nazwa)
+        cfg[klucz] = lista
     return cfg
 
 
@@ -369,6 +384,7 @@ PL = {
     "coffee-paladin: watch-only mode": "coffee-paladin: tryb obserwacji",
     "Measuring and alerting only - nothing is paused. Enable protection in the menu bar (one click).":
         "Tylko mierzę i alarmuję - nic nie jest wstrzymywane. Włącz ochronę w menu paska (jeden klik).",
+    "another coffee-paladin daemon is already running - this one exits": "inny demon coffee-paladin juz dziala - ten sie wylacza",
 }
 
 # Powiadomienia i alerty w pozostalych jezykach paska (ru/zh/es). Tlumaczymy to, co widzi
@@ -417,6 +433,7 @@ RU = {
     "coffee-paladin: watch-only mode": "coffee-paladin: режим наблюдения",
     "Measuring and alerting only - nothing is paused. Enable protection in the menu bar (one click).":
         "Только измеряю и предупреждаю - ничего не приостанавливается. Включите защиту в меню (один клик).",
+    "another coffee-paladin daemon is already running - this one exits": "другой демон coffee-paladin уже работает - этот завершается",
 }
 
 ZH = {
@@ -462,6 +479,7 @@ ZH = {
     "coffee-paladin: watch-only mode": "coffee-paladin:仅观察模式",
     "Measuring and alerting only - nothing is paused. Enable protection in the menu bar (one click).":
         "只测量和提醒 - 不暂停任何任务。请在菜单栏启用保护(一键)。",
+    "another coffee-paladin daemon is already running - this one exits": "另一个 coffee-paladin 守护进程已在运行 - 本进程退出",
 }
 
 ES = {
@@ -508,6 +526,7 @@ ES = {
     "coffee-paladin: watch-only mode": "coffee-paladin: modo observación",
     "Measuring and alerting only - nothing is paused. Enable protection in the menu bar (one click).":
         "Solo mido y aviso: no se pausa nada. Activa la protección en la barra de menús (un clic).",
+    "another coffee-paladin daemon is already running - this one exits": "ya se está ejecutando otro demonio coffee-paladin - este termina",
 }
 
 DICTS = {"pl": PL, "ru": RU, "zh": ZH, "es": ES}
@@ -1869,8 +1888,39 @@ def fan_alarm(cfg, soc, soc_t, st):
             notify(cfg, T("Fans stopped while the chip is hot"), msg, key="fan")
 
 
+def zajmij_wylacznosc():
+    """Tylko JEDEN demon na maszyne. Blokada trzymana przez caly czas zycia procesu.
+
+    Dwie instancje to nie jest teoretyczny problem: kazda widzi te druga jako zwykly
+    proces Pythona zzerajacy CPU i potrafi ja zapauzowac (zdarzylo sie 02.08.2026,
+    gdy osierocony `python3 guard.py` z katalogu zrodel przezyl testy). Efekt: log
+    pisany na dwa glosy i strażnik zamrozony przez samego siebie.
+
+    Zwraca uchwyt pliku - trzeba go trzymac, zamkniecie zwalnia blokade.
+    """
+    import fcntl
+    sciezka = os.path.join(BASE, "guard.lock")
+    f = open(sciezka, "w")
+    try:
+        fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        f.close()
+        return None
+    f.write("%d\n" % os.getpid())
+    f.flush()
+    return f
+
+
 def main():
     ensure_dirs()
+    # Wylacznosc obowiazuje TYLKO demona. `--once` i `status` to jednorazowe odczyty:
+    # maja dzialac zawsze, takze gdy demon chodzi (tak sprawdza je czlowiek i testy).
+    jednorazowo = ("--once" in sys.argv) or ("status" in sys.argv)
+    _blokada = None if jednorazowo else zajmij_wylacznosc()
+    if not jednorazowo and _blokada is None:
+        print(T("another coffee-paladin daemon is already running - this one exits"),
+              file=sys.stderr)
+        return 1
     cfg = load_cfg()
     st = load_state()
 

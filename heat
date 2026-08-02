@@ -65,6 +65,11 @@ PL = {
     "\nPeak chip temperature in the last 24 h: %.1f °C (%s)":
         "\nMax temperatura chipa z ostatnich 24 h: %.1f °C (%s)",
     "\nRecent guard interventions:": "\nOstatnie interwencje guarda:",
+    "No stopped processes. Nothing is waiting for a SIGCONT.": "Brak zatrzymanych procesow. Nic nie czeka na SIGCONT.",
+    "Stopped processes (state T):": "Zatrzymane procesy (stan T):",
+    "   ⏸  %s (pid %s, %s) - paused by coffee-paladin, resumes by itself": "   ⏸  %s (pid %s, %s) - pauza coffee-paladin, wznowi sie sam",
+    "   ⚠️  %s (pid %s, %s) - stopped by something else": "   ⚠️  %s (pid %s, %s) - zatrzymany przez cos innego",
+    "\nA process stopped by something else is usually the SIGTTIN trap: a background\njob touched the terminal and the kernel stopped it. Nothing will resume it.\nBring it to the foreground (fg) or resume it: kill -CONT <pid>": "\nProces zatrzymany przez cos innego to zwykle pulapka SIGTTIN: zadanie w tle\ndotknelo terminala i jadro je zatrzymalo. Nikt go nie wznowi.\nPrzenies je na pierwszy plan (fg) albo wznow: kill -CONT <pid>",
 }
 
 RU = {
@@ -90,6 +95,11 @@ RU = {
     "\nPeak chip temperature in the last 24 h: %.1f °C (%s)":
         "\nПик температуры чипа за 24 ч: %.1f °C (%s)",
     "\nRecent guard interventions:": "\nПоследние вмешательства guard:",
+    "No stopped processes. Nothing is waiting for a SIGCONT.": "Остановленных процессов нет. Никто не ждёт SIGCONT.",
+    "Stopped processes (state T):": "Остановленные процессы (состояние T):",
+    "   ⏸  %s (pid %s, %s) - paused by coffee-paladin, resumes by itself": "   ⏸  %s (pid %s, %s) - пауза coffee-paladin, возобновится сам",
+    "   ⚠️  %s (pid %s, %s) - stopped by something else": "   ⚠️  %s (pid %s, %s) - остановлен чем-то другим",
+    "\nA process stopped by something else is usually the SIGTTIN trap: a background\njob touched the terminal and the kernel stopped it. Nothing will resume it.\nBring it to the foreground (fg) or resume it: kill -CONT <pid>": "\nПроцесс, остановленный чем-то другим, - обычно ловушка SIGTTIN: фоновая задача\nобратилась к терминалу, и ядро её остановило. Сама она не продолжится.\nВерните её на передний план (fg) или возобновите: kill -CONT <pid>",
 }
 
 ZH = {
@@ -115,6 +125,11 @@ ZH = {
     "\nPeak chip temperature in the last 24 h: %.1f °C (%s)":
         "\n过去 24 小时芯片峰值温度: %.1f °C (%s)",
     "\nRecent guard interventions:": "\nguard 最近的干预:",
+    "No stopped processes. Nothing is waiting for a SIGCONT.": "没有已停止的进程,没有东西在等待 SIGCONT。",
+    "Stopped processes (state T):": "已停止的进程(状态 T):",
+    "   ⏸  %s (pid %s, %s) - paused by coffee-paladin, resumes by itself": "   ⏸  %s (pid %s, %s) - 由 coffee-paladin 暂停,会自行恢复",
+    "   ⚠️  %s (pid %s, %s) - stopped by something else": "   ⚠️  %s (pid %s, %s) - 被其他东西停止",
+    "\nA process stopped by something else is usually the SIGTTIN trap: a background\njob touched the terminal and the kernel stopped it. Nothing will resume it.\nBring it to the foreground (fg) or resume it: kill -CONT <pid>": "\n被其他东西停止的进程通常是 SIGTTIN 陷阱:后台任务碰了终端,内核把它停住了,\n没有人会恢复它。把它调到前台(fg),或者手动恢复:kill -CONT <pid>",
 }
 
 ES = {
@@ -140,6 +155,11 @@ ES = {
     "\nPeak chip temperature in the last 24 h: %.1f °C (%s)":
         "\nPico de temperatura del chip en 24 h: %.1f °C (%s)",
     "\nRecent guard interventions:": "\nÚltimas intervenciones del guard:",
+    "No stopped processes. Nothing is waiting for a SIGCONT.": "No hay procesos detenidos. Nada espera un SIGCONT.",
+    "Stopped processes (state T):": "Procesos detenidos (estado T):",
+    "   ⏸  %s (pid %s, %s) - paused by coffee-paladin, resumes by itself": "   ⏸  %s (pid %s, %s) - pausado por coffee-paladin, se reanuda solo",
+    "   ⚠️  %s (pid %s, %s) - stopped by something else": "   ⚠️  %s (pid %s, %s) - detenido por otra cosa",
+    "\nA process stopped by something else is usually the SIGTTIN trap: a background\njob touched the terminal and the kernel stopped it. Nothing will resume it.\nBring it to the foreground (fg) or resume it: kill -CONT <pid>": "\nUn proceso detenido por otra cosa suele ser la trampa SIGTTIN: una tarea en segundo\nplano tocó el terminal y el kernel la detuvo. Nadie la reanudará.\nTráela al primer plano (fg) o reanúdala: kill -CONT <pid>",
 }
 
 DICTS = {"pl": PL, "ru": RU, "zh": ZH, "es": ES}
@@ -344,9 +364,72 @@ def paladin(ile_stopni=None, straz=None):
     return 0
 
 
+def stuck():
+    """`heat --stuck`: procesy w stanie T (zatrzymane) i skad sie tam wziely.
+
+    Stan T ma dwie przyczyny i tylko jedna jest w porzadku: pauza guarda (wznowi sam)
+    albo pulapka SIGTTIN/SIGTTOU - proces w tle probowal czytac/pisac na terminal,
+    dostal stop od jadra i nikt go nie wznowi. Ta druga wyglada jak zawieszenie
+    i wlasnie po to jest ta komenda: odroznic jedno od drugiego.
+    """
+    out = sh(["ps", "-Ao", "pid=,stat=,etime=,comm="])
+    zatrzymane = []
+    for linia in out.splitlines():
+        czesci = linia.split(None, 3)
+        if len(czesci) < 4:
+            continue
+        pid, stat, etime, comm = czesci
+        if stat.startswith("T"):
+            zatrzymane.append((pid, stat, etime, comm))
+
+    # Kto pauzowal: state.json demona jest zrodlem prawdy (status.json to migawka
+    # co N sekund - przy szybkim cyklu pauza/wznowienie proces bywa zatrzymany
+    # ZANIM trafi do migawki, i bez tego bysmy krzyczeli na wlasna pauze).
+    znane = set()
+    for plik, klucz in (("state.json", "paused"), ("status.json", "paused")):
+        try:
+            with open(os.path.join(BASE, plik)) as f:
+                dane = (json.load(f) or {}).get(klucz) or {}
+            if isinstance(dane, dict):
+                znane.update(str(k) for k in dane)
+            else:
+                znane.update(str(p.get("pid")) for p in dane)
+        except Exception:
+            pass
+    # ostatnia linia obrony: swiezy wpis w logu guarda o pauzie tego PID-u
+    try:
+        with open(LOG) as f:
+            ogon = f.read()[-4000:]
+    except Exception:
+        ogon = ""
+
+    if not zatrzymane:
+        print(T("No stopped processes. Nothing is waiting for a SIGCONT."))
+        return 0
+
+    print(T("Stopped processes (state T):"))
+    obce = 0
+    for pid, stat, etime, comm in zatrzymane:
+        nazwa = os.path.basename(comm)
+        if pid in znane or ("(pid %s," % pid) in ogon:
+            print(T("   ⏸  %s (pid %s, %s) - paused by coffee-paladin, resumes by itself")
+                  % (nazwa, pid, etime))
+        else:
+            obce += 1
+            print(T("   ⚠️  %s (pid %s, %s) - stopped by something else")
+                  % (nazwa, pid, etime))
+    if obce:
+        print(T("\nA process stopped by something else is usually the SIGTTIN trap: a background\n"
+                "job touched the terminal and the kernel stopped it. Nothing will resume it.\n"
+                "Bring it to the foreground (fg) or resume it: kill -CONT <pid>"))
+    return 0
+
+
 def main():
     # EASTER EGG: jedna komenda `heat --paladin` - rysunek i pelny meldunek warty.
     # (Wczesniej byly trzy flagi dajace niemal to samo; zostala jedna, ktora mowi wszystko.)
+    if "--stuck" in sys.argv:
+        return stuck()
     if "--paladin" in sys.argv:
         chip = None
         straz = None
