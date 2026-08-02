@@ -34,7 +34,7 @@ is *running* but possibly an order of magnitude slower; it returns to full speed
 once the chip cools, so a "slow" job on this list is not hung and must not be restarted),
 `dry_run` (when `true` the guard only watches and will *not* protect you),
 `eta_pause_min` (estimated minutes until the next pause at the current trend), and
-`unpausable` - if that key is present, the guard tried to pause something and **failed**;
+`unpausable` - if that list is **not empty**, the guard tried to pause something and **failed**;
 protection is incomplete and the user needs to know right now.
 
 One scope caveat: `status.json` answers "may I start work now", not "is that process
@@ -98,7 +98,7 @@ decided to accept the risk.
 
 Say it plainly and do not work around it:
 
-> The Mac reached 90 °C, so coffee-paladin paused the encode. It resumes on its own at 82 °C -
+> The Mac reached its pause threshold (85 °C by default), so coffee-paladin paused the encode. It resumes on its own once it cools (76 °C by default) -
 > nothing was lost, the process is frozen mid-instruction. Waiting.
 
 Then wait and re-read `status.json`. If a pause lasts beyond `max_pause_minutes` the guard
@@ -106,7 +106,7 @@ will terminate the job with `SIGTERM` and you will see it in `~/.coffee-paladin/
 
 ## 5. You are protected - so is your terminal
 
-Your own process (`claude`, `node`, `codex`, `hermes`, `tmux`, `vim`…) is on the never-touch
+Your own process (`claude`, `codex`, `hermes`, `tmux`, `vim`…) is on the never-touch
 list, and any process that holds the foreground of a terminal is skipped as well. That rule
 exists because freezing a foreground terminal job leaves it stuck in a way only `fg` can
 undo. If you ever see your own session frozen, that is a bug worth reporting.
@@ -121,7 +121,7 @@ safe to read:
 whole:
 
 ```bash
-grep -E "PAUSE|PAUZA|RESUM|WZNOW|DEMOT|TERMINAT|SIGKILL" ~/.coffee-paladin/guard.log | tail -20
+grep -E "\\[(PAUSE|RESUME|KILL|DEMOTE|PROMOTE|FANFAIL)\\]" ~/.coffee-paladin/guard.log | tail -20
 grep "CONFIG CHANGED" ~/.coffee-paladin/guard.log | tail -5   # who moved the thresholds
 ```
 
@@ -165,6 +165,6 @@ Two habits that cost more than any thermal threshold:
   that nobody reaps keeps a core busy for hours.
 - **No recursive search across iCloud-backed folders** (`~/Desktop`, `~/Documents`). It costs
   almost no CPU of its own while forcing `fileproviderd` and `cloudd` to materialise files -
-  a fanless Mac reached 90 °C this way on a `grep` that used 13 seconds of CPU in 1 h 42 min.
+  a fanless Mac reached its pause threshold (85 °C by default) this way on a `grep` that used 13 seconds of CPU in 1 h 42 min.
 
 Full documentation: https://github.com/pawelkwaczynski/coffee-paladin

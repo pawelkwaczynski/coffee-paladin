@@ -245,7 +245,14 @@ def ensure_dirs():
     """
     for d in (BASE, MANAGED_DIR):
         if not os.path.isdir(d):
-            os.makedirs(d, 0o700)
+            try:
+                os.makedirs(d, 0o700)
+            except OSError as e:
+                # Bez tego demon wywalal sie tracebackiem w pierwszej linii main(),
+                # a launchd wskrzeszal go co 30 s w nieskonczonosc. Traceback szedl do
+                # stderr.log, czyli do pliku w katalogu, do ktorego wlasnie nie da sie
+                # pisac - wiec uzytkownik nie widzial ani jednego slowa diagnostyki.
+                print("coffee-paladin: nie moge utworzyc %s (%s)" % (d, e), file=sys.stderr)
     # istniejace instalacje: zaciesniamy prawa przy kazdym starcie (tanie, idempotentne)
     for sciezka, prawa in ((BASE, 0o700), (MANAGED_DIR, 0o700), (CFG_PATH, 0o600)):
         try:
@@ -1436,6 +1443,14 @@ def do_resume(cfg, st, reason):
             else:
                 log("FAILED to resume %s (pid %d) - errno %d"
                     % (info.get("comm", "?"), pid, blad))
+                # Nieudany SIGCONT NIE moze kasowac wpisu: proces zostaje zamrozony,
+                # a guard o nim zapomina - nie wznowi go nawet po restarcie. Liczymy
+                # proby i po piatej odpuszczamy, zeby wpis nie zostal tam na wieki.
+                info["proby_wznowienia"] = info.get("proby_wznowienia", 0) + 1
+                if info["proby_wznowienia"] < 5:
+                    continue
+                log("giving up on resuming %s (pid %d) after 5 attempts"
+                    % (info.get("comm", "?"), pid))
         del st["paused"][key]
     notify(cfg, T("Thermal guard: cooled down"), T("Resumed paused jobs (%s)") % reason, "resume")
     return True
@@ -2215,6 +2230,12 @@ def fan_alarm(cfg, soc, soc_t, st):
             st["fan_alarm_at"] = now()
             msg = (T("COOLING FAILURE? chip %.1f C while both fans report 0 rpm") % soc_t)
             log("!!! " + msg, tag="FANFAIL")
+            # events.log to czarna skrzynka dla raportu dowodowego. Alarm wentylatorow
+            # szedl dotad WYLACZNIE do guard.log, wiec raport - ktory sekcje krytyczna
+            # buduje z events.log - twierdzil "nie wykryto alarmu chlodzenia", majac
+            # osiem takich alarmow w tym samym dokumencie. Dokument przeczyl sam sobie.
+            zapisz_zdarzenie("COOLING_ALARM", msg,
+                             {"chip_c": round(soc_t, 1), "fans": list(fans)})
             notify(cfg, T("Fans stopped while the chip is hot"), msg, key="fan")
 
 

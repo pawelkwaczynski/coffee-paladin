@@ -442,6 +442,23 @@ def stuck():
     return 0
 
 
+def guard_zyje():
+    """Czy demon NAPRAWDE zyje, a nie tylko jest wczytany do launchd.
+
+    `launchctl list` dla martwego joba drukuje "-  1  pl.pawel.coffee-paladin", wiec
+    zwykle sprawdzenie podciagu bylo prawdziwe takze wtedy, gdy demon wpadl w petle
+    restartow. `heat` meldowal "dziala", a `safe-run` nie ostrzegal, ze zadanie
+    poleci BEZ nadzoru. Sprawdzamy kolumne PID - install.sh robi to samo (ma_pid).
+    Zapasowo szukamy procesu po realnej nazwie binarki, nie po "guard.py".
+    """
+    for linia in sh(["launchctl", "list"]).splitlines():
+        czesci = linia.split()
+        if len(czesci) >= 3 and czesci[2] == AGENT and czesci[0] != "-":
+            return True
+    return bool(sh(["pgrep", "-f", "coffee-paladin$"]).strip()
+                or sh(["pgrep", "-f", "guard.py"]).strip())
+
+
 def main():
     if "--help" in sys.argv or "-h" in sys.argv:
         print(__doc__)
@@ -505,8 +522,7 @@ def main():
                          "cpu_limit": speed,
                          "load1": round(l1, 2), "load15": round(l15, 2), "cores": ncpu},
             "guard_snapshot": snap or None,
-            "guard_running": AGENT in sh(["launchctl", "list"])
-                             or bool(sh(["pgrep", "-f", "guard.py"]).strip()),
+            "guard_running": guard_zyje(),
         }, ensure_ascii=False))
         return 0
 
@@ -530,7 +546,7 @@ def main():
     if lifetime:
         print(T("   battery temperature record (whole lifetime): %.1f °C") % lifetime)
 
-    running = AGENT in sh(["launchctl", "list"]) or bool(sh(["pgrep", "-f", "guard.py"]).strip())
+    running = guard_zyje()
     print(T("   coffee-paladin: %s") % (T("running ✅") if running else T("NOT RUNNING ❌  (launchctl kickstart -k gui/%d/%s)") % (os.getuid(), AGENT)))
 
     try:

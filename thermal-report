@@ -212,6 +212,26 @@ def czas_z(s):
 ZNANE_FLAGI = ("--help", "-h", "--days", "--dni", "--pdf", "--file", "--from", "--to", "--all")
 
 
+def _alarmy_z_logu(w_zakresie):
+    """Alarmy chlodzenia z guard.log, ktorych nie ma w events.log (instalacje sprzed 02.08).
+
+    `w_zakresie` przekazywane z main(), bo tam jest domkniete na granicach raportu.
+    """
+    out = []
+    try:
+        with open(LOG, encoding="utf-8", errors="replace") as f:
+            for linia in f:
+                if ("[FANFAIL]" not in linia and "AWARIA CHLODZENIA" not in linia
+                        and "COOLING FAILURE" not in linia):
+                    continue
+                if not w_zakresie(czas_z(linia[:19])):
+                    continue
+                out.append(linia.rstrip())
+    except Exception:
+        pass
+    return out
+
+
 def main():
     if "--help" in sys.argv or "-h" in sys.argv:
         print(__doc__)
@@ -363,6 +383,12 @@ def main():
                                     p.get("load1", "?")))
     except FileNotFoundError:
         pass
+    # Alarmy wentylatorow trafiaja do events.log dopiero od 02.08.2026. Dla starszych
+    # instalacji dociagamy je z guard.log, zeby sekcja krytyczna nie twierdzila
+    # "brak alarmow", majac je wypisane kilkadziesiat linii nizej w tym samym dokumencie.
+    for linia in _alarmy_z_logu(w_zakresie):
+        zdarzen += 1
+        W.append("  " + linia)
     if not zdarzen:
         W.append(T("  (none - no hard shutdown or cooling alarm was detected in this period)"))
 
@@ -383,7 +409,7 @@ def main():
                 # wszystkich jezykach. Slowa zostaja dla wpisow sprzed jego wprowadzenia:
                 # bez nich raport z maszyny rosyjskiej gubil kazdy wykryty twardy pad.
                 if re.search(r"\[(PAUSE|RESUME|KILL|DEMOTE|PROMOTE|FANFAIL)\]"
-                             r"|PAUSED|RESUMED|PAUZA|WZNOWIONE|SIGTERM|TERMINAT|koncze zadanie"
+                             r"|PAUSED|RESUMED|PAUZA|WZNOWIONE|SIGTERM|TERMINAT|koncze zadanie|DEMOTE|PROMOTE"
                              r"|AWARIA|FAILURE|HARD SHUT|TWARDY|ОБНАРУЖЕНО|检测到硬关机|APAGADO BRUSCO", linia):
                     inter += 1
                     W.append("  " + linia.rstrip())
@@ -416,7 +442,7 @@ def main():
     except FileNotFoundError:
         pass
     if szczyt[0]:
-        W.insert(len(W) - ile - 2, T("  PEAK MEASURED CHIP TEMPERATURE: %.1f C (%s)") % szczyt)
+        W.insert(len(W) - ile - 1, T("  PEAK MEASURED CHIP TEMPERATURE: %.1f C (%s)") % szczyt)
 
     W.append("\n" + "=" * 78)
     try:

@@ -220,14 +220,21 @@ def batt_temp():
     import re
     out = sh(["ioreg", "-r", "-c", "AppleSmartBattery", "-d", "1", "-w", "0"])
     m = re.search(r'"Temperature"\s*=\s*(\d+)', out)
-    return int(m.group(1)) / 100.0 if m else None
+    if not m:
+        return None
+    # Ta sama normalizacja co w guardzie: kontrolery raportuja setne, dziesiate albo
+    # cale stopnie. Sztywne /100 dawalo 4,4 stopnia zamiast 44 - i bateryjna bramka
+    # odmowy startu nie odpalala sie na takim Macu NIGDY.
+    v = float(m.group(1))
+    for _ in range(4):
+        if v <= 100.0:
+            break
+        v /= 10.0
+    return v if 0.0 < v <= 100.0 else None
 
 
 def guard_running():
-    out = sh(["launchctl", "list"])
-    if AGENT_LABEL in out:
-        return True
-    return "guard.py" in sh(["pgrep", "-fl", "guard.py"])
+    return guard_zyje()
 
 
 def start_guard():
@@ -404,6 +411,23 @@ def max_temp_since(t0):
     except Exception:
         pass
     return best
+
+
+def guard_zyje():
+    """Czy demon NAPRAWDE zyje, a nie tylko jest wczytany do launchd.
+
+    `launchctl list` dla martwego joba drukuje "-  1  pl.pawel.coffee-paladin", wiec
+    zwykle sprawdzenie podciagu bylo prawdziwe takze wtedy, gdy demon wpadl w petle
+    restartow. `heat` meldowal "dziala", a `safe-run` nie ostrzegal, ze zadanie
+    poleci BEZ nadzoru. Sprawdzamy kolumne PID - install.sh robi to samo (ma_pid).
+    Zapasowo szukamy procesu po realnej nazwie binarki, nie po "guard.py".
+    """
+    for linia in sh(["launchctl", "list"]).splitlines():
+        czesci = linia.split()
+        if len(czesci) >= 3 and czesci[2] == AGENT_LABEL and czesci[0] != "-":
+            return True
+    return bool(sh(["pgrep", "-f", "coffee-paladin$"]).strip()
+                or sh(["pgrep", "-f", "guard.py"]).strip())
 
 
 def main():
