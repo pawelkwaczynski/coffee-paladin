@@ -89,6 +89,7 @@ PL = {
         "Temperatura chipa czytana przez IOReport, temperatura baterii przez AppleSmartBattery.",
     "AC": "zasilacz",
     "battery": "bateria",
+    "thermal-report: unknown argument: %s": "thermal-report: nieznany argument: %s",
 }
 
 RU = {
@@ -116,6 +117,7 @@ RU = {
         "Температура чипа читается через IOReport, температура батареи - через AppleSmartBattery.",
     "AC": "адаптер",
     "battery": "батарея",
+    "thermal-report: unknown argument: %s": "thermal-report: неизвестный аргумент: %s",
 }
 
 ZH = {
@@ -143,6 +145,7 @@ ZH = {
         "芯片温度通过 IOReport 读取, 电池温度通过 AppleSmartBattery 读取。",
     "AC": "电源适配器",
     "battery": "电池",
+    "thermal-report: unknown argument: %s": "thermal-report:未知参数:%s",
 }
 
 ES = {
@@ -170,6 +173,7 @@ ES = {
         "La temperatura del chip se lee por IOReport, la de la batería por AppleSmartBattery.",
     "AC": "adaptador",
     "battery": "batería",
+    "thermal-report: unknown argument: %s": "thermal-report: argumento desconocido: %s",
 }
 
 DICTS = {"pl": PL, "ru": RU, "zh": ZH, "es": ES}
@@ -205,7 +209,21 @@ def czas_z(s):
         return 0
 
 
+ZNANE_FLAGI = ("--help", "-h", "--days", "--dni", "--pdf", "--file", "--from", "--to", "--all")
+
+
 def main():
+    if "--help" in sys.argv or "-h" in sys.argv:
+        print(__doc__)
+        return 0
+    # Nieznana flaga NIE moze po cichu wygenerowac raportu na Pulpicie. Wczesniej
+    # `thermal-report --help` robilo dokladnie to: zapisywalo plik i konczylo kodem 0.
+    obce = [a for a in sys.argv[1:] if a.startswith("-") and a not in ZNANE_FLAGI]
+    if obce:
+        print(T("thermal-report: unknown argument: %s") % " ".join(obce), file=sys.stderr)
+        print(__doc__, file=sys.stderr)
+        return 2
+
     dni = 7
     for flaga in ("--days", "--dni"):          # --dni zostaje dla zgodnosci
         if flaga in sys.argv:
