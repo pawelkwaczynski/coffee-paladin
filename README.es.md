@@ -148,6 +148,18 @@ sincronizadas con iCloud. Esta última regla salió de un incidente real: un `gr
 
 ## Instalación
 
+**Con Homebrew (lo más simple):**
+
+```bash
+brew install pawelkwaczynski/tap/coffee-paladin
+bash "$(brew --prefix)/share/coffee-paladin/install.sh"
+```
+
+Hacen falta las dos líneas: `brew install` solo deja los archivos, y la segunda compila
+la app de la barra de menús y arranca el demonio.
+
+**Desde el código fuente:**
+
 ```bash
 git clone https://github.com/pawelkwaczynski/coffee-paladin.git
 cd coffee-paladin

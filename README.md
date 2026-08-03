@@ -1,4 +1,4 @@
-# coffee-paladin v2.2.2
+# coffee-paladin v2.2.3
 
 <p align="center">
   <img src="branding/paladin.gif" alt="coffee-paladin - the project mascot" width="260">
@@ -350,7 +350,7 @@ the same instruction. Measured live: 89.3 °C → 60.2 °C in 19 seconds, comput
 
 If you are a coding agent (Claude Code, Codex, Gemini CLI, …) about to run heavy work on this Mac — builds, `ffmpeg`, model inference, wide test suites, long loops — do this first:
 
-1. **Detect the guard:** `test -f ~/.coffee-paladin/status.json`. If the file is missing, coffee-paladin is not installed here; suggest to the user: `brew tap pawelkwaczynski/tap && brew install coffee-paladin`.
+1. **Detect the guard:** `test -f ~/.coffee-paladin/status.json`. If the file is missing, coffee-paladin is not installed here; suggest to the user both lines, because `brew install` alone installs files but starts nothing: `brew install pawelkwaczynski/tap/coffee-paladin` followed by `bash "$(brew --prefix)/share/coffee-paladin/install.sh"`.
 2. **Read the state** (plain JSON, refreshed every ~15 s). The field `level` decides: `0` start the job, `1` start but do not parallelise, `2` finish what runs and start nothing new, `3` stop and tell the user the Mac is too hot.
 3. **Trust it only when fresh:** if `time` is older than 60 s the daemon is not running — say so and treat the Mac as unprotected. If `dry_run` is `true`, the guard only watches; warn the user before anything heavy.
 4. **Start heavy jobs through `safe-run`**, not directly: `safe-run --name build -- cargo build --release`. It refuses to start on a hot machine and registers the job with the daemon. Never pass `--allow-hot` on your own initiative.
@@ -471,6 +471,22 @@ fleet --setup      # detects iCloud Drive / Dropbox / Google Drive / OneDrive / 
 
 No restart needed - the daemon re-reads its config every cycle and starts publishing within a
 minute.
+
+**What "the same folder" actually requires.** Nothing Apple-specific. Any folder each Mac can
+reach under a path of its own - and the path may differ per machine, because every Mac stores
+its own `fleet_dir`.
+
+| Folder | What it takes |
+|---|---|
+| iCloud Drive | the same Apple ID signed in on every Mac, or a folder shared with the other Apple ID |
+| Google Drive / OneDrive / Dropbox | the same account signed in on every Mac, or a folder shared with the other account. Paths contain the account name, so they differ per machine - that is fine |
+| SMB / NAS / external volume | mount it on every Mac |
+
+**Sync is not instant, and that is visible.** With on-demand storage (iCloud *Optimize Mac
+Storage*, Drive streaming) another Mac's snapshot can arrive minutes late, or sit there as a
+placeholder that has not been downloaded yet. Until it lands, that machine is simply missing
+from the table on this Mac, or listed as not reporting - the data is not lost, it just has not
+arrived. Each Mac always sees itself immediately, because it writes its own file locally.
 
 **3. On whichever machine you sit at**, look at the fleet:
 
@@ -1216,6 +1232,20 @@ ręcznie - jeden klucz na każdej maszynie: `"fleet_dir": "<ścieżka folderu>"`
 `~/.coffee-paladin/config.json` - bez restartu, agent zacznie publikować w ciągu minuty. Potem
 na swojej maszynie: `fleet` (tabela + problemy), `fleet --watch` (odświeżanie), `fleet --json`
 (pod automaty i dashboardy). Host bez raportu od 5 minut dostaje flagę `NIE RAPORTUJE`.
+
+Co znaczy "ten sam folder": nic apple'owego. Wystarczy folder, do którego każdy Mac ma dostęp
+pod jakąkolwiek swoją ścieżką - ścieżki mogą się różnić, bo każda maszyna trzyma własny
+`fleet_dir`. iCloud Drive wymaga tego samego Apple ID na wszystkich Makach (albo folderu
+udostępnionego drugiemu Apple ID). Google Drive, OneDrive i Dropbox - tego samego konta
+zalogowanego wszędzie albo folderu udostępnionego drugiemu kontu; ich ścieżki zawierają nazwę
+konta, więc na każdej maszynie wyglądają inaczej i tak ma być. Dysk sieciowy SMB/NAS - po prostu
+podmontowany na każdym Macu.
+
+Synchronizacja nie jest natychmiastowa i to widać. Przy pobieraniu na żądanie (iCloud
+*Optymalizuj miejsce*, streaming w Drive) migawka drugiego Maca potrafi dojść z kilkuminutowym
+opóźnieniem albo leżeć jako niepobrany placeholder. Do tego czasu tamta maszyna po prostu nie
+ma jej w tabeli na tym Macu albo widnieje jako nieraportująca - dane nie zginęły, jeszcze nie
+dojechały. Siebie każdy Mac widzi od razu, bo swój plik zapisuje lokalnie.
 
 ## Testy
 

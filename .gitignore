@@ -6,3 +6,11 @@ __pycache__/
 thermal_report_*.txt
 thermal_report_*.pdf
 .ruff_cache/
+
+# Working notes are not part of the product. They belong outside the repository.
+STAN_ROZMOWY.md
+NOTATKA_*.md
+OBSERWACJE_*.md
+TODO_*.md
+RAPORT_*.md
+*_STAN.md

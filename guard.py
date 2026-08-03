@@ -2307,7 +2307,18 @@ def hardware_info():
     m2 = re.search(r'"DesignCapacity"\s*=\s*(\d+)', ioreg)
     if m1 and m2 and int(m2.group(1)) > 0:
         hw["battery_max_capacity_pct"] = round(100 * int(m1.group(1)) / int(m2.group(1)))
+    # Jeden nieudany odczyt macmona NIE moze przesadzic o kalibracji. Probkowanie
+    # potrafi pasc na obciazonej maszynie (znane z kolejki kompresji), a wlasnie tak
+    # wyglada pierwszy start demona: zaraz po `install.sh`, ktory kompilowal pasek.
+    # `max_age=0` omija 10-sekundowy cache — bez tego powtorka oddawalaby to samo None.
+    # BUDZET, nie liczba prob: `run()` daje macmonowi 20 s na sciezke, a soc_sensors
+    # probuje dwoch sciezek. Same ponowienia moglyby wiec opoznic start demona
+    # o dwie minuty, czyli o czas, w ktorym nikt nie pilnuje temperatury (Codex 03.08).
     s = soc_sensors()
+    koniec_prob = time.monotonic() + 8.0
+    while not s and time.monotonic() < koniec_prob:
+        time.sleep(2.0)
+        s = soc_sensors(max_age=0)
     hw["fan_count"] = len((s or {}).get("fans") or [])
     hw["chip_sensor"] = bool(s)
     try:
@@ -2365,11 +2376,21 @@ def auto_calibrate(cfg, hw):
             pass
         log("MIGRATION: dry_run was implicit - written explicitly as true (watch-only)")
         return "watchonly"
-    changes = {"calibrated_for": tag}
+    # Bez odczytu z czujnika `fan_count=0` znaczy DWIE rozne rzeczy: "Mac bezwentylatorowy"
+    # albo "macmon nie odpowiedzial". Zapisanie znacznika w tym stanie zostawia Aira
+    # na progach wentylatorowych (85/76/90) i limicie pauzy 45 min az do nastepnego
+    # restartu demona — a demon ma KeepAlive, wiec restart moze byc za tydzien.
+    # Dlatego przy slepym czujniku znacznika NIE zapisujemy: kalibracja ma sie powtorzyc.
+    slepy = not hw.get("chip_sensor")
+    changes = {} if slepy else {"calibrated_for": tag}
     if dry_ukryty:
         changes["dry_run"] = True
+    # `soc_kill_c` MUSI byc w tym warunku: kalibracja nadpisuje go razem z para
+    # pauza/wznowienie, wiec uzytkownik, ktory recznie podniosl sam prog ubicia,
+    # tracil go przy pierwszej kalibracji. Odtworzone 03.08 (95.0 -> 88.0).
     untouched = (cfg.get("soc_pause_c") == DEFAULTS["soc_pause_c"]
-                 and cfg.get("soc_resume_c") == DEFAULTS["soc_resume_c"])
+                 and cfg.get("soc_resume_c") == DEFAULTS["soc_resume_c"]
+                 and cfg.get("soc_kill_c") == DEFAULTS["soc_kill_c"])
     if hw.get("fan_count") == 0 and hw.get("chip_sensor"):
         changes["fan_check"] = False          # alarm wentylatorow na Airze = zawsze falszywy
         if untouched:
@@ -2380,11 +2401,24 @@ def auto_calibrate(cfg, hw):
         # pauzy ubijaloby dlugie joby, ktore po prostu czekaja na ostygniecie
         if cfg.get("max_pause_minutes") == DEFAULTS["max_pause_minutes"]:
             changes["max_pause_minutes"] = 120
+    elif slepy:
+        # NIE MILCZ: bez tej linijki log mowil "thresholds defaults OK" na maszynie,
+        # ktora wlasnie NIE zostala skalibrowana. Minute pozniej `heat` pokazuje juz
+        # temperature chipa i wszystko wyglada zdrowo — nikt by tego nie zauwazyl.
+        log("CALIBRATION DEFERRED: no chip sensor reading (macmon missing or busy) - "
+            "cannot tell a fanless Mac from a failed probe; thresholds left at %s/%s, "
+            "will retry on next start"
+            % (cfg.get("soc_pause_c"), cfg.get("soc_resume_c")))
     else:
         log("CALIBRATION: %s, %s (%dP+%dE), %d GB RAM, fans: %s - thresholds %s"
             % (hw.get("model_name"), hw.get("chip"), hw.get("p_cores", 0),
                hw.get("e_cores", 0), hw.get("ram_gb", 0), hw.get("fan_count"),
                "left as user set them" if not untouched else "defaults OK"))
+    # Przy slepym czujniku i jawnym dry_run nie ma CZEGO zapisac. Pusty zapis nie jest
+    # niewinny: ten tor uzywa golego open(), wiec co start rozluznialby prawa
+    # config.json (siedzi w nim temat ntfy) az do nastepnego `ensure_dirs`.
+    if not changes:
+        return "watchonly" if dry_ukryty else None
     # czytaj-zmien-zapisz pod lockiem: rownolegly zapis paska nie moze zginac (B5)
     try:
         with config_lock():
@@ -2395,7 +2429,11 @@ def auto_calibrate(cfg, hw):
                 disk_cfg = {}
             disk_cfg.update(changes)
             tmp = CFG_PATH + ".tmp"
-            with open(tmp, "w") as f:
+            # 0600 przez os.open, nie gole open(): tor migracyjny wyzej robi to od
+            # dawna, ten NIE robil. Odtworzone przy umask(0): config 0600 wychodzil
+            # z kalibracji jako 0666, a siedzi w nim temat ntfy. Znalazl Codex 03.08.
+            with os.fdopen(os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC,
+                                   0o600), "w") as f:
                 json.dump(disk_cfg, f, indent=2, ensure_ascii=False, sort_keys=True)
             os.replace(tmp, CFG_PATH)
     except Exception:
@@ -2587,7 +2625,7 @@ def fleet_write(cfg, status):
         hw = _hw_cache_fleet()
         out["model"] = hw.get("model")
         out["serial"] = hw.get("serial")
-        out["guard_version"] = "2.2.2"
+        out["guard_version"] = "2.2.3"
         _bledy = {k: v for k, v in _CICHE_AWARIE.items() if not k.startswith("_ostatni_log_")}
         if _bledy:
             out["swallowed_errors"] = _bledy
@@ -2867,9 +2905,16 @@ def main():
         pass
 
     # sprzet + kalibracja per Mac: raz przy starcie (system_profiler jest wolny)
+    hw = {}
+    kalibracja_odlozona = False   # musi istniec takze gdy kalibracja rzuci wyjatkiem
     try:
         hw = hardware_info()
         wynik_kalibracji = auto_calibrate(cfg, hw)
+        # Czujnik potrafi wstac PO starcie demona (macmon zajety kompilacja paska
+        # przy `install.sh`). Kalibracja idzie raz przy starcie, wiec bez tego Mac
+        # bezwentylatorowy czekalby na swoje progi do nastepnego restartu demona,
+        # a demon ma KeepAlive. Petla dokonczy robote, gdy czujnik wroci.
+        kalibracja_odlozona = not hw.get("chip_sensor")
         cfg = load_cfg()          # kalibracja mogla dopisac progi
         if wynik_kalibracji == "watchonly" and cfg.get("dry_run"):
             notify(cfg, T("coffee-paladin: watch-only mode"),
@@ -2909,6 +2954,17 @@ def main():
             reap_bg()
             (state, temp, speed, load, targets, lvl, why,
              soc, soc_t, ac, pct, saferun_normal, do_pokazania) = snapshot(cfg)
+            # Czujnik wrocil juz po starcie? Dokoncz odlozona kalibracje. Bez tego
+            # Mac bezwentylatorowy siedzi na progach wentylatorowych do restartu demona.
+            # Odczyt bierzemy z migawki (`soc`), zeby nie placic drugi raz za macmona;
+            # reszta `hw` jest z systemu i sie nie zmienia miedzy taktami.
+            if kalibracja_odlozona and soc:
+                hw["fan_count"] = len(soc.get("fans") or [])
+                hw["chip_sensor"] = True
+                auto_calibrate(cfg, hw)
+                cfg = load_cfg()
+                kalibracja_odlozona = False
+
             fan_alarm(cfg, soc, soc_t, st)
             obsluz_rozkaz(cfg, st, targets)
 
@@ -3073,21 +3129,27 @@ def main():
         # drzemka przerywalna: rozkaz z paska (command) albo zmiana keep-awake
         # (awake.json) budzi petle NATYCHMIAST - reczne akcje reaguja w ~1 s,
         # a pelny cykl pomiarowy dalej chodzi rzadko. Koszt: dwa stat() co 0.5 s.
-        try:
-            awake_przed = os.path.getmtime(AWAKE_PATH)
-        except OSError:
-            awake_przed = None
+        def _mtime(p):
+            try:
+                return os.path.getmtime(p)
+            except OSError:
+                return None
+
+        awake_przed = _mtime(AWAKE_PATH)
+        # Zmiana configu TEZ budzi petle. Bez tego przelacznik ochrony z paska czekal
+        # caly takt: `dry_run` idzie przez config.json, a nie przez plik `command`,
+        # wiec jako jedyna reczna akcja nie mial sciezki na wybudzenie. Przy suwaku
+        # interwalu na 30 s wygladalo to jak zawieszony przelacznik (Pawel, 03.08).
+        cfg_przed = _mtime(CFG_PATH)
         for _ in range(int(cfg["poll_seconds"] * 2)):
             if stop["flag"]:
                 break
             if os.path.exists(COMMAND_PATH):
                 break
-            try:
-                if os.path.getmtime(AWAKE_PATH) != awake_przed:
-                    break
-            except OSError:
-                if awake_przed is not None:
-                    break
+            if _mtime(AWAKE_PATH) != awake_przed:
+                break
+            if _mtime(CFG_PATH) != cfg_przed:
+                break
             time.sleep(0.5)
 
     do_resume(cfg, st, T("guard is shutting down"))

@@ -127,6 +127,17 @@ coffee-paladin 是**保险丝**——它会自己动手。
 
 ## 安装
 
+**通过 Homebrew（最简单）：**
+
+```bash
+brew install pawelkwaczynski/tap/coffee-paladin
+bash "$(brew --prefix)/share/coffee-paladin/install.sh"
+```
+
+两行都需要：`brew install` 只放置文件，第二行才编译菜单栏应用并启动守护进程。
+
+**从源码：**
+
 ```bash
 git clone https://github.com/pawelkwaczynski/coffee-paladin.git
 cd coffee-paladin

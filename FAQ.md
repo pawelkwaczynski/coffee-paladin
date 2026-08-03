@@ -2,7 +2,16 @@
 
 Questions people actually type into a search box — with short, factual answers.
 coffee-paladin is a free, MIT-licensed thermal safety net for Apple
-Silicon Macs: `brew tap pawelkwaczynski/tap && brew install coffee-paladin`.
+Silicon Macs:
+
+```bash
+brew install pawelkwaczynski/tap/coffee-paladin
+bash "$(brew --prefix)/share/coffee-paladin/install.sh"
+```
+
+Both lines are needed: `brew install` only puts the files in place, and the second one
+compiles the menu bar app and starts the daemon. After `brew install` alone nothing is
+watching your Mac.
 
 ### How do I stop my Mac from overheating during ffmpeg or video encoding?
 

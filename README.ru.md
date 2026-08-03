@@ -146,11 +146,25 @@ coffee-paladin — это **предохранитель**: он вмешива�
 
 ## Установка
 
+**Через Homebrew (проще всего):**
+
+```bash
+brew install pawelkwaczynski/tap/coffee-paladin
+bash "$(brew --prefix)/share/coffee-paladin/install.sh"
+```
+
+Нужны обе строки: `brew install` только кладёт файлы, а вторая собирает приложение
+в строке меню и запускает демона.
+
+**Из исходников:**
+
 ```bash
 git clone https://github.com/pawelkwaczynski/coffee-paladin.git
 cd coffee-paladin
 bash install.sh
 ```
+
+Оба пути дают одну и ту же версию.
 
 Скрипт собирает Swift-части прямо на машине, ставит LaunchAgent и запускает приложение
 в строке меню. **Стартует в режиме наблюдения**: измеряет и предупреждает, но ничего

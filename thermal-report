@@ -27,7 +27,9 @@ import time
 
 MAX_WIERSZY_OSI = 5000   # sufit osi czasu w raporcie, patrz komentarz przy skracaniu
 
-VERSION = "2.2.2"   # bump razem z guard_version/heatbar VERSION/README (checklista release)
+VERSION = "2.2.3"   # PIEC miejsc, nie trzy: guard_version, heatbar VERSION, README,
+                    # .claude-plugin/plugin.json i to. Pilnuje tego `test_spojnosc`,
+                    # bo 03.08 checklista mowila "trzy" i wersja tutaj zostala w tyle.
 
 HOME = os.path.expanduser("~")
 BASE = os.environ.get("TG_BASE") or os.path.join(HOME, ".coffee-paladin")
