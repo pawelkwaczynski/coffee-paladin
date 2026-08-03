@@ -145,6 +145,7 @@ DEFAULTS = {
     # zasypia. Amphetamine trzymane bezwarunkowo to klasyczna droga do ugotowania laptopa
     # w plecaku — dlatego domyslnie wylaczone, wlacza sie swiadomie w Ustawieniach.
     "keep_awake_auto": False,
+    "keep_awake_display": False,   # -d: ekran tez nie gasnie (prezentacje); wiecej ciepla
     # DOMYSLNIE TYLKO OBSERWACJA: swieza instalacja mierzy, loguje i ALARMUJE, ale nie
     # wstrzymuje niczyich procesow. Ochrone wlacza sie swiadomie — jednym kliknieciem w menu
     # paska albo "dry_run": false. Narzedzie, ktore od wejscia rusza cudza prace, traci
@@ -1745,6 +1746,22 @@ def sig(pid, pgid, s):
 _nie_da_sie = {}          # pid -> comm: procesy, ktorych NIE DA SIE wstrzymac (EPERM)
 
 
+def licznik(st, klucz, ile=1):
+    """Skumulowane liczniki pracy bezpiecznika (state.json).
+
+    Amphetamine liczy, ile Mac NIE spal. Dla nas wartosciowa jest liczba odwrotna:
+    ile razy bezpiecznik faktycznie zadzialal. To jest dowod, ze produkt pracuje,
+    a nie tylko wisi na pasku - i jedyna statystyka, ktorej konkurencja miec nie moze.
+    Licznikow NIGDY nie zerujemy sami; od tego jest przycisk u czlowieka.
+    """
+    try:
+        st.setdefault("stats", {})
+        st["stats"].setdefault("since", now())
+        st["stats"][klucz] = int(st["stats"].get(klucz, 0)) + ile
+    except Exception:
+        pass
+
+
 def do_pause(cfg, st, targets, reason, manual=False, lvl_krytyczny=False):
     changed = False
     nieudane = []
@@ -1775,6 +1792,10 @@ def do_pause(cfg, st, targets, reason, manual=False, lvl_krytyczny=False):
             # o nim nie wiedzial. Jeden fsync na pauze jest tanszy niz taki sierota.
             save_state(st)
             log(T("PAUSED %s (pid %d, %.0f%% CPU) - %s") % (comm, pid, cpu, reason), tag="PAUSE")
+            # Liczymy TYLKO prace bezpiecznika. Reczne zamrozenie z paska to decyzja
+            # czlowieka, nie zasluga produktu - a okno statystyk obiecuje to drugie.
+            if not manual:
+                licznik(st, "pauses")
         elif blad == errno.ESRCH:
             # proces zdazyl zniknac miedzy odczytem ps a sygnalem - to normalne, nie awaria
             log(T("gone before pause: %s (pid %d)") % (comm, pid))
@@ -1797,16 +1818,33 @@ def do_pause(cfg, st, targets, reason, manual=False, lvl_krytyczny=False):
     return changed
 
 
-def do_resume(cfg, st, reason):
+def do_resume(cfg, st, reason, only_keys=None, po_ostygnieciu=False):
+    """Wznawia zamrozone zadania; `only_keys` ogranicza to do wskazanych wpisow.
+
+    KRYTYCZNE (znalezione 04.08.2026 przez runde testowa): parametru tu NIE BYLO, a petla
+    glowna wolala `do_resume(..., only_keys=gotowe)` — czyli GLOWNA sciezka wznowienia po
+    ostygnieciu rzucala TypeError, ktory ogolny `except` petli polykal. Skutek: zadanie
+    zamrozone przy przegrzaniu NIE wracalo do pracy nigdy, tylko czekalo na SIGTERM po
+    `max_pause_minutes`. W logu Pawla: trzy pauzy po wprowadzeniu bledu, ZERO wznowien.
+    Nie zauwazono tego przez dwa dni, bo tego samego dnia podniesiono progi i maszyna
+    przestala dobijac do progu pauzy. Klasyczna cicha awaria: brak wpisu wyglada tak samo
+    jak brak potrzeby.
+    """
     if not st["paused"]:
         return False
     for key, info in list(st["paused"].items()):
+        if only_keys is not None and key not in only_keys:
+            continue          # reszta zostaje zamrozona swiadomie (min. czas pauzy, reczne)
         pid = int(key)
         if alive(pid):
             blad = sig(pid, info.get("pgid"), signal.SIGCONT)
             stan = run(["ps", "-o", "stat=", "-p", str(pid)]).strip()
             if blad == 0 and not stan.startswith("T"):
                 log(T("RESUMED %s (pid %d) - %s") % (info.get("comm", "?"), pid, reason), tag="RESUME")
+                # Okno statystyk mowi "wznowione PO OSTYGNIECIU", wiec reczne wznowienie,
+                # start i zamkniecie demona sie nie licza. Etykieta ma byc prawdziwa.
+                if po_ostygnieciu:
+                    licznik(st, "resumes")
             elif stan.startswith("T"):
                 # SIGCONT poszedl, ale proces DALEJ stoi - klasyczna petla SIGTTIN
                 # (wznowiony w tle, chce czytac klawiature). Sam z tego nie wyjdzie.
@@ -1864,6 +1902,7 @@ def do_terminate(cfg, st, reason, only_keys=None):
         sig(pid, info.get("pgid"), signal.SIGTERM)
         victims.append((pid, info))
         log(T("TERMINATED (SIGTERM) %s (pid %d) - %s") % (info.get("comm", "?"), pid, reason), tag="KILL")
+        licznik(st, "kills")
         del st["paused"][key]
     if victims:
         notify(cfg, T("Thermal guard: STOPPED"),
@@ -2536,12 +2575,38 @@ def keep_awake_update(cfg, targets, lvl, st=None):
     zywy = proc is not None and proc.poll() is None
     auto = bool(cfg.get("keep_awake_auto")) and bool(targets)
     chcemy = (auto or manual) and lvl < 2
+    # Ekran to OSOBNA decyzja od systemu. `-is` trzyma system, ale pozwala zgasic ekran;
+    # `-d` trzyma takze ekran (prezentacja, dashboard, podglad renderu). Ekran kosztuje
+    # prad i cieplo, wiec domyslnie WYLACZONE - i tak samo jak reszta czuwania ustepuje
+    # bezpiecznikowi, bo caly warunek stoi na `lvl < 2`.
+    chce_ekran = bool(cfg.get("keep_awake_display"))
+    # Wymiana procesu TYLKO wtedy, gdy czuwanie ma dalej trwac. Inaczej zmiana trybu
+    # ekranu zbiegajaca sie z przegrzaniem zabralaby galezi stopu jej proces - i licznik
+    # "czuwanie ustapilo przed cieplem" nie zauwazylby zdarzenia. Znalazl Codex 04.08.
+    if chcemy and zywy and _caff.get("display") != chce_ekran:
+        # Zmiana w locie: flag caffeinate nie da sie przestawic, trzeba go wymienic.
+        try:
+            proc.terminate()
+            proc.wait(timeout=3)
+        except Exception:
+            try:
+                proc.kill()
+                proc.wait(timeout=1)
+            except Exception:
+                pass
+        _caff["proc"] = None
+        proc = None
+        zywy = False
+        _loguj_awake("KEEP-AWAKE restart (display mode changed to %s)"
+                     % ("on" if chce_ekran else "off"))
     if chcemy and not zywy:
         try:
             _caff["proc"] = subprocess.Popen(
-                ["caffeinate", "-is"],
+                ["caffeinate", "-isd"] if chce_ekran else ["caffeinate", "-is"],
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            _loguj_awake("KEEP-AWAKE start (heavy job running, machine cool)")
+            _caff["display"] = chce_ekran
+            _loguj_awake("KEEP-AWAKE start (heavy job running, machine cool)%s"
+                         % (" [screen stays on]" if chce_ekran else ""))
             play_sound(cfg, "awake")   # Funk: paladyn bierze kubek
         except Exception:
             _caff["proc"] = None
@@ -2556,7 +2621,14 @@ def keep_awake_update(cfg, targets, lvl, st=None):
             except Exception:
                 pass
         _caff["proc"] = None
-        _loguj_awake("KEEP-AWAKE stop (job done, hot, or disabled)")
+        # Rozrozniamy DWA powody stopu. "Zadanie sie skonczylo" to normalna kolej rzeczy;
+        # "maszyna za goraca" to moment, w ktorym bezpiecznik zrobil swoja robote - i tylko
+        # to liczymy, bo tylko to jest dowodem, ze produkt dziala.
+        przez_termike = (auto or manual) and lvl >= 2
+        if przez_termike and st is not None:
+            licznik(st, "awake_released_hot")
+        _loguj_awake("KEEP-AWAKE stop (%s)"
+                     % ("machine too hot" if przez_termike else "job done or disabled"))
     return _caff["proc"] is not None and _caff["proc"].poll() is None
 
 
@@ -2625,7 +2697,7 @@ def fleet_write(cfg, status):
         hw = _hw_cache_fleet()
         out["model"] = hw.get("model")
         out["serial"] = hw.get("serial")
-        out["guard_version"] = "2.2.4"
+        out["guard_version"] = "2.2.5"
         _bledy = {k: v for k, v in _CICHE_AWARIE.items() if not k.startswith("_ostatni_log_")}
         if _bledy:
             out["swallowed_errors"] = _bledy
@@ -2672,6 +2744,7 @@ def status_write(state, temp, soc, soc_t, ac, pct, speed, load, lvl, why, target
         "manual_pause": bool(st.get("reczna_pauza")),
         "dry_run": bool(st.get("_dry")),
         "keep_awake": bool(st.get("_awake")),
+        "stats_total": st.get("stats", {}),
         "awake_mode": st.get("_awake_mode"),
         "awake_until": st.get("_awake_until"),
         "awake_app": st.get("_awake_app"),
@@ -3076,7 +3149,8 @@ def main():
                           if _wiek_pauzy(v) >= min_p and not v.get("manual")
                           and (powered or v.get("powod") != "bateria")]
                 if gotowe and cool:
-                    do_resume(cfg, st, T("conditions are back to normal"), only_keys=gotowe)
+                    do_resume(cfg, st, T("conditions are back to normal"), only_keys=gotowe,
+                              po_ostygnieciu=True)
                 do_promote(cfg, st, cpu_hist, soc_t)
                 do_demote(cfg, st, targets, cpu_hist, soc_t, saferun_normal)
 

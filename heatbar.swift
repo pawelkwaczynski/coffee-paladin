@@ -16,7 +16,7 @@
 
 import Cocoa
 
-let VERSION = "2.2.4"
+let VERSION = "2.2.5"
 let APPNAME = "coffee-paladin"
 let CODENAME = "Ristretto"
 let SIGNATURE = "\(APPNAME) v\(VERSION) \u{201E}\(CODENAME)\u{201D}  ·  by panbookovsky"
@@ -244,6 +244,21 @@ let PL: [String: String] = [
     "no": "nie",
     "Keep the Mac awake while heavy jobs run": "Trzymaj caffeinate na ciężkie zadania",
     "Keeping the Mac awake (heavy job running)": "Trzymam Maca w czuwaniu (działa ciężkie zadanie)",
+    "Right now: keeping the Mac awake": "Teraz: czuwanie trzymane",
+    "Keep the screen on too (uses more power)": "Nie gaś też ekranu (więcej prądu i ciepła)",
+    "Keep-awake time left": "Ile zostało czuwania",
+    "What the paladin has done": "Co zrobił paladyn",
+    "Heavy jobs paused": "Wstrzymane ciężkie zadania",
+    "Jobs resumed after cooling": "Wznowione po ostygnięciu",
+    "Jobs terminated at the kill threshold": "Ubite przy progu krytycznym",
+    "Times keep-awake gave way to heat": "Czuwanie ustąpiło przed ciepłem",
+    "counting since %@": "liczone od %@",
+    "Nothing yet - the machine has not been hot enough.": "Jeszcze nic - maszyna nie była dość gorąca.",
+    "Until a set hour": "Do konkretnej godziny",
+    "Extend": "Przedłuż",
+    "until %@": "do %@",
+    "Extend by %d min": "Przedłuż o %d min",
+    "Right now: NOT keeping the Mac awake": "Teraz: czuwanie nietrzymane",
     "resume at %.0f °C, terminate at %.0f C": "wznowienie przy %.0f °C, ubicie przy %.0f °C",
     "no fans (fanless Mac)": "brak wentylatorów (Mac bez wentylatorów)",
     "What does watch-only mode do?": "Co daje tryb „tylko obserwuj”?",
@@ -285,6 +300,21 @@ gdy skończysz.
 let RU: [String: String] = [
     "Keep the Mac awake while heavy jobs run": "Не давать Mac засыпать, пока идут тяжёлые задачи",
     "Keeping the Mac awake (heavy job running)": "Держу Mac в бодрствовании (идёт тяжёлая задача)",
+    "Right now: keeping the Mac awake": "Сейчас: бодрствование удерживается",
+    "Keep the screen on too (uses more power)": "Не гасить и экран (больше энергии и тепла)",
+    "Keep-awake time left": "Сколько осталось бодрствования",
+    "What the paladin has done": "Что сделал паладин",
+    "Heavy jobs paused": "Приостановлено тяжёлых задач",
+    "Jobs resumed after cooling": "Возобновлено после остывания",
+    "Jobs terminated at the kill threshold": "Завершено на критическом пороге",
+    "Times keep-awake gave way to heat": "Бодрствование уступило нагреву",
+    "counting since %@": "считаем с %@",
+    "Nothing yet - the machine has not been hot enough.": "Пока ничего - машина не была достаточно горячей.",
+    "Until a set hour": "До определённого часа",
+    "Extend": "Продлить",
+    "until %@": "до %@",
+    "Extend by %d min": "Продлить на %d мин",
+    "Right now: NOT keeping the Mac awake": "Сейчас: бодрствование не удерживается",
     "no data - is coffee-paladin running?": "нет данных - работает ли coffee-paladin?",
     "data is stale (%@) - the guard may have died": "данные устарели (%@) - демон мог упасть",
     "the Mac shut down without warning: %@": "Mac выключился без предупреждения: %@",
@@ -519,6 +549,21 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
 let ZH: [String: String] = [
     "Keep the Mac awake while heavy jobs run": "繁重任务运行时保持 Mac 唤醒",
     "Keeping the Mac awake (heavy job running)": "正在保持 Mac 唤醒（繁重任务运行中）",
+    "Right now: keeping the Mac awake": "当前：正在保持唤醒",
+    "Keep the screen on too (uses more power)": "屏幕也不熄灭（更耗电、更热）",
+    "Keep-awake time left": "唤醒剩余时间",
+    "What the paladin has done": "圣骑士做了什么",
+    "Heavy jobs paused": "已暂停的繁重任务",
+    "Jobs resumed after cooling": "降温后已恢复",
+    "Jobs terminated at the kill threshold": "在临界阈值终止",
+    "Times keep-awake gave way to heat": "唤醒因高温让步次数",
+    "counting since %@": "自 %@ 起统计",
+    "Nothing yet - the machine has not been hot enough.": "暂无 - 机器还不够热。",
+    "Until a set hour": "到指定时刻",
+    "Extend": "延长",
+    "until %@": "到 %@",
+    "Extend by %d min": "延长 %d 分钟",
+    "Right now: NOT keeping the Mac awake": "当前：未保持唤醒",
     "no data - is coffee-paladin running?": "没有数据 - coffee-paladin 在运行吗？",
     "data is stale (%@) - the guard may have died": "数据已过期（%@）- 守护进程可能已停止",
     "the Mac shut down without warning: %@": "Mac 毫无预警地关机了：%@",
@@ -751,6 +796,21 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
 let ES: [String: String] = [
     "Keep the Mac awake while heavy jobs run": "Mantener el Mac despierto mientras corren tareas pesadas",
     "Keeping the Mac awake (heavy job running)": "Manteniendo el Mac despierto (tarea pesada en curso)",
+    "Right now: keeping the Mac awake": "Ahora: manteniendo el Mac despierto",
+    "Keep the screen on too (uses more power)": "Mantener también la pantalla encendida (más consumo y calor)",
+    "Keep-awake time left": "Tiempo restante de vigilia",
+    "What the paladin has done": "Lo que ha hecho el paladín",
+    "Heavy jobs paused": "Tareas pesadas pausadas",
+    "Jobs resumed after cooling": "Reanudadas tras enfriarse",
+    "Jobs terminated at the kill threshold": "Terminadas en el umbral crítico",
+    "Times keep-awake gave way to heat": "Veces que la vigilia cedió al calor",
+    "counting since %@": "contando desde %@",
+    "Nothing yet - the machine has not been hot enough.": "Nada aún: la máquina no se ha calentado lo suficiente.",
+    "Until a set hour": "Hasta una hora concreta",
+    "Extend": "Prolongar",
+    "until %@": "hasta las %@",
+    "Extend by %d min": "Prolongar %d min",
+    "Right now: NOT keeping the Mac awake": "Ahora: sin mantener el Mac despierto",
     "no data - is coffee-paladin running?": "sin datos - ¿está funcionando coffee-paladin?",
     "data is stale (%@) - the guard may have died": "datos obsoletos (%@) - el guardián pudo detenerse",
     "the Mac shut down without warning: %@": "el Mac se apagó sin aviso: %@",
@@ -1782,7 +1842,7 @@ func icon(_ name: String, fallback: String, size: CGFloat = 12) -> NSAttributedS
 /// Every bar element can be switched on and off: the menu bar is scarce space and everyone
 /// wants something different there. The choice lives in heatbar.json, so it survives a restart.
 enum Item: String, CaseIterable {
-    case chip, gpu, battery, fans, watts, ram, disk, throttle, paused, flame
+    case chip, gpu, battery, fans, watts, ram, disk, throttle, paused, flame, awakeLeft
 
     var label: String {
         switch self {
@@ -1796,6 +1856,7 @@ enum Item: String, CaseIterable {
         case .throttle: return T("Throttling marker")
         case .paused: return T("Pause marker")
         case .flame: return T("Flame at critical")
+        case .awakeLeft: return T("Keep-awake time left")
         }
     }
 
@@ -2130,6 +2191,7 @@ struct Snap {
     var heavyCount: Int = 0
     var topRamList: [TopRAM] = []
     var pausesToday = 0, killsToday = 0
+    var statsTotal: [String: Int] = [:]   // skumulowane liczniki pracy bezpiecznika
     var lastCrash: String?
     var thrPause: Double?, thrKill: Double?
     var stamp = ""
@@ -2188,6 +2250,9 @@ func readSnap() -> Snap? {
     if let st = j["stats"] as? [String: Any] {
         s.pausesToday = (st["pauses"] as? Int) ?? 0
         s.killsToday = (st["kills"] as? Int) ?? 0
+    }
+    if let t = j["stats_total"] as? [String: Any] {
+        for (k, v) in t { if let n = v as? Int { s.statsTotal[k] = n } }
     }
     if let p = j["last_hard_shutdown"] as? [String: Any] { s.lastCrash = p["time"] as? String }
     if let t = j["thresholds"] as? [String: Any] {
@@ -2688,6 +2753,15 @@ final class Bar: NSObject, NSMenuDelegate {
         if let t = plomienTimer { RunLoop.main.add(t, forMode: .common) }
     }
 
+    /// Sekundy do konca sesji timera; `nil` gdy sesja nie ma konca albo juz minela.
+    /// Czytamy `awake.json`, bo to on niesie `until` - migawka mowi tylko, ze czuwanie trwa.
+    func pozostaloCzuwania() -> Double? {
+        let a = Awake.read()
+        guard (a["mode"] as? String) == "timer", let until = a["until"] as? Double else { return nil }
+        let zostalo = until - Date().timeIntervalSince1970
+        return zostalo > 0 ? zostalo : nil
+    }
+
     /// Po akcji czlowieka dociagamy migawke kilka razy, zamiast czekac na staly takt.
     /// Trzy strzaly, bo demon musi zdazyc: obudzic sie (~0,5 s), wykonac i przepisac
     /// `status.json`. Timery zyja same z siebie, wiec nie ma tu zadnej petli.
@@ -2805,6 +2879,18 @@ final class Bar: NSObject, NSMenuDelegate {
         // wiec alarm wygladal tak samo, mimo ze NIC nie zostanie wstrzymane.
         if s.dryRun { gap(); out.append(icon("eye", fallback: "obs")) }
         if s.keepAwake { gap(); out.append(icon(MUG_FILL, fallback: "awake")) }
+        // Ile zostalo czuwania - prosto na pasku, zeby nie trzeba bylo otwierac menu.
+        // Pokazujemy TYLKO sesje z konkretnym koncem: przy trybie bezterminowym,
+        // "dopoki apka" i "dopoki pobieranie" nie ma czego odliczac, a wymyslony
+        // licznik bylby klamstwem.
+        if prefs.enabled(.awakeLeft), s.keepAwake, let doKonca = pozostaloCzuwania() {
+            gap()
+            out.append(icon(MUG, fallback: "awake"))
+            let h = Int(doKonca) / 3600, m = (Int(doKonca) % 3600) / 60
+            out.append(NSAttributedString(
+                string: " " + (h > 0 ? String(format: "%d:%02d", h, m)
+                                     : String(format: "%d min", max(m, 1)))))
+        }
         if prefs.enabled(.paused), !s.paused.isEmpty {
             gap(); out.append(icon("pause.circle.fill", fallback: "||"))
         }
@@ -3043,10 +3129,23 @@ final class Bar: NSObject, NSMenuDelegate {
         km.autoenablesItems = false
         let cur = Awake.read()
         let curMode = cur["mode"] as? String
+        // Czy czuwanie jest trzymane NAPRAWDE. `awake.json` opisuje tylko sesje reczna,
+        // a druga droga - "trzymaj przy ciezkich zadaniach" - chodzi obok niej. Bez tego
+        // menu meldowalo "Off" w chwili, gdy glowna karta pisala "Keeping the Mac awake"
+        // (zglosil Pawel 03.08). Dowodem jest migawka demona, bo to on trzyma caffeinate.
+        let trzymaneNaprawde = readSnap()?.keepAwake ?? false
+
+        let stan = NSMenuItem(title: T(trzymaneNaprawde ? "Right now: keeping the Mac awake"
+                                                        : "Right now: NOT keeping the Mac awake"),
+                              action: nil, keyEquivalent: "")
+        stan.isEnabled = false
+        km.addItem(stan)
+        km.addItem(.separator())
 
         let off = NSMenuItem(title: T("Off"), action: #selector(awakeOff), keyEquivalent: "")
         off.target = self
-        off.state = curMode == nil ? .on : .off
+        // Ptaszek tylko wtedy, gdy NIC nie trzyma czuwania - ani sesja reczna, ani automat.
+        off.state = (curMode == nil && !trzymaneNaprawde) ? .on : .off
         km.addItem(off)
         km.addItem(.separator())
         for min in [15, 30, 45, 60, 120, 180, 300, 480, 720] {
@@ -3063,6 +3162,56 @@ final class Bar: NSObject, NSMenuDelegate {
         forever.target = self
         forever.state = curMode == "forever" ? .on : .off
         km.addItem(forever)
+
+        // "Do konkretnej godziny": gotowe pelne godziny zamiast pola do wpisania. Liczymy
+        // KALENDARZEM, nie dodawaniem sekund - inaczej zmiana czasu i przejscie przez
+        // polnoc daja godzine obok. Zapisujemy i tak epoch, wiec reszta kodu bez zmian.
+        let untilItem = NSMenuItem(title: T("Until a set hour"), action: nil, keyEquivalent: "")
+        let um = NSMenu()
+        um.autoenablesItems = false
+        let kal = Calendar.current
+        let teraz = Date()
+        let fmt = DateFormatter()
+        fmt.locale = Locale.current
+        fmt.setLocalizedDateFormatFromTemplate("j:mm")   // 17:00 albo 5:00 PM wg ustawien systemu
+        var znalezione = 0
+        // Punktem wyjscia jest BIEZACA pelna godzina zbudowana z komponentow. `date(bySetting:)`
+        // szuka NASTEPNEJ pasujacej daty, wiec o 16:20 oddawal juz 17:00 - a petla dodawala
+        // do tego kolejna godzine i najblizsza propozycja wypadala dopiero o 18:00.
+        // Najblizsza pelna godzina jest tu najbardziej przydatna, wiec nie wolno jej gubic.
+        // Znalazl Codex 04.08.
+        var skladniki = kal.dateComponents([.year, .month, .day, .hour], from: teraz)
+        skladniki.minute = 0
+        skladniki.second = 0
+        var kandydat = kal.date(from: skladniki) ?? teraz
+        while znalezione < 12 {
+            kandydat = kal.date(byAdding: .hour, value: 1, to: kandydat) ?? kandydat
+            let pelna = kandydat
+            if pelna <= teraz.addingTimeInterval(60) { continue }
+            let it = NSMenuItem(title: String(format: T("until %@"), fmt.string(from: pelna)),
+                                action: #selector(awakeUntil(_:)), keyEquivalent: "")
+            it.target = self
+            it.representedObject = pelna.timeIntervalSince1970
+            um.addItem(it)
+            znalezione += 1
+        }
+        untilItem.submenu = um
+        km.addItem(untilItem)
+
+        // Przedluzenie trwajacej sesji. Gdy zadna nie trwa, dziala jak zwykly timer -
+        // inaczej pozycja byla by martwa i trzeba by ja wygaszac bez powodu.
+        let extItem = NSMenuItem(title: T("Extend"), action: nil, keyEquivalent: "")
+        let em = NSMenu()
+        em.autoenablesItems = false
+        for min in [15, 30, 60] {
+            let it = NSMenuItem(title: String(format: T("Extend by %d min"), min),
+                                action: #selector(awakeExtend(_:)), keyEquivalent: "")
+            it.target = self
+            it.representedObject = min
+            em.addItem(it)
+        }
+        extItem.submenu = em
+        km.addItem(extItem)
         km.addItem(.separator())
 
         // "dopoki dziala aplikacja": lista realnie uruchomionych aplikacji okienkowych
@@ -3100,6 +3249,14 @@ final class Bar: NSObject, NSMenuDelegate {
                                 on: GuardCfg.bool("keep_awake_auto", false),
                                 target: self, action: #selector(toggleAwake), kolor: .systemGray)
         km.addItem(kaAuto)
+        // Ekran to osobna decyzja od systemu: `caffeinate -is` trzyma system, ale pozwala
+        // zgasic ekran. Swiecacy panel to wiecej pradu i ciepla, wiec domyslnie off.
+        let kaScreen = NSMenuItem()
+        kaScreen.view = SwitchRow(T("Keep the screen on too (uses more power)"),
+                                  on: GuardCfg.bool("keep_awake_display", false),
+                                  target: self, action: #selector(toggleAwakeDisplay),
+                                  kolor: .systemGray)
+        km.addItem(kaScreen)
         ka.submenu = km
         m.addItem(ka)
 
@@ -3253,6 +3410,12 @@ final class Bar: NSObject, NSMenuDelegate {
         m.addItem(setItem)
 
         // ABOUT MY MAC: sprzet wykryty przez guarda + zdrowie baterii + progi
+        let statsIt = NSMenuItem(title: T("What the paladin has done"),
+                                 action: #selector(openStats), keyEquivalent: "")
+        statsIt.target = self
+        statsIt.image = img("checkmark.shield")
+        m.addItem(statsIt)
+
         let about = NSMenuItem(title: T("About my Mac"), action: nil, keyEquivalent: "")
         about.image = img("info.circle")
         let abm = NSMenu()
@@ -3548,6 +3711,29 @@ final class Bar: NSObject, NSMenuDelegate {
 
     @objc func awakeForever() { Awake.set(["mode": "forever"]); odswiezPoAkcji() }
 
+    @objc func awakeUntil(_ sender: NSMenuItem) {
+        guard let until = sender.representedObject as? Double else { return }
+        let t = Date().timeIntervalSince1970
+        guard until > t else { return }        // godzina z przeszlosci = nic nie robimy
+        Awake.set(["mode": "timer", "until": until, "set_at": t])
+        odswiezPoAkcji()
+    }
+
+    /// Przedluza TRWAJACA sesje timera; gdy zadna nie trwa, zaklada nowa na tyle minut.
+    /// Liczymy od konca sesji, nie od "teraz" - inaczej przedluzenie o 15 min potrafiloby
+    /// SKROCIC sesje, ktorej zostala jeszcze godzina.
+    @objc func awakeExtend(_ sender: NSMenuItem) {
+        guard let min = sender.representedObject as? Int else { return }
+        let t = Date().timeIntervalSince1970
+        let cur = Awake.read()
+        var baza = t
+        if (cur["mode"] as? String) == "timer", let until = cur["until"] as? Double, until > t {
+            baza = until
+        }
+        Awake.set(["mode": "timer", "until": baza + Double(min * 60), "set_at": t])
+        odswiezPoAkcji()
+    }
+
     @objc func awakeApp(_ sender: NSMenuItem) {
         guard let app = sender.representedObject as? String else { return }
         Awake.set(["mode": "app", "app": app])
@@ -3818,6 +4004,11 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
     @objc func toggleSound() { GuardCfg.set(["sound": !GuardCfg.bool("sound", true)]) }
     @objc func toggleAwake() {
         GuardCfg.set(["keep_awake_auto": !GuardCfg.bool("keep_awake_auto", false)])
+        odswiezPoAkcji()
+    }
+
+    @objc func toggleAwakeDisplay() {
+        GuardCfg.set(["keep_awake_display": !GuardCfg.bool("keep_awake_display", false)])
         odswiezPoAkcji()
     }
 
@@ -4266,6 +4457,35 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
     @objc func shareStar() {
         if let u = zUTM("https://github.com/pawelkwaczynski/coffee-paladin", medium: "share") {
             NSWorkspace.shared.open(u)
+        }
+    }
+
+    /// Liczby ODWROTNE niz u konkurencji: nie "ile Mac nie spal", tylko ile razy
+    /// bezpiecznik zadzialal. To jedyna statystyka, ktorej apka bez bezpiecznika miec nie moze.
+    @objc func openStats() {
+        let st = readSnap()?.statsTotal ?? [:]
+        let pary: [(String, Int)] = [
+            (T("Heavy jobs paused"), st["pauses"] ?? 0),
+            (T("Jobs resumed after cooling"), st["resumes"] ?? 0),
+            (T("Jobs terminated at the kill threshold"), st["kills"] ?? 0),
+            (T("Times keep-awake gave way to heat"), st["awake_released_hot"] ?? 0),
+        ]
+        var linie = pary.map { "\($0.0):  \($0.1)" }
+        if pary.allSatisfy({ $0.1 == 0 }) {
+            linie = [T("Nothing yet - the machine has not been hot enough.")]
+        }
+        if let od = st["since"], od > 0 {
+            let f = DateFormatter()
+            f.dateStyle = .medium
+            f.timeStyle = .short
+            linie.append("")
+            linie.append(String(format: T("counting since %@"),
+                                f.string(from: Date(timeIntervalSince1970: Double(od)))))
+        }
+        pokazModalnie { [weak self] in
+            _ = self?.oknoPaladyna(tytul: T("What the paladin has done"),
+                                   tresc: linie.joined(separator: "\n"),
+                                   przyciski: ["OK"], szerokosc: 420)
         }
     }
 

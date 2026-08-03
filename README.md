@@ -1,4 +1,4 @@
-# coffee-paladin v2.2.4
+# coffee-paladin v2.2.5
 
 <p align="center">
   <img src="branding/paladin.gif" alt="coffee-paladin - the project mascot" width="260">
@@ -341,6 +341,32 @@ coffee-paladin occupies a different category:
 
 The freeze is the heart of it: a paused process loses *nothing* - memory intact, resumes from
 the same instruction. Measured live: 89.3 °C → 60.2 °C in 19 seconds, computation unharmed.
+
+### Compared with keep-awake apps
+
+Keep-awake apps solve a real problem, and coffee-paladin is not a replacement for them. But if
+you use one while the machine is under load, it is worth knowing what happens to the heat.
+
+| | Amphetamine | Wide Awake | **coffee-paladin** |
+|---|---|---|---|
+| Price | free (App Store) | Pro feature of Mac 4 Breakfast, one-time (14-day trial) | **free, MIT, source open** |
+| Thermal safety | **none** | yes | **yes** |
+| What it measures | - | **battery** temperature, 45 °C default (40-55) | **chip** temperature via IOReport |
+| Reaction when hot | - | ends the awake session | **pauses the heavy processes**, resumes when cool |
+| Behaviour under CPU load | keeps the Mac awake **while the CPU is busy** | unaffected | **the hotter it gets, the sooner work is paused** |
+| Evidence for a repair shop | - | battery report | **black box: readings from before a hard shutdown** |
+| Last release | 5.3.2, Nov 2023 | active | active |
+
+Two things matter in that table. First, **battery temperature lags behind the chip by minutes** -
+measured on a MacBook Pro M4 Pro: chip 53 °C while the battery still read 30 °C. A battery-based
+threshold fires long after the chip has been running hot. Second, ending an awake session lets the
+Mac sleep; it does not remove the heat source. Pausing the job does.
+
+Amphetamine's CPU trigger deserves a specific mention, because it is easy to misread as a safety
+feature. It is documented as *"while your Mac's CPU is being utilized to a specific threshold"* -
+that is, keep the Mac awake **as long as** the CPU is busy. The busier and hotter the machine, the
+longer sleep stays blocked. It is a convenience feature, not a fuse, and it was never advertised
+as one.
 
 ---
 
@@ -1147,6 +1173,34 @@ Gdy chip dobija do 90 °C o trzeciej w nocy, wykres tego faktu nie jest żadną 
 | Keep-awake trzymany **tylko gdy chłodno** | - | - | **tak - bezpiecznik termiczny** |
 | Cała flota w jednej tabeli, bez serwera | - | - | **tak - wspólny folder** |
 | Wymaga sudo / kextów / kont | różnie | często | **nie** |
+
+## A czym różni się od apek keep-awake (Amphetamine, Wide Awake)
+
+Apki keep-awake rozwiązują realny problem i coffee-paladin ich nie zastępuje. Ale jeśli
+używasz takiej apki, gdy maszyna pracuje pod obciążeniem, warto wiedzieć, co dzieje się
+wtedy z ciepłem.
+
+| | Amphetamine | Wide Awake | **coffee-paladin** |
+|---|---|---|---|
+| Cena | darmowa (App Store) | funkcja Pro pakietu Mac 4 Breakfast, płatność jednorazowa (14 dni triala) | **darmowy, MIT, otwarty kod** |
+| Bezpiecznik termiczny | **brak** | jest | **jest** |
+| Co mierzy | - | temperaturę **baterii**, domyślnie 45 °C (zakres 40-55) | temperaturę **chipa** przez IOReport |
+| Reakcja na gorąco | - | kończy sesję czuwania | **wstrzymuje ciężkie procesy**, wznawia po ostygnięciu |
+| Zachowanie przy obciążeniu CPU | trzyma czuwanie, **dopóki CPU jest obciążony** | bez związku | **im goręcej, tym szybciej praca zostaje wstrzymana** |
+| Dowody do serwisu | - | raport baterii | **czarna skrzynka: pomiary sprzed twardego wyłączenia** |
+| Ostatnie wydanie | 5.3.2, listopad 2023 | aktywne | aktywne |
+
+W tej tabeli liczą się dwie rzeczy. Po pierwsze, **temperatura baterii zostaje kilka minut
+w tyle za chipem** - zmierzone na MacBooku Pro M4 Pro: chip 53 °C, gdy bateria pokazywała
+jeszcze 30 °C. Próg oparty na baterii odpala się długo po tym, jak chip zdążył pracować
+gorąco. Po drugie, zakończenie sesji czuwania pozwala Makowi zasnąć, ale nie usuwa źródła
+ciepła. Wstrzymanie zadania - usuwa.
+
+Osobno o wyzwalaczu CPU w Amphetamine, bo łatwo wziąć go za funkcję ochronną. W opisie
+brzmi: *„while your Mac's CPU is being utilized to a specific threshold"* - czyli trzymaj
+Maca w czuwaniu **tak długo, jak** CPU jest obciążony. Im ciężej i goręcej pracuje maszyna,
+tym dłużej blokowane jest uśpienie. To funkcja wygody, nie bezpiecznik, i nigdy nie była
+reklamowana jako bezpiecznik.
 
 ---
 
