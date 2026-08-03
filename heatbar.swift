@@ -16,7 +16,7 @@
 
 import Cocoa
 
-let VERSION = "2.2.3"
+let VERSION = "2.2.4"
 let APPNAME = "coffee-paladin"
 let CODENAME = "Ristretto"
 let SIGNATURE = "\(APPNAME) v\(VERSION) \u{201E}\(CODENAME)\u{201D}  ·  by panbookovsky"
@@ -94,6 +94,7 @@ let PL: [String: String] = [
     "Pause jobs when the Mac overheats": "Włącz pauzowanie przy przegrzaniu",
     "OFF - the Mac is only being watched": "WYŁĄCZONE — Mac jest tylko obserwowany",
     "Show in the bar": "Pokaż na pasku",
+    "Show all": "Pokaż wszystko",
     "Export report for a repair shop": "Raport dla serwisu",
     "As PDF…": "Jako PDF...",
     "As plain text (TXT)…": "Jako tekst (TXT)...",
@@ -330,6 +331,7 @@ let RU: [String: String] = [
     "Pause jobs when the Mac overheats": "Приостанавливать задачи при перегреве",
     "OFF - the Mac is only being watched": "ВЫКЛЮЧЕНО — Mac только под наблюдением",
     "Show in the bar": "Показывать в строке меню",
+    "Show all": "Показать всё",
     "Export report for a repair shop": "Отчёт для сервисного центра",
     "As PDF…": "В PDF...",
     "As plain text (TXT)…": "Текстом (TXT)...",
@@ -563,6 +565,7 @@ let ZH: [String: String] = [
     "Pause jobs when the Mac overheats": "过热时暂停任务",
     "OFF - the Mac is only being watched": "已关闭 —— 仅在观察这台 Mac",
     "Show in the bar": "菜单栏显示内容",
+    "Show all": "全部显示",
     "Export report for a repair shop": "导出维修报告",
     "As PDF…": "PDF 格式...",
     "As plain text (TXT)…": "纯文本（TXT）...",
@@ -794,6 +797,7 @@ let ES: [String: String] = [
     "Pause jobs when the Mac overheats": "Pausar tareas cuando el Mac se recalienta",
     "OFF - the Mac is only being watched": "DESACTIVADO: el Mac solo está siendo observado",
     "Show in the bar": "Mostrar en la barra",
+    "Show all": "Mostrar todo",
     "Export report for a repair shop": "Informe para el servicio técnico",
     "As PDF…": "Como PDF...",
     "As plain text (TXT)…": "Como texto (TXT)...",
@@ -1815,6 +1819,13 @@ final class Prefs {
     }
     func enabled(_ i: Item) -> Bool { on[i.rawValue] ?? i.byDefault }
     func toggle(_ i: Item) { on[i.rawValue] = !enabled(i); save() }
+    /// Czy wszystko jest juz pokazane - do wygaszenia pozycji "Pokaz wszystko".
+    var wszystkoWlaczone: Bool { Item.allCases.allSatisfy { enabled($0) } }
+    /// Jeden zapis na cala paczke: klikanie po kolei to N zapisow pliku i N odswiezen.
+    func wlaczWszystko() {
+        for i in Item.allCases { on[i.rawValue] = true }
+        save()
+    }
 }
 
 let prefs = Prefs()
@@ -2449,6 +2460,14 @@ final class Bar: NSObject, NSMenuDelegate {
     var fleetCache: [FleetHost]?
     var fleetCacheAt = Date.distantPast
     private var tick = 0
+    /// Odswiezenia jednorazowe po akcji czlowieka. Staly timer chodzi co 5 s i tak ma
+    /// zostac (w spoczynku to nic nie kosztuje), ale po kliknieciu 5 s to wiecznosc:
+    /// demon reaguje w ~0,4 s, a pasek pokazywal jeszcze stary stan. Zglosil Pawel 03.08.
+    private var poAkcjiTimery: [Timer] = []
+    /// Optymistyczny tryb obserwacji: czego czlowiek WLASNIE zazadal, zanim demon
+    /// zdazyl to potwierdzic w migawce. `nil` = nie czekamy na nic.
+    private var oczekiwanyDry: Bool?
+    private var oczekiwanyDryOd = Date.distantPast
     /// Zabezpieczenie przed przewodnikiem wracajacym co 5 s, gdy pliku-sygnalu
     /// nie da sie usunac.
     private var pokazanyGuideZSygnalu = false
@@ -2669,9 +2688,34 @@ final class Bar: NSObject, NSMenuDelegate {
         if let t = plomienTimer { RunLoop.main.add(t, forMode: .common) }
     }
 
+    /// Po akcji czlowieka dociagamy migawke kilka razy, zamiast czekac na staly takt.
+    /// Trzy strzaly, bo demon musi zdazyc: obudzic sie (~0,5 s), wykonac i przepisac
+    /// `status.json`. Timery zyja same z siebie, wiec nie ma tu zadnej petli.
+    func odswiezPoAkcji() {
+        poAkcjiTimery.forEach { $0.invalidate() }
+        poAkcjiTimery = [0.7, 1.6, 3.0].map { opoznienie in
+            let t = Timer.scheduledTimer(withTimeInterval: opoznienie, repeats: false) { [weak self] _ in
+                self?.refresh()
+            }
+            // .common jak staly timer: inaczej nie tyka przy otwartym menu i oknie modalnym,
+            // czyli dokladnie wtedy, kiedy czlowiek patrzy na skutek swojego kliknięcia.
+            RunLoop.main.add(t, forMode: .common)
+            return t
+        }
+    }
+
+    /// Zapamietuje, o co czlowiek WLASNIE poprosil, zeby pasek nie pokazywal starego stanu
+    /// przez sekunde. Nie klamiemy dlugo: po 6 s wraca prawda z migawki, nawet gdyby demon
+    /// nie zyl — martwy demon ma wygladac na martwego.
+    func zapowiedzTrybObserwacji(_ dry: Bool) {
+        oczekiwanyDry = dry
+        oczekiwanyDryOd = Date()
+        odswiezPoAkcji()
+    }
+
     func refresh() {
         let bold = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .regular)
-        guard let s = readSnap() else {
+        guard var s = readSnap() else {
             let out = NSMutableAttributedString()
             out.append(icon("thermometer.medium", fallback: "T"))
             out.append(NSAttributedString(string: " —"))
@@ -2679,6 +2723,18 @@ final class Bar: NSObject, NSMenuDelegate {
                               range: NSRange(location: 0, length: out.length))
             item.button?.attributedTitle = out
             return
+        }
+
+        // Optymizm z terminem waznosci. Migawka jest zrodlem prawdy, ale przez chwile po
+        // kliknieciu jest po prostu STARSZA od decyzji czlowieka. Pokazujemy wiec jego
+        // decyzje - do momentu, w ktorym demon ja potwierdzi, albo do 6 s, cokolwiek
+        // wczesniej. Bez tego terminu martwy demon wygladalby na sprawny.
+        if let chce = oczekiwanyDry {
+            if s.dryRun == chce || Date().timeIntervalSince(oczekiwanyDryOd) > 6 {
+                oczekiwanyDry = nil
+            } else {
+                s.dryRun = chce
+            }
         }
 
         if prefs.enabled(.flame), s.level >= 3, plomienTimer == nil,
@@ -3052,6 +3108,14 @@ final class Bar: NSObject, NSMenuDelegate {
         showItem.image = img("eye")
         let sub = NSMenu()
         sub.autoenablesItems = false
+        // Na gorze, zeby nie klikac kazdej pozycji z osobna (prosba Pawla 03.08).
+        // Wygaszone, gdy i tak wszystko juz widac - martwy klik miesza bardziej niz pomaga.
+        let wszystko = NSMenuItem(title: T("Show all"), action: #selector(showAllItems),
+                                  keyEquivalent: "")
+        wszystko.target = self
+        wszystko.isEnabled = !prefs.wszystkoWlaczone
+        sub.addItem(wszystko)
+        sub.addItem(.separator())
         for (i, it) in Item.allCases.enumerated() {
             let mi = NSMenuItem(title: it.label, action: #selector(toggleItem(_:)), keyEquivalent: "")
             mi.target = self
@@ -3473,27 +3537,35 @@ final class Bar: NSObject, NSMenuDelegate {
 
     // --- keep awake (zapis zyczenia; wykonuje demon, bezpiecznik termiczny nadrzedny)
 
-    @objc func awakeOff() { Awake.set(nil) }
+    @objc func awakeOff() { Awake.set(nil); odswiezPoAkcji() }
 
     @objc func awakeTimer(_ sender: NSMenuItem) {
         guard let min = sender.representedObject as? Int else { return }
         let t = Date().timeIntervalSince1970
         Awake.set(["mode": "timer", "until": t + Double(min * 60), "set_at": t])
+        odswiezPoAkcji()
     }
 
-    @objc func awakeForever() { Awake.set(["mode": "forever"]) }
+    @objc func awakeForever() { Awake.set(["mode": "forever"]); odswiezPoAkcji() }
 
     @objc func awakeApp(_ sender: NSMenuItem) {
         guard let app = sender.representedObject as? String else { return }
         Awake.set(["mode": "app", "app": app])
+        odswiezPoAkcji()
     }
 
-    @objc func awakeDownload() { Awake.set(["mode": "download"]) }
+    @objc func awakeDownload() { Awake.set(["mode": "download"]); odswiezPoAkcji() }
 
     // --- ciezkie zadania
 
-    @objc func coresEfficiency() { GuardCfg.set(["job_cores_mode": "efficiency"]) }
-    @objc func coresAll() { GuardCfg.set(["job_cores_mode": "all"]) }
+    @objc func coresEfficiency() {
+        GuardCfg.set(["job_cores_mode": "efficiency"])
+        odswiezPoAkcji()
+    }
+    @objc func coresAll() {
+        GuardCfg.set(["job_cores_mode": "all"])
+        odswiezPoAkcji()
+    }
 
     // --- push na telefon
 
@@ -3729,18 +3801,25 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
                          przyciski: ["OK"], szerokosc: 440)
     }
 
-    @objc func enableProtection() { GuardCfg.set(["dry_run": false]) }
+    @objc func enableProtection() {
+        GuardCfg.set(["dry_run": false])
+        zapowiedzTrybObserwacji(false)
+    }
 
     @objc func toggleNotify() { GuardCfg.set(["notify": !GuardCfg.bool("notify", true)]) }
     @objc func toggleDry() {
         let obserwacjaTeraz = !GuardCfg.bool("dry_run", true)
         GuardCfg.set(["dry_run": obserwacjaTeraz])
+        zapowiedzTrybObserwacji(obserwacjaTeraz)
         // wylaczenie ochrony = powazna decyzja - od razu mowimy, co to znaczy
         if obserwacjaTeraz { pokazModalnie { self.explainDry() } }
     }
 
     @objc func toggleSound() { GuardCfg.set(["sound": !GuardCfg.bool("sound", true)]) }
-    @objc func toggleAwake() { GuardCfg.set(["keep_awake_auto": !GuardCfg.bool("keep_awake_auto", false)]) }
+    @objc func toggleAwake() {
+        GuardCfg.set(["keep_awake_auto": !GuardCfg.bool("keep_awake_auto", false)])
+        odswiezPoAkcji()
+    }
 
     /// Zmiana jezyka wymaga restartu paska (slownik jest wybierany raz, przy starcie).
     /// Wychodzimy z bledem — launchd (KeepAlive.SuccessfulExit=false) podnosi nas z powrotem.
@@ -3748,6 +3827,11 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
         guard let code = sender.representedObject as? String, code != lang else { return }
         GuardCfg.set(["lang": code])
         exit(1)
+    }
+
+    @objc func showAllItems() {
+        prefs.wlaczWszystko()
+        refresh()
     }
 
     @objc func toggleItem(_ sender: NSMenuItem) {
@@ -3760,12 +3844,18 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
     /// Commands go through a file - the daemon executes and clears them.
     func send(_ command: String) {
         try? command.write(toFile: commandPath, atomically: true, encoding: .utf8)
+        // Demon budzi sie na plik-rozkaz w ~0,5 s, ale pasek czekalby z pokazaniem skutku
+        // do nastepnego staleg taktu (5 s). Jedno wskie gardlo dla WSZYSTKICH rozkazow,
+        // wiec kazdy z nich dostaje szybkie potwierdzenie za darmo.
+        odswiezPoAkcji()
     }
 
     @objc func freeze() { send("freeze") }
     @objc func toggleFreeze(_ sender: Any?) {
-        // stan bierzemy z migawki, nie z klikniecia - guard wykonuje rozkaz w swoim
-        // cyklu (do ~15 s), wiec przelacznik potwierdzi sie po nastepnym odswiezeniu
+        // Stan bierzemy z migawki, nie z klikniecia: rozkaz wykonuje demon, wiec dopiero
+        // jego migawka jest dowodem. Demon budzi sie na plik-rozkaz w ~0,5 s (to dziala
+        // od dawna), a `send` zamawia dodatkowo szybkie odswiezenie paska - dzieki temu
+        // potwierdzenie przychodzi w okolo sekunde, nie po pelnym takcie.
         let s = readSnap()
         if let s = s, !s.paused.isEmpty { send("resume"); return }
         // Reczne zamrozenie to jedyne miejsce, gdzie uzytkownik zatrzymuje SWOJA prace

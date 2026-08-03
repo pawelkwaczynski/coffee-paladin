@@ -123,9 +123,22 @@ cfg = g.load_cfg()
 cfg["notify"] = True
 cfg["ntfy_topic"] = TEMAT
 g.push(cfg, "Cooling alarm", "chip 98.7 C, fans 0 rpm")
-time.sleep(0.8)
-argv = io.open(os.path.join(BIN, "curl.argv"), encoding="utf-8").read()
-stdin = io.open(os.path.join(BIN, "curl.stdin"), encoding="utf-8").read()
+# `push` uruchamia curla W TLE, wiec czekamy na PLIK, nie na staly czas. Sztywne
+# `sleep(0.8)` wystarczalo na wolnym Macu, ale w pelnej baterii testow pod limiterem
+# CPU atrapa nie zdazyla zapisac i test wywalal sie na FileNotFoundError - dwa razy
+# w bramce wydania 03.08. Test, ktory czasem pada bez powodu, psuje bramke tak samo
+# jak test, ktory nie pada nigdy.
+_argv_path = os.path.join(BIN, "curl.argv")
+_stdin_path = os.path.join(BIN, "curl.stdin")
+_koniec = time.time() + 20.0
+while time.time() < _koniec:
+    if os.path.exists(_argv_path) and os.path.exists(_stdin_path):
+        break
+    time.sleep(0.05)
+argv = io.open(_argv_path, encoding="utf-8").read() if os.path.exists(_argv_path) else ""
+stdin = io.open(_stdin_path, encoding="utf-8").read() if os.path.exists(_stdin_path) else ""
+test("9b. atrapa curla w ogole zostala uruchomiona (inaczej reszta nic nie dowodzi)",
+     bool(argv), "curl.argv nie powstal w 20 s - test ponizej bylby falszywie zielony")
 
 test("10. tematu NIE MA w argv (czyli nie ma go w ps)", TEMAT not in argv,
      "argv: %s" % argv.strip()[:110])
