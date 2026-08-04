@@ -2697,7 +2697,7 @@ def fleet_write(cfg, status):
         hw = _hw_cache_fleet()
         out["model"] = hw.get("model")
         out["serial"] = hw.get("serial")
-        out["guard_version"] = "2.2.7"
+        out["guard_version"] = "2.2.8"
         _bledy = {k: v for k, v in _CICHE_AWARIE.items() if not k.startswith("_ostatni_log_")}
         if _bledy:
             out["swallowed_errors"] = _bledy
