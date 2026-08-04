@@ -16,7 +16,7 @@
 
 import Cocoa
 
-let VERSION = "2.2.9"
+let VERSION = "2.2.10"
 let APPNAME = "coffee-paladin"
 let CODENAME = "Ristretto"
 let SIGNATURE = "\(APPNAME) v\(VERSION) \u{201E}\(CODENAME)\u{201D}  ·  by panbookovsky"
@@ -248,10 +248,10 @@ let PL: [String: String] = [
     "Keep the screen on too (uses more power)": "Nie gaś też ekranu (więcej prądu i ciepła)",
     "Keep-awake time left": "Ile zostało czuwania",
     "Session statistics": "Statystyki sesji",
-    "Across the fleet (total)": "Cała flota (od zawsze)",
-    "(not reporting for %d min)": "(nie raportuje od %d min)",
-    "order: paused / resumed / terminated / keep-awake gave way": "kolejność: wstrzymane / wznowione / ubite / czuwanie ustąpiło",
-    "fleet total:  %@": "razem cała flota:  %@",
+    "Across the fleet (%d machines)": "Cała flota (%d maszyny)",
+    "%d machine(s) not reporting - their numbers may be old": "%d maszyna nie raportuje - jej liczby mogą być stare",
+    "per machine: menu > Apple fleet > click a Mac": "rozbicie na maszyny: menu > Flota Apple > kliknij Maca",
+    "What the guard did here (total)": "Co bezpiecznik zrobił na tej maszynie (od zawsze)",
     "in this session (since %@)": "w tej sesji (od %@)",
     "total since %@": "łącznie od %@",
     "Nothing yet in this session - the machine has not been hot enough.": "Nic jeszcze w tej sesji - maszyna nie była dość gorąca.",
@@ -311,10 +311,10 @@ let RU: [String: String] = [
     "Keep the screen on too (uses more power)": "Не гасить и экран (больше энергии и тепла)",
     "Keep-awake time left": "Сколько осталось бодрствования",
     "Session statistics": "Статистика сессии",
-    "Across the fleet (total)": "Весь парк (за всё время)",
-    "(not reporting for %d min)": "(не отчитывается %d мин)",
-    "order: paused / resumed / terminated / keep-awake gave way": "порядок: приостановлено / возобновлено / завершено / бодрствование уступило",
-    "fleet total:  %@": "итого по парку:  %@",
+    "Across the fleet (%d machines)": "Весь парк (%d машин)",
+    "%d machine(s) not reporting - their numbers may be old": "%d машин(а) не отчитывается - её числа могут быть старыми",
+    "per machine: menu > Apple fleet > click a Mac": "по машинам: меню > Парк Apple > нажмите на Mac",
+    "What the guard did here (total)": "Что защита сделала на этой машине (за всё время)",
     "in this session (since %@)": "в этой сессии (с %@)",
     "total since %@": "всего с %@",
     "Nothing yet in this session - the machine has not been hot enough.": "Пока ничего в этой сессии - машина не была достаточно горячей.",
@@ -567,10 +567,10 @@ let ZH: [String: String] = [
     "Keep the screen on too (uses more power)": "屏幕也不熄灭（更耗电、更热）",
     "Keep-awake time left": "唤醒剩余时间",
     "Session statistics": "本次会话统计",
-    "Across the fleet (total)": "整个机群（累计）",
-    "(not reporting for %d min)": "（已 %d 分钟未上报）",
-    "order: paused / resumed / terminated / keep-awake gave way": "顺序：暂停 / 恢复 / 终止 / 唤醒让步",
-    "fleet total:  %@": "机群合计：  %@",
+    "Across the fleet (%d machines)": "整个机群（%d 台）",
+    "%d machine(s) not reporting - their numbers may be old": "%d 台未上报 - 其数字可能过时",
+    "per machine: menu > Apple fleet > click a Mac": "按机器查看：菜单 > Apple 机群 > 点击某台 Mac",
+    "What the guard did here (total)": "守护在这台机器上做过什么（累计）",
     "in this session (since %@)": "本次会话（自 %@）",
     "total since %@": "累计自 %@",
     "Nothing yet in this session - the machine has not been hot enough.": "本次会话暂无 - 机器还不够热。",
@@ -821,10 +821,10 @@ let ES: [String: String] = [
     "Keep the screen on too (uses more power)": "Mantener también la pantalla encendida (más consumo y calor)",
     "Keep-awake time left": "Tiempo restante de vigilia",
     "Session statistics": "Estadísticas de la sesión",
-    "Across the fleet (total)": "Toda la flota (histórico)",
-    "(not reporting for %d min)": "(sin reportar desde hace %d min)",
-    "order: paused / resumed / terminated / keep-awake gave way": "orden: pausadas / reanudadas / terminadas / vigilia cedió",
-    "fleet total:  %@": "total de la flota:  %@",
+    "Across the fleet (%d machines)": "Toda la flota (%d máquinas)",
+    "%d machine(s) not reporting - their numbers may be old": "%d máquina(s) sin reportar: sus números pueden ser antiguos",
+    "per machine: menu > Apple fleet > click a Mac": "por máquina: menú > Flota Apple > pulsa un Mac",
+    "What the guard did here (total)": "Lo que hizo el guardián en esta máquina (histórico)",
     "in this session (since %@)": "en esta sesión (desde %@)",
     "total since %@": "total desde %@",
     "Nothing yet in this session - the machine has not been hot enough.": "Nada aún en esta sesión: la máquina no se ha calentado lo suficiente.",
@@ -3628,6 +3628,9 @@ final class Bar: NSObject, NSMenuDelegate {
         func frow(_ t: String) { fmenu.addItem(NSMenuItem(title: t, action: nil, keyEquivalent: "")) }
         // menu czyta MIGAWKE z cache (zero I/O w watku glownym); wiek dolicza od chwili odczytu
         let cacheDrift = max(0, Date().timeIntervalSince(fleetCacheAt))
+        // Liczniki czytamy RAZ na otwarcie menu, nie raz na host.
+        var statystykiHosta: [String: [String: Int]] = [:]
+        for m in fleetStats() { statystykiHosta[m.host] = m.sum }
         if let hosts = fleetCache {
             if hosts.isEmpty {
                 frow(T("no agent snapshots yet (agents publish about once a minute)"))
@@ -3672,7 +3675,13 @@ final class Bar: NSObject, NSMenuDelegate {
                 let it = NSMenuItem(title: "", action: #selector(fleetDetails(_:)), keyEquivalent: "")
                 it.target = self
                 it.attributedTitle = a
+                // liczniki tego hosta - do popupu po kliknieciu
+                let st = statystykiHosta[h.name] ?? [:]
                 it.representedObject = [
+                    "stat_pauses": String(st["pauses"] ?? 0),
+                    "stat_resumes": String(st["resumes"] ?? 0),
+                    "stat_kills": String(st["kills"] ?? 0),
+                    "stat_awake": String(st["awake_released_hot"] ?? 0),
                     "name": h.name, "model": h.model, "serial": h.serial,
                     "age": fleetAge(h.age),
                     "chip": h.chip.map { String(format: "%.1f °C", $0) } ?? "-",
@@ -4386,6 +4395,15 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
         linie.append(T("State") + ": " + (d["state"] ?? "-"))
         if let p = d["paused"], !p.isEmpty { linie.append(T("paused") + ": " + p) }
         linie.append(T("Snapshot") + ": " + (d["age"] ?? "-"))
+        let liczby = ["stat_pauses", "stat_resumes", "stat_kills", "stat_awake"].map { d[$0] ?? "0" }
+        if liczby.contains(where: { $0 != "0" }) {
+            linie.append("")
+            linie.append(T("What the guard did here (total)"))
+            linie.append(T("Heavy jobs paused") + ": " + liczby[0])
+            linie.append(T("Jobs resumed after cooling") + ": " + liczby[1])
+            linie.append(T("Jobs terminated at the kill threshold") + ": " + liczby[2])
+            linie.append(T("Times keep-awake gave way to heat") + ": " + liczby[3])
+        }
 
         let SZER: CGFloat = 240
         let tekst = NSTextField(wrappingLabelWithString: linie.joined(separator: "\n"))
@@ -4560,27 +4578,30 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
             linie.append(contentsOf: etykiety.map { "\($0.0):  \(sum[$0.1] ?? 0)" })
         }
 
-        // FLOTA: wiersz na maszyne + suma. Pokazujemy dopiero od DWOCH maszyn - przy jednej
-        // byloby to powtorzenie liczb stojacych wyzej.
+        // FLOTA: JEDNA liczba na kategorie. Rozbicie per maszyna jest w podmenu
+        // "Flota Apple" po kliknieciu w konkretnego Maca - tam, gdzie i tak sie patrzy,
+        // gdy chce sie wiedziec, ktory z nich sie gotuje.
         let flota = fleetStats()
         if flota.count > 1 {
-            linie.append("")
-            linie.append(T("Across the fleet (total)"))
-            linie.append("")
             var razem: [String: Int] = [:]
             for m in flota {
                 for (_, k) in etykiety { razem[k] = (razem[k] ?? 0) + (m.sum[k] ?? 0) }
-                let liczby = etykiety.map { String(m.sum[$0.1] ?? 0) }.joined(separator: " / ")
-                // Migawka z chmury bywa spozniona. Maszyna, ktora nie raportuje od 5 minut,
-                // MUSI to miec napisane - inaczej stare liczby wygladaja na dzisiejsze.
-                let znacznik = m.wiek > 300 ? "  " + String(format: T("(not reporting for %d min)"),
-                                                            Int(m.wiek / 60)) : ""
-                linie.append("\(m.host):  \(liczby)\(znacznik)")
             }
-            linie.append("")
-            linie.append(T("order: paused / resumed / terminated / keep-awake gave way"))
-            linie.append(String(format: T("fleet total:  %@"),
-                                etykiety.map { String(razem[$0.1] ?? 0) }.joined(separator: " / ")))
+            if etykiety.contains(where: { (razem[$0.1] ?? 0) > 0 }) {
+                linie.append("")
+                linie.append(String(format: T("Across the fleet (%d machines)"), flota.count))
+                linie.append("")
+                linie.append(contentsOf: etykiety.map { "\($0.0):  \(razem[$0.1] ?? 0)" })
+                // Nieaktualne migawki musza byc widoczne, inaczej suma milczy o tym,
+                // ze czesc floty od dawna nic nie mowi.
+                let stare = flota.filter { $0.wiek > 300 }
+                if !stare.isEmpty {
+                    linie.append("")
+                    linie.append(String(format: T("%d machine(s) not reporting - their numbers may be old"),
+                                        stare.count))
+                }
+                linie.append(T("per machine: menu > Apple fleet > click a Mac"))
+            }
         }
 
         pokazModalnie { [weak self] in
