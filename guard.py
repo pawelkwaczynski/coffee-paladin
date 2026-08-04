@@ -1755,9 +1755,14 @@ def licznik(st, klucz, ile=1):
     Licznikow NIGDY nie zerujemy sami; od tego jest przycisk u czlowieka.
     """
     try:
-        st.setdefault("stats", {})
-        st["stats"].setdefault("since", now())
-        st["stats"][klucz] = int(st["stats"].get(klucz, 0)) + ile
+        # DWA zestawy: "stats" zyje miedzy uruchomieniami (suma od zawsze), "stats_sesja"
+        # jest zerowany przy starcie demona. Okno w pasku nazywa sie "Statystyki sesji",
+        # wiec musi miec czym pokazac SESJE - inaczej nazwa by klamala, a to ten sam blad,
+        # co liczenie recznych pauz jako zaslugi bezpiecznika.
+        for gdzie in ("stats", "stats_sesja"):
+            st.setdefault(gdzie, {})
+            st[gdzie].setdefault("since", now())
+            st[gdzie][klucz] = int(st[gdzie].get(klucz, 0)) + ile
     except Exception:
         pass
 
@@ -2697,7 +2702,7 @@ def fleet_write(cfg, status):
         hw = _hw_cache_fleet()
         out["model"] = hw.get("model")
         out["serial"] = hw.get("serial")
-        out["guard_version"] = "2.2.8"
+        out["guard_version"] = "2.2.9"
         _bledy = {k: v for k, v in _CICHE_AWARIE.items() if not k.startswith("_ostatni_log_")}
         if _bledy:
             out["swallowed_errors"] = _bledy
@@ -2745,6 +2750,7 @@ def status_write(state, temp, soc, soc_t, ac, pct, speed, load, lvl, why, target
         "dry_run": bool(st.get("_dry")),
         "keep_awake": bool(st.get("_awake")),
         "stats_total": st.get("stats", {}),
+        "stats_session": st.get("stats_sesja", {}),
         "awake_mode": st.get("_awake_mode"),
         "awake_until": st.get("_awake_until"),
         "awake_app": st.get("_awake_app"),
@@ -2971,6 +2977,8 @@ def main():
         notify(cfg, T("Mac shut down without warning"),
                T("Evidence from the moment of the crash was saved - menu bar > Export report"), key="pad")
     st["reczna_pauza"] = False
+    # Nowa sesja demona = nowe liczniki sesji. Suma calkowita ("stats") zostaje nietknieta.
+    st["stats_sesja"] = {"since": now()}
     try:
         if os.path.exists(CLEAN_STOP_PATH):
             os.remove(CLEAN_STOP_PATH)

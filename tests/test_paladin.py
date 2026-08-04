@@ -109,7 +109,13 @@ test("7. realne tlumaczenia powitania i etykiety wyjscia w 4 jezykach",
 import time, tempfile, py_compile, shutil
 st = os.path.expanduser("~/.coffee-paladin/status.json")
 wiek = time.time() - os.path.getmtime(st)
-log = io.open(os.path.expanduser("~/.coffee-paladin/guard.log"), encoding="utf-8", errors="replace").read()
+# TYLKO BIEZACA SESJA demona. Test szukal bledow petli w CALYM logu, wiec jeden blad
+# sprzed naprawy trzymal bramke na czerwono do konca zycia pliku - a to nie jest sygnal
+# o stanie maszyny, tylko o jej historii. Odcinamy od ostatniego wpisu startowego.
+_pelny = io.open(os.path.expanduser("~/.coffee-paladin/guard.log"),
+                 encoding="utf-8", errors="replace").read()
+_starty = [i for i, l in enumerate(_pelny.splitlines()) if "coffee-paladin start" in l]
+log = "\n".join(_pelny.splitlines()[_starty[-1]:]) if _starty else _pelny
 zrodlo_ok = True
 tmp = tempfile.mkdtemp(prefix="paladin_test_once_")
 try:

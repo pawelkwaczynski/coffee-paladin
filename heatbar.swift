@@ -16,7 +16,7 @@
 
 import Cocoa
 
-let VERSION = "2.2.8"
+let VERSION = "2.2.9"
 let APPNAME = "coffee-paladin"
 let CODENAME = "Ristretto"
 let SIGNATURE = "\(APPNAME) v\(VERSION) \u{201E}\(CODENAME)\u{201D}  ·  by panbookovsky"
@@ -247,7 +247,14 @@ let PL: [String: String] = [
     "Right now: keeping the Mac awake": "Teraz: czuwanie trzymane",
     "Keep the screen on too (uses more power)": "Nie gaś też ekranu (więcej prądu i ciepła)",
     "Keep-awake time left": "Ile zostało czuwania",
-    "What the paladin has done": "Co zrobił paladyn",
+    "Session statistics": "Statystyki sesji",
+    "Across the fleet (total)": "Cała flota (od zawsze)",
+    "(not reporting for %d min)": "(nie raportuje od %d min)",
+    "order: paused / resumed / terminated / keep-awake gave way": "kolejność: wstrzymane / wznowione / ubite / czuwanie ustąpiło",
+    "fleet total:  %@": "razem cała flota:  %@",
+    "in this session (since %@)": "w tej sesji (od %@)",
+    "total since %@": "łącznie od %@",
+    "Nothing yet in this session - the machine has not been hot enough.": "Nic jeszcze w tej sesji - maszyna nie była dość gorąca.",
     "Heavy jobs paused": "Wstrzymane ciężkie zadania",
     "Jobs resumed after cooling": "Wznowione po ostygnięciu",
     "Jobs terminated at the kill threshold": "Ubite przy progu krytycznym",
@@ -303,7 +310,14 @@ let RU: [String: String] = [
     "Right now: keeping the Mac awake": "Сейчас: бодрствование удерживается",
     "Keep the screen on too (uses more power)": "Не гасить и экран (больше энергии и тепла)",
     "Keep-awake time left": "Сколько осталось бодрствования",
-    "What the paladin has done": "Что сделал паладин",
+    "Session statistics": "Статистика сессии",
+    "Across the fleet (total)": "Весь парк (за всё время)",
+    "(not reporting for %d min)": "(не отчитывается %d мин)",
+    "order: paused / resumed / terminated / keep-awake gave way": "порядок: приостановлено / возобновлено / завершено / бодрствование уступило",
+    "fleet total:  %@": "итого по парку:  %@",
+    "in this session (since %@)": "в этой сессии (с %@)",
+    "total since %@": "всего с %@",
+    "Nothing yet in this session - the machine has not been hot enough.": "Пока ничего в этой сессии - машина не была достаточно горячей.",
     "Heavy jobs paused": "Приостановлено тяжёлых задач",
     "Jobs resumed after cooling": "Возобновлено после остывания",
     "Jobs terminated at the kill threshold": "Завершено на критическом пороге",
@@ -552,7 +566,14 @@ let ZH: [String: String] = [
     "Right now: keeping the Mac awake": "当前：正在保持唤醒",
     "Keep the screen on too (uses more power)": "屏幕也不熄灭（更耗电、更热）",
     "Keep-awake time left": "唤醒剩余时间",
-    "What the paladin has done": "圣骑士做了什么",
+    "Session statistics": "本次会话统计",
+    "Across the fleet (total)": "整个机群（累计）",
+    "(not reporting for %d min)": "（已 %d 分钟未上报）",
+    "order: paused / resumed / terminated / keep-awake gave way": "顺序：暂停 / 恢复 / 终止 / 唤醒让步",
+    "fleet total:  %@": "机群合计：  %@",
+    "in this session (since %@)": "本次会话（自 %@）",
+    "total since %@": "累计自 %@",
+    "Nothing yet in this session - the machine has not been hot enough.": "本次会话暂无 - 机器还不够热。",
     "Heavy jobs paused": "已暂停的繁重任务",
     "Jobs resumed after cooling": "降温后已恢复",
     "Jobs terminated at the kill threshold": "在临界阈值终止",
@@ -799,7 +820,14 @@ let ES: [String: String] = [
     "Right now: keeping the Mac awake": "Ahora: manteniendo el Mac despierto",
     "Keep the screen on too (uses more power)": "Mantener también la pantalla encendida (más consumo y calor)",
     "Keep-awake time left": "Tiempo restante de vigilia",
-    "What the paladin has done": "Lo que ha hecho el paladín",
+    "Session statistics": "Estadísticas de la sesión",
+    "Across the fleet (total)": "Toda la flota (histórico)",
+    "(not reporting for %d min)": "(sin reportar desde hace %d min)",
+    "order: paused / resumed / terminated / keep-awake gave way": "orden: pausadas / reanudadas / terminadas / vigilia cedió",
+    "fleet total:  %@": "total de la flota:  %@",
+    "in this session (since %@)": "en esta sesión (desde %@)",
+    "total since %@": "total desde %@",
+    "Nothing yet in this session - the machine has not been hot enough.": "Nada aún en esta sesión: la máquina no se ha calentado lo suficiente.",
     "Heavy jobs paused": "Tareas pesadas pausadas",
     "Jobs resumed after cooling": "Reanudadas tras enfriarse",
     "Jobs terminated at the kill threshold": "Terminadas en el umbral crítico",
@@ -1244,6 +1272,37 @@ struct FleetHost {
 
 /// Migawki hostow z folderu floty. nil = folder nieskonfigurowany/nieczytelny;
 /// pusta lista = folder jest, ale nikt jeszcze nie publikuje.
+/// Liczniki pracy bezpiecznika z KAZDEJ maszyny floty. Osobno od `fleetHosts()`, bo tamten
+/// niesie pomiary chwilowe, a tu chodzi o sumy. Migawka floty jest kopia migawki lokalnej,
+/// wiec liczniki sa w niej od razu — nie trzeba niczego dokladac do protokolu.
+/// Zwraca takze WIEK pliku: liczby z maszyny, ktora nie raportuje od kwadransa, nie moga
+/// wygladac na aktualne.
+func fleetStats() -> [(host: String, ses: [String: Int], sum: [String: Int], wiek: TimeInterval)] {
+    let raw = GuardCfg.string("fleet_dir", "")
+    guard !raw.isEmpty else { return [] }
+    let dir = NSString(string: raw).expandingTildeInPath
+    guard let items = try? FileManager.default.contentsOfDirectory(atPath: dir) else { return [] }
+    var out: [(host: String, ses: [String: Int], sum: [String: Int], wiek: TimeInterval)] = []
+    for fname in items.sorted() {
+        guard fname.hasSuffix(".json"), !fname.hasPrefix(".") else { continue }
+        let path = dir + "/" + fname
+        guard let d = FileManager.default.contents(atPath: path),
+              let j = try? JSONSerialization.jsonObject(with: d) as? [String: Any] else { continue }
+        func licz(_ klucz: String) -> [String: Int] {
+            var w: [String: Int] = [:]
+            if let t = j[klucz] as? [String: Any] {
+                for (k, v) in t { if let n = v as? Int { w[k] = n } }
+            }
+            return w
+        }
+        let mtime = (try? FileManager.default.attributesOfItem(atPath: path)[.modificationDate]) as? Date
+        let host = (j["host"] as? String) ?? String(fname.dropLast(5))
+        out.append((host: host, ses: licz("stats_session"), sum: licz("stats_total"),
+                    wiek: mtime.map { Date().timeIntervalSince($0) } ?? 1e9))
+    }
+    return out
+}
+
 func fleetHosts() -> [FleetHost]? {
     let raw = GuardCfg.string("fleet_dir", "")
     guard !raw.isEmpty else { return nil }
@@ -2191,7 +2250,8 @@ struct Snap {
     var heavyCount: Int = 0
     var topRamList: [TopRAM] = []
     var pausesToday = 0, killsToday = 0
-    var statsTotal: [String: Int] = [:]   // skumulowane liczniki pracy bezpiecznika
+    var statsTotal: [String: Int] = [:]   // suma od zawsze (przezywa restarty demona)
+    var statsSession: [String: Int] = [:] // od startu biezacej sesji demona
     var lastCrash: String?
     var thrPause: Double?, thrKill: Double?
     var stamp = ""
@@ -2253,6 +2313,9 @@ func readSnap() -> Snap? {
     }
     if let t = j["stats_total"] as? [String: Any] {
         for (k, v) in t { if let n = v as? Int { s.statsTotal[k] = n } }
+    }
+    if let t = j["stats_session"] as? [String: Any] {
+        for (k, v) in t { if let n = v as? Int { s.statsSession[k] = n } }
     }
     if let p = j["last_hard_shutdown"] as? [String: Any] { s.lastCrash = p["time"] as? String }
     if let t = j["thresholds"] as? [String: Any] {
@@ -3103,6 +3166,13 @@ final class Bar: NSObject, NSMenuDelegate {
         logIt.target = self
         logIt.image = img("text.alignleft")
 
+        // Tuz pod dziennikiem, bo to ta sama rodzina: dziennik mowi CO sie stalo,
+        // statystyki mowia ILE RAZY.
+        let statsIt = m.addItem(withTitle: T("Session statistics"),
+                                action: #selector(openStats), keyEquivalent: "")
+        statsIt.target = self
+        statsIt.image = img("chart.bar")
+
         // Przewodnik siedzi tuz pod dziennikiem, bo okno powitalne pokazuje sie raz
         // i po jego zamknieciu nie bylo skad go otworzyc.
         let guideIt = m.addItem(withTitle: T("First steps…"), action: #selector(openGuide), keyEquivalent: "")
@@ -3410,12 +3480,6 @@ final class Bar: NSObject, NSMenuDelegate {
         m.addItem(setItem)
 
         // ABOUT MY MAC: sprzet wykryty przez guarda + zdrowie baterii + progi
-        let statsIt = NSMenuItem(title: T("What the paladin has done"),
-                                 action: #selector(openStats), keyEquivalent: "")
-        statsIt.target = self
-        statsIt.image = img("checkmark.shield")
-        m.addItem(statsIt)
-
         let about = NSMenuItem(title: T("About my Mac"), action: nil, keyEquivalent: "")
         about.image = img("info.circle")
         let abm = NSMenu()
@@ -4463,29 +4527,66 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
     /// Liczby ODWROTNE niz u konkurencji: nie "ile Mac nie spal", tylko ile razy
     /// bezpiecznik zadzialal. To jedyna statystyka, ktorej apka bez bezpiecznika miec nie moze.
     @objc func openStats() {
-        let st = readSnap()?.statsTotal ?? [:]
-        let pary: [(String, Int)] = [
-            (T("Heavy jobs paused"), st["pauses"] ?? 0),
-            (T("Jobs resumed after cooling"), st["resumes"] ?? 0),
-            (T("Jobs terminated at the kill threshold"), st["kills"] ?? 0),
-            (T("Times keep-awake gave way to heat"), st["awake_released_hot"] ?? 0),
+        let snap = readSnap()
+        let etykiety: [(String, String)] = [
+            (T("Heavy jobs paused"), "pauses"),
+            (T("Jobs resumed after cooling"), "resumes"),
+            (T("Jobs terminated at the kill threshold"), "kills"),
+            (T("Times keep-awake gave way to heat"), "awake_released_hot"),
         ]
-        var linie = pary.map { "\($0.0):  \($0.1)" }
-        if pary.allSatisfy({ $0.1 == 0 }) {
-            linie = [T("Nothing yet - the machine has not been hot enough.")]
-        }
-        if let od = st["since"], od > 0 {
+        func data(_ epoch: Int?) -> String {
+            guard let e = epoch, e > 0 else { return "?" }
             let f = DateFormatter()
-            f.dateStyle = .medium
+            f.dateStyle = .short
             f.timeStyle = .short
-            linie.append("")
-            linie.append(String(format: T("counting since %@"),
-                                f.string(from: Date(timeIntervalSince1970: Double(od)))))
+            return f.string(from: Date(timeIntervalSince1970: Double(e)))
         }
+
+        var linie: [String] = []
+        let ses = snap?.statsSession ?? [:]
+        let sum = snap?.statsTotal ?? [:]
+
+        if etykiety.allSatisfy({ (ses[$0.1] ?? 0) == 0 }) {
+            linie.append(T("Nothing yet in this session - the machine has not been hot enough."))
+        } else {
+            linie.append(String(format: T("in this session (since %@)"), data(ses["since"])))
+            linie.append("")
+            linie.append(contentsOf: etykiety.map { "\($0.0):  \(ses[$0.1] ?? 0)" })
+        }
+        if etykiety.contains(where: { (sum[$0.1] ?? 0) > 0 }) {
+            linie.append("")
+            linie.append(String(format: T("total since %@"), data(sum["since"])))
+            linie.append("")
+            linie.append(contentsOf: etykiety.map { "\($0.0):  \(sum[$0.1] ?? 0)" })
+        }
+
+        // FLOTA: wiersz na maszyne + suma. Pokazujemy dopiero od DWOCH maszyn - przy jednej
+        // byloby to powtorzenie liczb stojacych wyzej.
+        let flota = fleetStats()
+        if flota.count > 1 {
+            linie.append("")
+            linie.append(T("Across the fleet (total)"))
+            linie.append("")
+            var razem: [String: Int] = [:]
+            for m in flota {
+                for (_, k) in etykiety { razem[k] = (razem[k] ?? 0) + (m.sum[k] ?? 0) }
+                let liczby = etykiety.map { String(m.sum[$0.1] ?? 0) }.joined(separator: " / ")
+                // Migawka z chmury bywa spozniona. Maszyna, ktora nie raportuje od 5 minut,
+                // MUSI to miec napisane - inaczej stare liczby wygladaja na dzisiejsze.
+                let znacznik = m.wiek > 300 ? "  " + String(format: T("(not reporting for %d min)"),
+                                                            Int(m.wiek / 60)) : ""
+                linie.append("\(m.host):  \(liczby)\(znacznik)")
+            }
+            linie.append("")
+            linie.append(T("order: paused / resumed / terminated / keep-awake gave way"))
+            linie.append(String(format: T("fleet total:  %@"),
+                                etykiety.map { String(razem[$0.1] ?? 0) }.joined(separator: " / ")))
+        }
+
         pokazModalnie { [weak self] in
-            _ = self?.oknoPaladyna(tytul: T("What the paladin has done"),
+            _ = self?.oknoPaladyna(tytul: T("Session statistics"),
                                    tresc: linie.joined(separator: "\n"),
-                                   przyciski: ["OK"], szerokosc: 420)
+                                   przyciski: ["OK"], szerokosc: 460)
         }
     }
 

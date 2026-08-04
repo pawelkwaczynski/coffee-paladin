@@ -46,6 +46,7 @@ mkdir -p "$ICONSET"
 /usr/bin/python3 - "$WEJSCIE" "$MASTER" <<'PY'
 import binascii
 import math
+import os
 import struct
 import sys
 import zlib
@@ -180,7 +181,11 @@ crop_w = max_x - min_x + 1
 crop_h = max_y - min_y + 1
 
 out_size = 1024
-margin = round(out_size * 0.09)
+# Margines dobrany dla PIONOWEJ grafiki. Ikona jest kwadratowa, wiec tarcza wyzsza niz
+# szersza i tak zostawia puste boki - dokladanie do tego grubej ramki robilo tarcze
+# male. Zmierzone przy 9%: tresc zajmowala 61% szerokosci kadru. Przy 3% zajmuje ~72%.
+# Sterowalne zmienna srodowiskowa, gdyby ktos podstawil grafike o innych proporcjach.
+margin = round(out_size * float(os.environ.get("COFFEE_PALADIN_ICON_MARGIN", "0.03")))
 fit = out_size - 2 * margin
 scale = fit / max(crop_w, crop_h)
 new_w = max(1, round(crop_w * scale))
