@@ -2,13 +2,18 @@
 # zrob_ikone.sh - buduje AppIcon.icns z portretu paladyna.
 set -euo pipefail
 
-if [ "$#" -ne 2 ]; then
-  echo "uzycie: tools/zrob_ikone.sh branding/paladin.png AppIcon.icns" >&2
+if [ "$#" -lt 2 ] || [ "$#" -gt 3 ]; then
+  echo "uzycie: tools/zrob_ikone.sh ZRODLO.png AppIcon.icns [ZRODLO_MALE.png]" >&2
   exit 2
 fi
 
 WEJSCIE="$1"
 WYJSCIE="$2"
+# Opcjonalna, UPROSZCZONA grafika dla 16 i 32 px. Format icns pozwala dac inna warstwe
+# dla kazdego rozmiaru i tak sie to robi: bogaty rysunek rozsypuje sie w 16 px na plame,
+# wiec male rozmiary dostaja wersje bez ramek i detali. Zmierzone na tej ikonie: pelna
+# grafika w 16 px to ciemny kafelek z drobna zlota plamka, sama tarcza jest czytelna.
+WEJSCIE_MALE="${3:-}"
 
 if [ ! -f "$WEJSCIE" ]; then
   echo "brak pliku PNG: $WEJSCIE" >&2
@@ -253,6 +258,19 @@ zrob_png "icon_16x16.png" 16
 zrob_png "icon_16x16@2x.png" 32
 zrob_png "icon_32x32.png" 32
 zrob_png "icon_32x32@2x.png" 64
+
+if [ -n "$WEJSCIE_MALE" ]; then
+  if [ ! -f "$WEJSCIE_MALE" ]; then
+    echo "brak grafiki dla malych rozmiarow: $WEJSCIE_MALE" >&2
+    exit 1
+  fi
+  male_nazwy=("icon_16x16.png" "icon_16x16@2x.png" "icon_32x32.png" "icon_32x32@2x.png")
+  male_rozmiary=(16 32 32 64)
+  for i in "${!male_nazwy[@]}"; do
+    /usr/bin/sips -s format png -z "${male_rozmiary[$i]}" "${male_rozmiary[$i]}" \
+      "$WEJSCIE_MALE" --out "$ICONSET/${male_nazwy[$i]}" >/dev/null
+  done
+fi
 zrob_png "icon_128x128.png" 128
 zrob_png "icon_128x128@2x.png" 256
 zrob_png "icon_256x256.png" 256
