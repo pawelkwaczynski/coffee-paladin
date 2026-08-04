@@ -88,8 +88,7 @@ chmod 700 "$BASE" "$BASE/managed" 2>/dev/null || true
 # swieze konto / niekompletna paczka: sprawdz zrodla ZANIM cokolwiek ruszymy
 for f in guard.py safe-run heat thermal-report fleet thermalstate.swift heatbar.swift \
          pl.pawel.coffee-paladin.plist pl.pawel.coffee-paladin-bar.plist \
-         branding/paladin.png branding/app_icon.png branding/app_icon_small.png \
-         tools/zrob_ikone.sh; do
+         branding/paladin.png branding/app_icon.png tools/zrob_ikone.sh; do
   if [ ! -f "$SRC/$f" ]; then
     echo "  ❌ brak pliku zrodlowego: $SRC/$f — przerwano (niepelna paczka/klon?)"
     exit 1
@@ -185,11 +184,12 @@ if command -v swiftc >/dev/null 2>&1; then
   fi
   if [ -n "${HB_VERSION:-}" ] && swiftc -O -o "$BAR_EXEC" "$SRC/heatbar.swift" 2>"$BASE/heatbar_build.err"; then
     zapisz_info_plist "$HB_VERSION" "$APP_CONTENTS/Info.plist"
-    # Ikona aplikacji to TARCZA, nie maskotka: portret postaci w 16 px zamienia sie
-    # w plame. Trzeci argument to uproszczona wersja (sama tarcza, bez plytki i ramek)
-    # uzywana dla 16 i 32 px — format icns pozwala dac inna warstwe dla kazdego rozmiaru.
+    # Ikona aplikacji to TARCZA, nie maskotka: portret postaci w 16 px zamienia sie w plame.
+    # Tarcza wypelnia caly kadr, wiec jest czytelna takze w 16 px i nie potrzebuje osobnej
+    # wersji uproszczonej (zmierzone: z plomieniami i bez - w 16 px nie do odroznienia).
+    # `zrob_ikone.sh` nadal przyjmuje opcjonalny trzeci argument, gdyby kiedys byla potrzebna.
     if "$SRC/tools/zrob_ikone.sh" "$SRC/branding/app_icon.png" "$APP_RESOURCES/AppIcon.icns" \
-        "$SRC/branding/app_icon_small.png" >/dev/null 2>"$BASE/icon_build.err"; then
+        >/dev/null 2>"$BASE/icon_build.err"; then
       echo "  ✅ AppIcon.icns zbudowany z branding/app_icon.png"
     else
       echo "  ⚠️  ikona NIE zbudowana — szczegoly: $BASE/icon_build.err"
