@@ -27,12 +27,12 @@ import time
 
 MAX_WIERSZY_OSI = 5000   # sufit osi czasu w raporcie, patrz komentarz przy skracaniu
 
-VERSION = "2.3.0"   # PIEC miejsc, nie trzy: guard_version, heatbar VERSION, README,
+VERSION = "2.3.1"   # PIEC miejsc, nie trzy: guard_version, heatbar VERSION, README,
                     # .claude-plugin/plugin.json i to. Pilnuje tego `test_spojnosc`,
                     # bo 03.08 checklista mowila "trzy" i wersja tutaj zostala w tyle.
                     #
                     # NUMERACJA (zasada Pawla, 04.08): trzecia cyfra NIE przekracza
-                    # dziewiatki. Po 2.2.9 idzie 2.3.0, po 2.3.9 idzie 2.4.0.
+                    # dziewiatki. Po 2.2.9 idzie 2.3.1, po 2.3.9 idzie 2.4.0.
                     # Nie ma wersji 2.2.10.
 
 HOME = os.path.expanduser("~")

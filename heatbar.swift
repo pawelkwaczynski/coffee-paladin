@@ -16,7 +16,7 @@
 
 import Cocoa
 
-let VERSION = "2.3.0"
+let VERSION = "2.3.1"
 let APPNAME = "coffee-paladin"
 let CODENAME = "Ristretto"
 let SIGNATURE = "\(APPNAME) v\(VERSION) \u{201E}\(CODENAME)\u{201D}  ·  by panbookovsky"
@@ -254,7 +254,7 @@ let PL: [String: String] = [
     "What the guard did here (total)": "Co bezpiecznik zrobił na tej maszynie (od zawsze)",
     "in this session (since %@)": "w tej sesji (od %@)",
     "total since %@": "łącznie od %@",
-    "Nothing yet in this session - the machine has not been hot enough.": "Nic jeszcze w tej sesji - maszyna nie była dość gorąca.",
+    "Nothing here - and that is good news: your Mac has not been overheating.": "Nic tu nie ma - to dobrze, znaczy, że twoja maszyna się nie przegrzewała.",
     "Heavy jobs paused": "Wstrzymane ciężkie zadania",
     "Jobs resumed after cooling": "Wznowione po ostygnięciu",
     "Jobs terminated at the kill threshold": "Ubite przy progu krytycznym",
@@ -317,7 +317,7 @@ let RU: [String: String] = [
     "What the guard did here (total)": "Что защита сделала на этой машине (за всё время)",
     "in this session (since %@)": "в этой сессии (с %@)",
     "total since %@": "всего с %@",
-    "Nothing yet in this session - the machine has not been hot enough.": "Пока ничего в этой сессии - машина не была достаточно горячей.",
+    "Nothing here - and that is good news: your Mac has not been overheating.": "Здесь пусто - и это хорошо: ваш Mac не перегревался.",
     "Heavy jobs paused": "Приостановлено тяжёлых задач",
     "Jobs resumed after cooling": "Возобновлено после остывания",
     "Jobs terminated at the kill threshold": "Завершено на критическом пороге",
@@ -573,7 +573,7 @@ let ZH: [String: String] = [
     "What the guard did here (total)": "守护在这台机器上做过什么（累计）",
     "in this session (since %@)": "本次会话（自 %@）",
     "total since %@": "累计自 %@",
-    "Nothing yet in this session - the machine has not been hot enough.": "本次会话暂无 - 机器还不够热。",
+    "Nothing here - and that is good news: your Mac has not been overheating.": "这里是空的 - 这是好消息：你的 Mac 没有过热。",
     "Heavy jobs paused": "已暂停的繁重任务",
     "Jobs resumed after cooling": "降温后已恢复",
     "Jobs terminated at the kill threshold": "在临界阈值终止",
@@ -827,7 +827,7 @@ let ES: [String: String] = [
     "What the guard did here (total)": "Lo que hizo el guardián en esta máquina (histórico)",
     "in this session (since %@)": "en esta sesión (desde %@)",
     "total since %@": "total desde %@",
-    "Nothing yet in this session - the machine has not been hot enough.": "Nada aún en esta sesión: la máquina no se ha calentado lo suficiente.",
+    "Nothing here - and that is good news: your Mac has not been overheating.": "Aquí no hay nada, y es buena noticia: tu Mac no se ha sobrecalentado.",
     "Heavy jobs paused": "Tareas pesadas pausadas",
     "Jobs resumed after cooling": "Reanudadas tras enfriarse",
     "Jobs terminated at the kill threshold": "Terminadas en el umbral crítico",
@@ -3171,7 +3171,7 @@ final class Bar: NSObject, NSMenuDelegate {
         let statsIt = m.addItem(withTitle: T("Session statistics"),
                                 action: #selector(openStats), keyEquivalent: "")
         statsIt.target = self
-        statsIt.image = img("chart.bar")
+        statsIt.image = img("checkmark.shield")
 
         // Przewodnik siedzi tuz pod dziennikiem, bo okno powitalne pokazuje sie raz
         // i po jego zamknieciu nie bylo skad go otworzyc.
@@ -4565,7 +4565,7 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
         let sum = snap?.statsTotal ?? [:]
 
         if etykiety.allSatisfy({ (ses[$0.1] ?? 0) == 0 }) {
-            linie.append(T("Nothing yet in this session - the machine has not been hot enough."))
+            linie.append(T("Nothing here - and that is good news: your Mac has not been overheating."))
         } else {
             linie.append(String(format: T("in this session (since %@)"), data(ses["since"])))
             linie.append("")
