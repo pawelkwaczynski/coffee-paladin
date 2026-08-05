@@ -497,6 +497,10 @@ PL = {
     "[DRY-RUN] would pause %s (pid %d, %.0f%% CPU) - %s": "[DRY-RUN] pauza %s (pid %d, %.0f%% CPU) - %s",
     "FAILED to pause %s (pid %d) - not permitted to send the signal": "NIE UDALO SIE wstrzymac %s (pid %d) - brak uprawnien do sygnalu",
     "RESUMED %s (pid %d) - %s": "WZNOWIONE %s (pid %d) - %s",
+    "dropping stale pause entry: %s (pid %s) is running again "
+    "- resumed outside the guard":
+        "kasuje nieaktualny wpis pauzy: %s (pid %s) znowu pracuje "
+        "- wznowiony poza bezpiecznikiem",
     "[DRY-RUN] would terminate %s (pid %d) - %s": "[DRY-RUN] ubicie %s (pid %d) - %s",
     "TERMINATED (SIGTERM) %s (pid %d) - %s": "STOP (SIGTERM) %s (pid %d) - %s",
     "SIGKILL %s (pid %d)": "SIGKILL %s (pid %d)",
@@ -645,6 +649,10 @@ RU = {
     "[DRY-RUN] would pause %s (pid %d, %.0f%% CPU) - %s": "[НАБЛЮДЕНИЕ] поставил бы на паузу %s (pid %d, %.0f%% CPU) - %s",
     "FAILED to pause %s (pid %d) - not permitted to send the signal": "НЕ УДАЛОСЬ поставить на паузу %s (pid %d) - нет прав на отправку сигнала",
     "RESUMED %s (pid %d) - %s": "ВОЗОБНОВЛЕНО %s (pid %d) - %s",
+    "dropping stale pause entry: %s (pid %s) is running again "
+    "- resumed outside the guard":
+        "удаляю устаревшую запись о паузе: %s (pid %s) снова работает "
+        "- возобновлён не защитой",
     "[DRY-RUN] would terminate %s (pid %d) - %s": "[НАБЛЮДЕНИЕ] завершил бы %s (pid %d) - %s",
     "TERMINATED (SIGTERM) %s (pid %d) - %s": "ЗАВЕРШЕНО (SIGTERM) %s (pid %d) - %s",
     "SIGKILL %s (pid %d)": "SIGKILL %s (pid %d)",
@@ -733,6 +741,9 @@ ZH = {
     "[DRY-RUN] would pause %s (pid %d, %.0f%% CPU) - %s": "[仅观察] 本会暂停 %s (pid %d, %.0f%% CPU) - %s",
     "FAILED to pause %s (pid %d) - not permitted to send the signal": "暂停失败 %s (pid %d) - 没有发送信号的权限",
     "RESUMED %s (pid %d) - %s": "已恢复 %s (pid %d) - %s",
+    "dropping stale pause entry: %s (pid %s) is running again "
+    "- resumed outside the guard":
+        "清除过期的暂停记录：%s (pid %s) 已重新运行 - 由防护程序之外恢复",
     "[DRY-RUN] would terminate %s (pid %d) - %s": "[仅观察] 本会关闭 %s (pid %d) - %s",
     "TERMINATED (SIGTERM) %s (pid %d) - %s": "已关闭 (SIGTERM) %s (pid %d) - %s",
     "SIGKILL %s (pid %d)": "SIGKILL %s (pid %d)",
@@ -822,6 +833,10 @@ ES = {
     "[DRY-RUN] would pause %s (pid %d, %.0f%% CPU) - %s": "[SOLO OBSERVAR] pausaría %s (pid %d, %.0f%% CPU) - %s",
     "FAILED to pause %s (pid %d) - not permitted to send the signal": "NO SE PUDO pausar %s (pid %d) - sin permiso para enviar la señal",
     "RESUMED %s (pid %d) - %s": "REANUDADO %s (pid %d) - %s",
+    "dropping stale pause entry: %s (pid %s) is running again "
+    "- resumed outside the guard":
+        "descarto la entrada de pausa obsoleta: %s (pid %s) vuelve a ejecutarse "
+        "- reanudado fuera del guardian",
     "[DRY-RUN] would terminate %s (pid %d) - %s": "[SOLO OBSERVAR] cerraría %s (pid %d) - %s",
     "TERMINATED (SIGTERM) %s (pid %d) - %s": "CERRADO (SIGTERM) %s (pid %d) - %s",
     "SIGKILL %s (pid %d)": "SIGKILL %s (pid %d)",
@@ -1528,6 +1543,133 @@ def alive(pid):
     except OSError as e:
         import errno
         return e.errno == errno.EPERM
+
+
+def zatrzask_czujnika(st, klucz, wartosc, prog_pauzy, prog_wznowienia):
+    """Histereza JEDNEGO czujnika: czy on sam trzyma jeszcze maszyne w stanie goracym.
+
+    Zatrzask zapala sie na WLASNYM progu pauzy i gasnie na WLASNYM progu wznowienia,
+    a miedzy nimi pamieta poprzednia decyzje. Dzieki temu czujnik moze blokowac
+    wznowienie tylko wtedy, gdy sam kiedys kazal pauzowac. Wczesniej bramka byla
+    niesymetryczna - pauze wywolywal dowolny czujnik, a wznowienie blokowal kazdy -
+    wiec bateria trzymajaca 37 C (trzy stopnie ponizej wlasnego progu 40 C, ktorego
+    nigdy nie przekroczyla) nie pozwalala wrocic zadaniu zapauzowanemu przez CHIP.
+    Log Pawla 04.08.2026: 15 pauz, ZERO wznowien, dwa zadania ubite po 45 minutach.
+
+    DLACZEGO TYLKO BATERIA. Chipowi zostaje stary, surowy prog wznowienia i tak ma byc:
+    jest OSTRZEJSZY od zatrzasku (blokuje w calym pasmie 87-95 C, niezaleznie od tego,
+    co wywolalo pauze), a patologii baterii miec nie moze, bo zamrozony chip schodzi
+    z 95 do 71 C w dwadziescia sekund. Zatrzask na chipie pozwalalby wznowic zadanie
+    przy 94 C, gdyby pauze wywolal `thermalState` - czyli kupowalibysmy migotanie
+    za nic (zarzut Codeksa, 04.08.2026, sluszny).
+
+    Brak odczytu gasi zatrzask - dokladnie jak w kodzie sprzed zmiany, gdzie `temp is None`
+    znaczylo "nie blokuje". Nieobecny czujnik nie moze byc powodem, dla ktorego obliczenie
+    stoi az do SIGTERM-a; brak pomiaru widac osobno (poziom, `sensor`) i tam ma byc decyzja.
+
+    Zmiana progu w locie kasuje zatrzask (kalibracja, suwak, edycja `config.json`):
+    zapalil sie wzgledem STAREJ pary progow, wiec wobec nowej nie znaczy juz nic.
+    """
+    prog_klucz = klucz + "_prog"
+    progi = [prog_pauzy, prog_wznowienia]
+    if st.get(prog_klucz) != progi:
+        st[prog_klucz] = progi
+        st[klucz] = False
+    if wartosc is None:
+        st[klucz] = False
+    elif wartosc >= prog_pauzy:
+        st[klucz] = True
+    elif wartosc <= prog_wznowienia:
+        st[klucz] = False
+    return bool(st.get(klucz, False))
+
+
+def zatrzymane_teraz():
+    """JEDEN `ps` na cykl: (zbior zatrzymanych pidow, zbior grup z zatrzymanym czlonkiem).
+
+    Wpis w `st["paused"]` mowi tylko, ze guard KIEDYS wyslal SIGSTOP - nie, ze proces
+    stoi TERAZ. Obudzic go moze czlowiek (`kill -CONT`), debugger albo duty-limiter
+    safe-run. Guard, ktory ufa wlasnej notatce zamiast systemowi, po `max_pause_minutes`
+    strzela SIGTERM-em w zadanie pracujace pelna para - i tak zginal pomiar Pawla
+    04.08.2026 o 20:27, 25 minut po tym, jak recznie je wznowil.
+
+    GRUPY sa tu rownie wazne jak pidy: guard mrozi cala grupe (`killpg`), a wznowic
+    recznie mozna sam jej sygnal wejsciowy. Gdyby wpis kasowac po samym liderze,
+    zatrzymane dziecko zostaloby bez jedynej notatki, przez ktora ktokolwiek mogby
+    je wznowic - czyli w stanie T na zawsze (zarzut Codeksa, 04.08.2026).
+
+    Jeden `ps -Ao` zamiast jednego `ps` na wpis: przy kilkudziesieciu zamrozonych
+    zadaniach petla forkowala tyle samo procesow co cykl.
+    """
+    linie = run(["ps", "-Ao", "pid=,pgid=,stat="]).splitlines()
+    if not linie:
+        # NIEUDANY POMIAR TO NIE JEST POMIAR "nic nie stoi". `run()` zwraca pusty napis
+        # przy kazdym bledzie i timeoucie, a na zywej maszynie `ps -Ao` ma zawsze
+        # kilkaset linii. Gdyby pustke czytac doslownie, guard uznalby KAZDY wpis za
+        # "obudzony poza guardem", skasowal go - i zamrozone zadanie zostaloby w stanie T
+        # bez jedynej notatki, przez ktora ktokolwiek mogby je wznowic (zarzut Codeksa,
+        # runda 2). None znaczy "nie wiem" i wstrzymuje decyzje o cudzym zyciu.
+        return None
+    pidy, grupy = set(), set()
+    for linia in linie:
+        czesci = linia.split(None, 2)
+        if len(czesci) < 3 or not czesci[2].startswith("T"):
+            continue
+        try:
+            pidy.add(int(czesci[0]))
+            grupy.add(int(czesci[1]))
+        except ValueError:
+            continue
+    return pidy, grupy
+
+
+def wpisy_nieaktualne(paused, stoja):
+    """Wpisy po zadaniach, ktore ktos wznowil poza guardem - do skasowania."""
+    if stoja is None:
+        return []
+    return [k for k, v in paused.items()
+            if not v.get("manual") and not wpis_stoi(k, v, *stoja)]
+
+
+def wpisy_przeterminowane(paused, limit_s, stoja):
+    """Wpisy starsze niz limit, ktorych zadanie NAPRAWDE stoi - tylko te wolno ubic."""
+    if stoja is None:
+        return []
+    return [k for k, v in paused.items()
+            if _wiek_pauzy(v) > limit_s and not v.get("manual") and wpis_stoi(k, v, *stoja)]
+
+
+def bramka_wznowienia(cfg, st, temp, soc_t, state):
+    """Czy wolno wznowic zamrozone zadania: KAZDY czujnik musi zejsc z powrotem.
+
+    Bateria przez zatrzask (blokuje tylko gdy sama przekroczyla swoj prog pauzy),
+    chip przez surowy prog wznowienia, stan systemowy przez poziom. Cala decyzja
+    siedzi w jednej funkcji, zeby test sprawdzal TO, co wykonuje demon - a nie
+    wlasna kopie tego wyrazenia (uwaga Codeksa, runda 2: skopiowany warunek w tescie
+    przechodzi takze wtedy, gdy w produkcji ktos zepsuje oryginal).
+    """
+    batt_trzyma = zatrzask_czujnika(st, "_batt_hot", temp,
+                                    cfg["batt_pause_c"], cfg["batt_resume_c"])
+    chip_trzyma = soc_t is not None and soc_t > cfg.get("soc_resume_c", 87.0)
+    return not batt_trzyma and not chip_trzyma and LEVELS.get(state, 1) <= 1
+
+
+def wpis_stoi(key, info, pidy, grupy):
+    """Czy zadanie z tego wpisu NAPRAWDE stoi - samo albo czymkolwiek ze swojej grupy.
+
+    Nieznany stan (proces zniknal, `ps` nie odpowiada) znaczy "nie stoi": do ubicia
+    potrzebujemy DOWODU, ze cos stoi, a nie braku dowodu, ze nie stoi.
+    """
+    try:
+        if int(key) in pidy:
+            return True
+    except (TypeError, ValueError):
+        return False
+    pgid = (info or {}).get("pgid")
+    try:
+        return pgid is not None and int(pgid) in grupy
+    except (TypeError, ValueError):
+        return False
 
 
 def proc_age_seconds(pid):
@@ -2702,7 +2844,7 @@ def fleet_write(cfg, status):
         hw = _hw_cache_fleet()
         out["model"] = hw.get("model")
         out["serial"] = hw.get("serial")
-        out["guard_version"] = "2.3.1"
+        out["guard_version"] = "2.3.2"
         _bledy = {k: v for k, v in _CICHE_AWARIE.items() if not k.startswith("_ostatni_log_")}
         if _bledy:
             out["swallowed_errors"] = _bledy
@@ -3112,6 +3254,28 @@ def main():
             if sam_stan and st["_state_polls"] < cfg.get("state_confirm_polls", 2):
                 lvl = 1        # jeszcze nie ufamy pojedynczemu skokowi thermalState
 
+            # ZATRZASK PER CZUJNIK. Czujnik moze BLOKOWAC wznowienie tylko wtedy, gdy sam
+            # przekroczyl swoj prog pauzy i jeszcze nie zszedl do swojego progu wznowienia.
+            # Wczesniej bramka byla nesymetryczna: pauze wywolywal DOWOLNY czujnik, ale
+            # wznowienie blokowal KAZDY. Bateria stygnie kilka minut i przy dlugim kodowaniu
+            # trzyma ~37 C, wiec przy progach chipa 95/87 pauza WYWOLANA CHIPEM nie konczyla
+            # sie nigdy: chip schodzil do 71 C w 20 s, a bateria - trzy stopnie ponizej
+            # WLASNEGO progu 40 C, ktorego nigdy nie przekroczyla - trzymala zadanie w stanie T
+            # az do SIGTERM-a po 45 minutach. Log Pawla 04.08.2026: 15 pauz, ZERO wznowien,
+            # dwa ubite zadania. Histereza czujnika ma chronic przed migotaniem JEGO progu,
+            # a nie brac zakladnikow za cudzy prog.
+            # Migawka realnie zatrzymanych procesow - JEDEN `ps` na cykl i tylko wtedy,
+            # gdy w ogole cos mamy zamrozone. Uzywaja jej obie sciezki, ktore podejmuja
+            # decyzje o cudzym zyciu: kasowanie nieaktualnych wpisow i SIGTERM po limicie.
+            stoja = zatrzymane_teraz() if st["paused"] else (set(), set())
+            if stoja is None and not st.get("_ps_cicho"):
+                log("ps unavailable - postponing decisions about paused jobs")
+            st["_ps_cicho"] = stoja is None
+
+            # Zatrzaski aktualizowane w KAZDYM cyklu, takze gdy goraco - inaczej bateria,
+            # ktora przekroczyla 40 C w trakcie pauzy, nie zapalilaby zatrzasku wcale.
+            wolno_wznowic = bramka_wznowienia(cfg, st, temp, soc_t, state)
+
             if lvl >= 3:
                 crit_polls += 1
                 banner(cfg, T("Thermal guard: CRITICAL overheating"),
@@ -3127,9 +3291,7 @@ def main():
                 do_pause(cfg, st, targets, why)
             else:
                 crit_polls = 0
-                cool = (temp is None or temp <= cfg["batt_resume_c"]) and LEVELS.get(state, 1) <= 1
-                if soc_t is not None and soc_t > cfg.get("soc_resume_c", 80.0):
-                    cool = False
+                cool = wolno_wznowic
                 # po pauzie z powodu baterii wznawiamy dopiero na zasilaczu (albo po doladowaniu)
                 powered = ac or pct is None or pct >= cfg.get("batt_pct_resume", 25)
                 # MARTWE WPISY sprzatamy TU, niezaleznie od do_resume. Wczesniej jedynym
@@ -3139,6 +3301,17 @@ def main():
                 # na zawsze, i od tej chwili guard PAUZUJE, ale NIGDY nie wznawia -
                 # kazde kolejne zadanie dostaje SIGTERM po limicie czasu.
                 for _k in [k for k in list(st["paused"]) if not alive(int(k))]:
+                    del st["paused"][_k]
+                # WPISY OBUDZONE POZA GUARDEM. Maszyna jest chlodna, wiec ten proces i tak
+                # ma prawo pracowac - a skoro juz pracuje (czlowiek dal `kill -CONT`, albo
+                # obudzil go duty-limiter safe-run), to wpis jest tylko wyrokiem z odroczeniem:
+                # zegar pauzy tyka dalej i po `max_pause_minutes` leci SIGTERM w zadanie
+                # chodzace pelna para. Dokladnie tak zginal pomiar Pawla 04.08.2026 o 20:27,
+                # 25 minut po recznym wznowieniu. Wpis kasujemy i mowimy o tym w logu.
+                for _k in wpisy_nieaktualne(st["paused"], stoja):
+                    log(T("dropping stale pause entry: %s (pid %s) is running again "
+                          "- resumed outside the guard")
+                        % (st["paused"][_k].get("comm", "?"), _k))
                     del st["paused"][_k]
                 # flaga liczona z danych, a nie trzymana osobno - nie da sie rozjechac
                 st["reczna_pauza"] = any(v.get("manual") for v in st["paused"].values())
@@ -3179,8 +3352,13 @@ def main():
             # restartem zostaloby w stanie T na zawsze. Dlatego wpis niesie znacznik
             # procesu, a cudzy pomiar wraca na zegar scienny, ktory jako jedyny znaczy
             # to samo po obu stronach restartu.
-            przeterminowane = [k for k, v in st["paused"].items()
-                               if _wiek_pauzy(v) > limit_min * 60 and not v.get("manual")]
+            # ...i ubijamy WYLACZNIE to, co naprawde stoi. Wpis to notatka guarda, nie stan
+            # systemu: proces obudzony recznie albo przez limiter safe-run pracuje pelna para,
+            # a jego wpis dalej postarzal sie w tle. SIGTERM po 45 minutach dostawalo wtedy
+            # zdrowe zadanie w polowie roboty (Pawel, 04.08.2026, 20:27 - pomiar wznowiony
+            # recznie o 20:02). Zegar liczy od PIERWSZEGO zatrzymania i tak ma byc:
+            # od kary ratuje dowod, ze proces chodzi, a nie przewijanie stopera.
+            przeterminowane = wpisy_przeterminowane(st["paused"], limit_min * 60, stoja)
             if przeterminowane:
                 for k in przeterminowane:
                     log(T("PAUSE >%d min - terminating job %s (pid %s)")

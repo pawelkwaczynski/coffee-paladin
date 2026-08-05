@@ -1,4 +1,4 @@
-# coffee-paladin v2.3.1
+# coffee-paladin v2.3.2
 
 <p align="center">
   <img src="branding/paladin.gif" alt="coffee-paladin - the project mascot" width="260">
@@ -612,7 +612,20 @@ python3 tests/test_config_odporny.py   # 24 checks: a config must not blind the 
 python3 tests/test_safe_run_hot.py     #  8 checks: safe-run refuses to start when hot
 python3 tests/test_demote_promote.py   # 20 checks: demotion to E-cores and back
 python3 tests/test_b2_node.py          # 17 checks: node is judged by its command line
+python3 tests/test_wznowienie.py       # 41 checks: what may resume, and what may be killed
 ```
+
+**Why that last suite exists (v2.3.2).** For two days the guard paused jobs and resumed none
+of them: 15 pauses, zero resumes, four jobs terminated after the pause timeout. Three separate
+defects produced one symptom. The resume gate required *every* sensor to fall back, so a
+battery sitting at 37 °C - three degrees below its own 40 °C pause threshold, which it had
+never crossed - held hostage a job the *chip* had paused, until the 45-minute timeout killed
+it. The timeout itself trusted the guard's own bookkeeping instead of the system, so a job
+resumed by hand kept ageing towards a SIGTERM it did not deserve. And the CPU limiter's
+interlock compared the wrong pid - the group leader instead of the child that was actually
+hot - so it woke jobs the guard had just frozen. The lesson is one line: **a safety net must
+ask the system, not its own notes**, and an unreadable measurement is "I don't know", never
+"nothing is stopped".
 
 **What actually runs, and what it does not.** The suites above are plain Python - no test
 framework, no fixtures to install, and they refuse to touch your real black box. On top of

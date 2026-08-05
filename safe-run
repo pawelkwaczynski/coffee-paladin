@@ -349,17 +349,65 @@ def migawka_swieza(nazwa, max_wiek=120):
 
 
 def guard_paused(pid):
-    """Czy TEN pid jest aktualnie wstrzymany przez guarda (state.json)?
+    """Czy guard wstrzymal TO ZADANIE - ten pid albo cokolwiek z jego grupy procesow?
 
     Limiter nie moze wyslac SIGCONT zadaniu, ktore zamrozil bezpiecznik —
     o pauzie termicznej decyduje wylacznie guard. ALE tylko dopoki guard zyje:
     nieswieza migawka znaczy "nie ma komu decydowac", nie "trzymaj zamrozone".
+
+    PYTAMY O CALA GRUPE, nie o goly pid. Guard mrozi ten proces, ktory GRZEJE -
+    a to zwykle dziecko (ffmpeg), nie nasz lider grupy. Porownanie samego `proc.pid`
+    z lista guarda dawalo wiec False, mikro-pauza limitera konczyla sie
+    `killpg(SIGCONT)` i budzila CALA grupe razem z tym, co bezpiecznik przed chwila
+    zamrozil. Blokada dzialala tylko tak dlugo, jak guard trzymal poziom >=2
+    (`guard_hot`); gdy chip spadal ponizej progu, limiter wznawial zadanie ZA guarda,
+    ktory dalej mial je u siebie jako "wstrzymane" i po `max_pause_minutes` slal
+    SIGTERM. Tak wygladal 04.08.2026 ffmpeg wznowiony "sam z siebie" o 19:42.
     """
     if not migawka_swieza("state.json"):
         return False
     try:
         with open(os.path.join(BASE, "state.json")) as f:
-            return str(pid) in (json.load(f).get("paused") or {})
+            paused = json.load(f).get("paused") or {}
+        if not paused:
+            return False
+        try:
+            moja_grupa = os.getpgid(pid)
+        except OSError:
+            return False
+        if str(pid) in paused:
+            return True
+        for k, v in paused.items():
+            # MARTWY WPIS NIE MOZE NAS ZATRZYMAC. Numery grup sa poddawane recyklingowi:
+            # gdyby wpis po dawno zmarlym zadaniu przetrwal w state.json, nowy safe-run
+            # z tym samym pgid czekalby w nieskonczonosc na decyzje guarda, ktora
+            # jego nie dotyczy (zarzut Codeksa, 04.08.2026). Zywy pid jest tanim dowodem,
+            # ze wpis opisuje cokolwiek istniejacego.
+            try:
+                os.kill(int(k), 0)
+            except ValueError:
+                continue
+            except ProcessLookupError:
+                continue
+            except PermissionError:
+                pass                              # cudzy proces, ale ZYJE
+            except OSError:
+                continue
+            # GRUPA ZAPISANA WE WPISIE MUSI BYC GRUPA TEGO PROCESU DZISIAJ. Numery grup
+            # sa poddawane recyklingowi: zywy, zupelnie obcy proces z zapisanym `pgid`
+            # rownym naszemu kazalby limiterowi czekac na decyzje guarda, ktora nigdy
+            # nie padnie - i nasze wlasne zadanie zostaloby po mikro-pauzie w stanie T
+            # (zarzut Codeksa, runda 2). Pytamy system, nie notatke.
+            try:
+                teraz = os.getpgid(int(k))
+            except (OSError, ValueError):
+                continue
+            zapisany = v.get("pgid") if isinstance(v, dict) else None
+            if zapisany is not None and int(zapisany) != teraz:
+                continue                          # wpis opisuje juz co innego
+            if teraz == moja_grupa:
+                return True
+        return False
     except Exception:
         return False
 
