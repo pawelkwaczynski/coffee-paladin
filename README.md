@@ -537,6 +537,44 @@ file is built in one function (`fleet_write`).
 
 ---
 
+## For CI fleets: self-hosted Mac runners
+
+A Mac mini under a desk running `xcodebuild` all day is the machine this guard was built for,
+so we tested the one thing a CI operator will ask first: **what happens to a running job when
+the guard pauses its build process?**
+
+We measured it on a live GitHub Actions self-hosted runner (runner v2.336.0, M4 Pro,
+2026-08-06), freezing the build process mid-job with the same `SIGSTOP` the guard uses:
+
+| Freeze in the middle of a job | Result |
+|---|---|
+| 3 minutes | job finished, **conclusion: success** - the log stream shows a 3 m 09 s gap and then picks up mid-line |
+| 10 minutes | job finished, **success** - a 10 m 02 s gap, total job time 15 m 15 s |
+
+GitHub Actions has no "no output" watchdog: the connection is kept alive by
+`Runner.Listener`, which the guard never touches (it idles far below the CPU threshold,
+and runner agents belong on `never_extra` anyway - see below). A pause only stretches the
+wall clock, so the one real risk is a tight `timeout-minutes` on the job itself.
+
+What this means in practice:
+
+- **The primary mechanism for CI is the gate, not the pause.** `safe-run` refuses to *start*
+  work on a machine that is already hot - put it in front of the job and the queue simply
+  waits out the heat instead of failing through it.
+- **A mid-job pause is a tested fallback, not a job killer** - at least on GitHub Actions,
+  at least up to the 10 minutes we measured. A thermal pause on this hardware typically
+  lasts about a minute (chip drops from 95 °C to 71 °C in ~20 s).
+- **Add your runner agent to `never_extra`** (`Runner.Listener`, `Runner.Worker`,
+  `gitlab-runner`, `buildkite-agent`, ...). The guard targets whatever burns CPU, and the
+  agent process never should be it - make that explicit for your stack.
+- The **black box** answers the question every flaky-runner thread ends with: *why did the
+  machine disappear at 3 a.m.?* Heartbeat + last eight readings before a hard shutdown
+  survive the crash; `thermal-report` turns them into something you can attach to a ticket.
+- **GitLab and Jenkins are untested** - we publish what we measured, not what we hope.
+  If you run the same experiment there, an issue with your numbers is very welcome.
+
+---
+
 ## Where the data comes from
 
 This is the interesting part, because macOS does not hand out chip temperatures to unprivileged
@@ -1315,6 +1353,28 @@ Synchronizacja nie jest natychmiastowa i to widać. Przy pobieraniu na żądanie
 opóźnieniem albo leżeć jako niepobrany placeholder. Do tego czasu tamta maszyna po prostu nie
 ma jej w tabeli na tym Macu albo widnieje jako nieraportująca - dane nie zginęły, jeszcze nie
 dojechały. Siebie każdy Mac widzi od razu, bo swój plik zapisuje lokalnie.
+
+## Dla flot CI: własne runnery na Macach
+
+Mac mini pod biurkiem mielący `xcodebuild` cały dzień to dokładnie ta maszyna, dla której
+powstał ten bezpiecznik. Zmierzyliśmy więc to, o co operator CI zapyta najpierw: **co się
+dzieje z jadącym jobem, gdy strażnik wstrzyma jego proces builda?**
+
+Test na żywym self-hosted runnerze GitHub Actions (runner v2.336.0, M4 Pro, 06.08.2026),
+z tym samym `SIGSTOP`, którego używa strażnik: zamrożenie procesu builda w środku joba na
+**3 minuty** - job dokończony, **success**, w logu dziura 3 m 09 s. Zamrożenie na **10 minut** -
+także **success**, dziura 10 m 02 s, job łącznie 15 m 15 s. GitHub Actions nie ma watchdoga
+„brak outputu": połączenie trzyma `Runner.Listener`, którego strażnik nie dotyka.
+Pauza wydłuża tylko zegar ścienny, więc jedyne realne ryzyko to ciasny `timeout-minutes`
+samego joba.
+
+W praktyce: podstawowym mechanizmem dla CI jest **bramka, nie pauza** - `safe-run` odmawia
+STARTU pracy na gorącej maszynie, więc kolejka przeczekuje upał zamiast przez niego padać.
+Pauza w środku joba to przetestowany fallback (typowa pauza termiczna trwa około minuty -
+chip schodzi z 95 °C do 71 °C w ~20 s). Agenta runnera dopisz do `never_extra`
+(`Runner.Listener`, `Runner.Worker`, `gitlab-runner`, `buildkite-agent`). Czarna skrzynka
+odpowiada na pytanie, którym kończy się każdy wątek o znikających runnerach: *czemu maszyna
+zniknęła o 3 w nocy?* GitLab i Jenkins - nieprzetestowane; publikujemy to, co zmierzyliśmy.
 
 ## Testy
 
