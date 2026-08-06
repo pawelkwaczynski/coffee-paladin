@@ -570,8 +570,11 @@ What this means in practice:
 - The **black box** answers the question every flaky-runner thread ends with: *why did the
   machine disappear at 3 a.m.?* Heartbeat + last eight readings before a hard shutdown
   survive the crash; `thermal-report` turns them into something you can attach to a ticket.
-- **GitLab and Jenkins are untested** - we publish what we measured, not what we hope.
-  If you run the same experiment there, an issue with your numbers is very welcome.
+- **GitLab: also tested.** Same experiment on a self-managed GitLab CE (gitlab-runner
+  19.2.1, shell executor, M4 Pro, 2026-08-06): the build process frozen mid-job for
+  a full **10 minutes** - job finished, **success**, no inactivity watchdog fired.
+  **Jenkins is untested** - we publish what we measured, not what we hope. If you run
+  the same experiment there, an issue with your numbers is very welcome.
 
 ---
 
@@ -1374,7 +1377,9 @@ Pauza w środku joba to przetestowany fallback (typowa pauza termiczna trwa oko�
 chip schodzi z 95 °C do 71 °C w ~20 s). Agenta runnera dopisz do `never_extra`
 (`Runner.Listener`, `Runner.Worker`, `gitlab-runner`, `buildkite-agent`). Czarna skrzynka
 odpowiada na pytanie, którym kończy się każdy wątek o znikających runnerach: *czemu maszyna
-zniknęła o 3 w nocy?* GitLab i Jenkins - nieprzetestowane; publikujemy to, co zmierzyliśmy.
+zniknęła o 3 w nocy?* GitLab też przetestowany: self-managed CE (runner 19.2.1, shell,
+06.08.2026), build zamrożony w środku joba na pełne 10 minut - job zielony, żaden watchdog
+nie zadziałał. Jenkins - nieprzetestowany; publikujemy to, co zmierzyliśmy.
 
 ## Testy
 
