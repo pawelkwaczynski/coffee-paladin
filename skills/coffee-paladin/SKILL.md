@@ -42,6 +42,18 @@ stopped at this very second". The snapshot lands in the quiet part of the guard'
 so it can show 75 °C and an empty `paused` while the log has pauses every 40 s. For
 "is it stopped RIGHT NOW", ask `ps -o stat= -p <pid>` (state `T` = stopped).
 
+**Never judge the machine from a single snapshot.** One read caused two false alarms in
+one night (04/05.08.2026): a snapshot caught mid-transition looks like a crisis or like
+calm, and `trend_c_min` can even be negative while the chip is climbing. The practice:
+take **3 reads, 10 s apart**, and decide from the direction (is `chip_c` rising or
+falling across the three?), not from any single value. If two snapshots disagree, the
+third one plus the direction is the answer.
+
+If `config_corrections` is **not empty**, the daemon is running on values *different*
+from what `config.json` says (a sanity-clamp fixed them in memory). Read that list before
+diagnosing anything from the config file - otherwise you are analysing a system that
+is not the one actually running.
+
 ```bash
 python3 -c "import json;d=json.load(open('$HOME/.coffee-paladin/status.json'));print(d['level'],d['chip_c'],d.get('paused'))"
 ```

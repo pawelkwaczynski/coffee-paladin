@@ -1,4 +1,4 @@
-# coffee-paladin v2.3.2
+# coffee-paladin v2.3.3
 
 <p align="center">
   <img src="branding/paladin.gif" alt="coffee-paladin - the project mascot" width="260">
@@ -816,6 +816,8 @@ set. That is exactly what the slider is for.
 | `max_pause_minutes_batt` | 240 | same limit when the *only* reason for the pause is a low battery (waiting for a charger is not a failure) |
 | `demote_after_minutes` | 5 | a heavy process grinding longer than this **while the chip is hot** is moved to E-cores; it returns to P-cores on its own once the chip cools to `soc_resume_c` |
 | `demote_above_c` | `soc_resume_c + 4` | demotion only happens at or above this chip temperature - a cool machine never slows anyone down |
+| `system_demote_patterns` | Spotlight/photo-analysis daemons | system indexing daemons that stay **untouchable for pause and kill** but may be moved to E-cores when they grind on a warm machine (they otherwise burn 200 %+ CPU with total impunity) |
+| `keep_awake_hold_s` | 300 | after the last heavy job ends, keep-awake holds the sleep block this many seconds longer - the gap between two files of a batch queue no longer lets the Mac fall asleep mid-queue; heat still releases the block **immediately** |
 | `unknown_cpu_percent` | 50 | catch-all threshold for unrecognised processes |
 | `never_patterns` | see `guard.py` | never touched, overrides everything |
 | `never_extra` | `[]` | your own additions to the never-touch list (tools you do not want frozen) |

@@ -376,7 +376,17 @@ def guard_paused(pid):
         except OSError:
             return False
         if str(pid) in paused:
-            return True
+            # Trafienie pid nie zwalnia z dowodu: numery pid sa poddawane recyklingowi,
+            # wiec wpis moze opisywac dawno zmarly proces, ktorego numer dostalismy MY.
+            # Grupa zapisana we wpisie musi byc nasza grupa dzisiaj; zepsuty pgid
+            # (nie-liczba) uniewaznia wpis, a nie cala funkcje.
+            wpis = paused[str(pid)]
+            zapisany = wpis.get("pgid") if isinstance(wpis, dict) else None
+            try:
+                if zapisany is None or int(zapisany) == moja_grupa:
+                    return True
+            except (TypeError, ValueError):
+                pass                              # wadliwy wpis - nie moze nas zatrzymac
         for k, v in paused.items():
             # MARTWY WPIS NIE MOZE NAS ZATRZYMAC. Numery grup sa poddawane recyklingowi:
             # gdyby wpis po dawno zmarlym zadaniu przetrwal w state.json, nowy safe-run
@@ -402,9 +412,16 @@ def guard_paused(pid):
                 teraz = os.getpgid(int(k))
             except (OSError, ValueError):
                 continue
+            # JEDEN zepsuty wpis (pgid nie-liczba) nie moze oslepic limitera na
+            # PRAWDZIWA pauze w kolejnym wpisie: int() bez oslony lecial do
+            # zewnetrznego `except Exception` i cala funkcja mowila "nic nie stoi"
+            # (runda 3 Codeksa, 05.08.2026). Pomijamy wadliwy wpis, czytamy dalej.
             zapisany = v.get("pgid") if isinstance(v, dict) else None
-            if zapisany is not None and int(zapisany) != teraz:
-                continue                          # wpis opisuje juz co innego
+            try:
+                if zapisany is not None and int(zapisany) != teraz:
+                    continue                      # wpis opisuje juz co innego
+            except (TypeError, ValueError):
+                continue                          # wadliwy wpis - pomijamy tylko jego
             if teraz == moja_grupa:
                 return True
         return False
