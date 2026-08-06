@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Runda 3 (Codex, 05.08.2026): piec zastanych slabosci + widocznosc klampu configu.
+"""Runda przegladu 3 (05.08.2026): piec zastanych slabosci + widocznosc klampu configu.
 
 1. STARTOWE WZNOWIENIE BEZ POMIARU. Restart demona (aktualizacja, kickstart -k) robil
    `do_resume("guard startup")` ZANIM cokolwiek zmierzyl - gorace zadanie dostawalo

@@ -2210,7 +2210,7 @@ final class SliderRow: NSView {
 
 // MARK: - snapshot
 
-/// JSON z Pythona raz niesie 90, raz 90.0 — pasek musi przyjac oba (uwaga z recenzji Codex).
+/// JSON z Pythona raz niesie 90, raz 90.0 — pasek musi przyjac oba (uwaga z recenzji).
 func num(_ v: Any?) -> Double? {
     if let d = v as? Double { return d }
     if let i = v as? Int { return Double(i) }
@@ -2584,7 +2584,7 @@ final class Bar: NSObject, NSMenuDelegate {
     let menu = NSMenu()
     var timer: Timer?
     // cache floty: I/O po folderze wspolnym (iCloud/SMB) NIE moze biec w watku glownym
-    // przy otwieraniu menu — czkawka sieci blokowalaby cale menu (uwaga z recenzji Codex)
+    // przy otwieraniu menu — czkawka sieci blokowalaby cale menu (uwaga z recenzji)
     var fleetCache: [FleetHost]?
     var fleetCacheAt = Date.distantPast
     private var tick = 0
@@ -3249,7 +3249,7 @@ final class Bar: NSObject, NSMenuDelegate {
         // szuka NASTEPNEJ pasujacej daty, wiec o 16:20 oddawal juz 17:00 - a petla dodawala
         // do tego kolejna godzine i najblizsza propozycja wypadala dopiero o 18:00.
         // Najblizsza pelna godzina jest tu najbardziej przydatna, wiec nie wolno jej gubic.
-        // Znalazl Codex 04.08.
+        // Wyszlo w przegladzie 04.08.
         var skladniki = kal.dateComponents([.year, .month, .day, .hour], from: teraz)
         skladniki.minute = 0
         skladniki.second = 0

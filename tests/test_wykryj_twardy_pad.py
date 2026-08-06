@@ -61,7 +61,7 @@ def run(nazwa, oczekiwane, **kw):
 print(f"=== A. matryca 8 przypadków, NOWY format (boot={g.ts(boot)}) ===")
 A = [run("1. twardy pad, brak clean_stop", "PAD", puls=boot-600),
      run("2. czysty stop sprzed bootu", "cicho", puls=boot-600, czyste=boot-600),
-     run("3. clean_stop z bieżącej sesji nie wycisza [Codex]", "PAD", puls=boot-600, czyste=time.time()),
+     run("3. clean_stop z bieżącej sesji nie wycisza", "PAD", puls=boot-600, czyste=time.time()),
      run("4. clean_stop z przyszłości nie wycisza", "PAD", puls=boot-600, czyste=time.time()+86400),
      run("5. stary clean_stop (3 dni) nie wycisza", "PAD", puls=boot-600, czyste=boot-3*86400),
      run("6. puls z bieżącej sesji", "cicho", puls=boot+60),

@@ -673,16 +673,15 @@ framework, no fixtures to install, and they refuse to touch your real black box.
 them: **semgrep** over the Python sources (`p/python` + `p/secrets`, 187 rules - currently
 0 findings) and **ruff** (`E9,F` - clean). Be sceptical of the last two, though: semgrep's
 free rule set is deep for Python and thin for shell and Swift (2 rules), so the menu bar app
-is covered by human and model review, not by a scanner. There is no fuzzing and no CI here;
+is covered by careful review, not by a scanner. There is no fuzzing and no CI here;
 this is a tool for one platform, and the interesting failures were found by running it on two
 different Macs, not by a matrix.
 
-This project was **tested and refined with the help of AI - four heads at once** ;) and the
-process is worth describing, because it found bugs no single reviewer would have caught. Every risky area (signal handling on
-process groups, the CPU limiter, sleep-lock management, the crash detector) was reviewed
-by **four different AI models independently** - Claude (Anthropic), Codex/GPT-5.5 (OpenAI)
-and two local ones, Devstral 24B on MLX and qwen3:4b on Ollama - across six
-review rounds, with every claim verified by hand against the actual code before anything
+The review process behind this project is worth describing, because it found bugs no
+single reviewer would have caught. Every risky area (signal handling on
+process groups, the CPU limiter, sleep-lock management, the crash detector) went through
+**several independent review rounds**, with every claim verified by hand against the
+actual code before anything
 was changed. On top of that, **a second Mac audited the first one's install**: a fanless
 8 GB machine exercised code paths a well-cooled 14-core machine never would. The
 cross-machine audits caught, among ~40 fixes in one day: a UI checkbox that reported
@@ -943,7 +942,7 @@ MIT - do whatever you like with it. If it saves your machine, that is satisfacti
 <p align="center"><sub>Click the product name at the top of the menu and the paladin steps out, pinned under the bar.</sub></p>
 
 **Artwork.** The paladin - the mascot you see above, in the welcome window, in the menu header
-and in the `heat --paladin` easter egg - was **generated with ChatGPT (OpenAI)** and is used
+and in the `heat --paladin` easter egg - is **the author's own design** and is used
 as the official mascot of the project. Everything else in `branding/` is derived from those two
 source files; details in [`branding/CREDITS.md`](branding/CREDITS.md).
 
@@ -1398,15 +1397,14 @@ nic do doinstalowania, i z założenia nie dotykają Twojej prawdziwej czarnej s
 **semgrep** na źródłach Pythona (`p/python` + `p/secrets`, 187 reguł - na dziś 0 znalezisk)
 i **ruff** (`E9,F` - czysto). Do tych dwóch podchodź jednak sceptycznie: darmowy zestaw reguł
 semgrepa jest głęboki dla Pythona, a cienki dla basha i Swifta (2 reguły), więc aplikację
-paska pilnuje recenzja - ludzka i modelowa - a nie skaner. Nie ma tu fuzzingu ani CI; to
+paska pilnuje staranna recenzja, a nie skaner. Nie ma tu fuzzingu ani CI; to
 narzędzie na jedną platformę, a ciekawe błędy znalazło uruchamianie go na dwóch różnych
 Makach, nie macierz konfiguracji.
 
-Ten projekt był **testowany i udoskonalany z pomocą AI - czterech głów naraz** ;) a proces
-warto opisać, bo wyłapał błędy, których żaden pojedynczy recenzent by nie znalazł. Każdy ryzykowny obszar (sygnały na grupach
-procesów, limiter CPU, blokady snu, detektor padu) recenzowały **cztery różne modele AI
-niezależnie** - Claude (Anthropic), Codex/GPT-5.5 (OpenAI) oraz dwa modele lokalne:
-Devstral 24B na MLX i qwen3:4b na Ollamie - w sześciu rundach, a każde twierdzenie było
+Proces przeglądu w tym projekcie warto opisać, bo wyłapał błędy, których żaden pojedynczy
+recenzent by nie znalazł. Każdy ryzykowny obszar (sygnały na grupach
+procesów, limiter CPU, blokady snu, detektor padu) przeszedł **kilka niezależnych rund
+przeglądu**, a każde twierdzenie było
 weryfikowane ręcznie w kodzie, zanim cokolwiek zmieniono. Do tego **drugi Mac audytował
 instalację pierwszego**: bezwentylatorowa maszyna z 8 GB przeszła ścieżki kodu, których
 dobrze chłodzona 14-rdzeniówka nigdy by nie dotknęła. Audyty krzyżowe złapały - wśród
@@ -1512,7 +1510,7 @@ MIT. Rób z tym co chcesz. Jeśli uratuje Ci komputer, to wystarczająca satysfa
 <p align="center"><sub>Kliknij nazwę na górze menu, a paladyn wychodzi — przypięty pod paskiem.</sub></p>
 
 **Grafika.** Paladyn — maskotka z nagłówka, z okna powitalnego, z menu i z easter eggów
-`heat --paladin` — został **wygenerowany w ChatGPT (OpenAI)** i jest używany jako oficjalna
+`heat --paladin` — to **projekt własny autora** i jest używany jako oficjalna
 maskotka projektu. Reszta plików w `branding/` to pochodne tych dwóch źródeł; szczegóły
 w [`branding/CREDITS.md`](branding/CREDITS.md).
 

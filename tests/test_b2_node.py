@@ -3,7 +3,7 @@
 
 Po incydencie SIGTTIN (Neo, 31.07) node/npm/npx/bun/deno trafily do never_patterns
 po nazwie - skutek uboczny: ciezki build w Node byl nietykalny, czyli dokladnie
-ten przypadek, dla ktorego narzedzie powstalo (znalazl Codex). Teraz:
+ten przypadek, dla ktorego narzedzie powstalo (wyszlo w przegladzie). Teraz:
   - zwykly `node build.js` JEST pauzowalny,
   - proces z claude/codex/mcp/language-server/.vscode w argumentach jest nietykalny,
   - interaktywne sesje chroni skip_foreground_tty niezaleznie od nazwy.

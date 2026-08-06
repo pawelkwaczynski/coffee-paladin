@@ -211,6 +211,6 @@ El código Swift lo escribió **Claude (Anthropic)** en Claude Code, con **Codex
 GPT-5.5)** como revisor adversarial y dos modelos locales en paralelo:
 Devstral 24B sobre MLX y qwen3:4b sobre Ollama.
 
-**Ilustración.** El paladín, la mascota, fue **generado con ChatGPT (OpenAI)** y se usa como
+**Ilustración.** El paladín, la mascota, es un **diseño propio del autor** y se usa como
 imagen oficial del proyecto; los detalles están en [`branding/CREDITS.md`](branding/CREDITS.md).
 

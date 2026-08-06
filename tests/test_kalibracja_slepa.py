@@ -144,7 +144,7 @@ test("dry_run dopisany jawnie", c.get("dry_run") is True, c.get("dry_run"))
 test("demon dostaje sygnal 'watchonly'", wynik == "watchonly", wynik)
 test("ale znacznika nadal nie ma", "calibrated_for" not in c, c.get("calibrated_for"))
 
-print("\n8. RECZNY prog ubicia przezywa kalibracje (zarzut Codeksa 03.08)")
+print("\n8. RECZNY prog ubicia przezywa kalibracje (uwaga z przegladu 03.08)")
 swiezy_config()
 kalibruj(AIR_SLEPY)                       # slepy start, znacznika brak
 c = z_dysku()
@@ -158,7 +158,7 @@ test("progi pauzy tez nietkniete, skoro user ruszyl komplet",
      c.get("soc_pause_c") is None or c.get("soc_pause_c") != 78.0, c.get("soc_pause_c"))
 test("fan_check i tak wylaczony (to nie prog)", c.get("fan_check") is False, c.get("fan_check"))
 
-print("\n9. migracja starego configu nie rozluznia praw (zarzut Codeksa 03.08)")
+print("\n9. migracja starego configu nie rozluznia praw (uwaga z przegladu 03.08)")
 stara_umask = os.umask(0)                 # najgorszy przypadek: umask nic nie obcina
 try:
     with open(g.CFG_PATH, "w") as f:
@@ -171,7 +171,7 @@ finally:
     os.umask(stara_umask)
 
 print("\n10. hardware_info: nieudany pierwszy odczyt macmona NIE przesadza")
-# Zarzut Codeksa: sekcje 1-9 wolaja `auto_calibrate` z gotowym `hw`, wiec ponowienie
+# Uwaga z recenzji: sekcje 1-9 wolaja `auto_calibrate` z gotowym `hw`, wiec ponowienie
 # odczytu w `hardware_info` nie bylo testowane WCALE. Mutacja `max_age=0` -> `max_age`
 # domyslny przechodzila 22/22. Tu podstawiamy `run` i liczymy realne proby.
 PROBA = {"n": 0}

@@ -112,7 +112,7 @@ for app in ('"/Applications/coffee-paladin.app"', '"$HOME/Applications/coffee-pa
 #    ASERCJA BYLA "GREPEM PO ZRODLE": sprawdzala, czy napis "[PAUSE]" WYSTEPUJE w pliku -
 #    a wiec przechodzila takze wtedy, gdy napis siedzial w komentarzu albo w martwym
 #    kodzie, i wtedy, gdy parser byl zepsuty. Teraz karmimy parsery PRAWDZIWA linia
-#    logu z kazdym znacznikiem i sprawdzamy, czy naprawde ja policzyly (glowa 2, poz. 20).
+#    logu z kazdym znacznikiem i sprawdzamy, czy naprawde ja policzyly (przeglad, poz. 20).
 tagi = sorted(set(re.findall(r'tag="([A-Z]+)"', zrodlo)))
 try:
     import shutil as _sh5

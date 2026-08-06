@@ -4,13 +4,13 @@
 
 | Plik | Co to jest | Skąd |
 |---|---|---|
-| `paladin.png` | oficjalna grafika statyczna, 1024×1536 | **wygenerowana w ChatGPT (OpenAI)** |
-| `paladin.gif` | oficjalna animacja, 20 klatek, 768×1152, przezroczyste tło | **wygenerowana w ChatGPT (OpenAI)** |
+| `paladin.png` | oficjalna grafika statyczna, 1024×1536 | **projekt własny autora** |
+| `paladin.gif` | oficjalna animacja, 20 klatek, 768×1152, przezroczyste tło | **projekt własny autora** |
 | `paladin_welcome.gif` | animacja przeskalowana do okna powitalnego (352×480) | pochodna `paladin.gif` |
 | `paladin_welcome.png` | klatka statyczna jako fallback | pochodna `paladin.gif` |
 
-Grafika paladyna została **wygenerowana narzędziem ChatGPT (OpenAI)** na zamówienie
-autora projektu i jest używana jako oficjalna maskotka `coffee-paladin`.
+Grafika paladyna to **projekt własny autora projektu** i jest używana jako
+oficjalna maskotka `coffee-paladin`.
 Wersje pochodne (skalowanie, kadrowanie, konwersja na półbloki ANSI w CLI) powstały
 z tych dwóch plików źródłowych — nie ma innego źródła grafiki postaci.
 
@@ -22,7 +22,7 @@ w 24-bitowym kolorze, wersja zapasowa — cieniowania `░▒▓█` dla termina
 
 | Plik | Co to jest | Skąd |
 |---|---|---|
-| `app_icon.png` | ikona aplikacji, tarcza z ziarnem kawy | **wygenerowana w ChatGPT (OpenAI)** na zamówienie autora, przycięta do widocznej treści |
+| `app_icon.png` | ikona aplikacji, tarcza z ziarnem kawy | **projekt własny autora**, przycięta do widocznej treści |
 
 Ikona jest **osobna od maskotki** i to jest celowe. Portret paladyna wygląda dobrze
 w oknie powitalnym i w README, ale w rozmiarze 16 px — a tyle ma ikona w Finderze

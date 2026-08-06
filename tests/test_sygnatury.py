@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """Kazde wolanie wlasnej funkcji musi pasowac do jej sygnatury. Sprawdzane statycznie.
 
-POWOD POWSTANIA (04.08.2026, znalezione przez runde testowa z Codeksem):
+POWOD POWSTANIA (04.08.2026, znalezione w rundzie testowej przegladu):
 `do_resume(cfg, st, reason)` przyjmowal trzy argumenty, a petla glowna wolala go
 `do_resume(..., only_keys=gotowe)`. Python nie ma o tym pojecia do czasu wykonania, a to
 wykonanie siedzialo w rzadkiej sciezce (wznowienie po ostygnieciu) opakowanej w ogolny

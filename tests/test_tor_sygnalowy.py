@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """Tor sygnalowy na ZYWYCH procesach: sig / do_pause / do_resume / do_terminate.
 
-Najwieksza luka pokrycia znaleziona przez mutacje testow (glowa 2, runda 11):
+Najwieksza luka pokrycia znaleziona przez mutacje testow (runda przegladu 11):
 zadna z tych czterech funkcji nie wystepowala nawet Z NAZWY w zadnym tescie, mimo ze
 to one wykonuja cala prace bezpiecznika. Niesprawdzone byly miedzy innymi:
   * czy `dry_run` naprawde blokuje SIGSTOP (a nie tylko pisze do logu),

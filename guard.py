@@ -187,7 +187,7 @@ DEFAULTS = {
     # i sama nazwa procesu nic nie mowi. Tedy chronimy zaplecze agentow AI i edytorow
     # (node z claude/mcp/language-server w argumentach), NIE kazdy node - zwykly
     # `node build.js` ma byc pauzowalny, bo to dokladnie ten przypadek, dla ktorego
-    # narzedzie powstalo (znalazl Codex przy recenzji skilla, 01.08.2026)
+    # narzedzie powstalo (wyszlo przy recenzji skilla, 01.08.2026)
     "never_arg_patterns": ["coffee-paladin", "guard.py", "safe-run",
                            "claude", "codex", "cursor", "mcp", "language-server", ".vscode"],
     # czego NIE wolno ruszac nigdy (nadrzedne wobec powyzszego)
@@ -1074,7 +1074,7 @@ _last_notify = {}
 
 # Krotko zyjace procesy pomocnicze (osascript/afplay/curl). Trzymamy referencje
 # i zbieramy zwloki co cykl — bez tego kazdy alert zostawal zombie az do sprzatania
-# wewnatrz modulu subprocess (znalezisko z niezaleznej recenzji Codex, 30.07.2026).
+# wewnatrz modulu subprocess (znalezisko z niezaleznej recenzji, 30.07.2026).
 _bg_procs = []
 
 
@@ -1392,7 +1392,7 @@ def pierwszoplanowy_na_tty(pid):
     probie czytania klawiatury dostaje SIGTTIN i znow staje - petla, ktorej demon nie
     przerwie (nie moze zrobic tcsetpgrp na cudzym tty). Jedyne wyjscie to `fg` wpisane
     przez czlowieka. Takich procesow NIE WOLNO pauzowac (Neo, 31.07.2026: 8 zabitych
-    procesow, dwie sesje Claude Code).
+    procesow, dwie sesje agenta AI).
     """
     out = run(["ps", "-o", "pgid=,tpgid=", "-p", str(pid)]).split()
     if len(out) >= 2:
@@ -1589,7 +1589,7 @@ def zatrzask_czujnika(st, klucz, wartosc, prog_pauzy, prog_wznowienia):
     co wywolalo pauze), a patologii baterii miec nie moze, bo zamrozony chip schodzi
     z 95 do 71 C w dwadziescia sekund. Zatrzask na chipie pozwalalby wznowic zadanie
     przy 94 C, gdyby pauze wywolal `thermalState` - czyli kupowalibysmy migotanie
-    za nic (zarzut Codeksa, 04.08.2026, sluszny).
+    za nic (sluszna uwaga z recenzji, 04.08.2026).
 
     Brak odczytu gasi zatrzask - dokladnie jak w kodzie sprzed zmiany, gdzie `temp is None`
     znaczylo "nie blokuje". Nieobecny czujnik nie moze byc powodem, dla ktorego obliczenie
@@ -1603,7 +1603,7 @@ def zatrzask_czujnika(st, klucz, wartosc, prog_pauzy, prog_wznowienia):
     restartem sama wywolala pauze. Cena jest niska (chwilowo liberalniejsza bramka
     raz na restart), a alternatywa - utrwalanie zatrzasku na dysku - dawalaby
     odwrotna patologie: zatrzask z poprzedniej epoki progow trzymajacy zadanie
-    w T bez powodu (glowa 1, runda 3, 05.08.2026).
+    w T bez powodu (runda przegladu 3, 05.08.2026).
     """
     prog_klucz = klucz + "_prog"
     progi = [prog_pauzy, prog_wznowienia]
@@ -1631,7 +1631,7 @@ def zatrzymane_teraz():
     GRUPY sa tu rownie wazne jak pidy: guard mrozi cala grupe (`killpg`), a wznowic
     recznie mozna sam jej sygnal wejsciowy. Gdyby wpis kasowac po samym liderze,
     zatrzymane dziecko zostaloby bez jedynej notatki, przez ktora ktokolwiek mogby
-    je wznowic - czyli w stanie T na zawsze (zarzut Codeksa, 04.08.2026).
+    je wznowic - czyli w stanie T na zawsze (uwaga z recenzji, 04.08.2026).
 
     Jeden `ps -Ao` zamiast jednego `ps` na wpis: przy kilkudziesieciu zamrozonych
     zadaniach petla forkowala tyle samo procesow co cykl.
@@ -1642,7 +1642,7 @@ def zatrzymane_teraz():
         # przy kazdym bledzie i timeoucie, a na zywej maszynie `ps -Ao` ma zawsze
         # kilkaset linii. Gdyby pustke czytac doslownie, guard uznalby KAZDY wpis za
         # "obudzony poza guardem", skasowal go - i zamrozone zadanie zostaloby w stanie T
-        # bez jedynej notatki, przez ktora ktokolwiek mogby je wznowic (zarzut Codeksa,
+        # bez jedynej notatki, przez ktora ktokolwiek mogby je wznowic (uwaga z recenzji,
         # runda 2). None znaczy "nie wiem" i wstrzymuje decyzje o cudzym zyciu.
         return None
     pidy, grupy = set(), set()
@@ -1680,7 +1680,7 @@ def bramka_wznowienia(cfg, st, temp, soc_t, state):
     Bateria przez zatrzask (blokuje tylko gdy sama przekroczyla swoj prog pauzy),
     chip przez surowy prog wznowienia, stan systemowy przez poziom. Cala decyzja
     siedzi w jednej funkcji, zeby test sprawdzal TO, co wykonuje demon - a nie
-    wlasna kopie tego wyrazenia (uwaga Codeksa, runda 2: skopiowany warunek w tescie
+    wlasna kopie tego wyrazenia (uwaga z recenzji, runda 2: skopiowany warunek w tescie
     przechodzi takze wtedy, gdy w produkcji ktos zepsuje oryginal).
     """
     batt_trzyma = zatrzask_czujnika(st, "_batt_hot", temp,
@@ -2116,7 +2116,7 @@ def do_terminate(cfg, st, reason, only_keys=None):
 
     RE-CHECK TUZ PRZED STRZALEM: migawka `ps` z poczatku cyklu ma kilkanascie sekund.
     Reczny `kill -CONT` wydany w srodku cyklu znaczyl SIGTERM w proces chodzacy pelna
-    para (runda 3 Codeksa, 05.08.2026). Dlatego pytamy system jeszcze raz TUTAJ:
+    para (runda przegladu 3, 05.08.2026). Dlatego pytamy system jeszcze raz TUTAJ:
     ubijamy wylacznie to, co w tej chwili naprawde stoi; wpis po procesie, ktory znow
     pracuje, kasujemy - jesli dalej grzeje, nastepny cykl zamrozi go od nowa.
     Nieudany pomiar (`None`) wstrzymuje egzekucje w calosci: do ubicia potrzebny jest
@@ -2430,7 +2430,7 @@ def wykryj_twardy_pad():
         czyste = os.path.getmtime(CLEAN_STOP_PATH) if os.path.exists(CLEAN_STOP_PATH) else 0
         # znacznik czystego zamkniecia liczy sie TYLKO gdy pochodzi sprzed biezacego bootu —
         # clean_stop z aktualnej sesji albo artefakt (backup, cp -p, zegar z przyszlosci)
-        # nie moze wyciszyc prawdziwego twardego padu (finalny przeglad Codex, 30.07)
+        # nie moze wyciszyc prawdziwego twardego padu (finalny przeglad 30.07)
         if puls - 60 <= czyste < boot:
             return None                       # guard zostal zamkniety po ludzku
         # ostatnie pomiary sprzed zgasniecia — to jest material dowodowy
@@ -2611,7 +2611,7 @@ def hardware_info():
     # `max_age=0` omija 10-sekundowy cache — bez tego powtorka oddawalaby to samo None.
     # BUDZET, nie liczba prob: `run()` daje macmonowi 20 s na sciezke, a soc_sensors
     # probuje dwoch sciezek. Same ponowienia moglyby wiec opoznic start demona
-    # o dwie minuty, czyli o czas, w ktorym nikt nie pilnuje temperatury (Codex 03.08).
+    # o dwie minuty, czyli o czas, w ktorym nikt nie pilnuje temperatury (przeglad 03.08).
     s = soc_sensors()
     koniec_prob = time.monotonic() + 8.0
     while not s and time.monotonic() < koniec_prob:
@@ -2729,7 +2729,7 @@ def auto_calibrate(cfg, hw):
             tmp = CFG_PATH + ".tmp"
             # 0600 przez os.open, nie gole open(): tor migracyjny wyzej robi to od
             # dawna, ten NIE robil. Odtworzone przy umask(0): config 0600 wychodzil
-            # z kalibracji jako 0666, a siedzi w nim temat ntfy. Znalazl Codex 03.08.
+            # z kalibracji jako 0666, a siedzi w nim temat ntfy. Wyszlo w przegladzie 03.08.
             with os.fdopen(os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC,
                                    0o600), "w") as f:
                 json.dump(disk_cfg, f, indent=2, ensure_ascii=False, sort_keys=True)
@@ -2855,7 +2855,7 @@ def keep_awake_update(cfg, targets, lvl, st=None):
     chce_ekran = bool(cfg.get("keep_awake_display"))
     # Wymiana procesu TYLKO wtedy, gdy czuwanie ma dalej trwac. Inaczej zmiana trybu
     # ekranu zbiegajaca sie z przegrzaniem zabralaby galezi stopu jej proces - i licznik
-    # "czuwanie ustapilo przed cieplem" nie zauwazylby zdarzenia. Znalazl Codex 04.08.
+    # "czuwanie ustapilo przed cieplem" nie zauwazylby zdarzenia. Wyszlo w przegladzie 04.08.
     if chcemy and zywy and _caff.get("display") != chce_ekran:
         # Zmiana w locie: flag caffeinate nie da sie przestawic, trzeba go wymienic.
         try:
@@ -3229,7 +3229,7 @@ def main():
             # ZANIM cokolwiek wznowimy - pomiar. Restart demona (aktualizacja, kickstart)
             # zdarza sie takze na goracej maszynie: wznowienie "na slepo" dawalo goracemu
             # zadaniu ~15 s pelnej pary przy chipie nad progiem, zanim pierwszy cykl petli
-            # zdazyl je z powrotem zamrozic (runda 3 Codeksa, 05.08.2026). Ta sama bramka,
+            # zdazyl je z powrotem zamrozic (runda przegladu 3, 05.08.2026). Ta sama bramka,
             # ktorej uzywa petla - nie kopia warunku.
             if bramka_wznowienia(cfg, st, battery_temp_c(), soc_temp_c(), thermal_state()):
                 do_resume(cfg, st, T("guard startup - nothing is left frozen"))

@@ -156,7 +156,7 @@ test("brak odczytu baterii gasi zatrzask (jak w kodzie sprzed zmiany: None = nie
 
 # CALA BRAMKA - przez `bramka_wznowienia()`, czyli DOKLADNIE ta funkcje, ktora wykonuje
 # demon. Wczesniej test mial wlasna kopie tego warunku i przechodzilby takze wtedy, gdyby
-# ktos zepsul oryginal w petli (uwaga Codeksa, runda 2).
+# ktos zepsul oryginal w petli (uwaga z recenzji, runda 2).
 CFG = {"batt_pause_c": PAUZA_B, "batt_resume_c": WZNOW_B,
        "soc_pause_c": PAUZA_C, "soc_resume_c": WZNOW_C}
 
@@ -210,7 +210,7 @@ test("po SIGCONT (reczne wznowienie Pawla o 20:02): wpis_stoi() = False",
 test("martwy pid nie liczy sie jako zatrzymany", stoi(999999) is False)
 
 # GRUPA: lider chodzi, ale dziecko z jego grupy stoi - wpisu kasowac NIE WOLNO,
-# bo to jedyna notatka, przez ktora ktokolwiek moze to dziecko wznowic (zarzut Codeksa).
+# bo to jedyna notatka, przez ktora ktokolwiek moze to dziecko wznowic (uwaga z recenzji).
 lider2, pgid2, dzieci2 = grupa_z_dzieckiem()
 test("grupa testowa ma dziecko (inaczej ten scenariusz nic nie sprawdza)",
      len(dzieci2) >= 1, "dzieci: %s" % dzieci2)
@@ -251,7 +251,7 @@ os.kill(p.pid, signal.SIGCONT)
 
 # NIEUDANY POMIAR `ps` (None) nie moze uruchamiac zadnej z tych dwoch egzekucji.
 # Przed poprawka pusty wynik znaczyl "nic nie stoi": guard skasowalby wpis zamrozonego
-# zadania i zostawil je w stanie T bez notatki (zarzut Codeksa, runda 2).
+# zadania i zostawil je w stanie T bez notatki (uwaga z recenzji, runda 2).
 os.kill(p.pid, signal.SIGSTOP)
 time.sleep(0.3)
 test("ps niedostepny -> nie kasujemy zadnego wpisu", g.wpisy_nieaktualne(paused, None) == [])
@@ -289,7 +289,7 @@ test("guard zamrozil lidera wprost - dalej dziala jak przedtem",
 
 # ZYWY, CUDZY proces z zapisanym pgid rownym naszemu: notatka klamie, system mowi prawde.
 # Bez sprawdzenia `os.getpgid(wpis)` limiter czekalby w nieskonczonosc na decyzje guarda,
-# ktora jego nie dotyczy - i zostawil WLASNE zadanie w stanie T (zarzut Codeksa, runda 2).
+# ktora jego nie dotyczy - i zostawil WLASNE zadanie w stanie T (uwaga z recenzji, runda 2).
 obcy = subprocess.Popen(["sleep", "600"], start_new_session=True)
 sprzataj.append(obcy)
 time.sleep(0.3)

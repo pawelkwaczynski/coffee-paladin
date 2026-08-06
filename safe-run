@@ -391,7 +391,7 @@ def guard_paused(pid):
             # MARTWY WPIS NIE MOZE NAS ZATRZYMAC. Numery grup sa poddawane recyklingowi:
             # gdyby wpis po dawno zmarlym zadaniu przetrwal w state.json, nowy safe-run
             # z tym samym pgid czekalby w nieskonczonosc na decyzje guarda, ktora
-            # jego nie dotyczy (zarzut Codeksa, 04.08.2026). Zywy pid jest tanim dowodem,
+            # jego nie dotyczy (uwaga z recenzji, 04.08.2026). Zywy pid jest tanim dowodem,
             # ze wpis opisuje cokolwiek istniejacego.
             try:
                 os.kill(int(k), 0)
@@ -407,7 +407,7 @@ def guard_paused(pid):
             # sa poddawane recyklingowi: zywy, zupelnie obcy proces z zapisanym `pgid`
             # rownym naszemu kazalby limiterowi czekac na decyzje guarda, ktora nigdy
             # nie padnie - i nasze wlasne zadanie zostaloby po mikro-pauzie w stanie T
-            # (zarzut Codeksa, runda 2). Pytamy system, nie notatke.
+            # (uwaga z recenzji, runda 2). Pytamy system, nie notatke.
             try:
                 teraz = os.getpgid(int(k))
             except (OSError, ValueError):
@@ -415,7 +415,7 @@ def guard_paused(pid):
             # JEDEN zepsuty wpis (pgid nie-liczba) nie moze oslepic limitera na
             # PRAWDZIWA pauze w kolejnym wpisie: int() bez oslony lecial do
             # zewnetrznego `except Exception` i cala funkcja mowila "nic nie stoi"
-            # (runda 3 Codeksa, 05.08.2026). Pomijamy wadliwy wpis, czytamy dalej.
+            # (runda przegladu 3, 05.08.2026). Pomijamy wadliwy wpis, czytamy dalej.
             zapisany = v.get("pgid") if isinstance(v, dict) else None
             try:
                 if zapisany is not None and int(zapisany) != teraz:

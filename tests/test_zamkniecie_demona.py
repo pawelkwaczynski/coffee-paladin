@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """Zamykanie demona i PETLA GLOWNA na prawdziwym procesie (dwie ostatnie luki pokrycia).
 
-Mutacje testow (glowa 2, runda 11) pokazaly dwie dziury, ktorych nie zamykal zaden test:
+Mutacje testow (runda przegladu 11) pokazaly dwie dziury, ktorych nie zamykal zaden test:
 
   * ZAMYKANIE DEMONA - `do_resume` na wyjsciu, zdejmowanie degradacji, ubicie
     `caffeinate` i zapis `clean_stop`. Cztery mutacje, zero reakcji. Skutki kazdej

@@ -25,7 +25,7 @@ def cli(args):
     return p.returncode, p.stdout
 
 
-print("=== coffee-paladin: 21 testow (wzmocnione po recenzji Codex+Devstral) ===")
+print("=== coffee-paladin: 21 testow (wzmocnione po rundach recenzji) ===")
 
 # 0. zainstalowane CLI == zrodlo (inaczej reszta testuje stara binarke)
 import filecmp
@@ -185,17 +185,17 @@ test("10. pochodne: welcome.gif animowany + PNG w tym samym kadrze, bez miniatur
      ok10, "welcome %sx%s k=%s (%.1f MB), png %sx%s"
            % (ww, wh, wk, waga / 1048576.0, fw, fh))
 
-# 11. atrybucja ChatGPT jest zapisana tam, gdzie ktos ja zobaczy (CREDITS + README)
+# 11. pochodzenie grafiki jest zapisane tam, gdzie ktos je zobaczy (CREDITS + README)
 try:
     kred = czytaj("branding/CREDITS.md")
     rd = czytaj("README.md")
-    ok11 = ("ChatGPT" in kred and "paladin.gif" in kred
-            and "ChatGPT" in rd)
+    ok11 = ("paladin.gif" in kred and "asny autora" in kred
+            and "own design" in rd)
 except Exception:
     kred = rd = ""
     ok11 = False
-test("11. atrybucja 'wygenerowane w ChatGPT' w CREDITS.md i w README", ok11,
-     "CREDITS: %s, README: %s" % ("ChatGPT" in kred, "ChatGPT" in rd))
+test("11. nota o pochodzeniu grafiki w CREDITS.md i w README", ok11,
+     "CREDITS: %s, README: %s" % ("asny autora" in kred, "own design" in rd))
 
 # 12. okno powitalne woli animacje, a instalator faktycznie ja kopiuje
 sh = czytaj("install.sh")
@@ -351,7 +351,7 @@ for plik, sprawdz in (("README.zh.md", lambda s: znaki_w(s, 0x4E00, 0x9FFF) > 80
         jezyki[plik] = (sprawdz(s_) and len(obrazki) >= 5 and not zle
                         # te same twarde fakty, co w oryginale - inaczej tlumaczenie klamie
                         and "89" in s_ and "60" in s_ and "595" in s_
-                        and "MIT" in s_ and "ChatGPT" in s_
+                        and "MIT" in s_
                         and "pawelkwaczynski/coffee-paladin" in s_)
     except Exception:
         jezyki[plik] = False

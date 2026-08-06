@@ -109,7 +109,7 @@ pierwszy = g._caff["proc"]
 g.keep_awake_update(cfg(keep_awake_display=True), CIEZKIE, 0, {})  # user wlacza ekran
 test("stary proces zostal ubity", pierwszy.ubity, "stary caffeinate przezyl zmiane")
 test("...i ZEBRANY przez wait (inaczej zostaje zombie)", pierwszy.zebrany,
-     "terminate bez wait - luke wskazal Codex 04.08")
+     "terminate bez wait - luka z przegladu 04.08")
 test("nowy wolany z -isd", len(WOLANIA) == 2 and WOLANIA[1] == ["caffeinate", "-isd"], WOLANIA)
 test("i ten nowy zyje", g.keep_awake_update(cfg(keep_awake_display=True), CIEZKIE, 0, {}) is True)
 
@@ -162,7 +162,7 @@ test("zapisuje moment startu liczenia", isinstance(st3["stats"].get("since"), (i
 test("nie wywala sie na zepsutym stanie", (g.licznik(None, "pauses") or True))
 
 print("\n9. NAJWAZNIEJSZE: RECZNA sesja tez ustepuje bezpiecznikowi")
-# Luke wskazal Codex 04.08: sekcje 1-8 sprawdzaly gorace tylko dla trybu automatycznego,
+# Luka z przegladu 04.08: sekcje 1-8 sprawdzaly gorace tylko dla trybu automatycznego,
 # wiec mutacja `(auto and lvl < 2) or manual` - czyli obejscie bezpiecznika dla sesji
 # recznej - przechodzila 16/16. To najgrozniejszy mozliwy blad w tym produkcie.
 import json
