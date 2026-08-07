@@ -64,7 +64,7 @@ zrodlo = io.open(os.path.join(SRC, 'guard.py'), encoding='utf-8').read()
 
 # 2. Wersja jest ta sama we wszystkich czterech miejscach
 wersje = {}
-wersje['guard.py'] = re.search(r'guard_version"\] = "([^"]+)"', zrodlo).group(1)
+wersje['guard.py'] = re.search(r'^GUARD_VERSION = "([^"]+)"', zrodlo, re.M).group(1)
 wersje['thermal-report'] = re.search(r'^VERSION = "([^"]+)"', io.open(os.path.join(SRC,'thermal-report')).read(), re.M).group(1)
 wersje['heatbar.swift'] = re.search(r'let VERSION = "([^"]+)"', io.open(os.path.join(SRC,'heatbar.swift')).read()).group(1)
 wersje['plugin.json'] = json.load(open(os.path.join(SRC,'.claude-plugin/plugin.json')))['version']

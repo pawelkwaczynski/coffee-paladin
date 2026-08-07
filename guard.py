@@ -37,6 +37,8 @@ import subprocess
 import sys
 import time
 
+GUARD_VERSION = "2.3.4"   # bump razem z: heatbar VERSION, thermal-report VERSION, README
+
 HOME = os.path.expanduser("~")
 BASE = os.environ.get("TG_BASE") or os.path.join(HOME, ".coffee-paladin")
 BASE = os.path.expanduser(BASE)   # TG_BASE sluzy do testow w izolacji
@@ -539,8 +541,8 @@ PL = {
         "PROMOTE %s (pid %d) -> z powrotem na rdzenie P (maszyna ostygla)",
     "Thermal guard: hot": "Thermal guard: goraco",
     "unknown argument: %s": "nieznany argument: %s",
-    "usage: coffee-paladin [--once | status]   (no arguments = run the daemon)":
-        "uzycie: coffee-paladin [--once | status]   (bez argumentow = uruchom demona)",
+    "usage: coffee-paladin [--once | status | --version]   (no arguments = run the daemon)":
+        "uzycie: coffee-paladin [--once | status | --version]   (bez argumentow = uruchom demona)",
     "Thermal guard: job slowed down": "Thermal guard: zadanie zwolnione",
     "%s moved to E-cores (up to several times slower) - returns to full speed when the machine cools":
         "%s zepchniete na rdzenie E (nawet kilka razy wolniej) - wroci na pelna predkosc, gdy maszyna ostygnie",
@@ -688,7 +690,7 @@ RU = {
     "DEMOTED %s (pid %d) -> background QoS/E-cores (hot for >%d min)": "ПОНИЖЕНО %s (pid %d) -> фоновый QoS/E-ядра (жарко дольше %d мин)",
     "PROMOTED %s (pid %d) -> back on P-cores (machine cooled down)": "ПОВЫШЕНО %s (pid %d) -> обратно на P-ядра (машина остыла)",
     "unknown argument: %s": "неизвестный аргумент: %s",
-    "usage: coffee-paladin [--once | status]   (no arguments = run the daemon)": "использование: coffee-paladin [--once | status]   (без аргументов = запуск демона)",
+    "usage: coffee-paladin [--once | status | --version]   (no arguments = run the daemon)": "использование: coffee-paladin [--once | status | --version]   (без аргументов = запуск демона)",
     "!!! HARD SHUTDOWN DETECTED - ": "!!! ОБНАРУЖЕНО ЖЁСТКОЕ ОТКЛЮЧЕНИЕ - ",
     "manual freeze: there was nothing to freeze": "ручная заморозка: замораживать было нечего",
     "PAUSE >%d min - terminating job %s (pid %s)": "ПАУЗА >%d мин - завершаю задачу %s (pid %s)",
@@ -779,7 +781,7 @@ ZH = {
     "DEMOTED %s (pid %d) -> background QoS/E-cores (hot for >%d min)": "已降级 %s (pid %d) -> 后台 QoS/能效核心(持续过热超过 %d 分钟)",
     "PROMOTED %s (pid %d) -> back on P-cores (machine cooled down)": "已恢复 %s (pid %d) -> 回到性能核心(机器已降温)",
     "unknown argument: %s": "未知参数:%s",
-    "usage: coffee-paladin [--once | status]   (no arguments = run the daemon)": "用法:coffee-paladin [--once | status]   (不带参数 = 运行守护进程)",
+    "usage: coffee-paladin [--once | status | --version]   (no arguments = run the daemon)": "用法:coffee-paladin [--once | status | --version]   (不带参数 = 运行守护进程)",
     "!!! HARD SHUTDOWN DETECTED - ": "!!! 检测到硬关机 - ",
     "manual freeze: there was nothing to freeze": "手动冻结:没有可冻结的进程",
     "PAUSE >%d min - terminating job %s (pid %s)": "暂停超过 %d 分钟 - 结束任务 %s (pid %s)",
@@ -872,7 +874,7 @@ ES = {
     "DEMOTED %s (pid %d) -> background QoS/E-cores (hot for >%d min)": "DEGRADADO %s (pid %d) -> QoS de fondo/núcleos de eficiencia (caliente durante más de %d min)",
     "PROMOTED %s (pid %d) -> back on P-cores (machine cooled down)": "PROMOVIDO %s (pid %d) -> de vuelta a los núcleos de rendimiento (la máquina se enfrió)",
     "unknown argument: %s": "argumento desconocido: %s",
-    "usage: coffee-paladin [--once | status]   (no arguments = run the daemon)": "uso: coffee-paladin [--once | status]   (sin argumentos = ejecuta el demonio)",
+    "usage: coffee-paladin [--once | status | --version]   (no arguments = run the daemon)": "uso: coffee-paladin [--once | status | --version]   (sin argumentos = ejecuta el demonio)",
     "!!! HARD SHUTDOWN DETECTED - ": "!!! APAGADO BRUSCO DETECTADO - ",
     "manual freeze: there was nothing to freeze": "congelación manual: no había nada que congelar",
     "PAUSE >%d min - terminating job %s (pid %s)": "PAUSA de más de %d min - cierro la tarea %s (pid %s)",
@@ -2970,7 +2972,10 @@ def fleet_write(cfg, status):
         hw = _hw_cache_fleet()
         out["model"] = hw.get("model")
         out["serial"] = hw.get("serial")
-        out["guard_version"] = "2.3.3"
+        out["guard_version"] = GUARD_VERSION
+        # Autorytatywny znacznik czasu migawki. mtime pliku w iCloud potrafi stac
+        # w miejscu przy swiezej tresci, a `fleet` liczy z tego wiek zgloszenia.
+        out["epoch"] = round(time.time(), 3)
         _bledy = {k: v for k, v in _CICHE_AWARIE.items() if not k.startswith("_ostatni_log_")}
         if _bledy:
             out["swallowed_errors"] = _bledy
@@ -3179,6 +3184,12 @@ def zajmij_wylacznosc():
 
 
 def main():
+    # Narzedzie aktualizowane resetem z gita bez --version zmuszalo do zgadywania,
+    # co jest zainstalowane (git describe dziala tylko w klonie repo). Przed blokada
+    # wylacznosci, zeby dzialalo takze przy chodzacym demonie.
+    if "--version" in sys.argv:
+        print("coffee-paladin %s" % GUARD_VERSION)
+        return 0
     ensure_dirs()
     # Wylacznosc obowiazuje TYLKO demona. `--once` i `status` to jednorazowe odczyty:
     # maja dzialac zawsze, takze gdy demon chodzi (tak sprawdza je czlowiek i testy).
@@ -3195,11 +3206,11 @@ def main():
 
     # `coffee-paladin status` bylo pulapka: konczylo sie kodem 0 bez slowa, co wyglada
     # na sukces. Teraz jest aliasem --once, a kazdy nieznany argument mowi, co umiemy (B6).
-    znane = {"--once", "status"}
+    znane = {"--once", "status", "--version"}
     obce = [a for a in sys.argv[1:] if a not in znane]
     if obce:
         print(T("unknown argument: %s") % " ".join(obce), file=sys.stderr)
-        print(T("usage: coffee-paladin [--once | status]   (no arguments = run the daemon)"),
+        print(T("usage: coffee-paladin [--once | status | --version]   (no arguments = run the daemon)"),
               file=sys.stderr)
         return 2
 
