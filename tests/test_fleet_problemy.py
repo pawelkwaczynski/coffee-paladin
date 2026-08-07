@@ -38,14 +38,18 @@ def test(nazwa, warunek, detal=""):
 
 
 def migawka(nazwa, wiek_s=0, **pola):
-    d = {"host": nazwa, "time": time.strftime("%Y-%m-%d %H:%M:%S+0200"),
+    # wiek_s starzeje TRESC migawki (pola time/epoch), nie tylko mtime: od poprawki
+    # "wiek z tresci" fleet ufa wnetrzu pliku, bo mtime w iCloud klamie (07.08.2026).
+    t0 = time.time() - wiek_s
+    d = {"host": nazwa, "time": time.strftime("%Y-%m-%d %H:%M:%S%z", time.localtime(t0)),
+         "epoch": round(t0, 3),
          "thermal_state": "nominal", "paused": [], "fans": [0, 0], "level": 0}
     d.update(pola)
     p = os.path.join(FLOTA, nazwa + ".json")
     with io.open(p, "w", encoding="utf-8") as f:
         json.dump(d, f)
     if wiek_s:
-        os.utime(p, (time.time() - wiek_s, time.time() - wiek_s))
+        os.utime(p, (t0, t0))
     return p
 
 

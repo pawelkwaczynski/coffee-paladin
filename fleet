@@ -22,6 +22,7 @@ Usage:
 Language: TG_LANG=en|pl, or "lang" in ~/.coffee-paladin/config.json. Default: en.
 """
 
+import datetime
 import json
 import os
 import stat
@@ -288,6 +289,31 @@ def _czysty_tekst(s, limit=60):
     return "".join(c for c in str(s) if c.isprintable())[:limit]
 
 
+def _wiek_migawki(snap, path):
+    """Wiek zgloszenia hosta, liczony z TRESCI migawki, nie z metadanych pliku.
+
+    iCloud potrafi trzymac mtime sprzed wielu dni przy zupelnie swiezej tresci -
+    07.08.2026 zdrowy, raportujacy co minute Mac wisial w tabeli jako
+    "STALE - not reporting (94 h)". Prawda jest wewnatrz pliku: `epoch` (guard pisze
+    go od 2.3.4), starsze demony daja tekst `time` ze strefa. mtime zostaje wylacznie
+    ostatecznoscia dla migawek sprzed formatu ze strefa - naiwnego czasu lokalnego
+    obcej maszyny nie wolno interpretowac we wlasnej strefie (lekcja z v1.7.4)."""
+    e = _num(snap.get("epoch"))
+    if e is not None and 0 < e < 4e9:
+        return time.time() - e
+    t = snap.get("time")
+    if isinstance(t, str):
+        try:
+            dt = datetime.datetime.strptime(t.strip(), "%Y-%m-%d %H:%M:%S%z")
+            return time.time() - dt.timestamp()
+        except ValueError:
+            pass
+    try:
+        return time.time() - os.path.getmtime(path)
+    except OSError:
+        return 1e9
+
+
 def load_hosts(d):
     """Wczytuje migawki, NORMALIZUJAC typy: zepsuty/reczny plik jednego hosta nie moze
     wywalic tabeli calej floty (liczby jako stringi, level spoza 0-3 itd.)."""
@@ -384,8 +410,7 @@ def load_hosts(d):
         if not isinstance(snap.get("on_ac"), bool):
             v = snap.get("on_ac")
             snap["on_ac"] = True if v is None else str(v).strip().lower() in ("1", "true", "yes", "tak")
-        wiek = time.time() - os.path.getmtime(path)
-        snap["_age"] = max(wiek, 0.0)   # zegar drugiej maszyny bywa w przyszlosci
+        snap["_age"] = max(_wiek_migawki(snap, path), 0.0)   # zegar drugiej maszyny bywa w przyszlosci
         snap.setdefault("host", _czysty_tekst(name[:-5], 18))
         hosts.append(snap)
     return hosts
