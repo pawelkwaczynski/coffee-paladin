@@ -14,6 +14,11 @@ CI pools of Mac minis, ML teams, and anyone leaving a laptop to compute overnigh
 No `sudo`. No kernel extensions. No daemons running as root. Everything reads sensors that are
 available to a normal user process.
 
+**Requirements: Apple Silicon (M1 or newer) and macOS 14+.** Chip temperature is read through
+IOReport, which only exists on M-series chips; on an older system the app icon shows up
+crossed out because macOS blocks apps below their declared minimum version. Intel Macs are
+honestly not supported.
+
 *(Polska wersja poniżej - [przejdź do opisu po polsku](#po-polsku).)*
 
 **Other languages:** [中文](README.zh.md) · [Русский](README.ru.md) · [Español](README.es.md) - short versions; this file is the complete one.
@@ -1005,6 +1010,11 @@ o ludziach, u których Maki pracują na chleb: farmy renderujące, studia postpr
 Mac mini pod CI, zespoły ML - i każdy, kto zostawia laptop z obliczeniami na noc.
 
 Bez `sudo`, bez rozszerzeń jądra, bez niczego działającego jako root.
+
+**Wymagania: Apple Silicon (M1 lub nowszy) i macOS 14+.** Temperatura chipa czytana jest
+przez IOReport, który istnieje tylko na M-kach; na starszym systemie ikona aplikacji będzie
+przekreślona, bo macOS blokuje aplikacje poniżej zadeklarowanej wersji minimalnej.
+Maców na Intelu uczciwie nie wspieram.
 
 ## Skąd ta nazwa i skąd ta kawa
 
