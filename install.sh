@@ -154,9 +154,15 @@ if [ -n "$MISSING" ]; then
   echo ""
 fi
 
+# Redistributed binaries must not inherit the build host's minimum OS:
+# without -target, swiftc stamps the host macOS version as minos and the
+# resulting app refuses to launch on every older, still-supported system
+# (Info.plist promises 14.0 - the executable has to honour it).
+SWIFT_TARGET="arm64-apple-macosx14.0"
+
 # 1. thermal state sensor (Swift, no sudo)
 if command -v swiftc >/dev/null 2>&1; then
-  swiftc -O -o "$BIN/thermalstate" "$SRC/thermalstate.swift" && echo "  ✅ thermalstate compiled"
+  swiftc -O -target "$SWIFT_TARGET" -o "$BIN/thermalstate" "$SRC/thermalstate.swift" && echo "  ✅ thermalstate compiled"
 else
   echo "  ⚠️  no swiftc (xcode-select --install) - the guard will use battery temperature only"
 fi
@@ -183,7 +189,7 @@ if command -v swiftc >/dev/null 2>&1; then
   else
     mkdir -p "$APP_MACOS" "$APP_RESOURCES"
   fi
-  if [ -n "${HB_VERSION:-}" ] && swiftc -O -o "$BAR_EXEC" "$SRC/heatbar.swift" 2>"$BASE/heatbar_build.err"; then
+  if [ -n "${HB_VERSION:-}" ] && swiftc -O -target "$SWIFT_TARGET" -o "$BAR_EXEC" "$SRC/heatbar.swift" 2>"$BASE/heatbar_build.err"; then
     write_info_plist "$HB_VERSION" "$APP_CONTENTS/Info.plist"
     # The app icon is the SHIELD, not the mascot: a character portrait turns
     # into a blob at 16 px. The shield fills the frame, so it stays legible at

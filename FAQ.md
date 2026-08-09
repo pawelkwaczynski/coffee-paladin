@@ -13,6 +13,22 @@ Both lines are needed: `brew install` only puts the files in place, and the seco
 compiles the menu bar app and starts the daemon. After `brew install` alone nothing is
 watching your Mac.
 
+### `brew install` fails with "/usr/local/Homebrew is not writable" on Apple Silicon
+
+Your Mac is running the Intel build of Homebrew. `/usr/local` is the Intel prefix; the
+native Apple Silicon prefix is `/opt/homebrew`. This usually happens when Migration
+Assistant carried an old installation over from an Intel Mac. Do not `sudo chown` the
+old tree into obedience - install the native build alongside it (the two coexist):
+
+```
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+/opt/homebrew/bin/brew install pawelkwaczynski/tap/coffee-paladin
+bash /opt/homebrew/share/coffee-paladin/install.sh
+```
+
+The full paths matter: with both installations on disk, a plain `brew` may still
+resolve to the old Intel one through your PATH.
+
 ### How do I stop my Mac from overheating during ffmpeg or video encoding?
 
 Run the encode under supervision: `safe-run --hours 3 --name encode -- ffmpeg -i in.mov out.mp4`.
