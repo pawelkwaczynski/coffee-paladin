@@ -785,6 +785,22 @@ and `fleet` gains a Q column. The arbiter only delays starts: it never pauses or
 anything, and on any internal error it admits everyone - thermal safety stays with the
 pause logic. Off by default; without the flag every start behaves exactly as before.
 
+### Local LLM inference (Ollama, LM Studio, MLX)
+
+Local models are the fastest way to keep an Apple Silicon chip at 90 C or more for
+hours, and no inference runtime ships a temperature limit of its own. Run inference
+under supervision and the guard pauses it at the threshold and resumes it after
+cooldown - generation continues mid-token, nothing is lost:
+
+```bash
+safe-run --name llm -- ollama run qwen3 "..."
+safe-run --hours 12 --name finetune -- mlx_lm.lora --train ...
+```
+
+A pause typically cools the chip from ~89 to ~60 C in about 20 seconds. With
+`admission_control` on, parallel jobs can also declare cores and queue for thermal
+headroom instead of piling onto a hot chip at once.
+
 ### `heatbar` - menu bar
 
 <p align="center">
