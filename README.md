@@ -1,4 +1,4 @@
-# coffee-paladin v2.3.4
+# coffee-paladin v2.4.0
 
 <p align="center">
   <img src="branding/paladin.gif" alt="coffee-paladin - the project mascot" width="260">
@@ -760,6 +760,18 @@ cores), puts the job in its own process group, enforces a time budget, and print
 the peak temperature at the end. Jobs started this way are registered with the daemon explicitly,
 so they never depend on name matching.
 
+Since v2.4.0:
+
+- `--wait-cool` - on a hot Mac, wait until the chip drops to the guard's *resume* threshold
+  and then start, instead of exiting with code 3. A refusal is one line in a long log; an
+  overnight queue can lose a job to it without anyone noticing.
+- `--grace N` - seconds between `SIGTERM` and `SIGKILL` when the job is being stopped
+  (default 30). Give it to solvers and encoders that need a moment to write their state.
+- On exit, `safe-run` now checks the job's process group. If the leader died from a signal
+  and left children running, they are cleaned up (`SIGCONT` + `SIGTERM`, grace, `SIGKILL`) -
+  a leftover child used to survive its supervisor and burn for hours with no time budget.
+  After a clean exit, surviving children are only reported, not touched.
+
 ### `heatbar` - menu bar
 
 <p align="center">
@@ -1456,7 +1468,10 @@ nie wstrzymuje, dopóki sam nie włączysz ochrony - jednym kliknięciem w pasku
 `"dry_run": false` w konfiguracji.
 
 - `heat` - jednym poleceniem: jak gorąco, co grzeje, czy bezpiecznik żyje
-- `safe-run --hours 8 --name render -- <polecenie>` - tak uruchamiaj ciężkie zadania
+- `safe-run --hours 8 --name render -- <polecenie>` - tak uruchamiaj ciężkie zadania;
+  od v2.4.0 też `--wait-cool` (na gorącym Macu poczekaj do progu wznowienia i startuj,
+  zamiast wychodzić kodem 3), `--grace N` (sekundy między SIGTERM a SIGKILL, domyślnie 30)
+  i sprzątanie grupy procesów przy wyjściu (dziecko nie przeżyje już swojego nadzorcy)
 - `heatbar` - pasek menu: chip, GPU, bateria, obroty, waty, RAM i dysk (wybierasz checkboxami
   w „Pokaż na pasku"), wykres, prognoza, listy „co grzeje" (top 3 po CPU - najlepsze dostępne
   przybliżenie ciepła per proces) i „co zjada RAM" (top 3 po pamięci), ręczne zamrażanie,

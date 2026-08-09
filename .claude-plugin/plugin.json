@@ -1,7 +1,7 @@
 {
   "name": "coffee-paladin",
   "description": "Teaches the agent to check the Mac's thermal state before heavy work and to launch long jobs under supervision, so a build, render or model run cannot cook the machine.",
-  "version": "2.3.4",
+  "version": "2.4.0",
   "author": {
     "name": "Paweł Kwaczyński",
     "email": "kwaczynski.pawel@gmail.com"
