@@ -110,12 +110,12 @@ class Sesja(object):
     def czas_minal(self):
         return time.time() - self.start > LIMIT_SEKUND
 
-    def blad(self, wejscie, exc, powaga="WYSOKA"):
+    def blad(self, wejscie, exc, powaga="HIGH"):
         self.bledy += 1
         znalezisko(self.nazwa, klucz_bledu(exc), wejscie,
-                   "wyjatek wychodzi z funkcji: %s: %s" % (type(exc).__name__, exc), powaga)
+                   "exception escapes function: %s: %s" % (type(exc).__name__, exc), powaga)
 
-    def bzdura(self, wejscie, opis, powaga="SREDNIA", klucz=None):
+    def bzdura(self, wejscie, opis, powaga="MEDIUM", klucz=None):
         self.bzdury += 1
         znalezisko(self.nazwa, klucz or opis[:60], wejscie, opis, powaga)
 
@@ -225,48 +225,48 @@ def sprawdz_cfg(s, wejscie, cfg):
     """Assert config invariants: complete keys, valid types, finite numbers, rising thresholds."""
     for k, wzor in guard.DEFAULTS.items():
         if k not in cfg:
-            s.bzdura(wejscie, "load_cfg gubi klucz %s" % k, "WYSOKA", klucz="brak-klucza")
+            s.bzdura(wejscie, "load_cfg loses key %s" % k, "HIGH", klucz="brak-klucza")
             continue
         w = cfg[k]
         if isinstance(wzor, bool) and not isinstance(w, bool):
-            s.bzdura(wejscie, "klucz %s ma typ %s zamiast bool" % (k, type(w).__name__),
-                     "WYSOKA", klucz="bool-zly-typ")
+            s.bzdura(wejscie, "key %s has type %s instead of bool" % (k, type(w).__name__),
+                     "HIGH", klucz="bool-zly-typ")
         elif isinstance(wzor, (int, float)) and not isinstance(wzor, bool):
             if isinstance(w, bool) or not isinstance(w, (int, float)):
                 s.bzdura(wejscie,
-                         "klucz liczbowy %s dostal wartosc %r (typ %s) i PRZESZEDL walidacje typow "
-                         "- bool omija cala kontrole, wiec np. {\"poll_seconds\": true} = petla co 1 s, "
-                         "a {\"soc_pause_c\": true} = prog pauzy 1 C" % (k, w, type(w).__name__),
-                         "WYSOKA", klucz="bool-zamiast-liczby")
+                         "numeric key %s got value %r (type %s) and PASSED type validation "
+                         "- bool bypasses all checks, so for example {\"poll_seconds\": true} = 1 s loop, "
+                         "and {\"soc_pause_c\": true} = pause threshold 1 C" % (k, w, type(w).__name__),
+                         "HIGH", klucz="bool-zamiast-liczby")
             elif not skonczona(w):
                 s.bzdura(wejscie,
-                         "prog %s = %r (NaN/inf) przechodzi walidacje - kazde porownanie "
-                         "z nim jest falszywe, bezpiecznik oslepa bez ostrzezenia" % (k, w),
-                         "WYSOKA", klucz="nieskonczony-prog")
+                         "threshold %s = %r (NaN/inf) passes validation - every comparison "
+                         "with it is false, guard goes blind without warning" % (k, w),
+                         "HIGH", klucz="nieskonczony-prog")
         elif isinstance(wzor, list) and not isinstance(w, list):
-            s.bzdura(wejscie, "klucz %s nie jest lista" % k, "WYSOKA", klucz="nie-lista")
+            s.bzdura(wejscie, "key %s is not a list" % k, "HIGH", klucz="nie-lista")
         elif isinstance(wzor, str) and not isinstance(w, str):
-            s.bzdura(wejscie, "klucz %s nie jest stringiem" % k, "SREDNIA", klucz="nie-str")
+            s.bzdura(wejscie, "key %s is not a string" % k, "MEDIUM", klucz="nie-str")
     try:
         if skonczona(cfg["soc_resume_c"]) and skonczona(cfg["soc_pause_c"]):
             if cfg["soc_resume_c"] >= cfg["soc_pause_c"]:
-                s.bzdura(wejscie, "soc_resume_c >= soc_pause_c po walidacji (mlynek pauza/wznowienie)",
-                         "WYSOKA", klucz="progi-resume")
+                s.bzdura(wejscie, "soc_resume_c >= soc_pause_c after validation (pause/resume loop)",
+                         "HIGH", klucz="progi-resume")
         if skonczona(cfg["soc_pause_c"]) and skonczona(cfg["soc_kill_c"]):
             if cfg["soc_pause_c"] >= cfg["soc_kill_c"]:
-                s.bzdura(wejscie, "soc_pause_c >= soc_kill_c po walidacji (SIGTERM przy progu pauzy)",
-                         "WYSOKA", klucz="progi-kill")
+                s.bzdura(wejscie, "soc_pause_c >= soc_kill_c after validation (SIGTERM at pause threshold)",
+                         "HIGH", klucz="progi-kill")
     except Exception:
         pass
     for k in ("never_patterns", "never_arg_patterns"):
         for nazwa in guard.WLASNE_NAZWY:
             if nazwa not in cfg.get(k, []):
-                s.bzdura(wejscie, "%s nie zawiera wlasnej nazwy %r - guard moze zapauzowac sam siebie"
-                         % (k, nazwa), "WYSOKA", klucz="brak-wlasnej-nazwy")
+                s.bzdura(wejscie, "%s does not contain own name %r - guard can pause itself"
+                         % (k, nazwa), "HIGH", klucz="brak-wlasnej-nazwy")
     for w in cfg.get("never_patterns", []):
         if not isinstance(w, str) or not w.strip():
-            s.bzdura(wejscie, "pusty/nie-tekstowy wzorzec w never_patterns: %r" % (w,),
-                     "WYSOKA", klucz="pusty-wzorzec")
+            s.bzdura(wejscie, "empty/non-text pattern in never_patterns: %r" % (w,),
+                     "HIGH", klucz="pusty-wzorzec")
 
 
 def fuzz_load_cfg(seed, n):
@@ -298,7 +298,7 @@ def fuzz_load_cfg(seed, n):
             s.blad(tekst, e)
             continue
         if not isinstance(cfg, dict):
-            s.bzdura(tekst, "load_cfg zwrocil %s zamiast dict" % type(cfg).__name__, "WYSOKA")
+            s.bzdura(tekst, "load_cfg returned %s instead of dict" % type(cfg).__name__, "HIGH")
             continue
         sprawdz_cfg(s, tekst, cfg)
     wpisz_cfg("{}")
@@ -344,21 +344,21 @@ def fuzz_severity(seed, n, wrogo=False):
                                       soc=arg["soc"], ac=arg["ac"], pct=arg["pct"])
         except Exception as e:
             s.blad({"cfg_progi": {k: cfg[k] for k in ("soc_pause_c", "soc_kill_c")}, "arg": arg},
-                   e, "WYSOKA" if not wrogo else "NISKA")
+                   e, "HIGH" if not wrogo else "LOW")
             continue
         if not isinstance(lvl, int) or lvl not in (0, 1, 2, 3):
-            s.bzdura(arg, "severity zwrocil poziom %r (poza 0..3)" % (lvl,), "WYSOKA",
+            s.bzdura(arg, "severity returned level %r (outside 0..3)" % (lvl,), "HIGH",
                      klucz="poziom-poza-zakresem")
         if not isinstance(why, str):
-            s.bzdura(arg, "powod nie jest tekstem: %r" % (why,), "SREDNIA", klucz="powod-nie-str")
+            s.bzdura(arg, "reason is not text: %r" % (why,), "MEDIUM", klucz="powod-nie-str")
         soc = arg["soc"]
         if isinstance(soc, float) and math.isfinite(soc) and skonczona(cfg["soc_kill_c"]):
             if soc >= cfg["soc_kill_c"] and lvl != 3:
-                s.bzdura(arg, "chip %.1f C >= progu ubicia %.1f C, a poziom = %s"
-                         % (soc, cfg["soc_kill_c"], lvl), "WYSOKA", klucz="kill-nie-zadzialal")
+                s.bzdura(arg, "chip %.1f C >= kill threshold %.1f C, but level = %s"
+                         % (soc, cfg["soc_kill_c"], lvl), "HIGH", klucz="kill-nie-zadzialal")
         if isinstance(soc, float) and math.isnan(soc) and lvl == 0:
-            s.bzdura(arg, "chip = NaN traktowany jak zimny (poziom 0, zero ostrzezenia)",
-                     "SREDNIA", klucz="nan-jak-zimny")
+            s.bzdura(arg, "chip = NaN treated as cold (level 0, zero warning)",
+                     "MEDIUM", klucz="nan-jak-zimny")
     s.koniec()
 
 
@@ -382,15 +382,15 @@ def fuzz_normalize(seed, n, modul, nazwa):
             v = modul.normalize_batt_temp(raw)
         except Exception as e:
             # Real callers pass an ioreg string or None; other values probe boundaries.
-            s.blad(raw, e, "WYSOKA" if isinstance(raw, (str, bytes, type(None))) else "SREDNIA")
+            s.blad(raw, e, "HIGH" if isinstance(raw, (str, bytes, type(None))) else "MEDIUM")
             continue
         if v is None:
             continue
         if not isinstance(v, float) or not math.isfinite(v):
-            s.bzdura(raw, "zwrocono %r (nie-skonczona liczba)" % (v,), "WYSOKA", klucz="niesk")
+            s.bzdura(raw, "returned %r (non-finite number)" % (v,), "HIGH", klucz="niesk")
         elif not (5.0 < v <= 100.0):
-            s.bzdura(raw, "zwrocono %r - poza deklarowanym zakresem 5..100 C" % (v,),
-                     "WYSOKA", klucz="poza-zakresem")
+            s.bzdura(raw, "returned %r - outside declared range 5..100 C" % (v,),
+                     "HIGH", klucz="poza-zakresem")
     s.koniec()
 
 
@@ -430,7 +430,7 @@ def fuzz_cpu_z_dziecmi(seed, n):
             s.blad(procs[:6], e)
             continue
         if not isinstance(suma, dict):
-            s.bzdura(procs[:6], "zwrocono %s zamiast dict" % type(suma).__name__, "WYSOKA",
+            s.bzdura(procs[:6], "returned %s instead of dict" % type(suma).__name__, "HIGH",
                      klucz="zly-typ-wyniku")
             continue
         # Negative/infinite CPU does not come from `ps`. For such inputs, subtree
@@ -450,8 +450,8 @@ def fuzz_cpu_z_dziecmi(seed, n):
                 w = suma.get(pid)
                 if isinstance(w, float) and math.isfinite(w) and w + 1e-6 < cpu:
                     s.bzdura((pid, cpu, w),
-                             "suma poddrzewa (%r) mniejsza niz wlasne CPU procesu (%r)" % (w, cpu),
-                             "SREDNIA", klucz="suma-mniejsza")
+                             "subtree total (%r) smaller than process own CPU (%r)" % (w, cpu),
+                             "MEDIUM", klucz="suma-mniejsza")
     s.koniec()
 
 
@@ -492,29 +492,29 @@ def fuzz_pick_targets(seed, n):
             except Exception as e:
                 s.blad({"procs": procs[:4], "cpu_min": cfg["cpu_min_percent"],
                         "saferun": dict(list(saferun_map.items())[:3])}, e,
-                       "WYSOKA" if wg_kontraktu else "NISKA")
+                       "HIGH" if wg_kontraktu else "LOW")
                 continue
             if not isinstance(out, list):
-                s.bzdura(procs[:4], "zwrocono %s zamiast listy" % type(out).__name__, "WYSOKA",
+                s.bzdura(procs[:4], "returned %s instead of list" % type(out).__name__, "HIGH",
                          klucz="zly-typ-wyniku")
                 continue
             for t in out:
                 if not (isinstance(t, tuple) and len(t) == 4):
-                    s.bzdura(t, "element wyniku nie jest 4-krotka", "WYSOKA", klucz="nie-4-krotka")
+                    s.bzdura(t, "result element is not a 4-tuple", "HIGH", klucz="nie-4-krotka")
                     continue
                 pid, cpu, comm, pgid = t
                 if isinstance(pid, int) and pid <= 1:
-                    s.bzdura(t, "na liscie celow PID <= 1 (%r) - kandydat do sygnalu w init/jadro"
-                             % (pid,), "WYSOKA", klucz="pid<=1")
+                    s.bzdura(t, "target list contains PID <= 1 (%r) - signal candidate in init/kernel"
+                             % (pid,), "HIGH", klucz="pid<=1")
                 if isinstance(cpu, float) and math.isnan(cpu) and pid not in saferun_map:
-                    s.bzdura(t, "proces z CPU = NaN przeszedl prog cpu_min_percent i trafil "
-                                "na liste do zapauzowania", "SREDNIA", klucz="nan-przechodzi-prog")
+                    s.bzdura(t, "process with CPU = NaN passed cpu_min_percent threshold and landed "
+                                "on pause list", "MEDIUM", klucz="nan-przechodzi-prog")
             cpu_list = [t[1] for t in out if isinstance(t[1], (int, float))
                         and not (isinstance(t[1], float) and math.isnan(t[1]))]
             if cpu_list != sorted(cpu_list, reverse=True):
-                s.bzdura(cpu_list[:8], "wynik nie jest posortowany malejaco po CPU (NaN w CPU "
-                                       "rozbija sortowanie - najgoretszy proces przestaje byc pierwszy)",
-                         "NISKA", klucz="brak-sortowania")
+                s.bzdura(cpu_list[:8], "result is not sorted by descending CPU (NaN in CPU "
+                                       "breaks sorting - hottest process stops being first)",
+                         "LOW", klucz="brak-sortowania")
     finally:
         guard.proc_age_seconds, guard.pierwszoplanowy_na_tty, guard.full_args = stare
     s.koniec()
@@ -543,10 +543,10 @@ def fuzz_args_bez_sciezek(seed, n):
                 s.blad(wej, e)
                 continue
             if not isinstance(out, str):
-                s.bzdura(wej, "zwrocono %s zamiast str" % type(out).__name__, "WYSOKA",
+                s.bzdura(wej, "returned %s instead of str" % type(out).__name__, "HIGH",
                          klucz="zly-typ-wyniku")
             elif out != out.lower():
-                s.bzdura(wej, "wynik nie jest w calosci malymi literami", "NISKA", klucz="wielkosc-liter")
+                s.bzdura(wej, "result is not fully lowercase", "LOW", klucz="wielkosc-liter")
     finally:
         guard.full_args = stary
     s.koniec()
@@ -631,7 +631,7 @@ def fuzz_wykryj_twardy_pad(seed, n):
                 s.blad(wej, e)
                 continue
             if r is not None and not isinstance(r, dict):
-                s.bzdura(wej, "zwrocono %s zamiast dict/None" % type(r).__name__, "WYSOKA",
+                s.bzdura(wej, "returned %s instead of dict/None" % type(r).__name__, "HIGH",
                          klucz="zly-typ-wyniku")
             # Oracle: an unambiguous hard shutdown must be detected.
             if hb is not None and not czysty:
@@ -641,12 +641,12 @@ def fuzz_wykryj_twardy_pad(seed, n):
                     epoch = None
                 if (epoch is not None and math.isfinite(epoch)
                         and BOOT - 30 * 86400 < epoch < BOOT and r is None):
-                    s.bzdura(wej, "puls %r jest sprzed bootu i nie ma clean_stop, a twardy pad "
-                                  "NIE zostal zaraportowany" % (hb,), "WYSOKA", klucz="pad-przeoczony")
+                    s.bzdura(wej, "heartbeat %r is before boot and there is no clean_stop, but hard shutdown "
+                                  "was NOT reported" % (hb,), "HIGH", klucz="pad-przeoczony")
                 if (epoch is not None and not math.isfinite(epoch) and r is None
                         and hb.strip().lower().startswith("nan")):
-                    s.bzdura(wej, "puls 'nan' cicho unieszkodliwia detekcje padu "
-                                  "(funkcja wychodzi przez wlasny except)", "NISKA", klucz="nan-puls")
+                    s.bzdura(wej, "heartbeat 'nan' silently disables shutdown detection "
+                                  "(function exits through its own except)", "LOW", klucz="nan-puls")
     finally:
         guard.boot_time, guard.log = stary_boot, stary_log
         for p in (HB, CLEAN, HIST, EVENTS):
@@ -733,28 +733,28 @@ def fuzz_statystyki_dnia(seed, n):
                 s.blad(skroc(tresc, 200), e)
                 continue
             if not isinstance(st, dict) or set(st) != {"pauses", "resumes", "kills"}:
-                s.bzdura(skroc(tresc, 200), "zwrocono %r" % (st,), "WYSOKA", klucz="zly-typ-wyniku")
+                s.bzdura(skroc(tresc, 200), "returned %r" % (st,), "HIGH", klucz="zly-typ-wyniku")
                 continue
             wej = {"jezyk_logu": lang, "log": skroc(tresc, 160)}
             if st["pauses"] < oczek["pauses"]:
                 s.bzdura(wej,
-                         "jezyk %s: policzono %d pauz zamiast %d - funkcja szuka tylko "
-                         "'PAUZA '/'PAUSED ', wiec w ru/zh/es statystyki dnia w pasku sa ZEROWE"
-                         % (lang, st["pauses"], oczek["pauses"]), "SREDNIA", klucz="pauzy-jezyki")
+                         "language %s: counted %d pauses instead of %d - function searches only "
+                         "'PAUZA '/'PAUSED ', so in ru/zh/es daily menu-bar stats are ZERO"
+                         % (lang, st["pauses"], oczek["pauses"]), "MEDIUM", klucz="pauzy-jezyki")
             if st["resumes"] < oczek["resumes"]:
                 s.bzdura(wej,
-                         "jezyk %s: policzono %d wznowien zamiast %d (szukane sa tylko "
+                         "language %s: counted %d resumes instead of %d (searches only "
                          "'WZNOWIONE'/'RESUMED')" % (lang, st["resumes"], oczek["resumes"]),
-                         "SREDNIA", klucz="wznowienia-jezyki")
+                         "MEDIUM", klucz="wznowienia-jezyki")
             if st["kills"] < oczek["kills"]:
-                s.bzdura(wej, "jezyk %s: policzono %d ubic zamiast %d"
-                         % (lang, st["kills"], oczek["kills"]), "SREDNIA", klucz="ubicia-jezyki")
+                s.bzdura(wej, "language %s: counted %d kills instead of %d"
+                         % (lang, st["kills"], oczek["kills"]), "MEDIUM", klucz="ubicia-jezyki")
             if zapowiedzi and not zatrute and st["pauses"] > oczek["pauses"]:
                 s.bzdura(wej,
-                         "jezyk %s: zapowiedz ubicia ('PAUZA >45 min - koncze zadanie') zostala "
-                         "policzona jako PAUZA (%d zamiast %d) - kolejnosc elif sprawia, ze wpis "
-                         "o ubiciu nigdy nie trafia do licznika kills"
-                         % (lang, st["pauses"], oczek["pauses"]), "SREDNIA",
+                         "language %s: kill announcement ('PAUZA >45 min - koncze zadanie') was "
+                         "counted as PAUSE (%d instead of %d) - elif order means kill entry "
+                         "never reaches the kills counter"
+                         % (lang, st["pauses"], oczek["pauses"]), "MEDIUM",
                          klucz="zapowiedz-jako-pauza")
     finally:
         if os.path.exists(LOG):
@@ -779,7 +779,7 @@ def fuzz_loguj_awake(seed, n):
             try:
                 guard._loguj_awake(msg)
             except Exception as e:
-                s.blad(msg, e, "NISKA")
+                s.blad(msg, e, "LOW")
     finally:
         guard.log = stary_log
     s.koniec()
@@ -836,7 +836,7 @@ def fuzz_heat_stuck(seed, n):
                 s.blad(wej, e)
                 continue
             if rc != 0:
-                s.bzdura(wej, "zwrocono kod %r zamiast 0" % (rc,), "NISKA", klucz="zly-kod")
+                s.bzdura(wej, "returned code %r instead of 0" % (rc,), "LOW", klucz="zly-kod")
     finally:
         heat.sh = stary
         for plik in ("state.json", "status.json"):
@@ -910,11 +910,11 @@ def fuzz_chip_juz_goracy(seed, n):
             # The guard writes status.json atomically (tmp + os.replace) and always
             # as a dict. These contents imply manual edits, FS damage, or a foreign
             # tool, so severity is MEDIUM even though safe-run tracebacks are serious.
-            s.blad(tresc, e, "SREDNIA")
+            s.blad(tresc, e, "MEDIUM")
             continue
         if not (isinstance(r, tuple) and len(r) == 2 and isinstance(r[0], bool)
                 and isinstance(r[1], str)):
-            s.bzdura(tresc, "zwrocono %r zamiast (bool, str)" % (r,), "SREDNIA", klucz="zly-typ-wyniku")
+            s.bzdura(tresc, "returned %r instead of (bool, str)" % (r,), "MEDIUM", klucz="zly-typ-wyniku")
     if os.path.exists(STATUS):
         os.unlink(STATUS)
     s.koniec()
@@ -951,8 +951,8 @@ def fuzz_max_temp_since(seed, n):
             continue
         if v is not None and (not isinstance(v, float) or not math.isfinite(v)):
             s.bzdura({"csv": skroc(tresc, 80), "t0": t0},
-                     "zwrocono %r (nie-skonczona temperatura trafia do komunikatu)" % (v,),
-                     "SREDNIA", klucz="niesk")
+                     "returned %r (non-finite temperature reaches message)" % (v,),
+                     "MEDIUM", klucz="niesk")
     if os.path.exists(HIST):
         os.unlink(HIST)
     s.koniec()
@@ -974,7 +974,7 @@ def fuzz_czas_z(seed, n):
             s.blad(x, e)
             continue
         if not isinstance(v, (int, float)):
-            s.bzdura(x, "zwrocono %r zamiast liczby" % (v,), "SREDNIA", klucz="zly-typ-wyniku")
+            s.bzdura(x, "returned %r instead of number" % (v,), "MEDIUM", klucz="zly-typ-wyniku")
     s.koniec()
 
 
@@ -982,10 +982,10 @@ def fuzz_czas_z(seed, n):
 
 def wypisz_raport(seed, n):
     print("=" * 78)
-    print("FUZZING coffee-paladin - ziarno %s, %d losowych wejsc na funkcje" % (seed, n))
-    print("katalog roboczy (TG_BASE): %s" % TMP)
+    print("FUZZING coffee-paladin - seed %s, %d random inputs per function" % (seed, n))
+    print("working directory (TG_BASE): %s" % TMP)
     print("=" * 78)
-    print("\n%-34s %8s %8s %8s %8s" % ("funkcja", "przebieg", "sek", "wyjatki", "bzdury"))
+    print("\n%-34s %8s %8s %8s %8s" % ("function", "runs", "sec", "errors", "findings"))
     print("-" * 78)
     for nazwa, d in PRZEBIEGI.items():
         print("%-34s %8d %8.2f %8d %8d"
@@ -994,20 +994,20 @@ def wypisz_raport(seed, n):
     print("\n" + "=" * 78)
     lista = list(ZNALEZISKA.values())
     if not lista:
-        print("ZNALEZISKA: brak - wszystkie funkcje przetrwaly ostrzal.")
+        print("FINDINGS: none - all functions survived the barrage.")
     else:
-        print("ZNALEZISKA (%d roznych; liczba w nawiasie = ile wejsc je wywolalo):" % len(lista))
-        kolejnosc = {"WYSOKA": 0, "SREDNIA": 1, "NISKA": 2}
+        print("FINDINGS (%d distinct; number in parentheses = triggering input count):" % len(lista))
+        kolejnosc = {"HIGH": 0, "MEDIUM": 1, "LOW": 2}
         for i, z in enumerate(sorted(lista, key=lambda x: (kolejnosc.get(x["powaga"], 9),
                                                            x["funkcja"])), 1):
             print("\n%d. [%s] %s  (x%d)" % (i, z["powaga"], z["funkcja"], z["ile"]))
-            print("   co: %s" % z["opis"])
-            print("   wejscie: %s" % z["wejscie"])
+            print("   what: %s" % z["opis"])
+            print("   input: %s" % z["wejscie"])
     print("\n" + "=" * 78)
     czyste = [n_ for n_ in PRZEBIEGI if n_ in OK_FUNKCJE]
-    print("BEZ ZARZUTU (%d): %s" % (len(czyste), ", ".join(czyste) if czyste else "-"))
+    print("CLEAN (%d): %s" % (len(czyste), ", ".join(czyste) if czyste else "-"))
     print("=" * 78)
-    return 1 if any(z["powaga"] == "WYSOKA" for z in lista) else 0
+    return 1 if any(z["powaga"] == "HIGH" for z in lista) else 0
 
 
 def main():

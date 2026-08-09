@@ -49,15 +49,15 @@ def migawka(level, chip, wiek=0):
     return p
 
 
-print("safe-run: odmowa startu na goracej maszynie")
+print("safe-run: refusing start on a hot machine")
 
 for opis, lvl, chip, oczekiwane in [
-    ("zimna maszyna nie blokuje startu", 0, 45.0, False),
-    ("cieplo, ale wiecej niz 5 C do progu - start wolny", 0, 79.0, False),
-    ("5 C pod progiem pauzy - START ZABLOKOWANY", 0, 80.0, True),
-    ("powyzej progu pauzy - START ZABLOKOWANY", 0, 92.0, True),
-    ("guard raportuje poziom 2 - START ZABLOKOWANY", 2, 50.0, True),
-    ("guard raportuje poziom krytyczny - START ZABLOKOWANY", 3, 50.0, True),
+    ("cold machine does not block start", 0, 45.0, False),
+    ("warm, but more than 5 C below threshold - start allowed", 0, 79.0, False),
+    ("5 C below pause threshold - START BLOCKED", 0, 80.0, True),
+    ("above pause threshold - START BLOCKED", 0, 92.0, True),
+    ("guard reports level 2 - START BLOCKED", 2, 50.0, True),
+    ("guard reports critical level - START BLOCKED", 3, 50.0, True),
 ]:
     migawka(lvl, chip)
     wynik, _ = sr.chip_juz_goracy()
@@ -65,12 +65,12 @@ for opis, lvl, chip, oczekiwane in [
 
 migawka(0, 99.0, wiek=300)
 w, _ = sr.chip_juz_goracy()
-test("migawka sprzed 5 minut nie jest podstawa do blokady", w is False, "zwrocono %s" % w)
+test("5-minute-old snapshot is not a basis for blocking", w is False, "returned %s" % w)
 
 os.remove(os.path.join(BASE, "status.json"))
 w, _ = sr.chip_juz_goracy()
-test("brak status.json nie blokuje startu (guard i tak ostrzeze)", w is False, "zwrocono %s" % w)
+test("missing status.json does not block start (guard will warn anyway)", w is False, "returned %s" % w)
 
 shutil.rmtree(BASE, ignore_errors=True)
-print("\nWYNIK: %d/%d" % (zaliczone, wszystkie))
+print("\nRESULT: %d/%d" % (zaliczone, wszystkie))
 sys.exit(0 if zaliczone == wszystkie else 1)

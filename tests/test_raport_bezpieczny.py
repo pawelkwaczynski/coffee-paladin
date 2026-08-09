@@ -57,27 +57,27 @@ def czysc():
 
 
 # ---------------------------------------------------------------- item 6
-print("=== poz. 6: brak POMIAROW to nie brak ZDARZEN ===")
+print("=== item 6: no MEASUREMENTS does not mean no EVENTS ===")
 czysc()
 cel = os.path.join(BASE, "pusty.txt")
 uruchom("--file", cel, "--days", "7")
 tekst = io.open(cel, encoding="utf-8").read()
-test("1. przy pustym katalogu dokument MOWI, ze nic nie zarejestrowano",
+test("1. with empty directory, document SAYS nothing was recorded",
      "NO MEASUREMENTS IN THIS RANGE" in tekst,
-     "brak ostrzezenia - dokument czyta sie jak dowod zdrowia")
-test("2. ostrzezenie stoi na GORZE, nie na koncu",
+     "missing warning - document reads like proof of health")
+test("2. warning is at the TOP, not the end",
      tekst.index("NO MEASUREMENTS") < len(tekst) // 3,
-     "pozycja %d z %d" % (tekst.index("NO MEASUREMENTS") if "NO MEASUREMENTS" in tekst else -1,
+     "position %d of %d" % (tekst.index("NO MEASUREMENTS") if "NO MEASUREMENTS" in tekst else -1,
                           len(tekst)))
 # Countercase.
 daj_pomiary()
 cel2 = os.path.join(BASE, "zdanymi.txt")
 uruchom("--file", cel2, "--days", "2")
-test("3. gdy pomiary SA, zadnego ostrzezenia nie ma",
+test("3. when measurements EXIST, there is no warning",
      "NO MEASUREMENTS" not in io.open(cel2, encoding="utf-8").read())
 
 # ---------------------------------------------------------------- item 7
-print("\n=== poz. 7: --pdf nie tyka cudzych plikow ===")
+print("\n=== item 7: --pdf does not touch foreign files ===")
 czysc()
 daj_pomiary()
 cudzy = os.path.join(BASE, "wyniki.pdf")
@@ -85,48 +85,48 @@ io.open(cudzy, "w", encoding="utf-8").write("CUDZE WAZNE DANE - 2000 stron wynik
 suma_przed = hashlib.sha256(io.open(cudzy, "rb").read()).hexdigest()
 
 rc, out, err = uruchom("--file", os.path.join(BASE, "wyniki.txt"), "--days", "2", "--pdf")
-test("4. cudzy wyniki.pdf istnieje po przebiegu", os.path.exists(cudzy))
-test("5. ...i jest bajt w bajt taki sam",
+test("4. foreign wyniki.pdf exists after the run", os.path.exists(cudzy))
+test("5. ...and is byte-for-byte identical",
      os.path.exists(cudzy)
      and hashlib.sha256(io.open(cudzy, "rb").read()).hexdigest() == suma_przed,
-     "plik zostal zmieniony albo obciety")
+     "file was changed or truncated")
 nowy = out.strip().splitlines()[-1] if out.strip() else ""
-test("6. PDF mimo to powstal, pod wolna nazwa",
+test("6. PDF was still created under a free name",
      nowy.endswith(".pdf") and os.path.exists(nowy) and nowy != cudzy,
-     "zwrocono %r" % nowy)
-test("7. nie zostaly pliki robocze .thermal_report_*",
+     "returned %r" % nowy)
+test("7. no .thermal_report_* temp files left behind",
      not [n for n in os.listdir(BASE) if n.startswith(".thermal_report_")],
      "%s" % [n for n in os.listdir(BASE) if n.startswith(".thermal_report_")])
 
 # ---------------------------------------------------------------- item 8
-print("\n=== poz. 8: zly zakres NIE moze konczyc sie kodem 0 ===")
+print("\n=== item 8: bad range must NOT exit with code 0 ===")
 czysc()
 daj_pomiary()
 cel = os.path.join(BASE, "z.txt")
 for opis, args in (
-    ("odwrocony zakres", ["--from", "2026-08-05", "--to", "2026-08-01"]),
-    ("literowka w dacie --from", ["--from", "2026-13-45", "--to", "2026-08-01"]),
-    ("literowka w dacie --to", ["--from", "2026-08-01", "--to", "2026-99-99"]),
-    ("--days bez liczby", ["--days"]),
+    ("reversed range", ["--from", "2026-08-05", "--to", "2026-08-01"]),
+    ("typo in --from date", ["--from", "2026-13-45", "--to", "2026-08-01"]),
+    ("typo in --to date", ["--from", "2026-08-01", "--to", "2026-99-99"]),
+    ("--days without a number", ["--days"]),
     ("--days abc", ["--days", "abc"]),
     ("--days 0", ["--days", "0"]),
 ):
     rc, out, err = uruchom("--file", cel, *args)
-    test("%s -> kod bledu i komunikat" % opis, rc != 0 and err.strip(),
+    test("%s -> error code and message" % opis, rc != 0 and err.strip(),
          "rc=%d stderr=%r" % (rc, err[:70]))
 
-print("\n=== przypadek przeciwny: poprawne zakresy dzialaja ===")
+print("\n=== opposite case: valid ranges work ===")
 for opis, args in (
     ("--days 3", ["--days", "3"]),
-    ("--from/--to poprawne", ["--from", "2026-08-01", "--to", "2026-08-02"]),
+    ("--from/--to valid", ["--from", "2026-08-01", "--to", "2026-08-02"]),
     ("--all", ["--all"]),
-    ("bez argumentow zakresu", []),
+    ("without range arguments", []),
 ):
     rc, out, err = uruchom("--file", cel, *args)
-    test("%s -> kod 0" % opis, rc == 0, "rc=%d stderr=%r" % (rc, err[:70]))
+    test("%s -> code 0" % opis, rc == 0, "rc=%d stderr=%r" % (rc, err[:70]))
 
 # ---------------------------------------------------------------- item 9
-print("\n=== poz. 9: dlugi raport skracany JAWNIE, bez gubienia dowodu ===")
+print("\n=== item 9: long report shortened EXPLICITLY without losing evidence ===")
 czysc()
 # 12,000 measurements, including one HOT intervention, must survive shortening.
 t0 = time.time() - 60 * 86400
@@ -144,16 +144,15 @@ uruchom("--file", cel, "--all")
 tekst = io.open(cel, encoding="utf-8").read()
 wierszy_osi = len([l for l in tekst.splitlines() if l.startswith("  20")])
 
-test("18. dlugi raport zostal skrocony", wierszy_osi < 12000,
-     "na osi %d wierszy z 12000" % wierszy_osi)
-test("19. ...i dokument MOWI, ze skrocil (nie po cichu)",
+test("18. long report was shortened", wierszy_osi < 12000,
+     "%d rows on the axis out of 12000" % wierszy_osi)
+test("19. ...and document SAYS it shortened (not silently)",
      "TIMELINE SHORTENED" in tekst)
-test("20. szczyt 99,4 C nadal wykryty", "PEAK MEASURED CHIP TEMPERATURE: 99.4 C" in tekst,
-     "brak szczytu")
-test("21. GORACY wiersz z interwencja PRZETRWAL skracanie",
+test("20. peak 99.4 C still detected", "PEAK MEASURED CHIP TEMPERATURE: 99.4 C" in tekst,
+     "missing peak")
+test("21. HOT intervention row SURVIVED shortening",
      "critical, 99.4" in tekst,
-     "wiersz dowodowy wyrzucony przy skracaniu - to bylby dokladnie ten blad, "
-     "ktorego ta pozycja dotyczy")
+     "evidence row discarded during shortening - exactly the bug this item covers")
 
 # Countercase: small dataset remains untouched.
 czysc()
@@ -161,11 +160,11 @@ daj_pomiary()
 cel = os.path.join(BASE, "maly.txt")
 uruchom("--file", cel, "--all")
 maly = io.open(cel, encoding="utf-8").read()
-test("22. maly zbior: zadnego skracania i wszystkie wiersze na miejscu",
+test("22. small dataset: no shortening and all rows in place",
      "TIMELINE SHORTENED" not in maly
      and len([l for l in maly.splitlines() if l.startswith("  20")]) == 1)
 
 shutil.rmtree(BASE, ignore_errors=True)
 ok = sum(wyniki)
-print("\nWYNIK: %d/%d" % (ok, len(wyniki)))
+print("\nRESULT: %d/%d" % (ok, len(wyniki)))
 sys.exit(0 if ok == len(wyniki) else 1)

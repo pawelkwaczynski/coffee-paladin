@@ -86,7 +86,7 @@ def cfg_test():
 
 try:
     # ---------------------------------------------------------------- 1. startup gate
-    print("1. startowe wznowienie przechodzi przez bramka_wznowienia (AST na zywym kodzie)")
+    print("1. startup resume passes through bramka_wznowienia (AST on live code)")
     drzewo = ast.parse(open(GUARD_SRC).read())
     main_fn = next(n for n in ast.walk(drzewo)
                    if isinstance(n, ast.FunctionDef) and n.name == "main")
@@ -95,10 +95,10 @@ try:
         if isinstance(n, ast.If) and "guard startup" in ast.dump(n) \
                 and "bramka_wznowienia" in ast.dump(n.test):
             trafiony = True
-    test("do_resume('guard startup') stoi za bramka_wznowienia", trafiony)
+    test("do_resume('guard startup') is behind bramka_wznowienia", trafiony)
 
     # ---------------------------------------------------------------- 2. intent entry
-    print("2. do_pause: wpis w stanie ISTNIEJE juz w chwili sygnalu")
+    print("2. do_pause: state entry ALREADY EXISTS when signal is sent")
     cfg = cfg_test()
     logi = []
     stary_log, stary_notify = g.log, g.notify
@@ -115,24 +115,24 @@ try:
         return 0
     g.sig = sig_szpieg
     g.do_pause(cfg, st, [(p.pid, 99.0, "sleep", None)], "test")
-    test("wpis byl na miejscu PRZED sygnalem", kolejnosc == [True], repr(kolejnosc))
-    test("po udanej pauzie wpis zostaje", str(p.pid) in st["paused"])
+    test("entry was in place BEFORE the signal", kolejnosc == [True], repr(kolejnosc))
+    test("after successful pause the entry remains", str(p.pid) in st["paused"])
 
     st2 = {"paused": {}, "demoted": [], "demoted_info": {}}
     g.sig = lambda pid, pgid, s: errno.EPERM
     g.do_pause(cfg, st2, [(p.pid, 99.0, "sleep", None)], "test")
-    test("EPERM: wpis-intencja skasowany", str(p.pid) not in st2["paused"])
-    test("EPERM: pid w zbiorze niedotykalnych", p.pid in g._nie_da_sie)
+    test("EPERM: intent entry removed", str(p.pid) not in st2["paused"])
+    test("EPERM: pid in untouchable set", p.pid in g._nie_da_sie)
     g._nie_da_sie.clear()
 
     st3 = {"paused": {}, "demoted": [], "demoted_info": {}}
     g.sig = lambda pid, pgid, s: errno.ESRCH
     g.do_pause(cfg, st3, [(p.pid, 99.0, "sleep", None)], "test")
-    test("ESRCH: wpis-intencja skasowany", str(p.pid) not in st3["paused"])
+    test("ESRCH: intent entry removed", str(p.pid) not in st3["paused"])
     g.sig = stary_sig
 
     # ---------------------------------------------------------------- 3. re-check in do_terminate
-    print("3. do_terminate: strzal tylko w to, co NAPRAWDE stoi TERAZ")
+    print("3. do_terminate: shoot only what is REALLY stopped NOW")
     strzaly = []
 
     def sig_licznik(pid, pgid, s):
@@ -145,9 +145,9 @@ try:
           "demoted": [], "demoted_info": {}}
     g.sig = sig_licznik
     g.do_terminate(cfg, st, "test")
-    test("chodzacy proces NIE dostal SIGTERM", not strzaly, repr(strzaly))
-    test("wpis po chodzacym procesie skasowany", str(p_biega.pid) not in st["paused"])
-    test("proces przezyl", p_biega.poll() is None)
+    test("running process did NOT get SIGTERM", not strzaly, repr(strzaly))
+    test("entry for running process removed", str(p_biega.pid) not in st["paused"])
+    test("process survived", p_biega.poll() is None)
 
     # b) `ps` fails: no decisions, entries stay.
     stary_run = g.run
@@ -156,7 +156,7 @@ try:
           "demoted": [], "demoted_info": {}}
     strzaly[:] = []
     wynik = g.do_terminate(cfg, st, "test")
-    test("pusty ps: nic nie ubite, wpis zostaje",
+    test("empty ps: nothing killed, entry remains",
          wynik is False and str(p_biega.pid) in st["paused"] and not strzaly)
     g.run = stary_run
 
@@ -172,23 +172,23 @@ try:
                                    time=time.time)
     g.do_terminate(cfg, st, "test")
     g.time = stary_time
-    test("stojacy proces dostal SIGTERM",
+    test("stopped process got SIGTERM",
          any(s == signal.SIGTERM for _, s in strzaly), repr(strzaly))
     g.sig = stary_sig
 
     # ---------------------------------------------------------------- 4. load_state
-    print("4. load_state: normalizacja typow zamiast crashloopa")
+    print("4. load_state: type normalization instead of crashloop")
     sciezka = g.STATE_PATH
     with open(sciezka, "w") as f:
         json.dump({"paused": [1, 2, 3], "demoted": {}, "demoted_info": []}, f)
     st = g.load_state()
-    test("paused-lista (stary format) -> pusty dict", st["paused"] == {})
-    test("demoted zlego typu -> pusta lista", st["demoted"] == [])
-    test("demoted_info zlego typu -> pusty dict", st["demoted_info"] == {})
+    test("paused-list (old format) -> empty dict", st["paused"] == {})
+    test("demoted with bad type -> empty list", st["demoted"] == [])
+    test("demoted_info with bad type -> empty dict", st["demoted_info"] == {})
     with open(sciezka, "w") as f:
         json.dump({"paused": {"abc": {"comm": "x"}, "123": "zly", "456": {"comm": "y"}}}, f)
     st = g.load_state()
-    test("klucz nie-liczba i wpis nie-dict wyciete, zdrowy wpis zostaje",
+    test("non-number key and non-dict entry cut out, healthy entry remains",
          list(st["paused"]) == ["456"], repr(st["paused"]))
     try:
         os.remove(sciezka)
@@ -196,7 +196,7 @@ try:
         pass
 
     # ---------------------------------------------------------------- 5. guard_paused
-    print("5. safe-run.guard_paused: zepsuty wpis nie oslepia, pid-reuse nie zatrzymuje")
+    print("5. safe-run.guard_paused: broken entry does not blind, pid reuse does not stop")
     lider = subprocess.Popen(
         ["bash", "-c", "sleep 300 & echo $!; wait"], start_new_session=True,
         stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
@@ -210,22 +210,22 @@ try:
     # Broken entry (non-numeric pgid) before a healthy entry for our group.
     zapisz_stan({str(os.getpid()): {"pgid": "abc", "comm": "smiec"},
                  str(lider.pid): {"pgid": lider.pid, "comm": "bash"}})
-    test("zepsuty wpis pominiety, PRAWDZIWA pauza grupy widoczna",
+    test("broken entry skipped, REAL group pause visible",
          sr.guard_paused(czlonek) is True)
     # pid reuse: entry for our pid but a foreign group must not stop us.
     zapisz_stan({str(czlonek): {"pgid": 999999999, "comm": "duch"}})
-    test("trafienie pid z obca grupa (pid-reuse) = nie stoi",
+    test("pid hit with foreign group (pid reuse) = not stopped",
          sr.guard_paused(czlonek) is False)
     # Entry for our pid with matching group still works.
     zapisz_stan({str(czlonek): {"pgid": lider.pid, "comm": "bash"}})
-    test("trafienie pid ze zgodna grupa = stoi", sr.guard_paused(czlonek) is True)
+    test("pid hit with matching group = stopped", sr.guard_paused(czlonek) is True)
     try:
         os.remove(os.path.join(sr.BASE, "state.json"))
     except OSError:
         pass
 
     # ---------------------------------------------------------------- 6. rate limit + clamp
-    print("6. untouchable raz na godzine; klamp configu widoczny w statusie")
+    print("6. untouchable once per hour; config clamp visible in status")
     zegar = [1000000.0]
     stary_now = g.now
     g.now = lambda: zegar[0]
@@ -234,10 +234,10 @@ try:
     g._loguj_nietykalny_podciag("corespotlightd", "spotlight", 200.0)
     zegar[0] += 700          # 11:40 later; old 10 min code would already log.
     g._loguj_nietykalny_podciag("corespotlightd", "spotlight", 200.0)
-    test("drugi wpis w tej samej godzinie wyciszony", len(logi) == 1, repr(len(logi)))
+    test("second entry in the same hour silenced", len(logi) == 1, repr(len(logi)))
     zegar[0] += 3600
     g._loguj_nietykalny_podciag("corespotlightd", "spotlight", 200.0)
-    test("po godzinie wolno znow", len(logi) == 2)
+    test("after an hour it may log again", len(logi) == 2)
     g.now = stary_now
     g._NIETYKALNI_PODCIAG.clear()
 
@@ -247,17 +247,17 @@ try:
         json.dump({"soc_pause_c": "goraco"}, f)
     g._ostatnio_odrzucone["v"] = []
     g.load_cfg()
-    test("klamp: powiadomienie z trescia poprawki",
+    test("clamp: notification contains correction text",
          any(k == "cfgclamp" and "soc_pause_c" in t for k, t in powiadomienia),
          repr(powiadomienia))
-    test("klamp: lista korekt do statusu niepusta", bool(g._ostatnio_odrzucone["v"]))
+    test("clamp: corrections list for status is non-empty", bool(g._ostatnio_odrzucone["v"]))
     dane = g.status_write("nominal", 30.0, None, None, True, 80, 100, 0.5, 0, "",
                           [], {"paused": {}, "demoted_info": {}})
-    test("status.json niesie config_corrections", bool(dane.get("config_corrections")))
+    test("status.json carries config_corrections", bool(dane.get("config_corrections")))
     with open(g.CFG_PATH, "w") as f:
         json.dump({}, f)
     g.load_cfg()
-    test("naprawiony plik czysci liste korekt", g._ostatnio_odrzucone["v"] == [])
+    test("fixed file clears corrections list", g._ostatnio_odrzucone["v"] == [])
     try:
         os.remove(g.CFG_PATH)
     except OSError:
@@ -287,5 +287,5 @@ finally:
         except Exception:
             pass
 
-print("\n%d/%d" % (zaliczone, wszystkie))
+print("\nRESULT: %d/%d" % (zaliczone, wszystkie))
 sys.exit(0 if zaliczone == wszystkie else 1)

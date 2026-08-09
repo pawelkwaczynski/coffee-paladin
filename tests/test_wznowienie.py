@@ -115,38 +115,38 @@ def sprzatnij():
 
 
 # ---------------------------------------------------------------- 1. sensor latch
-print("1. czujnik blokuje wznowienie tylko wtedy, gdy sam kazal pauzowac")
+print("1. sensor blocks resume only when it caused the pause")
 PAUZA_B, WZNOW_B = 40.0, 36.0          # Battery thresholds.
 PAUZA_C, WZNOW_C = 95.0, 87.0          # Chip thresholds for compression queue.
 
 st = {}
-test("bateria 36,7 C (ponizej wlasnego progu 40) NIE blokuje - to jest ten defekt",
+test("battery 36.7 C (below its own threshold 40) does NOT block - this is the defect",
      g.zatrzask_czujnika(st, "_batt_hot", 36.7, PAUZA_B, WZNOW_B) is False,
-     "zatrzask: %s" % st.get("_batt_hot"))
-test("bateria 37,9 C (dzisiejszy szczyt) tez nie blokuje",
+     "latch: %s" % st.get("_batt_hot"))
+test("battery 37.9 C (today's peak) also does not block",
      g.zatrzask_czujnika(st, "_batt_hot", 37.9, PAUZA_B, WZNOW_B) is False)
-test("bateria 39,9 C - dalej ponizej progu, dalej nie blokuje",
+test("battery 39.9 C - still below threshold, still does not block",
      g.zatrzask_czujnika(st, "_batt_hot", 39.9, PAUZA_B, WZNOW_B) is False)
 
 # But when battery really crosses its threshold, hysteresis must work as before.
 st = {}
-test("bateria 41 C zapala zatrzask",
+test("battery 41 C lights the latch",
      g.zatrzask_czujnika(st, "_batt_hot", 41.0, PAUZA_B, WZNOW_B) is True)
-test("bateria 39 C: zatrzask DALEJ trzyma (histereza, nie odbijamy sie od progu)",
+test("battery 39 C: latch STILL holds (hysteresis, no threshold bouncing)",
      g.zatrzask_czujnika(st, "_batt_hot", 39.0, PAUZA_B, WZNOW_B) is True)
-test("bateria 36,5 C: dalej trzyma, bo prog wznowienia to 36",
+test("battery 36.5 C: still holds, because resume threshold is 36",
      g.zatrzask_czujnika(st, "_batt_hot", 36.5, PAUZA_B, WZNOW_B) is True)
-test("bateria 36 C: zatrzask gasnie",
+test("battery 36 C: latch turns off",
      g.zatrzask_czujnika(st, "_batt_hot", 36.0, PAUZA_B, WZNOW_B) is False)
 
 st = {"_batt_hot": True, "_batt_hot_prog": [45.0, 36.0]}
-test("zmiana progu w locie (kalibracja/suwak) kasuje zatrzask sprzed zmiany",
+test("live threshold change (calibration/slider) clears latch from before the change",
      g.zatrzask_czujnika(st, "_batt_hot", 37.0, PAUZA_B, WZNOW_B) is False,
-     "zatrzask zapalony wzgledem STAREJ pary progow nie znaczy nic wobec nowej")
+     "latch lit against OLD threshold pair means nothing against the new one")
 
 st = {}
 g.zatrzask_czujnika(st, "_batt_hot", 41.0, PAUZA_B, WZNOW_B)
-test("brak odczytu baterii gasi zatrzask (jak w kodzie sprzed zmiany: None = nie blokuje)",
+test("missing battery reading turns latch off (as before the change: None = no block)",
      g.zatrzask_czujnika(st, "_batt_hot", None, PAUZA_B, WZNOW_B) is False)
 
 
@@ -156,34 +156,34 @@ CFG = {"batt_pause_c": PAUZA_B, "batt_resume_c": WZNOW_B,
        "soc_pause_c": PAUZA_C, "soc_resume_c": WZNOW_C}
 
 st = {}
-test("chip 94 C blokuje wznowienie, nawet gdy pauze wywolal stan systemowy",
+test("chip 94 C blocks resume even when pause was caused by system state",
      g.bramka_wznowienia(CFG, st, 30.0, 94.0, "nominal") is False,
-     "zatrzask na chipie puscilby to dalej - stad surowy prog")
-test("chip 88 C dalej blokuje (histereza chipu nietknieta)",
+     "chip latch would let this through - hence the strict threshold")
+test("chip 88 C still blocks (chip hysteresis untouched)",
      g.bramka_wznowienia(CFG, st, 30.0, 88.0, "nominal") is False)
-test("chip 71,2 C przy chlodnej baterii - WZNAWIAMY",
+test("chip 71.2 C with cool battery - RESUME",
      g.bramka_wznowienia(CFG, st, 30.0, 71.2, "nominal") is True)
-test("brak czujnika chipa nie blokuje wznowienia",
+test("missing chip sensor does not block resume",
      g.bramka_wznowienia(CFG, st, 30.0, None, "nominal") is True)
-test("stan systemowy 'serious' blokuje niezaleznie od temperatur",
+test("system state 'serious' blocks regardless of temperatures",
      g.bramka_wznowienia(CFG, st, 30.0, 50.0, "serious") is False)
 
 # Exact 19:42:38 -> 19:43 situation.
 st = {}
-test("w chwili pauzy (chip 95,2 / bateria 36,7) NIE wznawiamy",
+test("at pause time (chip 95.2 / battery 36.7) do NOT resume",
      g.bramka_wznowienia(CFG, st, 36.7, 95.2, "nominal") is False)
-test("20 sekund pozniej (chip 71,2 / bateria 36,6) WZNAWIAMY - przed poprawka NIE",
+test("20 seconds later (chip 71.2 / battery 36.6) RESUME - before fix it did NOT",
      g.bramka_wznowienia(CFG, st, 36.6, 71.2, "nominal") is True)
 # When battery really overheats, the gate must hold as before.
-test("bateria 41 C przy zimnym chipie WSTRZYMUJE wznowienie (ochrona ogniw zostaje)",
+test("battery 41 C with cold chip HOLDS resume (cell protection remains)",
      g.bramka_wznowienia(CFG, st, 41.0, 60.0, "nominal") is False)
-test("bateria 37 C po zagotowaniu DALEJ trzyma (zatrzask, prog wznowienia to 36)",
+test("battery 37 C after overheating STILL holds (latch, resume threshold is 36)",
      g.bramka_wznowienia(CFG, st, 37.0, 60.0, "nominal") is False)
-test("bateria 35,5 C gasi zatrzask i wznawiamy",
+test("battery 35.5 C turns latch off and resumes",
      g.bramka_wznowienia(CFG, st, 35.5, 60.0, "nominal") is True)
 
 # ------------------------------------------------------- 2. terminate only stopped processes
-print("\n2. SIGTERM po limicie czasu leci tylko w proces, ktory naprawde stoi")
+print("\n2. SIGTERM after time limit goes only to a process that is really stopped")
 p = subprocess.Popen(["sleep", "600"])
 sprzataj.append(p)
 time.sleep(0.3)
@@ -194,31 +194,31 @@ def stoi(pid, info=None):
     return g.wpis_stoi(str(pid), info if info is not None else wpis, *g.zatrzymane_teraz())
 
 
-test("proces chodzacy: wpis_stoi() = False", stoi(p.pid) is False)
+test("running process: wpis_stoi() = False", stoi(p.pid) is False)
 os.kill(p.pid, signal.SIGSTOP)
 time.sleep(0.3)
-test("po SIGSTOP: wpis_stoi() = True", stoi(p.pid) is True)
+test("after SIGSTOP: wpis_stoi() = True", stoi(p.pid) is True)
 os.kill(p.pid, signal.SIGCONT)
 time.sleep(0.3)
-test("po SIGCONT (reczne wznowienie Pawla o 20:02): wpis_stoi() = False",
+test("after SIGCONT (Pawel's manual resume at 20:02): wpis_stoi() = False",
      stoi(p.pid) is False)
-test("martwy pid nie liczy sie jako zatrzymany", stoi(999999) is False)
+test("dead pid does not count as stopped", stoi(999999) is False)
 
 # Group case: leader runs, but a child in its group is stopped. Do not delete the
 # entry, because it is the only note anyone can use to resume that child.
 lider2, pgid2, dzieci2 = grupa_z_dzieckiem()
-test("grupa testowa ma dziecko (inaczej ten scenariusz nic nie sprawdza)",
-     len(dzieci2) >= 1, "dzieci: %s" % dzieci2)
+test("test group has a child (otherwise this scenario checks nothing)",
+     len(dzieci2) >= 1, "children: %s" % dzieci2)
 if dzieci2:
     dziecko = dzieci2[0]
     os.kill(dziecko, signal.SIGSTOP)
     time.sleep(0.3)
     wpis_grupowy = {"comm": "ffmpeg", "manual": False, "pgid": pgid2}
-    test("lider chodzi, dziecko z grupy stoi -> wpis ZOSTAJE (inaczej dziecko zostaje w T)",
+    test("leader runs, child in group is stopped -> entry STAYS (otherwise child remains T)",
          stoi(lider2.pid, wpis_grupowy) is True)
     os.kill(dziecko, signal.SIGCONT)
     time.sleep(0.3)
-    test("cala grupa chodzi -> wpis do skasowania",
+    test("whole group runs -> entry to delete",
          stoi(lider2.pid, wpis_grupowy) is False)
 
 # Expired filter: same arithmetic as the loop.
@@ -232,15 +232,15 @@ def do_ubicia():
     return g.wpisy_przeterminowane(paused, limit_s, g.zatrzymane_teraz())
 
 
-test("wpis starszy niz 45 min, ale proces CHODZI - nie ubijamy (to zabilo pomiar 20:27)",
-     do_ubicia() == [], "do ubicia: %s" % do_ubicia())
-test("...i ten sam wpis JEST na liscie do skasowania jako obudzony poza guardem",
+test("entry older than 45 min, but process RUNS - do not kill (this killed 20:27 measurement)",
+     do_ubicia() == [], "to kill: %s" % do_ubicia())
+test("...and same entry IS on deletion list as woken outside guard",
      g.wpisy_nieaktualne(paused, g.zatrzymane_teraz()) == [str(p.pid)])
 os.kill(p.pid, signal.SIGSTOP)
 time.sleep(0.3)
-test("ten sam wpis, gdy proces NAPRAWDE stoi - ubijamy (bezpiecznik dalej dziala)",
-     do_ubicia() == [str(p.pid)], "do ubicia: %s" % do_ubicia())
-test("...i wtedy NIE kasujemy go jako nieaktualnego",
+test("same entry when process REALLY is stopped - kill (guard still works)",
+     do_ubicia() == [str(p.pid)], "to kill: %s" % do_ubicia())
+test("...and then do NOT delete it as stale",
      g.wpisy_nieaktualne(paused, g.zatrzymane_teraz()) == [])
 os.kill(p.pid, signal.SIGCONT)
 
@@ -249,37 +249,37 @@ os.kill(p.pid, signal.SIGCONT)
 # leave it in state T without a note.
 os.kill(p.pid, signal.SIGSTOP)
 time.sleep(0.3)
-test("ps niedostepny -> nie kasujemy zadnego wpisu", g.wpisy_nieaktualne(paused, None) == [])
-test("ps niedostepny -> nie ubijamy niczego", g.wpisy_przeterminowane(paused, limit_s, None) == [])
+test("ps unavailable -> do not delete any entry", g.wpisy_nieaktualne(paused, None) == [])
+test("ps unavailable -> do not kill anything", g.wpisy_przeterminowane(paused, limit_s, None) == [])
 _stary_run = g.run
 g.run = lambda *a, **k: ""
 try:
-    test("zatrzymane_teraz() przy pustym wyniku ps zwraca None, nie 'nic nie stoi'",
+    test("zatrzymane_teraz() with empty ps output returns None, not 'nothing is stopped'",
          g.zatrzymane_teraz() is None)
 finally:
     g.run = _stary_run
 os.kill(p.pid, signal.SIGCONT)
 
 # ------------------------------------------------- 3. limiter lock knows the whole group
-print("\n3. limiter nie budzi grupy, w ktorej guard cos zamrozil")
+print("\n3. limiter does not wake a group where guard froze something")
 lider, grupa, dzieci = grupa_z_dzieckiem()
-test("grupa testowa ma dziecko (tak wyglada ffmpeg pod safe-run)", len(dzieci) >= 1,
-     "dzieci: %s" % dzieci)
+test("test group has a child (this is what ffmpeg under safe-run looks like)", len(dzieci) >= 1,
+     "children: %s" % dzieci)
 DZIECKO = dzieci[0] if dzieci else lider.pid
 
 stan = os.path.join(BASE, "state.json")
 json.dump({"paused": {str(DZIECKO): {"pgid": grupa, "comm": "ffmpeg"}}},
           open(stan, "w"))
-test("guard zamrozil DZIECKO z naszej grupy -> limiter widzi pauze i NIE budzi",
+test("guard froze CHILD from our group -> limiter sees pause and does NOT wake",
      sr.guard_paused(lider.pid) is True,
-     "przed poprawka bylo False i limiter robil killpg(SIGCONT)")
+     "before fix this was False and limiter did killpg(SIGCONT)")
 
 json.dump({"paused": {str(DZIECKO): {"pgid": grupa + 4242, "comm": "ffmpeg"}}},
           open(stan, "w"))
-test("cudza grupa nie blokuje naszego limitera", sr.guard_paused(lider.pid) is False)
+test("foreign group does not block our limiter", sr.guard_paused(lider.pid) is False)
 
 json.dump({"paused": {str(lider.pid): {"pgid": grupa, "comm": "sleep"}}}, open(stan, "w"))
-test("guard zamrozil lidera wprost - dalej dziala jak przedtem",
+test("guard froze leader directly - still works as before",
      sr.guard_paused(lider.pid) is True)
 
 # Live foreign process with a recorded pgid equal to ours: the note lies, the system
@@ -289,24 +289,24 @@ obcy = subprocess.Popen(["sleep", "600"], start_new_session=True)
 sprzataj.append(obcy)
 time.sleep(0.3)
 json.dump({"paused": {str(obcy.pid): {"pgid": grupa, "comm": "ffmpeg"}}}, open(stan, "w"))
-test("zywy obcy proces z cudzym zapisanym pgid nie blokuje limitera",
+test("live foreign process with foreign recorded pgid does not block limiter",
      sr.guard_paused(lider.pid) is False)
 
 json.dump({"paused": {}}, open(stan, "w"))
-test("nic nie zamrozone - limiter pracuje normalnie",
+test("nothing frozen - limiter works normally",
      sr.guard_paused(lider.pid) is False)
 
 # Dead entry plus recycled group number cannot hang the limiter forever.
 json.dump({"paused": {"999999": {"pgid": grupa, "comm": "ffmpeg"}}}, open(stan, "w"))
-test("wpis po nieistniejacym procesie nie blokuje limitera (recykling pgid)",
+test("entry for nonexistent process does not block limiter (pgid recycling)",
      sr.guard_paused(lider.pid) is False)
 
 # Stale snapshot means "nobody can decide"; keep that rule intact.
 json.dump({"paused": {str(DZIECKO): {"pgid": grupa}}}, open(stan, "w"))
 os.utime(stan, (time.time() - 600, time.time() - 600))
-test("martwy demon (migawka sprzed 10 min) nie trzyma zadania zamrozonego",
+test("dead daemon (snapshot from 10 min ago) does not keep job frozen",
      sr.guard_paused(lider.pid) is False)
 
 sprzatnij()
-print("\nWYNIK: %d/%d" % (zaliczone, wszystkie))
+print("\nRESULT: %d/%d" % (zaliczone, wszystkie))
 sys.exit(0 if zaliczone == wszystkie else 1)

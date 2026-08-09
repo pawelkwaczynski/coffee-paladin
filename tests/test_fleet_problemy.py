@@ -65,19 +65,19 @@ def czysc():
 
 
 # ---------------------------------------------------------------- item 16
-print("=== poz. 16: 'nie raportuje' nie moze ucinac reszty problemow ===")
+print("=== item 16: 'not reporting' must not hide the rest of the problems ===")
 czysc()
 migawka("Neo", wiek_s=3600, chip_c=98.7, level=3, thermal_state="critical",
         last_hard_shutdown={"time": "2026-08-01 03:12:00+0200"})
 rc, out, err = uruchom("--dir", FLOTA)
-test("1. host nieraportujacy jest oznaczony", "STALE" in out)
-test("2. ...ale twardy pad NIE znika za tym oznaczeniem", "hard shutdown" in out,
-     "pad zjedzony przez wczesny return")
-test("3. ...ani goraco", "HOT" in out, "brak informacji o 99 C")
-test("4. ...ani martwe wentylatory", "fans dead" in out)
+test("1. non-reporting host is marked", "STALE" in out)
+test("2. ...but hard shutdown does NOT disappear behind that marker", "hard shutdown" in out,
+     "hard shutdown eaten by early return")
+test("3. ...nor heat", "HOT" in out, "missing information about 99 C")
+test("4. ...nor dead fans", "fans dead" in out)
 
 # ---------------------------------------------------------------- item 17
-print("\n=== poz. 17: migawka bez sensu to nie zdrowa maszyna ===")
+print("\n=== item 17: nonsensical snapshot is not a healthy machine ===")
 czysc()
 migawka("TylkoChip", chip_c=float("inf"), battery_c=30.0)
 migawka("TylkoLevel", chip_c=45.0, level=float("nan"))
@@ -86,22 +86,22 @@ migawka("Zdrowy", chip_c=45.0, battery_c=30.0)
 rc, out, err = uruchom("--dir", FLOTA)
 for host, pole in (("TylkoChip", "chip_c"), ("TylkoLevel", "level"), ("Wszystko", "chip_c")):
     linia = [l for l in out.splitlines() if l.startswith(host)]
-    test("5.%s: %s z nieskonczonoscia/NaN jest oznaczony" % (host, pole),
+    test("5.%s: %s with infinity/NaN is marked" % (host, pole),
          bool(linia) and "implausible" in linia[0],
-         "linia: %r" % (linia[0][:90] if linia else "brak"))
+         "line: %r" % (linia[0][:90] if linia else "missing"))
 zdrowy = [l for l in out.splitlines() if l.startswith("Zdrowy")]
-test("6. zdrowa maszyna NIE dostaje falszywego ostrzezenia",
+test("6. healthy machine does NOT get a false warning",
      bool(zdrowy) and "implausible" not in zdrowy[0],
-     "linia: %r" % (zdrowy[0][:90] if zdrowy else "brak"))
-test("7. liczba maszyn wymagajacych uwagi to 3, nie 4",
+     "line: %r" % (zdrowy[0][:90] if zdrowy else "missing"))
+test("7. machines needing attention count is 3, not 4",
      "3 machine(s) need attention" in out,
      [l for l in out.splitlines() if "need attention" in l])
 
 # ---------------------------------------------------------------- item 18
-print("\n=== poz. 18: flagi bez argumentu ===")
+print("\n=== item 18: flags without an argument ===")
 for flaga in ("--dir", "--set-dir"):
     rc, out, err = uruchom(flaga)
-    test("8.%s bez argumentu: kod bledu, nie traceback" % flaga,
+    test("8.%s without argument: error code, not traceback" % flaga,
          rc != 0 and "Traceback" not in err and err.strip(),
          "rc=%d err=%r" % (rc, err[:80]))
 
@@ -109,10 +109,10 @@ for flaga in ("--dir", "--set-dir"):
 czysc()
 migawka("OK", chip_c=45.0)
 rc, out, err = uruchom("--dir", FLOTA)
-test("9. --dir z poprawna sciezka dziala", rc in (0, 2) and "OK" in out,
+test("9. --dir with a valid path works", rc in (0, 2) and "OK" in out,
      "rc=%d" % rc)
 
 shutil.rmtree(BASE, ignore_errors=True)
 ok = sum(wyniki)
-print("\nWYNIK: %d/%d" % (ok, len(wyniki)))
+print("\nRESULT: %d/%d" % (ok, len(wyniki)))
 sys.exit(0 if ok == len(wyniki) else 1)

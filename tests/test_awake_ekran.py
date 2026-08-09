@@ -91,77 +91,79 @@ def cfg(**k):
     return c
 
 
-print("1. domyslnie ekran GASNIE (caffeinate -is)")
+print("1. by default the display sleeps (caffeinate -is)")
 reset()
 g.keep_awake_update(cfg(), CIEZKIE, 0, {})
-test("caffeinate wolany dokladnie raz", len(WOLANIA) == 1, WOLANIA)
-test("bez flagi -d", WOLANIA and WOLANIA[0] == ["caffeinate", "-is"], WOLANIA)
+test("caffeinate called exactly once", len(WOLANIA) == 1, WOLANIA)
+test("without the -d flag", WOLANIA and WOLANIA[0] == ["caffeinate", "-is"], WOLANIA)
 
-print("\n2. keep_awake_display=true -> ekran tez trzymany (-isd)")
+print("\n2. keep_awake_display=true -> display is also kept awake (-isd)")
 reset()
 g.keep_awake_update(cfg(keep_awake_display=True), CIEZKIE, 0, {})
-test("flaga -d obecna", WOLANIA and WOLANIA[0] == ["caffeinate", "-isd"], WOLANIA)
+test("-d flag present", WOLANIA and WOLANIA[0] == ["caffeinate", "-isd"], WOLANIA)
 
-print("\n3. przelaczenie W LOCIE wymienia proces")
+print("\n3. live switching replaces the process")
 reset()
 g.keep_awake_update(cfg(), CIEZKIE, 0, {})                       # Start without display wake.
 pierwszy = g._caff["proc"]
 g.keep_awake_update(cfg(keep_awake_display=True), CIEZKIE, 0, {})  # User enables display wake.
-test("stary proces zostal ubity", pierwszy.ubity, "stary caffeinate przezyl zmiane")
-test("...i ZEBRANY przez wait (inaczej zostaje zombie)", pierwszy.zebrany,
-     "terminate bez wait - luka z przegladu 04.08")
-test("nowy wolany z -isd", len(WOLANIA) == 2 and WOLANIA[1] == ["caffeinate", "-isd"], WOLANIA)
-test("i ten nowy zyje", g.keep_awake_update(cfg(keep_awake_display=True), CIEZKIE, 0, {}) is True)
+test("old process was killed", pierwszy.ubity, "old caffeinate survived the change")
+test("...and REAPED by wait (otherwise it stays a zombie)", pierwszy.zebrany,
+     "terminate without wait - review gap from 04.08")
+test("new process called with -isd", len(WOLANIA) == 2 and WOLANIA[1] == ["caffeinate", "-isd"],
+     WOLANIA)
+test("and that new process is alive",
+     g.keep_awake_update(cfg(keep_awake_display=True), CIEZKIE, 0, {}) is True)
 
-print("\n4. BEZ zmiany ustawienia proces NIE jest wymieniany")
+print("\n4. WITHOUT a setting change the process is NOT replaced")
 reset()
 g.keep_awake_update(cfg(keep_awake_display=True), CIEZKIE, 0, {})
 g.keep_awake_update(cfg(keep_awake_display=True), CIEZKIE, 0, {})
 g.keep_awake_update(cfg(keep_awake_display=True), CIEZKIE, 0, {})
-test("jedno wolanie mimo trzech przebiegow petli", len(WOLANIA) == 1,
-     "%d wolan - demon wymienia caffeinate co cykl" % len(WOLANIA))
+test("one call despite three loop passes", len(WOLANIA) == 1,
+     "%d calls - daemon replaces caffeinate every cycle" % len(WOLANIA))
 
-print("\n5. PRZYPADEK PRZECIWNY: goraco = ekran gasnie razem z czuwaniem")
+print("\n5. OPPOSITE CASE: hot machine = display sleeps together with idle sleep")
 reset()
 g.keep_awake_update(cfg(keep_awake_display=True), CIEZKIE, 0, {})
 proc = g._caff["proc"]
 wynik = g.keep_awake_update(cfg(keep_awake_display=True), CIEZKIE, 2, {})   # Level 2 = pause.
-test("czuwanie zwolnione przy poziomie 2", wynik is False, wynik)
-test("caffeinate faktycznie ubity", proc.ubity, "proces przezyl przegrzanie")
-test("...i zebrany przy stopie termicznym", proc.zebrany, "zostaje zombie po przegrzaniu")
-test("i nie wystartowal ponownie", len(WOLANIA) == 1, WOLANIA)
+test("wake lock released at level 2", wynik is False, wynik)
+test("caffeinate really killed", proc.ubity, "process survived overheating")
+test("...and reaped on thermal stop", proc.zebrany, "zombie left after overheating")
+test("and not started again", len(WOLANIA) == 1, WOLANIA)
 
-print("\n6. PRZYPADEK PRZECIWNY: brak ciezkich zadan = zadnego czuwania")
+print("\n6. OPPOSITE CASE: no heavy jobs = no wake lock")
 reset()
 wynik = g.keep_awake_update(cfg(keep_awake_display=True), [], 0, {})
-test("nic nie wystartowalo", len(WOLANIA) == 0 and wynik is False, WOLANIA)
+test("nothing started", len(WOLANIA) == 0 and wynik is False, WOLANIA)
 
-print("\n7. LICZNIKI: rozroznianie 'zadanie sie skonczylo' od 'za goraco'")
+print("\n7. COUNTERS: distinguish 'job ended' from 'too hot'")
 reset()
 st = {}
 g.keep_awake_update(cfg(), CIEZKIE, 0, st)          # Start.
 g.keep_awake_update(cfg(), CIEZKIE, 2, st)          # Thermal stop.
-test("licznik czuwania zwolnionego przez cieplo = 1",
+test("thermal wake-release counter = 1",
      st.get("stats", {}).get("awake_released_hot") == 1, st.get("stats"))
 
 reset()
 st2 = {}
 g.keep_awake_update(cfg(), CIEZKIE, 0, st2)         # Start.
 g.keep_awake_update(cfg(), [], 0, st2)              # Stop because the job ended.
-test("koniec zadania NIE liczy sie jako zasluga bezpiecznika",
+test("job completion does NOT count as a guard intervention",
      "awake_released_hot" not in st2.get("stats", {}), st2.get("stats"))
 
-print("\n8. licznik() sam w sobie")
+print("\n8. counter() by itself")
 st3 = {}
 g.licznik(st3, "pauses")
 g.licznik(st3, "pauses")
 g.licznik(st3, "kills")
-test("zlicza narastajaco", st3["stats"]["pauses"] == 2 and st3["stats"]["kills"] == 1, st3)
-test("zapisuje moment startu liczenia", isinstance(st3["stats"].get("since"), (int, float)),
+test("counts cumulatively", st3["stats"]["pauses"] == 2 and st3["stats"]["kills"] == 1, st3)
+test("records when counting started", isinstance(st3["stats"].get("since"), (int, float)),
      st3["stats"].get("since"))
-test("nie wywala sie na zepsutym stanie", (g.licznik(None, "pauses") or True))
+test("does not crash on broken state", (g.licznik(None, "pauses") or True))
 
-print("\n9. NAJWAZNIEJSZE: RECZNA sesja tez ustepuje bezpiecznikowi")
+print("\n9. MOST IMPORTANT: MANUAL sessions also yield to the guard")
 # Earlier sections checked hot handling only for automatic mode. The mutation
 # `(auto and lvl < 2) or manual` let manual sessions bypass the thermal guard.
 # That is the highest-risk failure mode for this feature.
@@ -172,16 +174,16 @@ with io.open(os.path.join(BASE, "awake.json"), "w", encoding="utf-8") as f:
 c = dict(g.DEFAULTS)                            # Note: keep_awake_auto is off.
 c["keep_awake_auto"] = False
 wynik = g.keep_awake_update(c, [], 0, {})       # Cool Mac: keep-awake must work.
-test("reczna sesja trzyma czuwanie, gdy chlodno", wynik is True and len(WOLANIA) == 1, WOLANIA)
+test("manual session keeps wake lock while cool", wynik is True and len(WOLANIA) == 1, WOLANIA)
 proc = g._caff["proc"]
 wynik = g.keep_awake_update(c, [], 2, {})       # Hot Mac: it must yield.
-test("reczna sesja USTEPUJE przy poziomie 2", wynik is False, wynik)
-test("caffeinate recznej sesji faktycznie ubity", proc.ubity, "przezyl przegrzanie")
+test("manual session YIELDS at level 2", wynik is False, wynik)
+test("manual-session caffeinate really killed", proc.ubity, "survived overheating")
 try:
     os.remove(os.path.join(BASE, "awake.json"))
 except OSError:
     pass
 
 shutil.rmtree(BASE, ignore_errors=True)
-print("\n%d/%d" % (zaliczone, wszystkie))
+print("\nRESULT: %d/%d" % (zaliczone, wszystkie))
 sys.exit(0 if zaliczone == wszystkie else 1)

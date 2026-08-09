@@ -77,42 +77,42 @@ def log_tekst():
 
 
 # ---------------------------------------------------------------- main loop
-print("=== petla glowna naprawde biegnie ===")
+print("=== main loop really runs ===")
 demon = start_demona()
-test("1. demon wystartowal i zapisal status", czekaj_na(lambda: os.path.exists(plik("status.json"))),
-     "brak status.json po 25 s")
-test("2. ...i tyka heartbeat", os.path.exists(plik("heartbeat")))
-test("3. ...i zapisal wpis startowy w logu", "coffee-paladin start" in log_tekst())
+test("1. daemon started and wrote status", czekaj_na(lambda: os.path.exists(plik("status.json"))),
+     "no status.json after 25 s")
+test("2. ...and ticks heartbeat", os.path.exists(plik("heartbeat")))
+test("3. ...and wrote startup entry in log", "coffee-paladin start" in log_tekst())
 
 mtime1 = os.path.getmtime(plik("status.json"))
-test("4. petla wykonuje KOLEJNE takty (status sie odswieza)",
+test("4. loop performs NEXT ticks (status refreshes)",
      czekaj_na(lambda: os.path.getmtime(plik("status.json")) > mtime1, ile=15),
-     "status.json nie zostal przepisany - petla stoi po pierwszym przebiegu")
+     "status.json was not rewritten - loop is stuck after first pass")
 
 try:
     dane = json.load(io.open(plik("status.json"), encoding="utf-8"))
 except Exception:
     dane = {}
-test("5. migawka niesie realne pomiary, nie pusty szkielet",
+test("5. snapshot carries real measurements, not an empty skeleton",
      isinstance(dane.get("level"), (int, float)) and "thermal_state" in dane,
      "status.json: %s" % sorted(dane)[:8])
-test("6. historia pomiarow jest zapisywana", os.path.exists(plik("history.csv")))
+test("6. measurement history is written", os.path.exists(plik("history.csv")))
 
 # ---------------------------------------------------------------- shutdown
-print("\n=== zamkniecie: SIGTERM na zywym demonie ===")
+print("\n=== shutdown: SIGTERM on live daemon ===")
 demon.send_signal(signal.SIGTERM)
 try:
     demon.wait(timeout=40)
 except subprocess.TimeoutExpired:
     demon.kill()
-test("7. demon konczy sie sam po SIGTERM (nie trzeba go zabijac)", demon.returncode is not None,
-     "musial dostac SIGKILL")
-test("8. zapisal znacznik czystego zamkniecia", os.path.exists(plik("clean_stop")),
-     "brak clean_stop - nastepny start uzna to za TWARDY PAD")
-test("9. ...i wpis koncowy w logu", "coffee-paladin stop" in log_tekst())
+test("7. daemon exits by itself after SIGTERM (no kill needed)", demon.returncode is not None,
+     "had to receive SIGKILL")
+test("8. wrote clean shutdown marker", os.path.exists(plik("clean_stop")),
+     "no clean_stop - next start will treat this as HARD SHUTDOWN")
+test("9. ...and final entry in log", "coffee-paladin stop" in log_tekst())
 
 # ---------------------------------------------------------------- core invariant
-print("\n=== czyste zamkniecie NIE MOZE byc meldowane jako twardy pad ===")
+print("\n=== clean shutdown MUST NOT be reported as hard shutdown ===")
 g = importlib.machinery.SourceFileLoader("zd_guard", os.path.join(SRC, "guard.py")).load_module()
 try:
     zdarzenia = [json.loads(l) for l in
@@ -120,8 +120,8 @@ try:
 except OSError:
     zdarzenia = []
 pady = [z for z in zdarzenia if z.get("type") == "HARD_SHUTDOWN"]
-test("10. po czystym zamknieciu w czarnej skrzynce NIE MA twardego padu", not pady,
-     "sfabrykowane pady: %s" % [z.get("time") for z in pady])
+test("10. after clean shutdown the black box has NO hard shutdown", not pady,
+     "fabricated shutdowns: %s" % [z.get("time") for z in pady])
 
 # The same from the detector side: heartbeat before "boot" plus clean_stop means silence.
 boot = g.boot_time()
@@ -130,17 +130,17 @@ with io.open(g.HEARTBEAT_PATH, "w", encoding="utf-8") as f:
 os.utime(g.HEARTBEAT_PATH, (boot - 600, boot - 600))
 io.open(g.CLEAN_STOP_PATH, "w").close()
 os.utime(g.CLEAN_STOP_PATH, (boot - 590, boot - 590))
-test("11. wykrywacz padu milczy, gdy clean_stop towarzyszy pulsowi",
+test("11. shutdown detector stays silent when clean_stop accompanies heartbeat",
      g.wykryj_twardy_pad() is None,
-     "czyste zamkniecie zostalo policzone jako awaria")
+     "clean shutdown was counted as failure")
 
 os.remove(g.CLEAN_STOP_PATH)
-test("12. przypadek PRZECIWNY: bez clean_stop pad JEST wykrywany",
+test("12. OPPOSITE case: without clean_stop shutdown IS detected",
      g.wykryj_twardy_pad() is not None,
-     "wykrywacz przestal widziec prawdziwe pady")
+     "detector stopped seeing real shutdowns")
 
 # ---------------------------------------------------------------- caffeinate
-print("\n=== keep-awake nie przezywa demona ===")
+print("\n=== keep-awake does not outlive daemon ===")
 for n in ("clean_stop", "heartbeat", "events.log", "state.json"):
     if os.path.exists(plik(n)):
         os.remove(plik(n))
@@ -173,11 +173,11 @@ zyje_po = [p for p in przed
            if subprocess.run(["ps", "-o", "stat=", "-p", str(p)],
                              capture_output=True, text=True).stdout.strip() not in ("", "Z", "Z+")]
 if mial_caffeinate:
-    test("13. caffeinate demona NIE przezywa jego zamkniecia", not zyje_po,
-         "zyja: %s - Mac nigdy nie zasnie, bez sladu w interfejsie" % zyje_po)
+    test("13. daemon caffeinate does NOT survive its shutdown", not zyje_po,
+         "alive: %s - Mac will never sleep, with no trace in UI" % zyje_po)
 else:
-    test("13. keep-awake nie wstal w tym srodowisku - warunek nie zachodzi", True)
-test("14. drugie zamkniecie tez zostawilo clean_stop", os.path.exists(plik("clean_stop")))
+    test("13. keep-awake did not start in this environment - condition does not apply", True)
+test("14. second shutdown also left clean_stop", os.path.exists(plik("clean_stop")))
 
 for p in DZIECI:
     try:
@@ -188,5 +188,5 @@ for p in DZIECI:
 shutil.rmtree(BASE, ignore_errors=True)
 
 ok = sum(wyniki)
-print("\nWYNIK: %d/%d" % (ok, len(wyniki)))
+print("\nRESULT: %d/%d" % (ok, len(wyniki)))
 sys.exit(0 if ok == len(wyniki) else 1)

@@ -50,41 +50,41 @@ def grupa_z_wnukiem():
     return p
 
 
-print("safe-run: sprzatanie grupy + --grace")
+print("safe-run: group cleanup + --grace")
 
 # --- parser ---
 argv0 = sys.argv
 sys.argv = ["safe-run", "--", "true"]
 opt, _ = sr.parse()
-test("domyslny grace = 30 s (dotychczasowe zachowanie)", opt["grace"] == 30.0, str(opt))
+test("default grace = 30 s (existing behavior)", opt["grace"] == 30.0, str(opt))
 sys.argv = ["safe-run", "--grace", "120", "--", "true"]
 opt, _ = sr.parse()
-test("--grace 120 ustawia okno laski", opt["grace"] == 120.0, str(opt))
+test("--grace 120 sets the grace window", opt["grace"] == 120.0, str(opt))
 sys.argv = ["safe-run", "--grace", "999999", "--", "true"]
 opt, _ = sr.parse()
-test("grace ma sufit 1 h", opt["grace"] == 3600.0, str(opt))
+test("grace is capped at 1 h", opt["grace"] == 3600.0, str(opt))
 sys.argv = argv0
 
 # --- live processes in group ---
 p = grupa_z_wnukiem()
 pids = sr.zywi_w_grupie(p.pid)
-test("widzi lidera i wnuka w grupie (>= 2 pidy)", len(pids) >= 2, str(pids))
-test("nie widzi w grupie NAS", os.getpid() not in pids, str(pids))
+test("sees leader and grandchild in group (>= 2 pids)", len(pids) >= 2, str(pids))
+test("does not see US in the group", os.getpid() not in pids, str(pids))
 
 # --- Reproduce single-pid leader termination while the grandchild remains ---
 os.kill(p.pid, signal.SIGTERM)
 p.wait()
 time.sleep(0.3)
 sieroty = sr.zywi_w_grupie(p.pid)
-test("po smierci lidera wnuk-sierota ZYJE w grupie (repro incydentu)",
+test("after leader dies, orphan grandchild is ALIVE in the group (incident repro)",
      len(sieroty) >= 1, str(sieroty))
 
 t0 = time.time()
 sr.sprzatnij_grupe(p.pid, grace=5.0)
 czas = time.time() - t0
-test("sprzatnij_grupe klade sierote", sr.zywi_w_grupie(p.pid) == [],
+test("sprzatnij_grupe kills the orphan", sr.zywi_w_grupie(p.pid) == [],
      str(sr.zywi_w_grupie(p.pid)))
-test("sleep umiera na SIGTERM - bez czekania calego okna laski", czas < 4.0,
+test("sleep dies on SIGTERM - without waiting the whole grace window", czas < 4.0,
      "%.1f s" % czas)
 
 # --- Frozen orphan (state T): CONT before TERM, or the signal stays pending ---
@@ -96,7 +96,7 @@ sieroty = sr.zywi_w_grupie(p.pid)
 for pid in sieroty:
     os.kill(pid, signal.SIGSTOP)
 sr.sprzatnij_grupe(p.pid, grace=5.0)
-test("zamrozona sierota tez ginie (CONT przed TERM)",
+test("frozen orphan also dies (CONT before TERM)",
      sr.zywi_w_grupie(p.pid) == [], str(sr.zywi_w_grupie(p.pid)))
 
 # --- Stubborn process that ignores SIGTERM receives SIGKILL after the grace window ---
@@ -107,10 +107,10 @@ t0 = time.time()
 sr.sprzatnij_grupe(p.pid, grace=2.0)
 p.wait()
 czas = time.time() - t0
-test("ignorujacy SIGTERM ginie od SIGKILL po oknie laski",
+test("SIGTERM-ignoring process dies from SIGKILL after the grace window",
      sr.zywi_w_grupie(p.pid) == [] and 1.5 <= czas < 8.0,
-     "%.1f s, zywi=%s" % (czas, sr.zywi_w_grupie(p.pid)))
+     "%.1f s, alive=%s" % (czas, sr.zywi_w_grupie(p.pid)))
 
 shutil.rmtree(BASE, ignore_errors=True)
-print("\nWYNIK: %d/%d" % (zaliczone, wszystkie))
+print("\nRESULT: %d/%d" % (zaliczone, wszystkie))
 sys.exit(0 if zaliczone == wszystkie else 1)

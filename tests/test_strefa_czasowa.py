@@ -51,11 +51,11 @@ def test(nazwa, warunek, detal=""):
 os.environ["TZ"] = "Europe/Warsaw"
 time.tzset()
 s = g.ts(1785706200.0)                      # 2026-08-02 23:30:00 +0200
-test("1. stempel ma 24 znaki i offset na koncu",
-     len(s) == 24 and s[19] in "+-", "dostalem %r" % s)
-test("2. pierwsze 19 znakow to DOKLADNIE stary format (wsteczna zgodnosc)",
+test("1. timestamp has 24 characters and offset at the end",
+     len(s) == 24 and s[19] in "+-", "got %r" % s)
+test("2. first 19 characters are EXACTLY the old format (backward compatibility)",
      re.fullmatch(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}", s[:19]) is not None,
-     "dostalem %r" % s[:19])
+     "got %r" % s[:19])
 
 # --- 2. parser returns the same result in every zone ---------------------------------
 odczyty = {}
@@ -63,16 +63,16 @@ for strefa in ("Europe/Warsaw", "America/Los_Angeles", "Pacific/Auckland", "Paci
     os.environ["TZ"] = strefa
     time.tzset()
     odczyty[strefa] = g.czas_abs(s)
-test("3. czas_abs() ze stempla z offsetem jest IDENTYCZNY w kazdej strefie",
+test("3. czas_abs() from offset timestamp is IDENTICAL in every zone",
      len(set(odczyty.values())) == 1 and abs(list(odczyty.values())[0] - 1785706200.0) < 1,
      "%s" % odczyty)
 
 os.environ["TZ"] = "Europe/Warsaw"
 time.tzset()
-test("4. stempel legacy (bez offsetu) dalej sie parsuje",
+test("4. legacy timestamp (without offset) still parses",
      abs(g.czas_abs("2026-08-02 23:30:00") - 1785706200.0) < 1,
-     "dostalem %s" % g.czas_abs("2026-08-02 23:30:00"))
-test("5. smiec nie wywala parsera",
+     "got %s" % g.czas_abs("2026-08-02 23:30:00"))
+test("5. junk does not crash parser",
      g.czas_abs("xyzzy") == 0.0 and g.czas_abs("") == 0.0 and g.czas_abs(None) == 0.0)
 
 # --- 3. evidence document is consistent in every zone --------------------------------
@@ -111,19 +111,19 @@ for strefa in ("Europe/Warsaw", "America/Los_Angeles", "Pacific/Auckland", "Paci
     s_ = sekcje(strefa)
     if len(set(s_.values())) != 1:
         niespojne.append((strefa, s_))
-test("6. w KAZDEJ strefie dokument jest spojny (wszystkie sekcje widza zdarzenie albo zadna)",
-     not niespojne, "niespojne: %s" % niespojne)
+test("6. in EVERY zone the document is consistent (all sections see event or none do)",
+     not niespojne, "inconsistent: %s" % niespojne)
 
 # This is the exact case that used to lie.
 w_auckland = sekcje("Pacific/Auckland")
-test("7. Auckland: nie ma juz 'zero zdarzen' obok wydrukowanego szczytu 98,7 C",
+test("7. Auckland: no more 'zero events' beside printed peak 98.7 C",
      not (w_auckland["zdarzenie"] is False and w_auckland["szczyt"] is True),
-     "zdarzenie=%s szczyt=%s" % (w_auckland["zdarzenie"], w_auckland["szczyt"]))
+     "event=%s peak=%s" % (w_auckland["zdarzenie"], w_auckland["szczyt"]))
 
 # --- 4. legacy: files without offsets remain readable --------------------------------
 przygotuj("2026-08-02 23:30:00", EPOCH)
 w_domu = sekcje("Europe/Warsaw")
-test("8. legacy w strefie zapisu: raport nadal widzi pomiary i interwencje",
+test("8. legacy in write zone: report still sees measurements and interventions",
      w_domu["os_czasu"] and w_domu["interwencja"] and w_domu["szczyt"],
      "%s" % w_domu)
 
@@ -131,5 +131,5 @@ shutil.rmtree(BASE, ignore_errors=True)
 os.environ["TZ"] = "Europe/Warsaw"
 time.tzset()
 ok = sum(wyniki)
-print("\nWYNIK: %d/%d" % (ok, len(wyniki)))
+print("\nRESULT: %d/%d" % (ok, len(wyniki)))
 sys.exit(0 if ok == len(wyniki) else 1)

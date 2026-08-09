@@ -53,28 +53,28 @@ def rejestruj(pid, pgid, prawa=0o600, started=None):
 
 
 # ---------------------------------------------------------------- item 10
-print("=== poz. 10: pgid bierzemy z JADRA, nie z pliku ===")
+print("=== item 10: take pgid from the KERNEL, not from the file ===")
 # start_new_session gives a private process group; otherwise pgid equals ours.
 ofiara = subprocess.Popen(["sleep", "300"], start_new_session=True)
 prawdziwy = os.getpgid(ofiara.pid)
 cudzy = os.getpgid(0)
 rejestruj(ofiara.pid, cudzy)              # Foreign pgid in the file.
 res, _ = g.managed_pids_from_saferun()
-test("1. guard uzywa PRAWDZIWEGO pgid procesu, nie tego z pliku",
+test("1. guard uses the process's REAL pgid, not the one from the file",
      res.get(ofiara.pid) == prawdziwy,
-     "odczytal %s, prawdziwe %s, podstawione %s" % (res.get(ofiara.pid), prawdziwy, cudzy))
-test("2. ...czyli sygnal NIE poleci do podstawionej grupy",
+     "read %s, real %s, substituted %s" % (res.get(ofiara.pid), prawdziwy, cudzy))
+test("2. ...so the signal does NOT go to the substituted group",
      res.get(ofiara.pid) != cudzy or prawdziwy == cudzy)
 
 drugi = subprocess.Popen(["sleep", "300"], start_new_session=True)
 sciezka = rejestruj(drugi.pid, os.getpgid(drugi.pid), prawa=0o666)
 res, _ = g.managed_pids_from_saferun()
-test("3. rejestracja zapisywalna dla innych jest IGNOROWANA", drugi.pid not in res,
-     "plik 0666 zostal przyjety")
+test("3. world-writable registration is IGNORED", drugi.pid not in res,
+     "0666 file was accepted")
 os.chmod(sciezka, 0o600)
 res, _ = g.managed_pids_from_saferun()
-test("4. ta sama rejestracja z prawami 0600 jest przyjeta", drugi.pid in res,
-     "blokujemy wlasne, poprawne zadania")
+test("4. the same registration with 0600 permissions is accepted", drugi.pid in res,
+     "blocking our own valid jobs")
 
 ofiara.kill(); ofiara.wait()
 drugi.kill(); drugi.wait()
@@ -82,7 +82,7 @@ for n in os.listdir(os.path.join(BASE, "managed")):
     os.remove(os.path.join(BASE, "managed", n))
 
 # ---------------------------------------------------------------- item 11
-print("\n=== poz. 11: ochrona po podciagu ZOSTAJE, ale przestaje milczec ===")
+print("\n=== item 11: substring protection REMAINS, but stops being silent ===")
 cfg = g.load_cfg()
 cfg["cpu_min_percent"] = 10
 cfg["manage_unknown_heavy"] = True
@@ -99,18 +99,18 @@ procs = [(4001, 1, 90.0, "mds_solver"), (4002, 1, 85.0, "sshd-worker"),
 cele = [c[2] for c in g.pick_targets(cfg, procs, {})]
 log = io.open(g.LOG_PATH, encoding="utf-8", errors="replace").read() if os.path.exists(g.LOG_PATH) else ""
 
-test("5. ochrona NIE zostala oslabiona - mds_solver dalej nietykalny",
+test("5. protection was NOT weakened - mds_solver remains untouchable",
      "mds_solver" not in cele, "cele: %s" % cele)
-test("6. sshd-worker tez nietykalny", "sshd-worker" not in cele, "cele: %s" % cele)
-test("7. zwykly enkoder nadal pauzowalny", "ffmpeg" in cele, "cele: %s" % cele)
-test("8. log MOWI, dlaczego goracy mds_solver jest pomijany",
+test("6. sshd-worker also untouchable", "sshd-worker" not in cele, "cele: %s" % cele)
+test("7. plain encoder still pausable", "ffmpeg" in cele, "cele: %s" % cele)
+test("8. log SAYS why hot mds_solver is skipped",
      "mds_solver" in log and "untouchable" in log,
-     "brak wyjasnienia w logu - uzytkownik dostaje cisze")
-test("9. przy PELNYM dopasowaniu (mds) nie ma halasu w logu",
-     "mds uses" not in log, "logujemy takze oczywiste przypadki")
+     "missing log explanation - user gets silence")
+test("9. with a FULL match (mds), there is no log noise",
+     "mds uses" not in log, "also logging obvious cases")
 
 # ---------------------------------------------------------------- item 12
-print("\n=== poz. 12: temat ntfy nie moze byc widoczny w ps ===")
+print("\n=== item 12: ntfy topic must not be visible in ps ===")
 BIN = os.path.join(BASE, "bin")
 os.makedirs(BIN, exist_ok=True)
 with io.open(os.path.join(BIN, "curl"), "w", encoding="utf-8") as f:
@@ -136,19 +136,19 @@ while time.time() < _koniec:
     time.sleep(0.05)
 argv = io.open(_argv_path, encoding="utf-8").read() if os.path.exists(_argv_path) else ""
 stdin = io.open(_stdin_path, encoding="utf-8").read() if os.path.exists(_stdin_path) else ""
-test("9b. atrapa curla w ogole zostala uruchomiona (inaczej reszta nic nie dowodzi)",
-     bool(argv), "curl.argv nie powstal w 20 s - test ponizej bylby falszywie zielony")
+test("9b. curl stub was actually started (otherwise the rest proves nothing)",
+     bool(argv), "curl.argv was not created within 20 s - the check below would be falsely green")
 
-test("10. tematu NIE MA w argv (czyli nie ma go w ps)", TEMAT not in argv,
+test("10. topic is NOT in argv (so it is not in ps)", TEMAT not in argv,
      "argv: %s" % argv.strip()[:110])
-test("11. tresci alertu tez nie ma w argv", "98.7" not in argv,
+test("11. alert body is not in argv either", "98.7" not in argv,
      "argv: %s" % argv.strip()[:110])
-test("12. temat idzie stdin-em, czyli push nadal DZIALA", TEMAT in stdin,
+test("12. topic goes through stdin, so push still WORKS", TEMAT in stdin,
      "stdin: %s" % stdin.strip()[:110])
-test("13. tresc i tytul dochodza w ciele", "98.7" in stdin and "Cooling alarm" in stdin,
+test("13. body and title arrive in the request body", "98.7" in stdin and "Cooling alarm" in stdin,
      "stdin: %s" % stdin.strip()[:110])
 
 shutil.rmtree(BASE, ignore_errors=True)
 ok = sum(wyniki)
-print("\nWYNIK: %d/%d" % (ok, len(wyniki)))
+print("\nRESULT: %d/%d" % (ok, len(wyniki)))
 sys.exit(0 if ok == len(wyniki) else 1)

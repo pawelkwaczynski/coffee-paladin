@@ -58,10 +58,10 @@ print("safe-run --wait-cool")
 argv0 = sys.argv
 sys.argv = ["safe-run", "--", "true"]
 opt, _ = sr.parse()
-test("bez flagi wait_cool jest wylaczone", opt["wait_cool"] is False, str(opt))
+test("without flag wait_cool is disabled", opt["wait_cool"] is False, str(opt))
 sys.argv = ["safe-run", "--wait-cool", "--hours", "2", "--", "true"]
 opt, cmd = sr.parse()
-test("--wait-cool ustawia flage i nie zjada polecenia",
+test("--wait-cool sets flag and does not eat the command",
      opt["wait_cool"] is True and cmd == ["true"] and opt["hours"] == 2.0,
      "%s %s" % (opt, cmd))
 sys.argv = argv0
@@ -69,27 +69,27 @@ sys.argv = argv0
 # --- chip_odczyt ---
 migawka(91.0)
 chip, prog, lvl = sr.chip_odczyt()
-test("swieza migawka: chip i prog wznowienia z migawki",
-     chip == 91.0 and prog == 87.0, "chip=%s prog=%s" % (chip, prog))
+test("fresh snapshot: chip and resume threshold from snapshot",
+     chip == 91.0 and prog == 87.0, "chip=%s threshold=%s" % (chip, prog))
 
 migawka(91.0, resume=None)
 chip, prog, lvl = sr.chip_odczyt()
-test("migawka bez pola resume: prog z config.json (stary guard)",
-     chip == 91.0 and prog == 87.0, "chip=%s prog=%s" % (chip, prog))
+test("snapshot without resume field: threshold from config.json (old guard)",
+     chip == 91.0 and prog == 87.0, "chip=%s threshold=%s" % (chip, prog))
 
 migawka(99.0, wiek=300)
 chip, prog, lvl = sr.chip_odczyt()
-test("migawka sprzed 5 minut: chip nieznany (nie wisimy na trupie)",
+test("5-minute-old snapshot: chip unknown (do not hang on a dead guard)",
      chip is None, "chip=%s" % chip)
 
 migawka("zepsute")
 chip, prog, lvl = sr.chip_odczyt()
-test("smieciowy chip_c w migawce nie wywala odczytu", chip is None, "chip=%s" % chip)
+test("junk chip_c in snapshot does not crash read", chip is None, "chip=%s" % chip)
 
 os.remove(os.path.join(BASE, "status.json"))
 chip, prog, lvl = sr.chip_odczyt()
-test("brak migawki: chip nieznany, prog z configu",
-     chip is None and prog == 87.0, "chip=%s prog=%s" % (chip, prog))
+test("missing snapshot: chip unknown, threshold from config",
+     chip is None and prog == 87.0, "chip=%s threshold=%s" % (chip, prog))
 
 # --- wait loop; replace measurement sources and count sleeps ---
 prawdziwe = (sr.thermal_state, sr.batt_temp, sr.chip_odczyt, sr.time.sleep)
@@ -120,22 +120,22 @@ def czekaj(sekwencja_chip, stan="nominal", bateria=30.0, sekwencja_lvl=None):
 
 
 minuty, ile, tekst = czekaj([91.0, 89.0, 86.0])
-test("czeka az chip zejdzie DO progu wznowienia (2 drzemki przy 91->89->86)",
-     ile == 2, "drzemki=%d" % ile)
-test("komunikat o czekaniu wypisany z powodem",
+test("waits until chip drops TO resume threshold (2 sleeps at 91->89->86)",
+     ile == 2, "sleeps=%d" % ile)
+test("waiting message printed with reason",
      "wait" in tekst and "chip 91.0" in tekst, tekst.strip()[:100])
 
 minuty, ile, tekst = czekaj([86.0])
-test("chlodna maszyna: wraca bez drzemki", ile == 0, "drzemki=%d" % ile)
+test("cool machine: returns without sleeping", ile == 0, "sleeps=%d" % ile)
 
 minuty, ile, tekst = czekaj([None])
-test("chip nieznany (martwy guard) + chlodna reszta: NIE wisi w nieskonczonosc",
-     ile == 0, "drzemki=%d" % ile)
+test("chip unknown (dead guard) + cool rest: does NOT hang forever",
+     ile == 0, "sleeps=%d" % ile)
 
 minuty, ile, tekst = czekaj([50.0, 50.0, 50.0], sekwencja_lvl=[2, 2, 0])
-test("level>=2 guarda trzyma czekanie mimo chlodnego chipa (dlawienie/bateria)",
+test("guard level>=2 keeps waiting despite cool chip (throttling/battery)",
      ile == 2 and "guard level 2" in tekst,
-     "drzemki=%d %s" % (ile, tekst.strip()[:80]))
+     "sleeps=%d %s" % (ile, tekst.strip()[:80]))
 
 # Hot battery keeps waiting despite a cool chip; cooling battery ends it.
 licznik_bat = {"i": 0}
@@ -156,21 +156,21 @@ try:
         sr.czekaj_na_ochlodzenie(40.0)
 finally:
     sr.thermal_state, sr.batt_temp, sr.chip_odczyt, sr.time.sleep = prawdziwe
-test("goraca bateria trzyma czekanie mimo chlodnego chipa, stygnaca konczy",
+test("hot battery keeps waiting despite cool chip, cooling battery ends it",
      len(drzemki) == 2 and "batt 41.0" in out_bat.getvalue(),
-     "drzemki=%d %s" % (len(drzemki), out_bat.getvalue().strip()[:80]))
+     "sleeps=%d %s" % (len(drzemki), out_bat.getvalue().strip()[:80]))
 
 # --- main() routing: without flag, refusal rc 3 before anything starts ---
 migawka(92.0)
 sys.argv = ["safe-run", "--", "true"]
 with contextlib.redirect_stdout(io.StringIO()) as out:
     rc = sr.main()
-test("bez --wait-cool goraca migawka = rc 3 (kontrakt retry_run.sh)",
+test("without --wait-cool hot snapshot = rc 3 (retry_run.sh contract)",
      rc == 3 and "REFUSING" in out.getvalue(), "rc=%s %s" % (rc, out.getvalue().strip()[:80]))
-test("odmowa podpowiada --wait-cool", "--wait-cool" in out.getvalue(),
+test("refusal suggests --wait-cool", "--wait-cool" in out.getvalue(),
      out.getvalue().strip()[:120])
 sys.argv = argv0
 
 shutil.rmtree(BASE, ignore_errors=True)
-print("\nWYNIK: %d/%d" % (zaliczone, wszystkie))
+print("\nRESULT: %d/%d" % (zaliczone, wszystkie))
 sys.exit(0 if zaliczone == wszystkie else 1)

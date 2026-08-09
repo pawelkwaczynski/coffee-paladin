@@ -75,7 +75,7 @@ OK_FUNKCJE = []
 
 def skroc(x, n=260):
     s = x if isinstance(x, str) else repr(x)
-    return s if len(s) <= n else s[:n] + "...<%d znakow>" % len(s)
+    return s if len(s) <= n else s[:n] + "...<%d chars>" % len(s)
 
 
 class Sesja(object):
@@ -100,12 +100,12 @@ class Sesja(object):
         ZNALEZISKA[k] = {"funkcja": self.nazwa, "wejscie": skroc(wejscie),
                          "opis": opis, "powaga": powaga, "ile": 1}
 
-    def blad(self, wejscie, exc, powaga="WYSOKA"):
+    def blad(self, wejscie, exc, powaga="HIGH"):
         self.bledy += 1
         self._dodaj("EXC:" + type(exc).__name__, wejscie,
-                    "wyjatek wychodzi z funkcji: %s: %s" % (type(exc).__name__, exc), powaga)
+                    "exception escapes function: %s: %s" % (type(exc).__name__, exc), powaga)
 
-    def bzdura(self, wejscie, opis, powaga="SREDNIA", klucz=None):
+    def bzdura(self, wejscie, opis, powaga="MEDIUM", klucz=None):
         self.bzdury += 1
         self._dodaj(klucz or opis[:60], wejscie, opis, powaga)
 
@@ -169,15 +169,15 @@ def zadanie_z_danymi(rng):
     else:
         cmd = "%s -y -i %s -c:v libx265 -preset slow %s" % (narz, wej, wyj)
     if " " in kat:
-        powod = "spacja w sciezce (ps rozbija argument na dwa tokeny)"
+        powod = "space in path (ps splits argument into two tokens)"
     elif nieznane:
-        powod = "nietypowe rozszerzenie pliku danych (%s)" % ext
+        powod = "unusual data-file extension (%s)" % ext
     elif cudzyslow:
-        powod = "sciezka w cudzyslowach"
+        powod = "path in quotes"
     elif katalog_jako_arg:
-        powod = "argumentem jest KATALOG, nie plik"
+        powod = "argument is a DIRECTORY, not a file"
     else:
-        powod = "typowe rozszerzenie pliku danych (wariant kontrolny)"
+        powod = "typical data-file extension (control variant)"
     return cmd, False, powod        # False = should not be protected.
 
 
@@ -197,7 +197,7 @@ def agent(rng):
     """Generate a process that must be protected from SIGSTOP."""
     baza = rng.choice(AGENCI)
     styl = rng.random()
-    powod = "wzorzec"
+    powod = "pattern"
     if styl < 0.2:
         # Agent identity stored in a file whose extension is on the data list.
         baza = rng.choice([
@@ -206,15 +206,15 @@ def agent(rng):
             "node /Users/x/codex/dist/index.db",
             "python3 /Users/x/cursor/plugin.pdf",
         ])
-        powod = "tozsamosc w pliku o rozszerzeniu danych"
+        powod = "identity in a file with a data extension"
     elif styl < 0.35:
         baza += " --workdir /Users/x/Desktop/wideo/rec.mkv"
-        powod = "agent z argumentem-plikiem danych"
+        powod = "agent with data-file argument"
     return baza, True, powod
 
 
 def fuzz_args_ochrona(seed, n):
-    s = Sesja("guard.args_bez_sciezek [ochrona]", seed)
+    s = Sesja("guard.args_bez_sciezek [protection]", seed)
     stary = guard.full_args
     ekstrema = [
         "", "   ", "\x00", "\x00 ffmpeg -i /Users/x/claude/a.mkv",
@@ -236,7 +236,7 @@ def fuzz_args_ochrona(seed, n):
                 break
             s.n += 1
             if i < len(ekstrema):
-                cmd, oczek, powod = ekstrema[i], None, "wejscie ekstremalne"
+                cmd, oczek, powod = ekstrema[i], None, "extreme input"
             elif s.rng.random() < 0.55:
                 cmd, oczek, powod = zadanie_z_danymi(s.rng)
             else:
@@ -248,7 +248,7 @@ def fuzz_args_ochrona(seed, n):
                 s.blad(cmd, e)
                 continue
             if not isinstance(out, str):
-                s.bzdura(cmd, "zwrocono %s zamiast str" % type(out).__name__, "WYSOKA",
+                s.bzdura(cmd, "returned %s instead of str" % type(out).__name__, "HIGH",
                          klucz="zly-typ")
                 continue
             if oczek is None:
@@ -256,17 +256,17 @@ def fuzz_args_ochrona(seed, n):
             jest = chroniony(out)
             if jest and oczek is False:
                 s.bzdura(cmd,
-                         "ZWYKLE ZADANIE STAJE SIE NIETYKALNE (%s): po wycieciu sciezek zostalo "
-                         "%r, co pasuje do never_arg_patterns. Guard nie ma prawa go zapauzowac, "
-                         "wiec Mac grzeje sie dalej - dokladnie ten blad, dla ktorego funkcja "
-                         "powstala." % (powod, skroc(out, 90)),
-                         "WYSOKA", klucz="falszywa-ochrona: " + powod)
+                         "PLAIN JOB BECOMES UNTOUCHABLE (%s): after cutting paths, "
+                         "%r remains and matches never_arg_patterns. Guard is not allowed to pause it, "
+                         "so the Mac keeps heating - exactly the bug this function was built for."
+                         % (powod, skroc(out, 90)),
+                         "HIGH", klucz="falszywa-ochrona: " + powod)
             elif not jest and oczek is True:
                 s.bzdura(cmd,
-                         "AGENT TRACI OCHRONE (%s): po wycieciu sciezek zostalo %r, zaden wzorzec "
-                         "juz nie pasuje. Taki proces mozna zamrozic (SIGSTOP), a agent AI po "
-                         "zamrozeniu nie wraca do zycia." % (powod, skroc(out, 90)),
-                         "WYSOKA", klucz="utrata-ochrony: " + powod)
+                         "AGENT LOSES PROTECTION (%s): after cutting paths, %r remains and no pattern "
+                         "matches anymore. Such a process can be frozen (SIGSTOP), and the AI agent "
+                         "does not come back to life after freezing." % (powod, skroc(out, 90)),
+                         "HIGH", klucz="utrata-ochrony: " + powod)
     finally:
         guard.full_args = stary
     s.koniec()
@@ -275,7 +275,7 @@ def fuzz_args_ochrona(seed, n):
 # ================================================================ 2. _loguj_awake
 
 def fuzz_loguj_awake(seed, n):
-    s = Sesja("guard._loguj_awake [tlumik]", seed)
+    s = Sesja("guard._loguj_awake [throttle]", seed)
     zebrane = []
     stary_log, stary_now = guard.log, guard.now
     zegar = {"t": 1000.0}
@@ -294,14 +294,14 @@ def fuzz_loguj_awake(seed, n):
         for i in range(10000):
             guard._loguj_awake("KEEP-AWAKE %s" % ("start" if i % 2 else "stop"))
         if len(zebrane) > 2:
-            s.bzdura("10 000 przelaczen w tej samej sekundzie",
-                     "tlumik przepuscil %d wpisow zamiast <=1 na 10 min" % len(zebrane),
-                     "SREDNIA", klucz="tlumik-nieszczelny")
+            s.bzdura("10,000 switches in the same second",
+                     "throttle let %d entries through instead of <=1 per 10 min" % len(zebrane),
+                     "MEDIUM", klucz="tlumik-nieszczelny")
         if any(len(x) > 200 for x in zebrane):
-            s.bzdura("10 000 przelaczen", "komunikat urosl do %d znakow"
-                     % max(len(x) for x in zebrane), "SREDNIA", klucz="dlugi-komunikat")
+            s.bzdura("10,000 switches", "message grew to %d characters"
+                     % max(len(x) for x in zebrane), "MEDIUM", klucz="dlugi-komunikat")
         if guard._awake_log["pominiete"] < 0:
-            s.bzdura("10 000 przelaczen", "licznik pominietych jest ujemny", "SREDNIA")
+            s.bzdura("10,000 switches", "skipped counter is negative", "MEDIUM")
 
         # b) Verify the skipped counter really reaches the log after 10 minutes.
         reset()
@@ -313,8 +313,8 @@ def fuzz_loguj_awake(seed, n):
         guard._loguj_awake("C")
         if not any("przelaczen" in x for x in zebrane[1:]):
             s.bzdura("A, 500xB, +601 s, C",
-                     "po tlumieniu 500 zdarzen kolejny wpis nie mowi, ile ich pominieto "
-                     "(czarna skrzynka gubi skale zjawiska)", "NISKA", klucz="brak-licznika")
+                     "after throttling 500 events, next entry does not say how many were skipped "
+                     "(black box loses event scale)", "LOW", klucz="brak-licznika")
 
         # c) The same message after any amount of time.
         reset()
@@ -325,12 +325,12 @@ def fuzz_loguj_awake(seed, n):
             zegar["t"] += 86400.0 * k
             guard._loguj_awake("KEEP-AWAKE start")
         if len(zebrane) == ile_przed:
-            s.bzdura("ten sam komunikat co 24 h przez 5 dni",
-                     "identyczny komunikat NIGDY nie trafia juz do logu (warunek "
-                     "`msg == ostatni` nie ma limitu czasu). Keep-awake wlaczony na staly "
-                     "stan znika z czarnej skrzynki po pierwszym wpisie, a licznik "
-                     "pominietych (%d) rosnie bez konca." % guard._awake_log["pominiete"],
-                     "SREDNIA", klucz="ten-sam-msg-na-zawsze")
+            s.bzdura("same message every 24 h for 5 days",
+                     "identical message NEVER reaches the log again (`msg == ostatni` condition "
+                     "has no time limit). Keep-awake enabled permanently disappears from the black "
+                     "box after the first entry, and skipped counter (%d) grows forever."
+                     % guard._awake_log["pominiete"],
+                     "MEDIUM", klucz="ten-sam-msg-na-zawsze")
 
         # d) Clock moved backward by NTP or wake from sleep. now() is time.time(), not monotonic.
         reset()
@@ -342,10 +342,10 @@ def fuzz_loguj_awake(seed, n):
             zegar["t"] += 60.0
             guard._loguj_awake("Y" if _ % 2 else "Z")
         if len(zebrane) == przed:
-            s.bzdura("zegar cofniety o godzine",
-                     "po cofnieciu zegara (NTP/powrot z uspienia) tlumik milczy tak dlugo, "
-                     "az czas realny nadgoni - keep-awake nie zostawia sladu w logu",
-                     "NISKA", klucz="zegar-w-tyl")
+            s.bzdura("clock moved back by one hour",
+                     "after clock moves backward (NTP/wake from sleep), throttle stays silent until "
+                     "real time catches up - keep-awake leaves no trace in log",
+                     "LOW", klucz="zegar-w-tyl")
 
         # e) Random types and lengths.
         warianty = [None, 0, 1, -1, True, 3.5, [], {}, b"bajty", "\x00", "\x1b[2J",
@@ -361,7 +361,7 @@ def fuzz_loguj_awake(seed, n):
             try:
                 guard._loguj_awake(msg)
             except Exception as e:
-                s.blad(msg, e, "NISKA")
+                s.blad(msg, e, "LOW")
     finally:
         guard.log, guard.now = stary_log, stary_now
         guard._awake_log.update({"ostatni": "", "kiedy": 0.0, "pominiete": 0})
@@ -381,21 +381,21 @@ def zywe_dzieci():
 
 
 def fuzz_run(seed, n):
-    s = Sesja("guard.run [sprzatanie po dziecku]", seed, limit=45.0)
+    s = Sesja("guard.run [child cleanup]", seed, limit=45.0)
     PY = sys.executable
 
     def scen(rng, i):
         r = rng.random()
         if r < 0.30:
-            return ["/usr/bin/true"], 5, "natychmiastowy sukces"
+            return ["/usr/bin/true"], 5, "immediate success"
         if r < 0.45:
-            return ["/nie/ma/takiego/programu-" + MARKER], 5, "polecenie nie istnieje"
+            return ["/nie/ma/takiego/programu-" + MARKER], 5, "command does not exist"
         if r < 0.55:
-            return "/nie/ma/takiego-" + MARKER, 5, "cmd jako string, nie lista"
+            return "/nie/ma/takiego-" + MARKER, 5, "cmd as string, not list"
         if r < 0.62:
-            return ["/usr/bin/false"], 5, "kod wyjscia != 0"
+            return ["/usr/bin/false"], 5, "exit code != 0"
         if r < 0.70:
-            return [PY, "-c", "print('%s'*10)" % MARKER], 5, "krotkie wyjscie"
+            return [PY, "-c", "print('%s'*10)" % MARKER], 5, "short output"
         if r < 0.78:
             return [PY, "-c", "import sys;sys.stdout.write('%s'+'A'*(4*1024*1024))" % MARKER], \
                    5, "4 MB na stdout"
@@ -403,13 +403,13 @@ def fuzz_run(seed, n):
             return [PY, "-c",
                     "import signal,time,sys;signal.signal(signal.SIGTERM,signal.SIG_IGN);"
                     "sys.stderr.write('%s');time.sleep(30)" % MARKER], 0.15, \
-                   "ignoruje SIGTERM, timeout"
+                   "ignores SIGTERM, timeout"
         if r < 0.94:
             # The grandchild must carry the marker in its own command line, or pgrep misses it.
             return ["/bin/sh", "-c",
                     "%s -c 'import time;time.sleep(27)' %s & wait" % (PY, MARKER)], 0.15, \
-                   "wnuk przezywajacy zabicie dziecka"
-        return ["/usr/bin/true"], 0, "timeout zerowy"
+                   "grandchild surviving child kill"
+        return ["/usr/bin/true"], 0, "zero timeout"
 
     zostawione = set()
     try:
@@ -422,21 +422,21 @@ def fuzz_run(seed, n):
             try:
                 out = guard.run(cmd, timeout=tmo)
             except Exception as e:
-                s.blad({"cmd": skroc(cmd, 120), "timeout": tmo, "opis": opis}, e, "WYSOKA")
+                s.blad({"cmd": skroc(cmd, 120), "timeout": tmo, "opis": opis}, e, "HIGH")
                 continue
             if not isinstance(out, str):
-                s.bzdura(opis, "zwrocono %s zamiast str" % type(out).__name__, "WYSOKA",
+                s.bzdura(opis, "returned %s instead of str" % type(out).__name__, "HIGH",
                          klucz="zly-typ")
-            if "nie istnieje" in opis or "string" in opis:
+            if "does not exist" in opis or "string" in opis:
                 continue        # Nothing started, so pgrep would be wasted work.
             time.sleep(0.005)
             zywe = zywe_dzieci()
             if zywe:
                 zostawione.update(zywe)
                 s.bzdura({"cmd": skroc(cmd, 120), "timeout": tmo},
-                         "po powrocie z run() zyje jeszcze %d proces(ow) potomnych (%s) - "
-                         "przypadek: %s" % (len(zywe), ",".join(zywe[:4]), opis),
-                         "WYSOKA" if "wnuk" not in opis else "SREDNIA",
+                         "after run() returns, %d child process(es) are still alive (%s) - "
+                         "case: %s" % (len(zywe), ",".join(zywe[:4]), opis),
+                         "HIGH" if "grandchild" not in opis else "MEDIUM",
                          klucz="osierocony-proces:" + opis[:20])
                 # Clean up immediately so the test does not grow process leftovers.
                 subprocess.run(["pkill", "-9", "-f", MARKER], stdout=subprocess.DEVNULL,
@@ -475,7 +475,7 @@ def fuzz_wylacznosc(seed, n):
             opis = ""
             try:
                 if wariant == 0:
-                    opis = "czysto"
+                    opis = "clean"
                     for f in uchwyty:
                         f.close()
                     del uchwyty[:]
@@ -483,22 +483,22 @@ def fuzz_wylacznosc(seed, n):
                         shutil.rmtree(lock, ignore_errors=True)
                     f1 = guard.zajmij_wylacznosc()
                     if not uchwyt(f1):
-                        s.bzdura(opis, "pierwsza instancja NIE dostala blokady (zwrocono %r)"
-                                 % (f1,), "WYSOKA", klucz="brak-blokady")
+                        s.bzdura(opis, "first instance did NOT get the lock (returned %r)"
+                                 % (f1,), "HIGH", klucz="brak-blokady")
                     else:
                         uchwyty.append(f1)
                 elif wariant == 1:
-                    opis = "druga instancja przy trzymanej blokadzie"
+                    opis = "second instance while lock is held"
                     if not uchwyty:
                         continue      # Nobody holds the lock, so there is nothing to check.
                     f2 = guard.zajmij_wylacznosc()
                     if uchwyt(f2):
                         uchwyty.append(f2)
-                        s.bzdura(opis, "DWIE instancje dostaly blokade naraz - dwa demony na "
-                                       "maszynie moga sie wzajemnie pauzowac", "WYSOKA",
+                        s.bzdura(opis, "TWO instances acquired the lock at once - two daemons on "
+                                       "one machine can pause each other", "HIGH",
                                  klucz="podwojna-blokada")
                 elif wariant == 2:
-                    opis = "PID w guard.lock po nieudanej probie"
+                    opis = "PID in guard.lock after failed attempt"
                     tresc = ""
                     try:
                         with open(lock) as f:
@@ -507,12 +507,12 @@ def fuzz_wylacznosc(seed, n):
                         pass
                     if not tresc.strip():
                         s.bzdura(opis,
-                                 "guard.lock jest PUSTY, mimo ze demon zyje: przegrana instancja "
-                                 "otwiera plik w trybie 'w' (obcina go) ZANIM sprobuje flock, "
-                                 "wiec kazde nieudane uruchomienie kasuje PID wlasciciela blokady",
-                                 "SREDNIA", klucz="wyczyszczony-pid")
+                                 "guard.lock is EMPTY even though daemon is alive: the losing instance "
+                                 "opens the file in 'w' mode (truncating it) BEFORE trying flock, "
+                                 "so every failed startup erases the lock owner's PID",
+                                 "MEDIUM", klucz="wyczyszczony-pid")
                 elif wariant == 3:
-                    opis = "guard.lock jest KATALOGIEM"
+                    opis = "guard.lock is a DIRECTORY"
                     for f in uchwyty:
                         f.close()
                     del uchwyty[:]
@@ -524,10 +524,10 @@ def fuzz_wylacznosc(seed, n):
                         if uchwyt(r):
                             uchwyty.append(r)
                     except Exception as e:
-                        s.blad(opis, e, "SREDNIA")
+                        s.blad(opis, e, "MEDIUM")
                     shutil.rmtree(lock, ignore_errors=True)
                 elif wariant == 4:
-                    opis = "katalog BASE tylko do odczytu"
+                    opis = "BASE directory is read-only"
                     for f in uchwyty:
                         f.close()
                     del uchwyty[:]
@@ -539,22 +539,22 @@ def fuzz_wylacznosc(seed, n):
                         if uchwyt(r):
                             uchwyty.append(r)
                     except Exception as e:
-                        s.blad(opis, e, "SREDNIA")
+                        s.blad(opis, e, "MEDIUM")
                     finally:
                         os.chmod(TMP, 0o755)
                 else:
-                    opis = "zwolnienie i ponowne zajecie"
+                    opis = "release and reacquire"
                     for f in uchwyty:
                         f.close()
                     del uchwyty[:]
                     r = guard.zajmij_wylacznosc()
                     if r is None:
-                        s.bzdura(opis, "po zamknieciu uchwytu blokada NIE zostala zwolniona",
-                                 "WYSOKA", klucz="blokada-nie-zwolniona")
+                        s.bzdura(opis, "after closing the handle, the lock was NOT released",
+                                 "HIGH", klucz="blokada-nie-zwolniona")
                     else:
                         uchwyty.append(r)
             except Exception as e:
-                s.blad(opis, e, "SREDNIA")
+                s.blad(opis, e, "MEDIUM")
     finally:
         for f in uchwyty:
             try:
@@ -578,7 +578,7 @@ LICZBY_PROGOW = [0, 1, -1, -273.15, 20.0, 39.999, 40.0, 40.1, 45, 60.0, 60.1, 76
 
 
 def fuzz_load_cfg_progi(seed, n):
-    s = Sesja("guard.load_cfg [progi]", seed)
+    s = Sesja("guard.load_cfg [thresholds]", seed)
     try:
         for i in range(n):
             if s.czas_minal():
@@ -606,24 +606,25 @@ def fuzz_load_cfg_progi(seed, n):
             try:
                 cfg = guard.load_cfg()
             except Exception as e:
-                s.blad(tekst, e, "WYSOKA")
+                s.blad(tekst, e, "HIGH")
                 continue
             for r, p, k, lo, hi in RODZINY:
                 try:
                     vr, vp, vk = float(cfg[r]), float(cfg[p]), float(cfg[k])
                 except Exception as e:
-                    s.blad(tekst, e, "WYSOKA")
+                    s.blad(tekst, e, "HIGH")
                     continue
                 if not (vr < vp < vk):
-                    s.bzdura(tekst, "po walidacji progi %s NIE rosna: %s=%.3f %s=%.3f %s=%.3f "
-                                    "(rowne progi = mlynek pauza/wznowienie albo SIGTERM przy "
-                                    "progu pauzy)" % (r.split("_")[0], r, vr, p, vp, k, vk),
-                             "WYSOKA", klucz="progi-nie-rosna:" + r.split("_")[0])
+                    s.bzdura(tekst, "after validation, %s thresholds do NOT increase: "
+                                    "%s=%.3f %s=%.3f %s=%.3f (equal thresholds = pause/resume "
+                                    "loop or SIGTERM at pause threshold)"
+                             % (r.split("_")[0], r, vr, p, vp, k, vk),
+                             "HIGH", klucz="progi-nie-rosna:" + r.split("_")[0])
                 for nazwa, v in ((r, vr), (p, vp), (k, vk)):
                     if not (lo <= v <= hi):
-                        s.bzdura(tekst, "po walidacji %s=%.3f jest poza zakresem fizycznym "
-                                        "%.0f-%.0f - kontrola zakresu nie zadzialala"
-                                 % (nazwa, v, lo, hi), "WYSOKA",
+                        s.bzdura(tekst, "after validation, %s=%.3f is outside physical range "
+                                        "%.0f-%.0f - range validation did not work"
+                                 % (nazwa, v, lo, hi), "HIGH",
                                  klucz="poza-zakresem:" + nazwa)
             # Idempotence: writing corrected config and reading it again must not
             # shift thresholds further, or every restart lowers them by 2 C.
@@ -632,14 +633,14 @@ def fuzz_load_cfg_progi(seed, n):
             try:
                 cfg2 = guard.load_cfg()
             except Exception as e:
-                s.blad(tekst, e, "WYSOKA")
+                s.blad(tekst, e, "HIGH")
                 continue
             for r, p, k, lo, hi in RODZINY:
                 for kk in (r, p, k):
                     if float(cfg[kk]) != float(cfg2[kk]):
-                        s.bzdura(tekst, "walidacja nie jest idempotentna: %s %.3f -> %.3f przy "
-                                        "ponownym wczytaniu (kazdy restart demona przesuwa prog)"
-                                 % (kk, float(cfg[kk]), float(cfg2[kk])), "SREDNIA",
+                        s.bzdura(tekst, "validation is not idempotent: %s %.3f -> %.3f on "
+                                        "reload (every daemon restart moves the threshold)"
+                                 % (kk, float(cfg[kk]), float(cfg2[kk])), "MEDIUM",
                                  klucz="brak-idempotencji")
     finally:
         with open(CFG_PATH, "w") as f:
@@ -666,9 +667,9 @@ NIEWIDZIALNE = [
 ]
 
 # What to look for in the rendered table. Never use an empty string here.
-ZAKAZANE_W_WYDRUKU = [("\x1b", "ESC (sekwencja ANSI)"), ("\r", "CR (kasuje wiersz)"),
+ZAKAZANE_W_WYDRUKU = [("\x1b", "ESC (ANSI sequence)"), ("\r", "CR (clears line)"),
                       ("\x07", "BEL"), ("\u202e", "RTL override"),
-                      ("\u200b", "zero-width space"), ("\u2028", "separator linii"),
+                      ("\u200b", "zero-width space"), ("\u2028", "line separator"),
                       ("\ufeff", "BOM")]   # Note: no "\n"; the table has its own newlines.
 
 WROGIE_MIGAWKI = [
@@ -760,17 +761,17 @@ def fuzz_fleet(seed, n):
             try:
                 hosts = fleet.load_hosts(FLEET_DIR)
             except Exception as e:
-                s.blad(wejscia, e, "WYSOKA")
+                s.blad(wejscia, e, "HIGH")
                 continue
             if not isinstance(hosts, list):
-                s.bzdura(wejscia, "load_hosts zwrocil %s" % type(hosts).__name__, "WYSOKA")
+                s.bzdura(wejscia, "load_hosts returned %s" % type(hosts).__name__, "HIGH")
                 continue
             for h in hosts:
                 lv = h.get("level")
                 if not isinstance(lv, int) or isinstance(lv, bool) or not (0 <= lv <= 3):
                     if "_age" in h and h.get("_age") != 1e9:      # .icloud entry has no level.
-                        s.bzdura(wejscia, "level po normalizacji = %r (render indeksuje nim "
-                                          "liste 4-elementowa)" % (lv,), "WYSOKA",
+                        s.bzdura(wejscia, "level after normalization = %r (render uses it to "
+                                          "index a 4-element list)" % (lv,), "HIGH",
                                  klucz="level-nieznormalizowany")
             # This is the real test: one broken snapshot cannot crash the fleet table.
             bufor = io.StringIO()
@@ -779,19 +780,19 @@ def fuzz_fleet(seed, n):
                     fleet.render(FLEET_DIR)
             except Exception as e:
                 s.bzdura(wejscia,
-                         "JEDNA zepsuta migawka WYWALA CALA TABELE floty: %s: %s "
-                         "(operator nie widzi zadnej maszyny, takze tych zdrowych)"
-                         % (type(e).__name__, e), "WYSOKA",
+                         "ONE broken snapshot CRASHES THE WHOLE FLEET TABLE: %s: %s "
+                         "(operator sees no machines at all, including healthy ones)"
+                         % (type(e).__name__, e), "HIGH",
                          klucz="render-EXC:" + type(e).__name__)
                 continue
             tekst = bufor.getvalue()
             for zly, nazwa_zlego in ZAKAZANE_W_WYDRUKU:
                 if zly and zly in tekst:
                     s.bzdura(wejscia,
-                             "znak %s z obcej migawki trafia PROSTO na terminal operatora - "
-                             "moze skasowac juz wypisane wiersze razem z ostrzezeniem o awarii "
-                             "(_czysty_tekst nie obejmuje tego pola)" % nazwa_zlego,
-                             "WYSOKA", klucz="wstrzykniecie:" + nazwa_zlego)
+                             "%s character from a foreign snapshot reaches the operator terminal "
+                             "directly - it can erase already printed rows together with the failure "
+                             "warning (_czysty_tekst does not cover this field)" % nazwa_zlego,
+                             "HIGH", klucz="wstrzykniecie:" + nazwa_zlego)
     finally:
         shutil.rmtree(FLEET_DIR, ignore_errors=True)
     s.koniec()
@@ -800,7 +801,7 @@ def fuzz_fleet(seed, n):
 # ================================================================ 7. chip_juz_goracy
 
 def fuzz_chip_swiezosc(seed, n):
-    s = Sesja("safe-run.chip_juz_goracy [swiezosc]", seed)
+    s = Sesja("safe-run.chip_juz_goracy [freshness]", seed)
     wieki = [0, 1, 60, 119, 119.9, 120, 120.1, 121, 300, 86400, -30, -1e6]
     try:
         for i in range(n):
@@ -825,10 +826,10 @@ def fuzz_chip_swiezosc(seed, n):
             try:
                 r = saferun.chip_juz_goracy()
             except Exception as e:
-                s.blad({"wiek_s": wiek, "status": tresc}, e, "SREDNIA")
+                s.blad({"wiek_s": wiek, "status": tresc}, e, "MEDIUM")
                 continue
             if not (isinstance(r, tuple) and len(r) == 2 and isinstance(r[0], bool)):
-                s.bzdura(tresc, "zwrocono %r zamiast (bool, str)" % (r,), "SREDNIA",
+                s.bzdura(tresc, "returned %r instead of (bool, str)" % (r,), "MEDIUM",
                          klucz="zly-typ")
                 continue
             goraco = r[0]
@@ -839,8 +840,8 @@ def fuzz_chip_swiezosc(seed, n):
             if (0 <= wiek <= 110 and isinstance(chip, float) and chip == chip
                     and chip not in (float("inf"),) and chip >= prog - 5.0 and not goraco):
                 s.bzdura({"wiek_s": wiek, "status": tresc},
-                         "swieza migawka mowi chip %.1f C przy progu %.1f, a safe-run i tak "
-                         "PUSZCZA ciezkie zadanie" % (chip, prog), "WYSOKA",
+                         "fresh snapshot says chip %.1f C at threshold %.1f, but safe-run still "
+                         "STARTS the heavy job" % (chip, prog), "HIGH",
                          klucz="przepuszcza-goraco")
             # Oracle 2: a snapshot older than 120 s means the guard is not alive
             # because it writes every 15 s. Product decision: do not block the job,
@@ -851,15 +852,15 @@ def fuzz_chip_swiezosc(seed, n):
             # job is not.
             if wiek > 130 and goraco is False and r[1] != "STALE":
                 s.bzdura({"wiek_s": wiek, "status": tresc},
-                         "migawka sprzed %.0f s (demon najpewniej nie zyje), a funkcja nie "
-                         "sygnalizuje tego przez 'STALE' - safe-run nie ostrzeze uzytkownika, "
-                         "ze jego zadanie NIE BEDZIE nadzorowane" % wiek,
-                         "SREDNIA", klucz="nieswieza-migawka-bez-ostrzezenia")
+                         "snapshot is %.0f s old (daemon is likely dead), but the function does not "
+                         "signal it with 'STALE' - safe-run will not warn the user that the job "
+                         "WILL NOT be supervised" % wiek,
+                         "MEDIUM", klucz="nieswieza-migawka-bez-ostrzezenia")
             if wiek < 0 and goraco is False and isinstance(chip, float) and chip >= 95:
                 s.bzdura({"wiek_s": wiek, "status": tresc},
-                         "migawka z PRZYSZLOSCI (zegar/NTP) jest traktowana jak swieza albo jak "
-                         "brak danych zaleznie od znaku roznicy - decyzja o starcie zadania "
-                         "zalezy od zegara, nie od temperatury", "NISKA",
+                         "snapshot from the FUTURE (clock/NTP) is treated as fresh or as missing "
+                         "data depending on the difference sign - job start decision depends on "
+                         "the clock, not temperature", "LOW",
                          klucz="migawka-z-przyszlosci")
     finally:
         if os.path.exists(STATUS_PATH):
@@ -870,7 +871,7 @@ def fuzz_chip_swiezosc(seed, n):
 # ================================================================ 8. thermal-report
 
 def fuzz_report(seed, n):
-    s = Sesja("thermal-report [szczyt + sciezka pdf]", seed)
+    s = Sesja("thermal-report [peak + pdf path]", seed)
     cele = ["raport.txt", "raport", "raport.tar.gz", ".ukryty", "raport.", "a.b/raport",
             "a.b/raport.txt", "kat.z.kropka/raport.txt", "raport z odstepem.txt",
             "raport\x1b.txt", "‮raport.txt", "raport.PDF", "raport..txt"]
@@ -888,10 +889,10 @@ def fuzz_report(seed, n):
             pelny = os.path.join(TMP, cel)
             pdf = os.path.splitext(pelny)[0] + ".pdf"
             if os.path.dirname(pdf) != os.path.dirname(pelny):
-                s.bzdura(cel, "PDF laduje w INNYM katalogu niz raport: %s -> %s"
-                         % (pelny, pdf), "WYSOKA", klucz="pdf-poza-katalogiem")
+                s.bzdura(cel, "PDF lands in a DIFFERENT directory than the report: %s -> %s"
+                         % (pelny, pdf), "HIGH", klucz="pdf-poza-katalogiem")
             if pdf == pelny or not pdf.endswith(".pdf"):
-                s.bzdura(cel, "sciezka PDF wyszla dziwna: %r" % pdf, "SREDNIA",
+                s.bzdura(cel, "PDF path came out strange: %r" % pdf, "MEDIUM",
                          klucz="pdf-zla-nazwa")
 
             # --- b) Peak temperature from history.csv, confidence band 0 < v <= 110.
@@ -935,21 +936,21 @@ def fuzz_report(seed, n):
                 with redirect_stdout(io.StringIO()):
                     treport.main()
             except Exception as e:
-                s.blad(wej, e, "SREDNIA")
+                s.blad(wej, e, "MEDIUM")
                 continue
             try:
                 with open(wyjscie) as f:
                     tekst = f.read()
             except Exception as e:
-                s.blad(wej, e, "SREDNIA")
+                s.blad(wej, e, "MEDIUM")
                 continue
             m = re.search(r"PEAK MEASURED CHIP TEMPERATURE: ([0-9.]+) C", tekst)
             if oczekiwany and not m:
-                s.bzdura(wej, "raport nie podaje szczytu, choc w zakresie byl pomiar %.1f C"
-                         % oczekiwany, "SREDNIA", klucz="brak-szczytu")
+                s.bzdura(wej, "report does not show the peak, although a valid %.1f C reading existed"
+                         % oczekiwany, "MEDIUM", klucz="brak-szczytu")
             elif m and abs(float(m.group(1)) - oczekiwany) > 0.05:
-                s.bzdura(wej, "szczyt w raporcie %.1f C, a najwyzszy poprawny pomiar %.1f C"
-                         % (float(m.group(1)), oczekiwany), "WYSOKA", klucz="zly-szczyt")
+                s.bzdura(wej, "report peak %.1f C, but highest valid reading was %.1f C"
+                         % (float(m.group(1)), oczekiwany), "HIGH", klucz="zly-szczyt")
             if m and "MEASUREMENT TIMELINE" in tekst:
                 # The peak must sit below the section header but above measurement
                 # rows. The oracle used to compare it to the header position, flagging
@@ -961,8 +962,8 @@ def fuzz_report(seed, n):
                 _wiersze = re.search(r"^  \d{4}-\d{2}-\d{2} ", tekst[_od:], re.M)
                 _granica = (_od + _wiersze.start()) if _wiersze else len(tekst)
                 if tekst.index("PEAK MEASURED") > _granica:
-                    s.bzdura(wej, "wiersz ze szczytem jest WEWNATRZ osi pomiarow zamiast nad nia",
-                             "NISKA", klucz="szczyt-nie-tam")
+                    s.bzdura(wej, "peak row is INSIDE the measurement axis instead of above it",
+                             "LOW", klucz="szczyt-nie-tam")
     finally:
         sys.argv = stary_argv
         for p in (HIST_PATH, EVENTS_PATH, os.path.join(TMP, "hardware.json")):
@@ -974,7 +975,7 @@ def fuzz_report(seed, n):
 # ================================================================ 9. statystyki_dnia
 
 def fuzz_stat_znaczniki(seed, n):
-    s = Sesja("guard.statystyki_dnia [znaczniki]", seed)
+    s = Sesja("guard.statystyki_dnia [markers]", seed)
     dzis = time.strftime("%Y-%m-%d")
     jutro = time.strftime("%Y-%m-%d", time.localtime(time.time() + 86400))
     # Process names that themselves contain a parser keyword.
@@ -1028,31 +1029,31 @@ def fuzz_stat_znaczniki(seed, n):
             try:
                 st = guard.statystyki_dnia()
             except Exception as e:
-                s.blad(skroc(tresc, 200), e, "WYSOKA")
+                s.blad(skroc(tresc, 200), e, "HIGH")
                 continue
             if set(st) != {"pauses", "resumes", "kills"}:
-                s.bzdura(skroc(tresc, 200), "zwrocono %r" % (st,), "WYSOKA", klucz="zly-typ")
+                s.bzdura(skroc(tresc, 200), "returned %r" % (st,), "HIGH", klucz="zly-typ")
                 continue
             if zepsute and sum(ocz.values()) and not sum(st.values()):
                 s.bzdura(skroc(tresc, 200),
-                         "JEDEN nie-UTF-8 bajt w guard.log KASUJE CALA STATYSTYKE DNIA: "
-                         "w logu bylo %d interwencji, funkcja zwraca same zera. Plik jest "
-                         "czytany w blokach, wiec zly bajt na koncu wywala dekoder JUZ przy "
-                         "pierwszym readline(), a `except Exception` polyka to bez slowa - "
-                         "pasek pokazuje 'dzis 0 pauz' po nocy pelnej pauz"
-                         % sum(ocz.values()), "SREDNIA", klucz="log-nie-utf8-zeruje")
+                         "ONE non-UTF-8 byte in guard.log ERASES THE WHOLE DAY STATISTICS: "
+                         "the log had %d interventions, the function returns all zeros. The file "
+                         "is read in blocks, so a bad byte at the end breaks the decoder already "
+                         "on the first readline(), and `except Exception` swallows it silently - "
+                         "the menu bar shows 'today 0 pauses' after a night full of pauses"
+                         % sum(ocz.values()), "MEDIUM", klucz="log-nie-utf8-zeruje")
             for k in ocz:
                 if st[k] < ocz[k] and not zepsute:
                     s.bzdura(skroc(tresc, 300),
-                             "GUBI zdarzenia: %s=%d, a w logu bylo %d (statystyka dnia w pasku "
-                             "pokazuje mniej interwencji, niz naprawde bylo)"
-                             % (k, st[k], ocz[k]), "SREDNIA", klucz="gubi:" + k)
+                             "LOSES events: %s=%d, but the log had %d (menu bar day statistics "
+                             "show fewer interventions than really happened)"
+                             % (k, st[k], ocz[k]), "MEDIUM", klucz="gubi:" + k)
                 elif st[k] > ocz[k] + 6 and not zepsute:
                     s.bzdura(skroc(tresc, 300),
-                             "LICZY ZA DUZO: %s=%d przy %d prawdziwych zdarzeniach - nazwa "
-                             "procesu zawierajaca slowo-klucz (np. 'sigterm_bench') jest liczona "
-                             "jak zdarzenie, a kolejnosc warunkow przypisuje ja do ubic"
-                             % (k, st[k], ocz[k]), "NISKA", klucz="liczy-za-duzo:" + k)
+                             "COUNTS TOO MUCH: %s=%d with %d real events - a process name "
+                             "containing a keyword (for example 'sigterm_bench') is counted "
+                             "as an event, and condition order assigns it to kills"
+                             % (k, st[k], ocz[k]), "LOW", klucz="liczy-za-duzo:" + k)
     finally:
         if os.path.exists(LOG_PATH):
             os.unlink(LOG_PATH)
@@ -1063,10 +1064,10 @@ def fuzz_stat_znaczniki(seed, n):
 
 def wypisz_raport(seed, n):
     print("=" * 78)
-    print("FUZZING RUNDA 2 (kod z nocy 02.08.2026) - ziarno %s, ~%d wejsc na funkcje" % (seed, n))
-    print("katalog roboczy (TG_BASE): %s" % TMP)
+    print("FUZZING ROUND 2 (code from the night of 2026-08-02) - seed %s, ~%d inputs per function" % (seed, n))
+    print("working directory (TG_BASE): %s" % TMP)
     print("=" * 78)
-    print("\n%-42s %8s %7s %7s %7s" % ("funkcja", "przebieg", "sek", "wyjatki", "bzdury"))
+    print("\n%-42s %8s %7s %7s %7s" % ("function", "runs", "sec", "errors", "findings"))
     print("-" * 78)
     for nazwa, d in PRZEBIEGI.items():
         print("%-42s %8d %7.2f %7d %7d"
@@ -1074,22 +1075,22 @@ def wypisz_raport(seed, n):
     print("\n" + "=" * 78)
     lista = list(ZNALEZISKA.values())
     if not lista:
-        print("ZNALEZISKA: brak - wszystko przetrwalo ostrzal.")
+        print("FINDINGS: none - everything survived the fuzzing.")
     else:
-        print("ZNALEZISKA (%d roznych; x = ile wejsc je wywolalo):" % len(lista))
-        kol = {"WYSOKA": 0, "SREDNIA": 1, "NISKA": 2}
+        print("FINDINGS (%d distinct; x = number of inputs that triggered it):" % len(lista))
+        kol = {"HIGH": 0, "MEDIUM": 1, "LOW": 2}
         for i, z in enumerate(sorted(lista, key=lambda x: (kol.get(x["powaga"], 9), x["funkcja"])), 1):
             print("\n%d. [%s] %s  (x%d)" % (i, z["powaga"], z["funkcja"], z["ile"]))
-            print("   co: %s" % z["opis"])
-            print("   wejscie: %s" % z["wejscie"])
+            print("   what: %s" % z["opis"])
+            print("   input: %s" % z["wejscie"])
     print("\n" + "=" * 78)
     czyste = [x for x in PRZEBIEGI if x in OK_FUNKCJE]
-    print("BEZ ZARZUTU (%d): %s" % (len(czyste), ", ".join(czyste) if czyste else "-"))
+    print("CLEAN (%d): %s" % (len(czyste), ", ".join(czyste) if czyste else "-"))
     zostalo = zywe_dzieci()
-    print("PROCESY PO TESCIE (pgrep -f %s): %s" % (MARKER, zostalo or "brak - czysto"))
-    print("CZAS CALOSCI: %.1f s" % (time.time() - START))
+    print("PROCESSES AFTER TEST (pgrep -f %s): %s" % (MARKER, zostalo or "none - clean"))
+    print("TOTAL TIME: %.1f s" % (time.time() - START))
     print("=" * 78)
-    return 1 if any(z["powaga"] == "WYSOKA" for z in lista) else 0
+    return 1 if any(z["powaga"] == "HIGH" for z in lista) else 0
 
 
 def main():

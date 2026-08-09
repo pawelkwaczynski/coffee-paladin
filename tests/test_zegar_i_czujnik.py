@@ -49,40 +49,40 @@ def dlugosc_pauzy(v):
     return max(0.0, g.now() - v.get("since", g.now()))
 
 
-print("1. skok zegara a limit pauzy (limit 45 min)")
+print("1. clock jump vs pause limit (45 min limit)")
 limit = 45 * 60
 mono = time.monotonic()
 for opis, wpis, oczekiwane in [
-    ("pauza trwa minute - nie ubijamy",
+    ("pause lasts one minute - do not kill",
      {"since": g.now() - 60, "since_mono": mono - 60}, False),
-    ("pauza trwa godzine - ubijamy",
+    ("pause lasts one hour - kill",
      {"since": g.now() - 3600, "since_mono": mono - 3600}, True),
-    ("zegar skoczyl o 3 h, pauza trwa minute - NIE ubijamy",
+    ("clock jumped by 3 h, pause lasts one minute - do NOT kill",
      {"since": g.now() - 10800, "since_mono": mono - 60}, False),
-    ("zegar cofniety, pauza trwa godzine - ubijamy mimo to",
+    ("clock moved backward, pause lasts one hour - kill anyway",
      {"since": g.now() + 7200, "since_mono": mono - 3600}, True),
-    ("stary wpis bez since_mono - zachowanie jak dawniej",
+    ("old entry without since_mono - behavior as before",
      {"since": g.now() - 3600}, True),
 ]:
     test(opis, (dlugosc_pauzy(wpis) > limit) is oczekiwane,
-         "dlugosc=%.0f s" % dlugosc_pauzy(wpis))
+         "duration=%.0f s" % dlugosc_pauzy(wpis))
 
-print("\n2. slepy straznik nie udaje zdrowego")
-test("stan 'unknown' nie jest traktowany jak 'fair'", g.LEVELS["unknown"] == 0,
+print("\n2. blind guard does not pretend to be healthy")
+test("state 'unknown' is not treated like 'fair'", g.LEVELS["unknown"] == 0,
      "LEVELS[unknown]=%s" % g.LEVELS["unknown"])
-test("'fair' nadal daje poziom 1", g.LEVELS["fair"] == 1)
-test("'serious' nadal daje poziom 2", g.LEVELS["serious"] == 2)
+test("'fair' still gives level 1", g.LEVELS["fair"] == 1)
+test("'serious' still gives level 2", g.LEVELS["serious"] == 2)
 
-print("\n3. kalibracja rozroznia brak czujnika od braku wentylatorow")
+print("\n3. calibration distinguishes missing sensor from no fans")
 tagi = set()
 for hw in ({"model_id": "Mac15,12", "chip": "M3", "fan_count": 0, "chip_sensor": False},
            {"model_id": "Mac15,12", "chip": "M3", "fan_count": 0, "chip_sensor": True}):
     tagi.add("%s|%s|fans=%s|sensor=%s" % (hw["model_id"], hw["chip"],
                                           hw["fan_count"], bool(hw["chip_sensor"])))
-test("Air przed macmonem i po nim ma ROZNE znaczniki kalibracji", len(tagi) == 2,
-     "znaczniki: %s" % tagi)
+test("Air before macmon and after macmon has DIFFERENT calibration markers", len(tagi) == 2,
+     "markers: %s" % tagi)
 
-print("\n4. zegar monotoniczny zaczyna od zera w kazdym procesie")
+print("\n4. monotonic clock starts at zero in each process")
 # Apple's /usr/bin/python3, the one launchd uses for the daemon, counts
 # time.monotonic() from zero for each process. Two guard paths assumed otherwise and
 # failed on a live Mac.
@@ -90,8 +90,8 @@ print("\n4. zegar monotoniczny zaczyna od zera w kazdym procesie")
 # 4a. Sensor cache: initial value 0.0 looked like "read moments ago", so during the
 #     first 10 s of daemon life soc_sensors() returned None without asking macmon. The
 #     guard reported "no chip sensor" and watched only battery.
-test("cache czujnika nie udaje odczytu przed pierwszym odczytem",
-     g._soc_cache["t"] is None, "wartosc startowa = %r" % (g._soc_cache["t"],))
+test("sensor cache does not pretend a read happened before the first read",
+     g._soc_cache["t"] is None, "initial value = %r" % (g._soc_cache["t"],))
 
 # Recreate daemon conditions: fresh process, monotonic clock near zero, no previous read.
 zapamietane = dict(g._soc_cache)
@@ -109,8 +109,8 @@ try:
     g.run = zliczajacy_run
     g.time.monotonic = lambda: 0.05          # What the daemon sees just after start.
     g.soc_sensors()
-    test("tuz po starcie demona straznik naprawde pyta czujnik chipa",
-         odczyty[0] == 1, "odczytow macmona: %d (0 = straznik uznal, ze czujnika nie ma)"
+    test("right after daemon start, guard really asks chip sensor",
+         odczyty[0] == 1, "macmon reads: %d (0 = guard decided there is no sensor)"
          % odczyty[0])
 finally:
     g.run, g.time.monotonic = prawdziwy_run, prawdziwy_mono
@@ -121,21 +121,21 @@ finally:
 #     process, so the pause looked freshly created and the limit never fired. A job
 #     frozen before restart would stay in state T forever.
 for opis, wpis, oczekiwane in [
-    ("pauza tego demona, godzina - ubijamy",
+    ("pause from this daemon, one hour - kill",
      {"since": g.now() - 3600, "since_mono": time.monotonic() - 3600,
       "mono_id": g._MONO_ID}, True),
-    ("pauza po restarcie demona, godzina wg zegara sciennego - ubijamy",
+    ("pause after daemon restart, one hour by wall clock - kill",
      {"since": g.now() - 3600, "since_mono": time.monotonic() + 50000,
       "mono_id": "999:1"}, True),
-    ("pauza po restarcie demona, minuta - NIE ubijamy",
+    ("pause after daemon restart, one minute - do NOT kill",
      {"since": g.now() - 60, "since_mono": time.monotonic() + 50000,
       "mono_id": "999:1"}, False),
 ]:
     m = wpis.get("since_mono")
     d = (max(0.0, time.monotonic() - m) if m is not None and wpis.get("mono_id") == g._MONO_ID
          else max(0.0, g.now() - wpis.get("since", g.now())))
-    test(opis, (d > limit) is oczekiwane, "dlugosc=%.0f s" % d)
+    test(opis, (d > limit) is oczekiwane, "duration=%.0f s" % d)
 
 shutil.rmtree(BASE, ignore_errors=True)
-print("\nWYNIK: %d/%d" % (zaliczone, wszystkie))
+print("\nRESULT: %d/%d" % (zaliczone, wszystkie))
 sys.exit(0 if zaliczone == wszystkie else 1)

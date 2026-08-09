@@ -80,27 +80,27 @@ def main():
             procs = [(proc.pid, 1, 95.0, comm)]
             return [t[0] for t in guard.pick_targets(CFG, procs, {})]
 
-        print("1) zwykly node build.js JEST pauzowalny")
-        check("comm=node, args=build.js -> w targets", build.pid in cele("node", build))
+        print("1) plain node build.js IS pausable")
+        check("comm=node, args=build.js -> in targets", build.pid in cele("node", build))
 
-        print("2) zaplecze agentow nietykalne po ARGUMENTACH")
-        check("comm=node, args z .claude/mcp -> poza targets",
+        print("2) agent backends are untouchable by ARGUMENTS")
+        check("comm=node, args with .claude/mcp -> outside targets",
               agent.pid not in cele("node", agent))
 
-        print("3) po NAZWIE nietykalne zostalo tylko to, co nigdy nie liczy")
-        check("comm=claude -> poza targets", build.pid not in cele("claude", build))
-        check("comm=codex -> poza targets", build.pid not in cele("codex", build))
-        check("comm=tmux -> poza targets", build.pid not in cele("tmux", build))
+        print("3) by NAME, only things that never compute remain untouchable")
+        check("comm=claude -> outside targets", build.pid not in cele("claude", build))
+        check("comm=codex -> outside targets", build.pid not in cele("codex", build))
+        check("comm=tmux -> outside targets", build.pid not in cele("tmux", build))
         for comm in ("node", "npm", "npx", "bun", "deno"):
-            check("'%s' NIE jest w never_patterns po nazwie" % comm,
+            check("'%s' is NOT in never_patterns by name" % comm,
                   comm not in CFG["never_patterns"])
 
-        print("4) wzorce argumentow obejmuja cale zaplecze")
+        print("4) argument patterns cover the whole backend")
         for wzor in ("claude", "codex", "cursor", "mcp", "language-server", ".vscode"):
-            check("'%s' w never_arg_patterns" % wzor, wzor in CFG["never_arg_patterns"])
+            check("'%s' in never_arg_patterns" % wzor, wzor in CFG["never_arg_patterns"])
 
-        print("5) siatka SIGTTIN zostala: skip_foreground_tty domyslnie wlaczone")
-        check("skip_foreground_tty=True w DEFAULTS",
+        print("5) SIGTTIN net remains: skip_foreground_tty enabled by default")
+        check("skip_foreground_tty=True in DEFAULTS",
               guard.DEFAULTS.get("skip_foreground_tty") is True)
     finally:
         for p in procesy:
@@ -111,7 +111,7 @@ def main():
             shutil.rmtree(kat_agenta, ignore_errors=True)   # Fake MCP server directory.
 
     padniete = [n for n, ok in WYNIKI if not ok]
-    print("\nWYNIK: %d/%d" % (len(WYNIKI) - len(padniete), len(WYNIKI)))
+    print("\nRESULT: %d/%d" % (len(WYNIKI) - len(padniete), len(WYNIKI)))
     if padniete:
         sys.exit(1)
 

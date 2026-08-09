@@ -76,64 +76,64 @@ def zapisane():
         return None
 
 
-print("=== dowod ma byc OZNACZONY, nie wyrzucony ===")
+print("=== evidence must be MARKED, not discarded ===")
 
 # 1. Plain hard shutdown, high confidence.
 r = scena(BOOT - 600)
-test("1. zwykly pad (10 min przed bootem) wykryty z pewnoscia high",
-     r and r.get("confidence") == "high", "dostalem %s" % (r and r.get("confidence")))
+test("1. plain shutdown (10 min before boot) detected with high confidence",
+     r and r.get("confidence") == "high", "got %s" % (r and r.get("confidence")))
 
 # 2. Drained RTC / NTP jump: heartbeat more than 30 days before boot.
 #    Previously: silence, `return None`, evidence lost permanently.
 r = scena(BOOT - 45 * 86400)
 w = zapisane()
-test("2. puls sprzed 45 dni: dowod ZAPISANY (nie wyrzucony po cichu)", bool(r) and bool(w),
-     "wynik=%s zapis=%s" % (bool(r), bool(w)))
-test("3. ...i oznaczony jako maloprawdopodobny",
+test("2. heartbeat from 45 days ago: evidence WRITTEN (not silently discarded)", bool(r) and bool(w),
+     "result=%s written=%s" % (bool(r), bool(w)))
+test("3. ...and marked as unlikely",
      r and r.get("confidence") == "low"
      and w and w.get("context", {}).get("confidence") == "low",
      "confidence=%s" % (r and r.get("confidence")))
-test("4. ...z podanym POWODEM watpliwosci",
+test("4. ...with a REASON for doubt",
      bool(w and w.get("context", {}).get("confidence_reason")),
-     "powod: %r" % (w and w.get("context", {}).get("confidence_reason")))
+     "reason: %r" % (w and w.get("context", {}).get("confidence_reason")))
 
 # 3. Daemon killed long before normal restart, fabricating a shutdown.
 r = scena(BOOT - 20 * 3600)
 w = zapisane()
-test("5. puls 20 h przed bootem: zapisany, ale NIE jako pewny twardy pad",
+test("5. heartbeat 20 h before boot: written, but NOT as a certain hard shutdown",
      bool(r) and r.get("confidence") == "low",
      "confidence=%s" % (r and r.get("confidence")))
-test("6. ...powod wskazuje na ubicie bezpiecznika, nie na pad Maca",
+test("6. ...reason points to guard termination, not a Mac shutdown",
      bool(w) and "heartbeat" in (w.get("context", {}).get("confidence_reason") or "").lower(),
-     "powod: %r" % (w and w.get("context", {}).get("confidence_reason")))
+     "reason: %r" % (w and w.get("context", {}).get("confidence_reason")))
 
 # 4. Boundary: 6 h before boot is still credible; the Mac could be off overnight.
 r = scena(BOOT - 6 * 3600)
-test("7. 6 h przed bootem nadal liczy sie jako pewny pad",
+test("7. 6 h before boot still counts as a confident shutdown",
      r and r.get("confidence") == "high", "confidence=%s" % (r and r.get("confidence")))
 
 # --- Countercases: silence where silence is correct ---
-print("\n=== przypadek przeciwny: kiedy NIE wolno meldowac padu ===")
+print("\n=== opposite case: when a shutdown must NOT be reported ===")
 
-test("8. puls z biezacej sesji: cisza", scena(BOOT + 60) is None)
-test("9. czysty stop sprzed bootu: cisza", scena(BOOT - 600, czyste=BOOT - 600) is None)
-test("10. clean_stop z biezacej sesji NIE wycisza prawdziwego padu",
+test("8. heartbeat from current session: silence", scena(BOOT + 60) is None)
+test("9. clean stop before boot: silence", scena(BOOT - 600, czyste=BOOT - 600) is None)
+test("10. clean_stop from current session does NOT silence a real shutdown",
      scena(BOOT - 600, czyste=time.time()) is not None)
 
 # 11. Human-facing description carries a warning, not only a dry sentence.
 r = scena(BOOT - 45 * 86400)
-test("11. opis w dokumencie zawiera jawne ostrzezenie o niskiej wiarygodnosci",
+test("11. document description contains an explicit low-confidence warning",
      r and "LOW" in (r.get("description") or "").upper(),
-     "opis: %r" % (r and (r.get("description") or "")[:90]))
+     "description: %r" % (r and (r.get("description") or "")[:90]))
 
 # 12. gap_to_boot_s lets a human assess the gap independently.
 w = zapisane()
-test("12. zdarzenie niesie zmierzona luke puls->boot",
+test("12. event carries measured heartbeat->boot gap",
      bool(w) and isinstance(w.get("context", {}).get("gap_to_boot_s"), (int, float)),
      "context=%s" % (w and list((w.get("context") or {}).keys())))
 
 # --- item 4: the same shutdown may be described exactly once ---
-print("\n=== jeden pad = jeden wpis ===")
+print("\n=== one shutdown = one entry ===")
 
 
 def ile_hard():
@@ -150,23 +150,23 @@ scena(BOOT - 600)                      # Start 1: writes.
 przed = ile_hard()
 for _ in range(4):                     # Four more starts, heartbeat unchanged.
     g.wykryj_twardy_pad()
-test("13. piec startow z tym samym pulsem daje JEDEN wpis, nie piec",
-     ile_hard() == 1, "wpisow: %d (po pierwszym starcie: %d)" % (ile_hard(), przed))
+test("13. five starts with the same heartbeat give ONE entry, not five",
+     ile_hard() == 1, "entries: %d (after first start: %d)" % (ile_hard(), przed))
 
-test("14. powtorne wykrycie zwraca None (bez drugiego powiadomienia)",
+test("14. repeated detection returns None (no second notification)",
      g.wykryj_twardy_pad() is None)
 
 # Countercase: two different shutdowns produce two entries.
 scena(BOOT - 4000, czysc_events=False)   # Different last heartbeat time = different failure.
-test("15. drugi, INNY pad jest zapisany osobno", ile_hard() == 2,
-     "wpisow: %d" % ile_hard())
+test("15. second, DIFFERENT shutdown is written separately", ile_hard() == 2,
+     "entries: %d" % ile_hard())
 
 # Boundary: a difference below tolerance is still the same shutdown.
 scena(BOOT - 4000 + 30, czysc_events=False)
-test("16. puls przesuniety o 30 s (fallback na mtime) to nadal TEN SAM pad",
-     ile_hard() == 2, "wpisow: %d" % ile_hard())
+test("16. heartbeat shifted by 30 s (mtime fallback) is still the SAME shutdown",
+     ile_hard() == 2, "entries: %d" % ile_hard())
 
 shutil.rmtree(BASE, ignore_errors=True)
 ok = sum(wyniki)
-print("\nWYNIK: %d/%d" % (ok, len(wyniki)))
+print("\nRESULT: %d/%d" % (ok, len(wyniki)))
 sys.exit(0 if ok == len(wyniki) else 1)

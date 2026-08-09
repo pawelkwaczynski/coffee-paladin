@@ -75,19 +75,19 @@ def szczyt_z(tekst):
     return float(m.group(1)) if m else None
 
 
-print("=== rotacja dowodow ===")
+print("=== evidence rotation ===")
 
 # 1. Initial state: peak is visible.
 napisz_historie(("98.7", "09:00:00"), ("55.0", "09:01:00"))
-test("1. przed rotacja raport podaje szczyt 98,7 C", szczyt_z(raport()) == 98.7,
-     "dostalem %s" % szczyt_z(raport()))
+test("1. before rotation the report shows peak 98.7 C", szczyt_z(raport()) == 98.7,
+     "got %s" % szczyt_z(raport()))
 
 # 2. After rotation, the peak must not disappear.
 przepelnij_i_zrotuj(g.HIST_PATH)
 napisz_historie(("44.0", "10:00:00"))
 po = szczyt_z(raport())
-test("2. po rotacji raport NADAL podaje 98,7 C (nie 44,0 z nowego pliku)", po == 98.7,
-     "dostalem %s - raport czyta tylko plik biezacy" % po)
+test("2. after rotation the report STILL shows 98.7 C (not 44.0 from the new file)", po == 98.7,
+     "got %s - report reads only the current file" % po)
 
 # 3. A second rotation does not delete the first generation.
 przepelnij_i_zrotuj(g.HIST_PATH)
@@ -95,40 +95,40 @@ napisz_historie(("40.0", "11:00:00"))
 zrodla = g.pokolenia(g.HIST_PATH)
 gdzie = [os.path.basename(p) for p in zrodla
          if "98.7" in io.open(p, encoding="utf-8", errors="replace").read()[:5000]]
-test("3. po DRUGIEJ rotacji odczyt 98,7 C dalej istnieje na dysku", bool(gdzie),
-     "przepadl; pliki: %s" % sorted(os.listdir(BASE)))
-test("4. i raport go widzi", szczyt_z(raport()) == 98.7, "dostalem %s" % szczyt_z(raport()))
+test("3. after SECOND rotation the 98.7 C reading still exists on disk", bool(gdzie),
+     "lost; files: %s" % sorted(os.listdir(BASE)))
+test("4. and report sees it", szczyt_z(raport()) == 98.7, "got %s" % szczyt_z(raport()))
 
 # 5. Generations are chronological, oldest first, or the timeline lies.
 nazwy = [os.path.basename(p) for p in g.pokolenia(g.HIST_PATH)]
-test("5. pokolenia w kolejnosci chronologicznej, plik biezacy na koncu",
+test("5. generations in chronological order, current file last",
      nazwy == sorted(nazwy, key=lambda n: -int(n.split(".")[-1]) if n[-1].isdigit() else 0)
      and nazwy[-1] == "history.csv",
-     "kolejnosc: %s" % nazwy)
+     "order: %s" % nazwy)
 
 # 6. Generation cap works: old entries fall out instead of growing forever.
 for _ in range(g.MAX_LOG_GENERACJI + 3):
     przepelnij_i_zrotuj(g.HIST_PATH)
     napisz_historie(("41.0", "12:00:00"))
 ile = len([n for n in os.listdir(BASE) if n.startswith("history.csv.")])
-test("6. liczba pokolen nie przekracza MAX_LOG_GENERACJI", ile <= g.MAX_LOG_GENERACJI,
-     "jest %d pokolen przy limicie %d" % (ile, g.MAX_LOG_GENERACJI))
+test("6. generation count does not exceed MAX_LOG_GENERACJI", ile <= g.MAX_LOG_GENERACJI,
+     "there are %d generations with limit %d" % (ile, g.MAX_LOG_GENERACJI))
 
 # --- Countercase: without rotation, nothing changes ---
-print("\n=== przypadek przeciwny (zadnej rotacji) ===")
+print("\n=== opposite case (no rotation) ===")
 for n in list(os.listdir(BASE)):
     if n.startswith("history.csv."):
         os.remove(os.path.join(BASE, n))
 napisz_historie(("77.0", "09:00:00"), ("50.0", "09:30:00"))
-test("7. bez rotacji: jedno zrodlo i szczyt z niego",
+test("7. without rotation: one source and peak from it",
      g.pokolenia(g.HIST_PATH) == [g.HIST_PATH] and szczyt_z(raport()) == 77.0,
-     "zrodla=%s szczyt=%s" % (g.pokolenia(g.HIST_PATH), szczyt_z(raport())))
+     "sources=%s peak=%s" % (g.pokolenia(g.HIST_PATH), szczyt_z(raport())))
 
 # 8. No file at all means an empty list, not an exception.
 os.remove(g.HIST_PATH)
-test("8. brak pliku: pokolenia() zwraca pusta liste bez wyjatku", g.pokolenia(g.HIST_PATH) == [])
+test("8. missing file: pokolenia() returns empty list without exception", g.pokolenia(g.HIST_PATH) == [])
 
 shutil.rmtree(BASE, ignore_errors=True)
 ok = sum(wyniki)
-print("\nWYNIK: %d/%d" % (ok, len(wyniki)))
+print("\nRESULT: %d/%d" % (ok, len(wyniki)))
 sys.exit(0 if ok == len(wyniki) else 1)

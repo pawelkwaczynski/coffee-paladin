@@ -58,7 +58,7 @@ for nazwa in PLIKI:
     try:
         drzewo = ast.parse(zrodlo)
     except SyntaxError as e:
-        bledy.append("%s: nie parsuje sie (%s)" % (nazwa, e))
+        bledy.append("%s: does not parse (%s)" % (nazwa, e))
         continue
     sygn = sygnatury(drzewo)
 
@@ -76,14 +76,14 @@ for nazwa in PLIKI:
             dozwolone = set(s["pozycyjne"]) | set(s["kwonly"])
             for kw in wezel.keywords:
                 if kw.arg is not None and kw.arg not in dozwolone:
-                    bledy.append("%s: nieznany argument '%s' (definicja w linii %d, przyjmuje: %s)"
-                                 % (gdzie, kw.arg, s["linia"], ", ".join(dozwolone) or "brak"))
+                    bledy.append("%s: unknown argument '%s' (definition on line %d, accepts: %s)"
+                                 % (gdzie, kw.arg, s["linia"], ", ".join(dozwolone) or "none"))
 
         # 2. Too many positional arguments.
         if not s["ma_gwiazdke"]:
             podane = len([a for a in wezel.args if not isinstance(a, ast.Starred)])
             if not any(isinstance(a, ast.Starred) for a in wezel.args) and podane > len(s["pozycyjne"]):
-                bledy.append("%s: %d argumentow pozycyjnych, a funkcja przyjmuje %d (linia %d)"
+                bledy.append("%s: %d positional arguments, but function accepts %d (line %d)"
                              % (gdzie, podane, len(s["pozycyjne"]), s["linia"]))
 
         # 3. Missing required argument.
@@ -94,17 +94,17 @@ for nazwa in PLIKI:
             nazwane = {k.arg for k in wezel.keywords if k.arg}
             pokryte = len(wezel.args) + len([n for n in s["pozycyjne"][:wymagane] if n in nazwane])
             if pokryte < wymagane:
-                bledy.append("%s: brakuje argumentow - wymaga %d, dostaje %d (linia %d)"
+                bledy.append("%s: missing arguments - requires %d, gets %d (line %d)"
                              % (gdzie, wymagane, pokryte, s["linia"]))
             for n in s["kwonly_wymagane"]:
                 if n not in nazwane:
-                    bledy.append("%s: brakuje wymaganego argumentu nazwanego '%s'" % (gdzie, n))
+                    bledy.append("%s: missing required named argument '%s'" % (gdzie, n))
 
-print("SPRAWDZONYCH WOLAN: %d w %d plikach" % (sprawdzonych, len(PLIKI)))
+print("CHECKED CALLS: %d in %d files" % (sprawdzonych, len(PLIKI)))
 if bledy:
     for b in bledy:
         print("  [FAIL] %s" % b)
-    print("\n%d bled(ow)" % len(bledy))
+    print("\n%d error(s)" % len(bledy))
     sys.exit(1)
-print("  wszystkie wolania zgodne z sygnaturami")
+print("  all calls match signatures")
 sys.exit(0)

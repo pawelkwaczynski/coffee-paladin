@@ -56,7 +56,7 @@ for plik in ("guard.py", "thermal-report", "fleet", "heat", "safe-run"):
         d = getattr(mod, nazwa)
         brak = sorted(k for k in wolane if k not in d)
         if brak:
-            bledy.append("%s: %s nie ma %d tlumaczen (np. %r)"
+            bledy.append("%s: %s is missing %d translations (for example %r)"
                          % (plik, nazwa, len(brak), brak[0][:60]))
 zrodlo = io.open(os.path.join(SRC, 'guard.py'), encoding='utf-8').read()
 
@@ -67,20 +67,20 @@ wersje['thermal-report'] = re.search(r'^VERSION = "([^"]+)"', io.open(os.path.jo
 wersje['heatbar.swift'] = re.search(r'let VERSION = "([^"]+)"', io.open(os.path.join(SRC,'heatbar.swift')).read()).group(1)
 wersje['plugin.json'] = json.load(open(os.path.join(SRC,'.claude-plugin/plugin.json')))['version']
 if len(set(wersje.values())) != 1:
-    bledy.append("wersje sie roznia: %s" % wersje)
+    bledy.append("versions differ: %s" % wersje)
 
 # 3. Every tool responds to --help.
 for narz in ("heat","safe-run","fleet","thermal-report"):
     s = io.open(os.path.join(SRC,narz)).read()
     if '"--help"' not in s:
-        bledy.append("%s nie obsluguje --help" % narz)
+        bledy.append("%s does not handle --help" % narz)
 
 # 4. install.sh installs what uninstall.sh removes.
 inst = io.open(os.path.join(SRC,'install.sh')).read()
 uninst = io.open(os.path.join(SRC,'uninstall.sh')).read()
 for binarka in ("coffee-paladin", "coffee-paladin-bar", "heat", "safe-run", "thermal-report", "fleet", "thermalstate"):
     if '"$BIN/%s"' % binarka not in uninst:
-        bledy.append("uninstall.sh nie usuwa %s" % binarka)
+        bledy.append("uninstall.sh does not remove %s" % binarka)
 
 # 4b. The .app bundle is an installation artifact like binaries. If the installer
 #     can create it in two possible locations, the uninstaller must remove both.
@@ -89,22 +89,22 @@ for binarka in ("coffee-paladin", "coffee-paladin-bar", "heat", "safe-run", "the
 if ('coffee-paladin.app' not in inst or 'APP_CONTENTS="$APP_BUNDLE/Contents"' not in inst
         or 'APP_MACOS="$APP_CONTENTS/MacOS"' not in inst
         or 'APP_RESOURCES="$APP_CONTENTS/Resources"' not in inst):
-    bledy.append("install.sh nie tworzy struktury coffee-paladin.app/Contents")
+    bledy.append("install.sh does not create coffee-paladin.app/Contents structure")
 if 'CFBundleExecutable' not in inst or 'CFBundleIdentifier' not in inst or 'LSUIElement' not in inst:
-    bledy.append("install.sh nie zapisuje wymaganych kluczy Info.plist dla bundle")
+    bledy.append("install.sh does not write required Info.plist keys for bundle")
 if 'wersja_heatbar' not in inst or 'let VERSION = ' not in inst:
-    bledy.append("install.sh nie czyta wersji bundle z heatbar.swift")
+    bledy.append("install.sh does not read bundle version from heatbar.swift")
 if 'tools/zrob_ikone.sh' not in inst or 'AppIcon.icns' not in inst:
-    bledy.append("install.sh nie buduje AppIcon.icns z osobnego narzedzia")
+    bledy.append("install.sh does not build AppIcon.icns with a separate tool")
 if 'codesign -s - -f "$APP_BUNDLE"' not in inst:
-    bledy.append("install.sh nie podpisuje calego bundle ad hoc")
+    bledy.append("install.sh does not ad-hoc sign the whole bundle")
 if 'ln -s "$BAR_EXEC" "$BIN/coffee-paladin-bar"' not in inst:
-    bledy.append("install.sh nie zostawia symlinka zgodnosciowego coffee-paladin-bar")
+    bledy.append("install.sh does not leave coffee-paladin-bar compatibility symlink")
 if '__BAR_EXEC__' not in io.open(os.path.join(SRC, 'pl.pawel.coffee-paladin-bar.plist')).read():
-    bledy.append("LaunchAgent paska nie ma placeholdera __BAR_EXEC__")
+    bledy.append("bar LaunchAgent lacks __BAR_EXEC__ placeholder")
 for app in ('"/Applications/coffee-paladin.app"', '"$HOME/Applications/coffee-paladin.app"'):
     if app not in uninst:
-        bledy.append("uninstall.sh nie usuwa bundle %s" % app)
+        bledy.append("uninstall.sh does not remove bundle %s" % app)
 
 # 5. Log tags used by guard are known to every parser.
 #    The old assertion was "grep the source": it checked whether "[PAUSE]" appeared
@@ -123,8 +123,8 @@ try:
     _g5 = importlib.machinery.SourceFileLoader('tag_g', os.path.join(SRC, 'guard.py')).load_module()
     _stat = _g5.statystyki_dnia() if hasattr(_g5, "statystyki_dnia") else None
     if _stat is not None and not any(v for v in _stat.values()):
-        bledy.append("statystyki_dnia nie rozpoznaly ZADNEGO ze znacznikow %s "
-                     "- parser logu jest zepsuty albo znaczniki sie rozjechaly" % tagi)
+        bledy.append("statystyki_dnia recognized NONE of the tags %s "
+                     "- log parser is broken or tags drifted" % tagi)
     # thermal-report: feed it a log and verify it really counted every line.
     # The previous check searched source for literal "[PAUSE]" and reported a false
     # alarm because the parser uses a regex alternative (\[(PAUSE|RESUME|...)\]).
@@ -137,11 +137,11 @@ try:
     _raport = io.open(_cel5, encoding="utf-8", errors="replace").read()
     _nieznane = [t for t in tagi if ("[%s]" % t) not in _raport]
     if _nieznane:
-        bledy.append("thermal-report NIE POLICZYL linii ze znacznikami %s - "
-                     "raport dowodowy gubi te interwencje" % _nieznane)
+        bledy.append("thermal-report DID NOT COUNT lines with tags %s - "
+                     "evidence report loses those interventions" % _nieznane)
     _sh5.rmtree(_t5, ignore_errors=True)
 except Exception as _e5:
-    bledy.append("nie moge sprawdzic znacznikow logu: %s: %s" % (type(_e5).__name__, _e5))
+    bledy.append("cannot check log tags: %s: %s" % (type(_e5).__name__, _e5))
 
 # 6. `pokolenia()` exists in guard.py and thermal-report as an intentional copy because
 #    tools are standalone and do not import the daemon. Both must return the same result.
@@ -156,14 +156,14 @@ try:
     _g = importlib.machinery.SourceFileLoader('pg', os.path.join(SRC, 'guard.py')).load_module()
     _tr = importlib.machinery.SourceFileLoader('ptr', os.path.join(SRC, 'thermal-report')).load_module()
     if not hasattr(_tr, "pokolenia"):
-        bledy.append("thermal-report nie ma pokolenia() - rotacja znowu utnie dowody")
+        bledy.append("thermal-report lacks pokolenia() - rotation will truncate evidence again")
     elif _g.pokolenia(_p) != _tr.pokolenia(_p):
-        bledy.append("pokolenia() rozjechalo sie miedzy guard.py a thermal-report: %s vs %s"
+        bledy.append("pokolenia() drifted between guard.py and thermal-report: %s vs %s"
                      % ([os.path.basename(x) for x in _g.pokolenia(_p)],
                         [os.path.basename(x) for x in _tr.pokolenia(_p)]))
     _sh.rmtree(_t, ignore_errors=True)
 except Exception as _e:
-    bledy.append("nie moge porownac pokolenia(): %s: %s" % (type(_e).__name__, _e))
+    bledy.append("cannot compare pokolenia(): %s: %s" % (type(_e).__name__, _e))
 
 # 7. Timestamp parser lives in four files as an intentional copy: guard.czas_abs,
 #    thermal-report.czas_z, heat.czas_abs, safe-run.czas_abs. All must return the same
@@ -178,17 +178,17 @@ try:
         _m = importlib.machinery.SourceFileLoader(
             'cz_' + re.sub(r'\W', '_', _plik), os.path.join(SRC, _plik)).load_module()
         if not hasattr(_m, _nazwa):
-            bledy.append("%s nie ma %s() - stempel z offsetem wywali mu parsowanie" % (_plik, _nazwa))
+            bledy.append("%s lacks %s() - timestamp with offset will break parsing" % (_plik, _nazwa))
             continue
         _impl[_plik] = [getattr(_m, _nazwa)(x) for x in _probki]
     if len(set(tuple(v) for v in _impl.values())) > 1:
-        bledy.append("parser stempla rozjechal sie miedzy plikami: %s"
+        bledy.append("timestamp parser drifted between files: %s"
                      % {k: v for k, v in _impl.items()})
 except Exception as _e:
-    bledy.append("nie moge porownac parsera stempla: %s: %s" % (type(_e).__name__, _e))
+    bledy.append("cannot compare timestamp parser: %s: %s" % (type(_e).__name__, _e))
 
-print("SPRAWDZEN: 8 kategorii")
+print("CHECKS: 8 categories")
 if bledy:
-    for b in bledy: print("  BLAD: %s" % b)
+    for b in bledy: print("  ERROR: %s" % b)
     sys.exit(1)
-print("  wszystko spojne")
+print("  everything consistent")

@@ -27,21 +27,21 @@ def cli(args):
     return p.returncode, p.stdout
 
 
-print("=== coffee-paladin: 21 testow (wzmocnione po rundach recenzji) ===")
+print("=== coffee-paladin: 21 tests (strengthened after review rounds) ===")
 
 # 0. Installed CLI == source; otherwise the rest tests an old binary.
 import filecmp
-test("0. zainstalowany heat = aktualne zrodlo",
+test("0. installed heat = current source",
      filecmp.cmp(os.path.join(SRC, "heat"), os.path.join(BIN, "heat"), shallow=False),
-     "~/.local/bin/heat rozni sie od zrodla - reszta testow nic nie dowodzi")
+     "~/.local/bin/heat differs from source - the rest of the tests prove nothing")
 
 # 1. One egg: --paladin. Old flags must be truly removed, not dead options.
 #    --espresso/--paladin/--knight once did almost the same thing.
 rc2, o2 = cli(["--paladin"])
 zrodlo_heat = czytaj("heat")
-test("1. jedyna komenda egga to --paladin (stare flagi wyciete ze zrodla)",
+test("1. only egg command is --paladin (old flags removed from source)",
      rc2 == 0 and "--espresso" not in zrodlo_heat and "--knight" not in zrodlo_heat,
-     "kod=%s, espresso=%s, knight=%s" % (rc2, "--espresso" in zrodlo_heat,
+     "code=%s, espresso=%s, knight=%s" % (rc2, "--espresso" in zrodlo_heat,
                                          "--knight" in zrodlo_heat))
 
 # 2. Color art must be full quality: half-blocks, >=40 lines. This is the version a
@@ -50,22 +50,22 @@ test("1. jedyna komenda egga to --paladin (stare flagi wyciete ze zrodla)",
 mk = re.search(r'PALADIN_KOLOR = """\n(.*?)\n"""', zrodlo_heat, re.S)
 art_kolor = mk.group(1).split("\n") if mk else []
 szer_kolor = max((len(re.sub(r"\x1b\[[0-9;]*m", "", l)) for l in art_kolor), default=0)
-test("2. rysunek kolorowy: >=40 linii polblokow, szerokosc miesci sie w 80 kolumnach",
+test("2. color art: >=40 half-block lines, width fits within 80 columns",
      len(art_kolor) >= 40 and 60 <= szer_kolor <= 80
      and sum(l.count("\u2580") + l.count("\u2584") for l in art_kolor) > 800
      and "coffee-paladin" in o2 and "Shield the Process" in o2
      and "github.com/pawelkwaczynski/coffee-paladin" in o2,
-     "linii: %d, szerokosc: %d" % (len(art_kolor), szer_kolor))
+     "lines: %d, width: %d" % (len(art_kolor), szer_kolor))
 
 # 3. One command carries the full guard report: temperature, oath, and statistics.
-test("3. --paladin: temperatura i statystyki, BEZ angielskiej przysiegi",
+test("3. --paladin: temperature and statistics, WITHOUT the English oath",
      re.search(r"\d+[.,]\d+\s*C", o2) is not None
      and re.search(r"\d+\s+(pauz|pause)", o2) is not None
      and "coffee first" not in o2          # Line removed at the author's request.
      and "coffee-paladin" in o2
      and "pawelkwaczynski/coffee-paladin" in o2   # URL after repository rename.
      and "pawelkwaczynski/thermal-guard" not in o2,
-     "brak czesci meldunku albo zostal stary adres/przysiega")
+     "missing report part or old address/oath remains")
 
 # 4. Animation: 8 frames, every line equal length for monospace safety.
 hb = czytaj("heatbar.swift")
@@ -77,22 +77,22 @@ rozmiary = [{len(l) for l in dekoduj(k)} for k in klatki]
 wszystkie_szer = set()
 for r in rozmiary:
     wszystkie_szer |= r
-test("4. 8 klatek, stala szerokosc W KAZDEJ i MIEDZY klatkami",
+test("4. 8 frames, constant width IN EACH frame and BETWEEN frames",
      len(klatki) == 8 and all(len(r) == 1 for r in rozmiary) and len(wszystkie_szer) == 1,
-     "klatek: %d, szerokosci w calym zestawie: %s" % (len(klatki), wszystkie_szer))
+     "frames: %d, widths across full set: %s" % (len(klatki), wszystkie_szer))
 
 # 5. All frames have the same line count, so the figure does not float.
 linie = {len(dekoduj(k)) for k in klatki}
-test("5. wszystkie klatki maja tyle samo linii", len(linie) == 1, "linie: %s" % linie)
+test("5. all frames have the same line count", len(linie) == 1, "lines: %s" % linie)
 
 # 6. Rebrand: name and motto in the menu bar.
-test("6. APPNAME/MOTTO faktycznie UZYTE w UI (nie tylko zadeklarowane)",
+test("6. APPNAME/MOTTO actually USED in UI (not only declared)",
      'let APPNAME = "coffee-paladin"' in hb
      and "SIGNATURE = \"\\(APPNAME)" in hb
      and "labelWithString: \"\\(APPNAME)  \u00b7  v\\(VERSION)\")" in hb
      and "labelWithString: MOTTO" in hb
      and "thermal-guard  ·  v" not in hb,
-     "deklaracja bez uzycia albo zostala stara nazwa w naglowku")
+     "declaration without use or old name still in header")
 
 # 7. Translations: welcome keys in 4 dictionaries plus a clear quit label.
 # Each dictionary must have non-English translations for both keys.
@@ -100,11 +100,11 @@ def tlumaczenia(klucz_en):
     return [m for m in re.findall(re.escape(klucz_en) + r'\s*:\s*"((?:[^"\\]|\\.)*)"', hb)]
 tp = tlumaczenia('"The paladin stands guard. Choose how to begin:"')
 tq = tlumaczenia('"Quit coffee-paladin (protection stops)"')
-test("7. realne tlumaczenia powitania i etykiety wyjscia w 4 jezykach",
+test("7. real translations of welcome text and quit label in 4 languages",
      len(tp) == 4 and len(tq) == 4
      and all(t_ != "The paladin stands guard. Choose how to begin:" for t_ in tp)
      and all(t_ != "Quit coffee-paladin (protection stops)" for t_ in tq),
-     "powitanie: %d tlumaczen, wyjscie: %d" % (len(tp), len(tq)))
+     "welcome: %d translations, quit: %d" % (len(tp), len(tq)))
 
 # 8. Two-part regression: (a) guard source compiles and passes --once in isolation,
 #    (b) the live install works. This intentionally reads the real ~/.coffee-paladin.
@@ -136,22 +136,22 @@ except Exception:
     zrodlo_ok = False
 finally:
     shutil.rmtree(tmp, ignore_errors=True)
-test("8. regresja: zrodlo guarda kompiluje sie i raportuje + zywa instalacja zdrowa",
+test("8. regression: guard source compiles and reports + live install is healthy",
      zrodlo_ok and wiek < 60 and "LOOP ERROR" not in log and "BLAD petli" not in log,
-     "zrodlo_ok=%s, wiek statusu: %.0fs" % (zrodlo_ok, wiek))
+     "source_ok=%s, status age: %.0fs" % (zrodlo_ok, wiek))
 
 # --- Official art, dependency-free: read PNG/GIF headers manually ---
 
 def png_wh(p):
     with open(p, "rb") as f:
         d = f.read(33)
-    assert d[:8] == b"\x89PNG\r\n\x1a\n" and d[12:16] == b"IHDR", "to nie PNG: " + p
+    assert d[:8] == b"\x89PNG\r\n\x1a\n" and d[12:16] == b"IHDR", "not a PNG: " + p
     return struct.unpack(">II", d[16:24])
 
 
 def gif_wh_klatki(p):
     d = open(p, "rb").read()
-    assert d[:6] in (b"GIF89a", b"GIF87a"), "to nie GIF: " + p
+    assert d[:6] in (b"GIF89a", b"GIF87a"), "not a GIF: " + p
     w, h = struct.unpack("<HH", d[6:10])
     return w, h, d.count(b"\x21\xf9\x04")     # Graphic Control blocks = frames.
 
@@ -166,8 +166,8 @@ try:
 except Exception:
     ow = oh = gw = gh = gk = 0
     ok9 = False
-test("9. oficjalne zrodla: paladin.png (duzy portret) + paladin.gif (animacja)",
-     ok9, "png %sx%s, gif %sx%s klatek=%s" % (ow, oh, gw, gh, gk))
+test("9. official sources: paladin.png (large portrait) + paladin.gif (animation)",
+     ok9, "png %sx%s, gif %sx%s frames=%s" % (ow, oh, gw, gh, gk))
 
 # 10. Derived assets used by the app exist, are animated, and have reasonable size.
 try:
@@ -182,8 +182,8 @@ try:
 except Exception:
     ww = wh = wk = fw = fh = waga = 0
     ok10 = False
-test("10. pochodne: welcome.gif animowany + PNG w tym samym kadrze, bez miniatury w menu",
-     ok10, "welcome %sx%s k=%s (%.1f MB), png %sx%s"
+test("10. derived assets: animated welcome.gif + PNG in same frame, no menu thumbnail",
+     ok10, "welcome %sx%s frames=%s (%.1f MB), png %sx%s"
            % (ww, wh, wk, waga / 1048576.0, fw, fh))
 
 # 11. Art provenance is recorded where someone will see it: CREDITS and README.
@@ -195,17 +195,17 @@ try:
 except Exception:
     kred = rd = ""
     ok11 = False
-test("11. nota o pochodzeniu grafiki w CREDITS.md i w README", ok11,
+test("11. art provenance note in CREDITS.md and README", ok11,
      "CREDITS: %s, README: %s" % ("asny autora" in kred, "own design" in rd))
 
 # 12. The welcome window prefers animation, and install.sh copies it.
 sh = czytaj("install.sh")
-test("12. Swift laduje paladin_welcome.gif (z fallbackiem) i install.sh go kopiuje",
+test("12. Swift loads paladin_welcome.gif (with fallback) and install.sh copies it",
      'contentsOfFile: base + "/paladin_welcome.gif"' in hb
      and 'contentsOfFile: base + "/paladin_welcome.png"' in hb
      and "iv.animates = true" in hb
      and "paladin_welcome.gif" in sh,
-     "brak sciezki GIF w Swift albo w install.sh")
+     "missing GIF path in Swift or install.sh")
 
 # 13. --ascii must force the character version even in a truecolor terminal.
 #     Without a pty this cannot be tested honestly because heat checks isatty().
@@ -238,25 +238,25 @@ wymuszony = przez_pty(["--paladin", "--ascii"], {"COLORTERM": "truecolor", "TERM
 # Fallback to the cup from the first thermal-guard version, not a degraded paladin:
 # without truecolor the figure cannot be drawn honestly, so use the character art
 # that has always looked good.
-test("13. truecolor -> paladyn, --ascii -> filizanka (a nie rozmyty paladyn)",
+test("13. truecolor -> paladin, --ascii -> cup (not a blurry paladin)",
      kolorowy.count("38;2;") > 100 and wymuszony.count("38;2;") == 0
      and ".------------." in wymuszony and "~~~~~~~~~~" in wymuszony
      and "Shield the Process" in wymuszony,
-     "kolor: %d sekwencji, --ascii: %d, kubek: %s"
+     "color: %d sequences, --ascii: %d, cup: %s"
      % (kolorowy.count("38;2;"), wymuszony.count("38;2;"), "`-----'" in wymuszony))
 
 # 14. Clicking the menu name opens the paladin panel anchored under the bar.
-test("14. panel paladyna: klikalna nazwa + kotwica pod ikona paska",
+test("14. paladin panel: clickable name + anchor under the bar icon",
      "final class PaladinPanel" in hb
      and "PaladinPanel.shared.toggle()" in hb
      and "override func mouseUp" in hb
      and "Bar.shared?.item.button" in hb
      and "cancelTracking()" in hb,          # The menu must close before the panel opens.
-     "brak panelu albo kotwiczenia w pasku")
+     "missing panel or bar anchoring")
 
 # 15. Quit means program exit, not hiding the icon. Label and effect must match:
 #     stop both daemon and menu bar, and ask before this irreversible step.
-test("15. Quit zatrzymuje DEMONA i pasek, po potwierdzeniu w oknie",
+test("15. Quit stops DAEMON and bar after window confirmation",
      'bootout", "gui/\\(uid)/pl.pawel.coffee-paladin"' in hb
      and 'bootout", "gui/\\(uid)/pl.pawel.coffee-paladin-bar"' in hb
      # Confirmation is mandatory, but the test cannot pin the window class. Since
@@ -266,7 +266,7 @@ test("15. Quit zatrzymuje DEMONA i pasek, po potwierdzeniu w oknie",
      and "NSApp.runModal(for: win)" in hb
      and "guard wynik.rawValue == 0 else { return }" in hb
      and "protection keeps running" not in hb,     # Old misleading promise must be gone.
-     "brak zatrzymania demona albo zostala stara etykieta")
+     "missing daemon stop or old label remains")
 
 # 16. AI-agent skill must exist, have valid front matter, and teach real program
 #     behavior: level, safe-run, and the SIGCONT ban.
@@ -280,8 +280,8 @@ try:
 except Exception:
     sk = ""
     ok16 = False
-test("16. skill dla agentow AI istnieje i uczy realnego interfejsu guarda", ok16,
-     "brak skilla, naglowka albo wpisu w install.sh")
+test("16. AI-agent skill exists and teaches the real guard interface", ok16,
+     "missing skill, header, or install.sh entry")
 
 # 17. Real image in a terminal that supports it, such as Ghostty/kitty/WezTerm.
 #     The test reassembles protocol chunks and compares them with the PNG byte for
@@ -302,9 +302,9 @@ except Exception:
     ok17 = False
 # In a terminal without image support, do not send the image or it prints junk.
 zwykly = przez_pty(["--paladin"], {"TERM": "xterm-256color", "COLORTERM": "truecolor"}, surowo=True)
-test("17. obrazek w Ghostty sklada sie bajt w bajt; w zwyklym terminalu go nie ma",
+test("17. Ghostty image reassembles byte for byte; plain terminal has none",
      ok17 and b"\x1b_G" not in zwykly and zwykly.count("▀".encode()) > 500,
-     "porcji: %d, obrazek w zwyklym terminalu: %s" % (len(bloki), b"\x1b_G" in zwykly))
+     "chunks: %d, image in plain terminal: %s" % (len(bloki), b"\x1b_G" in zwykly))
 
 # 18. README screenshots: every link must point to an existing file, and the whole
 #     directory must fit the repo budget. WebP, not PNG, is a 10x difference.
@@ -317,10 +317,10 @@ try:
 except Exception:
     pliki, waga = set(), 0
 zepsute = sorted(uzyte - pliki)
-test("18. zrzuty: linki w README prowadza do plikow, katalog ponizej 2 MB",
+test("18. screenshots: README links point to files, directory below 2 MB",
      len(uzyte) >= 10 and not zepsute and waga < 2 * 1024 * 1024
      and all(f.endswith(".webp") for f in pliki),
-     "zepsute: %s, waga: %.1f MB, plikow: %d" % (zepsute, waga / 1048576.0, len(pliki)))
+     "broken: %s, size: %.1f MB, files: %d" % (zepsute, waga / 1048576.0, len(pliki)))
 
 # 19. README describes the agent skill in both languages, and the description matches
 #     the skill. A description promising behavior the skill omits is worse than none.
@@ -329,10 +329,10 @@ opis_pl = "## Twój agent AI umie z nim rozmawiać" in rd
 zgodnosc = all(
     (k in rd and k in sk) for k in ("status.json", "safe-run", "SIGCONT", "dry_run", "unpausable")
 )
-test("19. README opisuje skill (EN+PL) i nie obiecuje wiecej, niz skill naprawde mowi",
+test("19. README describes the skill (EN+PL) and does not promise more than the skill says",
      opis_en and opis_pl and zgodnosc
      and "~/.claude/skills/coffee-paladin" in rd,
-     "EN=%s PL=%s zgodnosc=%s" % (opis_en, opis_pl, zgodnosc))
+     "EN=%s PL=%s agreement=%s" % (opis_en, opis_pl, zgodnosc))
 
 # 20. README in three additional languages exists, is truly translated rather than
 #     copied from English, has working images, and keeps the same facts as the original.
@@ -357,10 +357,10 @@ for plik, sprawdz in (("README.zh.md", lambda s: znaki_w(s, 0x4E00, 0x9FFF) > 80
     except Exception:
         jezyki[plik] = False
 odn = all(("(%s)" % p) in rd for p in ("README.zh.md", "README.ru.md", "README.es.md"))
-test("20. README zh/ru/es: realne tlumaczenia, dobre obrazki, zgodne liczby, odnosniki",
+test("20. README zh/ru/es: real translations, good images, matching numbers, links",
      all(jezyki.values()) and odn,
-     "%s, odnosniki w README: %s" % (jezyki, odn))
+     "%s, README links: %s" % (jezyki, odn))
 
 ok = sum(1 for _, w in wyniki if w)
-print("\nWYNIK: %d/%d" % (ok, len(wyniki)))
+print("\nRESULT: %d/%d" % (ok, len(wyniki)))
 sys.exit(0 if ok == len(wyniki) else 1)

@@ -81,71 +81,71 @@ def log_ogon(n=1):
         return []
 
 
-print("1. slepy czujnik: znacznik NIE moze zostac zapisany")
+print("1. blind sensor: marker must NOT be written")
 swiezy_config()
 _, c = kalibruj(AIR_SLEPY)
-test("calibrated_for nie zapisany przy chip_sensor=False",
-     "calibrated_for" not in c, "w configu: %s" % c.get("calibrated_for"))
-test("progi nietkniete (nie udajemy kalibracji)",
+test("calibrated_for not written with chip_sensor=False",
+     "calibrated_for" not in c, "in config: %s" % c.get("calibrated_for"))
+test("thresholds untouched (do not pretend calibration happened)",
      "soc_pause_c" not in c, "soc_pause_c=%s" % c.get("soc_pause_c"))
-test("log MOWI o odlozonej kalibracji, nie 'defaults OK'",
+test("log SAYS calibration was deferred, not 'defaults OK'",
      any("CALIBRATION DEFERRED" in w for w in log_ogon(3)), log_ogon(1))
-test("stary, mylacy komunikat nie pada przy slepym czujniku",
+test("old misleading message is not emitted with blind sensor",
      not any("thresholds defaults OK" in w for w in log_ogon(3)), log_ogon(1))
 
-print("\n2. czujnik wraca przy nastepnym starcie — Air dostaje swoje progi")
+print("\n2. sensor returns on next start - Air gets its thresholds")
 _, c = kalibruj(AIR_WIDZI)
 test("soc_pause_c = 78", c.get("soc_pause_c") == 78.0, c.get("soc_pause_c"))
 test("soc_resume_c = 70", c.get("soc_resume_c") == 70.0, c.get("soc_resume_c"))
 test("soc_kill_c = 88", c.get("soc_kill_c") == 88.0, c.get("soc_kill_c"))
 test("max_pause_minutes = 120", c.get("max_pause_minutes") == 120, c.get("max_pause_minutes"))
-test("fan_check wylaczony (alarm wentylatorow na Airze jest zawsze falszywy)",
+test("fan_check disabled (fan alarm on Air is always false)",
      c.get("fan_check") is False, c.get("fan_check"))
-test("znacznik zapisany dopiero teraz, z sensor=True",
+test("marker written only now, with sensor=True",
      c.get("calibrated_for", "").endswith("|sensor=True"), c.get("calibrated_for"))
 
-print("\n3. przypadek przeciwny: raz skalibrowany Mac nie kalibruje sie drugi raz")
+print("\n3. opposite case: once-calibrated Mac does not calibrate twice")
 c_przed = z_dysku()
 swiezy_config(**c_przed)                      # same state, next daemon start
 _, c_po = kalibruj(AIR_WIDZI)
-test("drugi przebieg nic nie zmienia", c_po == c_przed,
-     "roznica: %s" % {k: (c_przed.get(k), c_po.get(k))
+test("second pass changes nothing", c_po == c_przed,
+     "difference: %s" % {k: (c_przed.get(k), c_po.get(k))
                       for k in set(c_przed) | set(c_po) if c_przed.get(k) != c_po.get(k)})
 
-print("\n4. przypadek przeciwny: Mac z wentylatorami nie dostaje progow Aira")
+print("\n4. opposite case: Mac with fans does not get Air thresholds")
 swiezy_config()
 _, c = kalibruj(PRO_WIDZI)
-test("progi zostaja domyslne", "soc_pause_c" not in c, c.get("soc_pause_c"))
-test("fan_check zostaje wlaczony", c.get("fan_check") is not False, c.get("fan_check"))
-test("max_pause_minutes bez zmian", "max_pause_minutes" not in c, c.get("max_pause_minutes"))
-test("znacznik zapisany (czujnik dziala)",
+test("thresholds stay default", "soc_pause_c" not in c, c.get("soc_pause_c"))
+test("fan_check stays enabled", c.get("fan_check") is not False, c.get("fan_check"))
+test("max_pause_minutes unchanged", "max_pause_minutes" not in c, c.get("max_pause_minutes"))
+test("marker written (sensor works)",
      c.get("calibrated_for", "").endswith("|fans=2|sensor=True"), c.get("calibrated_for"))
 
-print("\n5. przypadek przeciwny: RECZNE progi uzytkownika sa swiete")
+print("\n5. opposite case: user's MANUAL thresholds are sacred")
 swiezy_config(soc_pause_c=92.0, soc_resume_c=84.0)
 _, c = kalibruj(AIR_WIDZI)
-test("reczny prog pauzy nietkniety", c.get("soc_pause_c") == 92.0, c.get("soc_pause_c"))
-test("reczny prog wznowienia nietkniety", c.get("soc_resume_c") == 84.0, c.get("soc_resume_c"))
-test("fan_check i tak wylaczony (to nie prog, to sens alarmu)",
+test("manual pause threshold untouched", c.get("soc_pause_c") == 92.0, c.get("soc_pause_c"))
+test("manual resume threshold untouched", c.get("soc_resume_c") == 84.0, c.get("soc_resume_c"))
+test("fan_check disabled anyway (not a threshold, the alarm would make no sense)",
      c.get("fan_check") is False, c.get("fan_check"))
 
-print("\n6. slepy czujnik nie rozluznia praw config.json")
+print("\n6. blind sensor does not loosen config.json permissions")
 swiezy_config()
 os.chmod(g.CFG_PATH, 0o600)
 kalibruj(AIR_SLEPY)
-test("prawa 0600 zachowane (w configu siedzi temat ntfy)",
+test("0600 permissions preserved (config contains ntfy topic)",
      oct(os.stat(g.CFG_PATH).st_mode & 0o777) == "0o600",
      oct(os.stat(g.CFG_PATH).st_mode & 0o777))
 
-print("\n7. migracja dry_run dziala TAKZE przy slepym czujniku")
+print("\n7. dry_run migration also works with blind sensor")
 with open(g.CFG_PATH, "w") as f:                       # Pre-v1.3 config, no dry_run.
     json.dump({"lang": "pl"}, f)
 wynik, c = kalibruj(AIR_SLEPY)
-test("dry_run dopisany jawnie", c.get("dry_run") is True, c.get("dry_run"))
-test("demon dostaje sygnal 'watchonly'", wynik == "watchonly", wynik)
-test("ale znacznika nadal nie ma", "calibrated_for" not in c, c.get("calibrated_for"))
+test("dry_run added explicitly", c.get("dry_run") is True, c.get("dry_run"))
+test("daemon gets 'watchonly' signal", wynik == "watchonly", wynik)
+test("but marker is still absent", "calibrated_for" not in c, c.get("calibrated_for"))
 
-print("\n8. RECZNY prog ubicia przezywa kalibracje (uwaga z przegladu 03.08)")
+print("\n8. MANUAL kill threshold survives calibration (review note 03.08)")
 swiezy_config()
 kalibruj(AIR_SLEPY)                       # Blind start, no marker.
 c = z_dysku()
@@ -153,13 +153,13 @@ c["soc_kill_c"] = 95.0                    # User raises only the kill threshold.
 with open(g.CFG_PATH, "w") as f:
     json.dump(c, f)
 _, c = kalibruj(AIR_WIDZI)                # Sensor returns.
-test("soc_kill_c=95 nie zostal nadpisany przez 88", c.get("soc_kill_c") == 95.0,
+test("soc_kill_c=95 was not overwritten by 88", c.get("soc_kill_c") == 95.0,
      c.get("soc_kill_c"))
-test("progi pauzy tez nietkniete, skoro user ruszyl komplet",
+test("pause thresholds also untouched because user touched the full set",
      c.get("soc_pause_c") is None or c.get("soc_pause_c") != 78.0, c.get("soc_pause_c"))
-test("fan_check i tak wylaczony (to nie prog)", c.get("fan_check") is False, c.get("fan_check"))
+test("fan_check disabled anyway (not a threshold)", c.get("fan_check") is False, c.get("fan_check"))
 
-print("\n9. migracja starego configu nie rozluznia praw (uwaga z przegladu 03.08)")
+print("\n9. old config migration does not loosen permissions (review note 03.08)")
 stara_umask = os.umask(0)                 # Worst case: umask does not trim anything.
 try:
     with open(g.CFG_PATH, "w") as f:
@@ -167,11 +167,11 @@ try:
     os.chmod(g.CFG_PATH, 0o600)
     kalibruj(AIR_SLEPY)
     prawa = oct(os.stat(g.CFG_PATH).st_mode & 0o777)
-    test("config.json zostaje 0600 (siedzi w nim temat ntfy)", prawa == "0o600", prawa)
+    test("config.json stays 0600 (it contains ntfy topic)", prawa == "0o600", prawa)
 finally:
     os.umask(stara_umask)
 
-print("\n10. hardware_info: nieudany pierwszy odczyt macmona NIE przesadza")
+print("\n10. hardware_info: failed first macmon read is NOT decisive")
 # Sections 1-9 call `auto_calibrate` with prepared `hw`, so retrying reads inside
 # `hardware_info` was not tested at all. Stub `run` here and count real attempts.
 PROBA = {"n": 0}
@@ -201,11 +201,11 @@ g._soc_cache["t"] = None
 g._soc_cache["val"] = None
 try:
     hw = g.hardware_info()
-    test("czujnik odzyskany mimo dwoch pustych odczytow", hw.get("chip_sensor") is True,
-         "chip_sensor=%s po %d probach" % (hw.get("chip_sensor"), PROBA["n"]))
-    test("macmon pytany WIECEJ niz raz (ponowienie realnie dziala)", PROBA["n"] >= 3,
-         "prob: %d" % PROBA["n"])
-    test("fan_count=0 przy pustej liscie wentylatorow", hw.get("fan_count") == 0,
+    test("sensor recovered despite two empty reads", hw.get("chip_sensor") is True,
+         "chip_sensor=%s after %d attempts" % (hw.get("chip_sensor"), PROBA["n"]))
+    test("macmon queried MORE than once (retry really works)", PROBA["n"] >= 3,
+         "attempts: %d" % PROBA["n"])
+    test("fan_count=0 with empty fan list", hw.get("fan_count") == 0,
          hw.get("fan_count"))
 
     # Countercase: if macmon is always silent, do not spin forever.
@@ -217,18 +217,18 @@ try:
     t0 = time.monotonic()
     hw2 = g.hardware_info()
     trwalo = time.monotonic() - t0
-    test("trwale milczacy macmon konczy sie brakiem czujnika, nie zawieszeniem",
+    test("persistently silent macmon ends with missing sensor, not a hang",
          hw2.get("chip_sensor") is False, hw2.get("chip_sensor"))
-    test("ponowienia mieszcza sie w budzecie (<15 s)", trwalo < 15.0, "%.1f s" % trwalo)
+    test("retries fit within the budget (<15 s)", trwalo < 15.0, "%.1f s" % trwalo)
 finally:
     g.run = PRAWDZIWY_RUN
     g._soc_cache["t"] = None
     g._soc_cache["val"] = None
 
-print("\nNIEPOKRYTE (uczciwie): dokonczenie kalibracji w PETLI demona, gdy czujnik wraca")
-print("  juz po starcie. Sprawdzone rozumowaniem i recznie; nie da sie tego wymusic na")
-print("  maszynie, na ktorej macmon dziala, bo demon nigdy nie wchodzi w stan slepy.")
+print("\nUNCOVERED (honestly): finishing calibration in the daemon LOOP when the sensor returns")
+print("  after startup. Checked by reasoning and manually; it cannot be forced on")
+print("  a machine where macmon works, because the daemon never enters blind mode.")
 
 shutil.rmtree(BASE, ignore_errors=True)
-print("\n%d/%d" % (zaliczone, wszystkie))
+print("\nRESULT: %d/%d" % (zaliczone, wszystkie))
 sys.exit(0 if zaliczone == wszystkie else 1)

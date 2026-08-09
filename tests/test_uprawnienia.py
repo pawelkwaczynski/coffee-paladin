@@ -41,12 +41,12 @@ def prawa(p):
     return stat.S_IMODE(os.stat(p).st_mode)
 
 
-print("uprawnienia katalogu danych")
+print("data directory permissions")
 
 shutil.rmtree(BASE, ignore_errors=True)
 g.ensure_dirs()
-test("swiezy katalog danych: 0700", prawa(BASE) == 0o700, oct(prawa(BASE)))
-test("swiezy managed/: 0700", prawa(g.MANAGED_DIR) == 0o700, oct(prawa(g.MANAGED_DIR)))
+test("fresh data directory: 0700", prawa(BASE) == 0o700, oct(prawa(BASE)))
+test("fresh managed/: 0700", prawa(g.MANAGED_DIR) == 0o700, oct(prawa(g.MANAGED_DIR)))
 
 # Existing installs with bad permissions must be tightened on startup.
 os.chmod(BASE, 0o755)
@@ -54,15 +54,15 @@ os.chmod(g.MANAGED_DIR, 0o755)
 json.dump({"ntfy_topic": "sekret-123"}, open(g.CFG_PATH, "w"))
 os.chmod(g.CFG_PATH, 0o644)
 g.ensure_dirs()
-test("stara instalacja: katalog zaciesniony do 0700", prawa(BASE) == 0o700, oct(prawa(BASE)))
-test("stara instalacja: config zaciesniony do 0600", prawa(g.CFG_PATH) == 0o600, oct(prawa(g.CFG_PATH)))
-test("config po zmianie praw nadal czytelny dla wlasciciela",
+test("old install: directory tightened to 0700", prawa(BASE) == 0o700, oct(prawa(BASE)))
+test("old install: config tightened to 0600", prawa(g.CFG_PATH) == 0o600, oct(prawa(g.CFG_PATH)))
+test("config remains readable by owner after permission change",
      json.load(open(g.CFG_PATH)).get("ntfy_topic") == "sekret-123")
 
 for sciezka, opis in ((BASE, "katalog"), (g.CFG_PATH, "config.json")):
-    test("%s: zero praw dla grupy i innych" % opis, not (prawa(sciezka) & 0o077),
+    test("%s: no permissions for group or others" % opis, not (prawa(sciezka) & 0o077),
          oct(prawa(sciezka)))
 
 shutil.rmtree(BASE, ignore_errors=True)
-print("\nWYNIK: %d/%d" % (zaliczone, wszystkie))
+print("\nRESULT: %d/%d" % (zaliczone, wszystkie))
 sys.exit(0 if zaliczone == wszystkie else 1)

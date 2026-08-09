@@ -84,70 +84,70 @@ def cel(p, cpu=95.0, comm="yes"):
 CFG = g.load_cfg()
 CFG["dry_run"] = False
 
-print("=== sig(): realny skutek, nie log ===")
+print("=== sig(): real effect, not log ===")
 p = odpal()
-test("1. proces startuje i biegnie", not stoi(p.pid) and zyje(p.pid), "stat=%r" % stan(p.pid))
-test("2. sig(SIGSTOP) zwraca 0", g.sig(p.pid, os.getpgid(p.pid), signal.SIGSTOP) == 0)
+test("1. process starts and runs", not stoi(p.pid) and zyje(p.pid), "stat=%r" % stan(p.pid))
+test("2. sig(SIGSTOP) returns 0", g.sig(p.pid, os.getpgid(p.pid), signal.SIGSTOP) == 0)
 time.sleep(0.25)
-test("3. ...i proces NAPRAWDE stoi (ps mowi T)", stoi(p.pid), "stat=%r" % stan(p.pid))
+test("3. ...and process is REALLY stopped (ps says T)", stoi(p.pid), "stat=%r" % stan(p.pid))
 g.sig(p.pid, os.getpgid(p.pid), signal.SIGCONT)
 time.sleep(0.25)
-test("4. sig(SIGCONT) naprawde go wznawia", not stoi(p.pid), "stat=%r" % stan(p.pid))
+test("4. sig(SIGCONT) really resumes it", not stoi(p.pid), "stat=%r" % stan(p.pid))
 
 # Failed killpg falls back to the pid itself.
-test("5. przy nieistniejacej grupie sig() spada na kill(pid) i dziala",
+test("5. for nonexistent group sig() falls back to kill(pid) and works",
      g.sig(p.pid, 999999, signal.SIGSTOP) == 0 and (time.sleep(0.25) or stoi(p.pid)),
      "stat=%r" % stan(p.pid))
 g.sig(p.pid, None, signal.SIGCONT)
-test("6. martwy pid zwraca errno, nie zero",
+test("6. dead pid returns errno, not zero",
      g.sig(999998, None, signal.SIGSTOP) != 0)
 
-print("\n=== do_pause(): dry_run MUSI blokowac sygnal ===")
+print("\n=== do_pause(): dry_run MUST block the signal ===")
 p2 = odpal()
 st = swiezy_stan()
 cfg_dry = dict(CFG)
 cfg_dry["dry_run"] = True
 g.do_pause(cfg_dry, st, [cel(p2)], "test")
 time.sleep(0.25)
-test("7. dry_run: proces NIE zostal zatrzymany", not stoi(p2.pid), "stat=%r" % stan(p2.pid))
-test("8. dry_run: nic nie trafilo do stanu", not st["paused"])
+test("7. dry_run: process was NOT stopped", not stoi(p2.pid), "stat=%r" % stan(p2.pid))
+test("8. dry_run: nothing entered state", not st["paused"])
 
 st = swiezy_stan()
 g.do_pause(CFG, st, [cel(p2)], "test")
 time.sleep(0.25)
-test("9. bez dry_run: proces stoi", stoi(p2.pid), "stat=%r" % stan(p2.pid))
-test("10. ...i jest zapisany w stanie z pgid", str(p2.pid) in st["paused"]
+test("9. without dry_run: process is stopped", stoi(p2.pid), "stat=%r" % stan(p2.pid))
+test("10. ...and is stored in state with pgid", str(p2.pid) in st["paused"]
      and st["paused"][str(p2.pid)].get("pgid") == os.getpgid(p2.pid))
-test("11. drugie wywolanie nie dubluje wpisu",
+test("11. second call does not duplicate entry",
      (g.do_pause(CFG, st, [cel(p2)], "test") or True) and len(st["paused"]) == 1)
 
-print("\n=== do_resume(): wznawia i czysci stan ===")
+print("\n=== do_resume(): resumes and clears state ===")
 g.do_resume(CFG, st, "test")
 time.sleep(0.3)
-test("12. proces biegnie po wznowieniu", not stoi(p2.pid), "stat=%r" % stan(p2.pid))
-test("13. stan pauz jest pusty", not st["paused"])
+test("12. process runs after resume", not stoi(p2.pid), "stat=%r" % stan(p2.pid))
+test("13. pause state is empty", not st["paused"])
 
-print("\n=== do_terminate(): reczne zamrozenie jest NIETYKALNE ===")
+print("\n=== do_terminate(): manual freeze is UNTOUCHABLE ===")
 p3 = odpal()
 st = swiezy_stan()
 g.do_pause(CFG, st, [cel(p3)], "reczne", manual=True)
 time.sleep(0.25)
-test("14. reczna pauza dziala", stoi(p3.pid) and st["paused"][str(p3.pid)].get("manual"))
+test("14. manual pause works", stoi(p3.pid) and st["paused"][str(p3.pid)].get("manual"))
 g.do_terminate(CFG, st, "prog krytyczny")
 time.sleep(0.4)
-test("15. do_terminate NIE ubija recznie zamrozonego zadania", zyje(p3.pid),
-     "proces zginal - to cios w plecy uzytkownika")
-test("16. ...i zostawia go w stanie", str(p3.pid) in st["paused"])
+test("15. do_terminate does NOT kill manually frozen job", zyje(p3.pid),
+     "process died - that betrays the user")
+test("16. ...and leaves it in state", str(p3.pid) in st["paused"])
 g.do_resume(CFG, st, "sprzatanie")
 
-print("\n=== do_terminate(): dry_run i realne ubicie ===")
+print("\n=== do_terminate(): dry_run and real termination ===")
 p4 = odpal()
 st = swiezy_stan()
 g.do_pause(CFG, st, [cel(p4)], "goraco")
 time.sleep(0.2)
 g.do_terminate(cfg_dry, st, "test dry")
 time.sleep(0.3)
-test("17. dry_run: zadanie zyje mimo 'ubicia'", zyje(p4.pid), "stat=%r" % stan(p4.pid))
+test("17. dry_run: job lives despite 'termination'", zyje(p4.pid), "stat=%r" % stan(p4.pid))
 
 p5 = odpal()
 st = swiezy_stan()
@@ -157,17 +157,17 @@ t0 = time.time()
 g.do_terminate(CFG, st, "prog krytyczny")
 trwalo = time.time() - t0
 time.sleep(0.4)
-test("18. realne ubicie: proces nie zyje", not zyje(p5.pid), "stat=%r" % stan(p5.pid))
-test("19. ...i zniknal ze stanu", str(p5.pid) not in st["paused"])
-test("20. SIGKILL dostal 20 s laski po SIGTERM (nie od razu)", trwalo >= 19.0,
-     "do_terminate trwalo %.1f s - laska skrocona albo wyciety sleep" % trwalo)
+test("18. real termination: process is dead", not zyje(p5.pid), "stat=%r" % stan(p5.pid))
+test("19. ...and disappeared from state", str(p5.pid) not in st["paused"])
+test("20. SIGKILL got 20 s grace after SIGTERM (not immediate)", trwalo >= 19.0,
+     "do_terminate took %.1f s - grace shortened or sleep removed" % trwalo)
 
-print("\n=== przypadek przeciwny: proces spoza listy nie jest ruszany ===")
+print("\n=== opposite case: process outside list is not touched ===")
 p6 = odpal()
 st = swiezy_stan()
 g.do_pause(CFG, st, [], "pusta lista celow")
 time.sleep(0.2)
-test("21. pusta lista celow: nikt nie zostal zatrzymany",
+test("21. empty target list: nobody was stopped",
      not stoi(p6.pid) and not st["paused"], "stat=%r" % stan(p6.pid))
 
 for p in DZIECI:
@@ -183,8 +183,8 @@ for p in DZIECI:
 shutil.rmtree(BASE, ignore_errors=True)
 
 zywe = [p.pid for p in DZIECI if zyje(p.pid)]
-test("22. test nie zostawil po sobie zadnego procesu", not zywe, "zyja: %s" % zywe)
+test("22. test left no process behind", not zywe, "alive: %s" % zywe)
 
 ok = sum(wyniki)
-print("\nWYNIK: %d/%d" % (ok, len(wyniki)))
+print("\nRESULT: %d/%d" % (ok, len(wyniki)))
 sys.exit(0 if ok == len(wyniki) else 1)

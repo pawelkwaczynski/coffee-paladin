@@ -42,29 +42,29 @@ def test(nazwa, warunek, szczegol=""):
         print("  [FAIL] %s  -> %s" % (nazwa, szczegol))
 
 
-print("1. minimalny czas pauzy konczy oscylacje")
+print("1. minimum pause time ends oscillation")
 cfg = g.load_cfg()
-test("min_pause_seconds jest w konfiguracji", cfg.get("min_pause_seconds", 0) >= 30,
-     "wartosc: %s" % cfg.get("min_pause_seconds"))
+test("min_pause_seconds is in the config", cfg.get("min_pause_seconds", 0) >= 30,
+     "value: %s" % cfg.get("min_pause_seconds"))
 
 mono = time.monotonic()
 for opis, wpis, wolno_wznowic in [
-    ("pauza sprzed 5 s - NIE wznawiamy (to wlasnie dawalo migotanie)",
+    ("pause from 5 s ago - do NOT resume (this caused flicker)",
      {"since": g.now() - 5, "since_mono": mono - 5, "mono_id": g._MONO_ID}, False),
-    ("pauza sprzed 59 s - NIE wznawiamy",
+    ("pause from 59 s ago - do NOT resume",
      {"since": g.now() - 59, "since_mono": mono - 59, "mono_id": g._MONO_ID}, False),
-    ("pauza sprzed 120 s - wznawiamy",
+    ("pause from 120 s ago - resume",
      {"since": g.now() - 120, "since_mono": mono - 120, "mono_id": g._MONO_ID}, True),
-    ("pauza poprzedniego demona, 10 min wg zegara sciennego - wznawiamy",
+    ("pause from previous daemon, 10 min by wall clock - resume",
      {"since": g.now() - 600, "since_mono": mono + 5000, "mono_id": "999:1"}, True),
 ]:
     wiek = g._wiek_pauzy(wpis)
     test(opis, (wiek >= cfg.get("min_pause_seconds", 60)) is wolno_wznowic,
-         "wiek=%.0f s, prog=%s" % (wiek, cfg.get("min_pause_seconds")))
+         "age=%.0f s, threshold=%s" % (wiek, cfg.get("min_pause_seconds")))
 
-print("\n2. alarm chlodzenia wymaga utrzymania warunku")
-test("fan_alert_polls jest w konfiguracji i wiekszy niz 1",
-     cfg.get("fan_alert_polls", 1) > 1, "wartosc: %s" % cfg.get("fan_alert_polls"))
+print("\n2. cooling alarm requires a sustained condition")
+test("fan_alert_polls is in the config and greater than 1",
+     cfg.get("fan_alert_polls", 1) > 1, "value: %s" % cfg.get("fan_alert_polls"))
 
 st = {}
 soc_zimny = {"cpu": 50.0, "fans": [0, 0]}
@@ -75,23 +75,23 @@ g.zapisz_zdarzenie = lambda *a, **k: alarmy.append(a[0] if a else "?")
 try:
     # One "hot + zero rpm" reading means spin-up, not failure.
     g.fan_alarm(cfg, soc_gorący, 80.0, st)
-    test("pierwszy odczyt NIE alarmuje (to rozbieg wentylatorow)", not alarmy,
-         "alarmow: %d" % len(alarmy))
+    test("first reading does NOT alarm (fan spin-up)", not alarmy,
+         "alarms: %d" % len(alarmy))
     g.fan_alarm(cfg, soc_gorący, 80.0, st)
-    test("drugi odczyt tez nie", not alarmy, "alarmow: %d" % len(alarmy))
+    test("second reading does not either", not alarmy, "alarms: %d" % len(alarmy))
     g.fan_alarm(cfg, soc_gorący, 80.0, st)
-    test("trzeci odczyt z rzedu ALARMUJE (to juz awaria)", len(alarmy) == 1,
-         "alarmow: %d" % len(alarmy))
+    test("third consecutive reading ALARMS (now it is a failure)", len(alarmy) == 1,
+         "alarms: %d" % len(alarmy))
     # Spin-up: fans moved, so the counter must reset.
     st2 = {}
     g.fan_alarm(cfg, soc_gorący, 80.0, st2)
     g.fan_alarm(cfg, {"cpu": 80.0, "fans": [2300, 2900]}, 80.0, st2)
-    test("ruszenie wentylatorow zeruje licznik", st2.get("_fan_zero_polls") == 0,
-         "licznik: %s" % st2.get("_fan_zero_polls"))
+    test("fan movement resets the counter", st2.get("_fan_zero_polls") == 0,
+         "counter: %s" % st2.get("_fan_zero_polls"))
 finally:
     g.zapisz_zdarzenie = _zapisz
 
-print("\n3. ten sam procesor nie moze byc kandydatem dwa razy")
+print("\n3. the same processor cannot be a candidate twice")
 # bash (parent) uses no CPU itself; all CPU belongs to child ffmpeg.
 procs = [(100, 1, 0.0, "bash"), (200, 100, 280.0, "ffmpeg"), (300, 1, 90.0, "python3")]
 cfg2 = dict(cfg)
@@ -104,18 +104,18 @@ pidy = [t[0] for t in cele]
 # Most important: the target list must include children. If this list is pruned,
 # `pgid` is known only for safe-run jobs, so SIGSTOP goes to one process while
 # children keep running behind a "paused" log entry.
-test("dziecko ZOSTAJE na liscie celow (inaczej nie dostanie SIGSTOP)", 200 in pidy,
-     "cele: %s" % pidy)
-test("rodzic tez jest celem", 100 in pidy, "cele: %s" % pidy)
-test("CPU rodzica niesie sume poddrzewa",
-     any(t[0] == 100 and t[1] >= 280 for t in cele), "cele: %s" % cele)
+test("child STAYS on target list (otherwise it will not get SIGSTOP)", 200 in pidy,
+     "targets: %s" % pidy)
+test("parent is also a target", 100 in pidy, "targets: %s" % pidy)
+test("parent CPU carries subtree sum",
+     any(t[0] == 100 and t[1] >= 280 for t in cele), "targets: %s" % cele)
 
 # Only the display list is pruned, so the counter does not lie twice.
 pokaz = [t[0] for t in g.bez_potomkow(cele, procs)]
-test("na liscie do pokazania dziecka juz nie ma", 200 not in pokaz, "pokaz: %s" % pokaz)
-test("najwyzszy przodek zostaje", 100 in pokaz, "pokaz: %s" % pokaz)
-test("niezalezny proces zostaje", 300 in pokaz, "pokaz: %s" % pokaz)
+test("child is no longer on the display list", 200 not in pokaz, "display: %s" % pokaz)
+test("topmost ancestor remains", 100 in pokaz, "display: %s" % pokaz)
+test("independent process remains", 300 in pokaz, "display: %s" % pokaz)
 
 shutil.rmtree(BASE, ignore_errors=True)
-print("\nWYNIK: %d/%d" % (zaliczone, wszystkie))
+print("\nRESULT: %d/%d" % (zaliczone, wszystkie))
 sys.exit(0 if zaliczone == wszystkie else 1)
