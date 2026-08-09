@@ -379,7 +379,7 @@ def load_hosts(d):
             snap[k] = _num(snap.get(k))
         if snap["ram_used_gb"] is None or snap["ram_total_gb"] is None:
             snap["ram_used_gb"] = snap["ram_total_gb"] = None   # one without the other = no data
-        for k in ("disk_used_pct", "battery_pct", "cpu_limit"):
+        for k in ("disk_used_pct", "battery_pct", "cpu_limit", "queued_count"):
             v = _num(snap.get(k))
             snap[k] = int(v) if v is not None else None
         lv = _num(snap.get("level"))
@@ -485,8 +485,10 @@ def render(d):
 
     print(T("FLEET: %d machine(s), folder %s") % (len(hosts), d))
     print()
+    # "Q" is the admission queue depth: how many safe-run jobs wait for cores.
+    # A single letter in every language, like a load-average column.
     hdr = (T("HOST"), "MODEL", T("CHIP"), T("FAN"), T("POWER"), T("RAM"), T("DISK"),
-           T("STATE"), T("TODAY"), T("SEEN"), T("ISSUES"))
+           T("STATE"), T("TODAY"), "Q", T("SEEN"), T("ISSUES"))
     rows = []
     attention = []
     levels = [T("calm"), T("warm"), T("HOT"), T("CRIT")]
@@ -512,6 +514,7 @@ def render(d):
             "-" if stale or h.get("disk_used_pct") is None else "%d%%" % h["disk_used_pct"],
             "?" if stale else levels[h.get("level", 0)],
             "-" if stale else today,
+            "-" if stale or not h.get("queued_count") else str(h["queued_count"]),
             age_str(h["_age"]),
             "; ".join(probs),
         ))

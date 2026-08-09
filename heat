@@ -96,6 +96,10 @@ PL = {
     "   coffee-paladin: %s": "   coffee-paladin: %s",
     "   ⏸  paused: %s (pid %s, since %s)": "   ⏸  wstrzymane: %s (pid %s, od %s)",
     "\nTop CPU right now:": "\nNajwiecej CPU teraz:",
+    "\nAdmission queue (budget %s core(s), jobs start as headroom allows):":
+        "\nKolejka wpuszczania (budzet: %s rdzeni, zadania startuja w miare zapasu):",
+    "   \u23f3 %s (pid %s) - %s core(s), rank %s, waiting %d min":
+        "   \u23f3 %s (pid %s) - rdzenie: %s, ranga %s, czeka %d min",
     "\nPeak chip temperature in the last 24 h: %.1f °C (%s)":
         "\nMax temperatura chipa z ostatnich 24 h: %.1f °C (%s)",
     "\nRecent guard interventions:": "\nOstatnie interwencje guarda:",
@@ -126,6 +130,10 @@ RU = {
     "   coffee-paladin: %s": "   coffee-paladin: %s",
     "   ⏸  paused: %s (pid %s, since %s)": "   ⏸  приостановлено: %s (pid %s, с %s)",
     "\nTop CPU right now:": "\nБольше всего CPU сейчас:",
+    "\nAdmission queue (budget %s core(s), jobs start as headroom allows):":
+        "\nОчередь допуска (бюджет: %s ядер, задачи стартуют по мере запаса):",
+    "   \u23f3 %s (pid %s) - %s core(s), rank %s, waiting %d min":
+        "   \u23f3 %s (pid %s) - ядер: %s, ранг %s, ждёт %d мин",
     "\nPeak chip temperature in the last 24 h: %.1f °C (%s)":
         "\nПик температуры чипа за 24 ч: %.1f °C (%s)",
     "\nRecent guard interventions:": "\nПоследние вмешательства guard:",
@@ -156,6 +164,10 @@ ZH = {
     "   coffee-paladin: %s": "   coffee-paladin: %s",
     "   ⏸  paused: %s (pid %s, since %s)": "   ⏸  已暂停: %s (pid %s, 自 %s)",
     "\nTop CPU right now:": "\n当前 CPU 占用最高:",
+    "\nAdmission queue (budget %s core(s), jobs start as headroom allows):":
+        "\n准入队列 (预算 %s 核, 任务按余量陆续启动):",
+    "   \u23f3 %s (pid %s) - %s core(s), rank %s, waiting %d min":
+        "   \u23f3 %s (pid %s) - %s 核, 优先级 %s, 已等待 %d 分钟",
     "\nPeak chip temperature in the last 24 h: %.1f °C (%s)":
         "\n过去 24 小时芯片峰值温度: %.1f °C (%s)",
     "\nRecent guard interventions:": "\nguard 最近的干预:",
@@ -186,6 +198,10 @@ ES = {
     "   coffee-paladin: %s": "   coffee-paladin: %s",
     "   ⏸  paused: %s (pid %s, since %s)": "   ⏸  en pausa: %s (pid %s, desde %s)",
     "\nTop CPU right now:": "\nMayor uso de CPU ahora:",
+    "\nAdmission queue (budget %s core(s), jobs start as headroom allows):":
+        "\nCola de admisión (presupuesto: %s núcleos, las tareas arrancan según el margen):",
+    "   \u23f3 %s (pid %s) - %s core(s), rank %s, waiting %d min":
+        "   \u23f3 %s (pid %s) - núcleos: %s, rango %s, esperando %d min",
     "\nPeak chip temperature in the last 24 h: %.1f °C (%s)":
         "\nPico de temperatura del chip en 24 h: %.1f °C (%s)",
     "\nRecent guard interventions:": "\nÚltimas intervenciones del guard:",
@@ -593,6 +609,20 @@ def main():
                       % (v.get("comm"), k, time.strftime("%H:%M", time.localtime(v.get("since", 0)))))
     except Exception:
         pass
+
+    # Admission queue: jobs safe-run holds back until the guard grants cores.
+    adm = snap.get("admission") if isinstance(snap.get("admission"), dict) else None
+    if adm and adm.get("queued"):
+        print(T("\nAdmission queue (budget %s core(s), jobs start as headroom allows):")
+              % adm.get("budget_cores", "?"))
+        for q in adm["queued"]:
+            try:
+                waited = max(0, int((time.time() - float(q.get("since") or 0)) / 60))
+            except (TypeError, ValueError):
+                waited = 0
+            print(T("   ⏳ %s (pid %s) - %s core(s), rank %s, waiting %d min")
+                  % (q.get("name", "?"), q.get("pid", "?"), q.get("cores", "?"),
+                     q.get("priority", 5), waited))
 
     print(T("\nTop CPU right now:"))
     out = sh(["ps", "-Ao", "pid=,pcpu=,comm=", "-c", "-r"])
