@@ -2455,7 +2455,7 @@ def wykryj_twardy_pad():
                           "confidence_reason": powod_pewnosci,
                           "gap_to_boot_s": round(luka, 1)},
                          kiedy=puls)
-        log(T("!!! HARD SHUTDOWN DETECTED - ") + opis)
+        log(T("!!! HARD SHUTDOWN DETECTED - ") + opis, tag="CRASH")
         return {"time": ts(puls), "description": opis, "readings": ogon,
                 "confidence": pewnosc}
     except Exception:
@@ -2507,13 +2507,13 @@ def statystyki_dnia():
             for line in f:
                 if not line.startswith(dzis):
                     continue
-                # The tag is language-neutral. Words remain for entries written before tags
-                # were introduced; log rotation makes that temporary.
-                if "[KILL]" in line or "SIGTERM" in line or "koncze zadanie" in line:
+                # Tags are the parser contract (see log()): identical in every
+                # language, so no word matching is needed.
+                if "[KILL]" in line:
                     ubicia += 1
-                elif "[PAUSE]" in line or "PAUZA " in line or "PAUSED " in line:
+                elif "[PAUSE]" in line:
                     pauzy += 1
-                elif "[RESUME]" in line or "WZNOWIONE" in line or "RESUMED" in line:
+                elif "[RESUME]" in line:
                     wznowienia += 1
     except Exception:
         pass

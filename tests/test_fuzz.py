@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Testy losowe (fuzzing / property-based) czystych funkcji coffee-paladin.
+"""Fuzz pure coffee-paladin functions.
 
-Uruchomienie:   python3 tests/test_fuzz.py
-                python3 tests/test_fuzz.py --seed 12345   (inne ziarno)
-                python3 tests/test_fuzz.py --n 1000       (wiecej przebiegow)
+Run with:       python3 tests/test_fuzz.py
+                python3 tests/test_fuzz.py --seed 12345   (different seed)
+                python3 tests/test_fuzz.py --n 1000       (more runs)
 
-Zasada: NIE czytamy kodu w poszukiwaniu bledow - generujemy wejscia i patrzymy,
-co sie wysypie. Kazdy wyjatek, ktory wychodzi z funkcji na zewnatrz, jest
-znaleziskiem. Osobno sprawdzamy wlasnosci wyniku (oracle): funkcja moze nie
-rzucic wyjatkiem, a i tak zwrocic bzdure (np. prog NaN, ktory nigdy nie zadziala).
+The rule is not to read code looking for bugs; generate inputs and see what breaks.
+Any exception that escapes a function is a finding. Result properties are checked
+separately with oracles: a function can avoid exceptions and still return nonsense,
+for example a NaN threshold that can never trigger.
 
-Wszystko dzieje sie w katalogu tymczasowym (TG_BASE), zaden proces nie jest
-uruchamiany (subprocess jest podmieniony na atrapy), zero obciazenia maszyny.
+Everything runs in a temporary directory (TG_BASE). No process is started because
+subprocess calls are stubbed, so this does not load the machine.
 """
 
 import argparse
@@ -30,9 +30,9 @@ from contextlib import redirect_stdout
 from importlib.machinery import SourceFileLoader
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-LIMIT_SEKUND = 60.0          # twardy limit na jedna funkcje (maszyna moze byc goraca)
+LIMIT_SEKUND = 60.0          # Hard limit per function; the machine may already be hot.
 
-# ---------------------------------------------------------------- srodowisko
+# ---------------------------------------------------------------- environment
 
 TMP = tempfile.mkdtemp(prefix="tg-fuzz-")
 os.environ["TG_BASE"] = TMP
@@ -49,15 +49,15 @@ heat = zaladuj("tgfuzz_heat", "heat")
 saferun = zaladuj("tgfuzz_saferun", "safe-run")
 treport = zaladuj("tgfuzz_treport", "thermal-report")
 
-# zadnych procesow: kazde wyjscie z `ps`/`sysctl` jest atrapa
+# No real processes: every `ps`/`sysctl` result is a stub.
 guard.run = lambda cmd, timeout=10: ""
 heat.sh = lambda cmd, timeout=15: ""
 saferun.sh = lambda cmd, timeout=15: ""
 treport.sh = lambda cmd, timeout=30: ""
 
-# ---------------------------------------------------------------- raport
+# ---------------------------------------------------------------- report
 
-ZNALEZISKA = {}          # (funkcja, klucz) -> {opis, wejscie, powaga, ile}
+ZNALEZISKA = {}          # (function, key) -> {opis, wejscie, powaga, ile}
 PRZEBIEGI = {}
 OK_FUNKCJE = []
 
@@ -81,7 +81,7 @@ def klucz_bledu(exc):
 
 
 def skonczona(w):
-    """math.isfinite bez wysadzania sie na 400-cyfrowym intcie."""
+    """Check finiteness without blowing up on a 400-digit int."""
     if isinstance(w, bool):
         return True
     if isinstance(w, int):
@@ -93,8 +93,10 @@ def skonczona(w):
 
 
 class Sesja(object):
-    """Jedna funkcja pod ostrzalem: liczy przebiegi, pilnuje limitu czasu,
-    deduplikuje te same bledy (zapisujac PIERWSZE wejscie, na ktorym peklo)."""
+    """Track one fuzzed function, including run count, time limit, and deduplication.
+
+    Duplicate findings keep the first input that triggered the failure.
+    """
 
     def __init__(self, nazwa, seed):
         self.nazwa = nazwa
@@ -128,7 +130,7 @@ class Sesja(object):
             OK_FUNKCJE.append(self.nazwa)
 
 
-# ---------------------------------------------------------------- generatory
+# ---------------------------------------------------------------- generators
 
 EMOJI = "\U0001F525\U0001F9CA☕\U0001F4BB"
 STEROWNE = "".join(chr(c) for c in range(1, 32))
@@ -190,27 +192,27 @@ def losowa_wartosc(rng, glebokosc=0):
 CFG = os.path.join(TMP, "config.json")
 
 SUROWE_CONFIGI = [
-    "",                                   # plik pusty
+    "",                                   # Empty file.
     "null",
     "true",
     "[]",
     '"tekst"',
-    "{",                                  # obciety
-    '{"soc_pause_c": 85.0',               # obciety w polowie
-    "\x00\x01\x02\xff\xfe",               # smieci binarne
-    '{"poll_seconds": 1e400}',            # nieskonczonosc w kluczu calkowitym
-    '{"batt_pause_c": 1e400}',            # nieskonczonosc w kluczu zmiennoprzecinkowym
-    '{"batt_pause_c": %s}' % ("9" * 400),  # 400-cyfrowa liczba calkowita
+    "{",                                  # Truncated.
+    '{"soc_pause_c": 85.0',               # Truncated halfway.
+    "\x00\x01\x02\xff\xfe",               # Binary junk.
+    '{"poll_seconds": 1e400}',            # Infinity in an integer key.
+    '{"batt_pause_c": 1e400}',            # Infinity in a floating-point key.
+    '{"batt_pause_c": %s}' % ("9" * 400),  # 400-digit integer.
     '{"poll_seconds": %s}' % ("9" * 400),
     '{"soc_pause_c": NaN, "soc_kill_c": NaN, "soc_resume_c": NaN}',
     '{"cpu_min_percent": NaN}',
     '{"soc_pause_c": Infinity, "soc_kill_c": Infinity}',
     '{"soc_pause_c": -Infinity}',
     '{"never_patterns": [""], "managed_patterns": [""]}',
-    '{"soc_kill_c": 10, "soc_pause_c": 90, "soc_resume_c": 95}',   # progi na opak
+    '{"soc_kill_c": 10, "soc_pause_c": 90, "soc_resume_c": 95}',   # Reversed thresholds.
     '{"lang": "\\u0000"}',
     '{"never_extra": [null, 1, {}, [], "\\u0000"]}',
-    "{" + ",".join('"k%d": %d' % (i, i) for i in range(20000)) + "}",   # config-olbrzym
+    "{" + ",".join('"k%d": %d' % (i, i) for i in range(20000)) + "}",   # Huge config.
 ]
 
 
@@ -220,7 +222,7 @@ def wpisz_cfg(tekst):
 
 
 def sprawdz_cfg(s, wejscie, cfg):
-    """Oracle configu: komplet kluczy, wlasciwe typy, liczby skonczone, progi rosnace."""
+    """Assert config invariants: complete keys, valid types, finite numbers, rising thresholds."""
     for k, wzor in guard.DEFAULTS.items():
         if k not in cfg:
             s.bzdura(wejscie, "load_cfg gubi klucz %s" % k, "WYSOKA", klucz="brak-klucza")
@@ -379,7 +381,7 @@ def fuzz_normalize(seed, n, modul, nazwa):
         try:
             v = modul.normalize_batt_temp(raw)
         except Exception as e:
-            # realni wywolujacy podaja string z ioreg albo None - reszta to badanie granic
+            # Real callers pass an ioreg string or None; other values probe boundaries.
             s.blad(raw, e, "WYSOKA" if isinstance(raw, (str, bytes, type(None))) else "SREDNIA")
             continue
         if v is None:
@@ -406,11 +408,11 @@ def losowe_procesy(rng, wrogo=False):
         if wrogo and rng.random() < 0.2:
             comm = rng.choice([None, 123, [], b"ffmpeg"])
         procs.append((pid, ppid, cpu, comm))
-    if ile and rng.random() < 0.3:      # cykl rodzic<->dziecko
+    if ile and rng.random() < 0.3:      # parent<->child cycle
         a, b = procs[0][0], procs[-1][0]
         procs[0] = (a, b, procs[0][2], procs[0][3])
         procs[-1] = (b, a, procs[-1][2], procs[-1][3])
-    if ile and rng.random() < 0.2:      # dlugi lancuch (test glebokosci rekursji)
+    if ile and rng.random() < 0.2:      # Long chain that tests recursion depth.
         procs = [(i, i - 1, 1.0, "chain") for i in range(1, min(ile, 200) + 1)]
     return procs
 
@@ -431,12 +433,12 @@ def fuzz_cpu_z_dziecmi(seed, n):
             s.bzdura(procs[:6], "zwrocono %s zamiast dict" % type(suma).__name__, "WYSOKA",
                      klucz="zly-typ-wyniku")
             continue
-        # ujemne/nieskonczone CPU nie wychodzi z `ps` - przy takich wejsciach suma
-        # poddrzewa moze byc mniejsza od wlasnego CPU i nie jest to blad funkcji
+        # Negative/infinite CPU does not come from `ps`. For such inputs, subtree
+        # total can be smaller than own CPU without being a function bug.
         if any(not isinstance(c, (int, float)) or isinstance(c, bool)
                or not skonczona(c) or c < 0 for _p, _pp, c, _c in procs):
             continue
-        # porownujemy do mapy "ostatni wpis wygrywa" - tak samo, jak robi to sama funkcja
+        # Compare to a "last entry wins" map, matching the function's own behavior.
         wlasne = {}
         for pid, ppid, cpu, comm in procs:
             try:
@@ -480,8 +482,8 @@ def fuzz_pick_targets(seed, n):
             for p in procs:
                 if s.rng.random() < 0.1:
                     saferun_map[p[0]] = s.rng.choice([p[0], -1, 0, None])
-            # list_procs zawsze daje (int, int, float, str); wejscia lamiace ten
-            # kontrakt sa oznaczane jako NISKIE, bo nie da sie ich dostac z `ps`
+            # list_procs always returns (int, int, float, str). Inputs that break
+            # that contract are LOW severity because `ps` cannot produce them.
             wg_kontraktu = all(isinstance(p[0], int) and isinstance(p[1], int)
                                and isinstance(p[2], float) and isinstance(p[3], str)
                                for p in procs)
@@ -556,22 +558,22 @@ HB = os.path.join(TMP, "heartbeat")
 CLEAN = os.path.join(TMP, "clean_stop")
 HIST = os.path.join(TMP, "history.csv")
 EVENTS = os.path.join(TMP, "events.log")
-BOOT = int(time.time()) - 3600      # system wstal godzine temu
+BOOT = int(time.time()) - 3600      # System booted one hour ago.
 
 
 def fuzz_wykryj_twardy_pad(seed, n):
     s = Sesja("guard.wykryj_twardy_pad", seed)
     stary_boot, stary_log = guard.boot_time, guard.log
     guard.boot_time = lambda: BOOT
-    guard.log = lambda msg: None
+    guard.log = lambda msg, tag=None: None
     warianty = [
-        None,                                        # brak pliku
-        "",                                          # pusty
+        None,                                        # Missing file.
+        "",                                          # Empty.
         "   \n",
-        str(BOOT - 600),                             # klasyczny twardy pad
+        str(BOOT - 600),                             # Classic hard shutdown.
         "%d %s" % (BOOT - 600, time.strftime("%Y-%m-%d %H:%M:%S")),
-        str(BOOT + 600),                             # puls z przyszlosci
-        "0",                                         # sprzed 1970
+        str(BOOT + 600),                             # Future heartbeat.
+        "0",                                         # Before 1970.
         "-1e18",
         "nan",
         "inf",
@@ -580,7 +582,7 @@ def fuzz_wykryj_twardy_pad(seed, n):
         "9" * 400,
         "\x00\x01\xff\xfe",
         "smieci bez liczby",
-        "2026-08-01 12:00:00",                       # stary format tekstowy
+        "2026-08-01 12:00:00",                       # Old text format.
         "1970-01-01 00:00:00",
         "9999-12-31 23:59:59",
         "%d" % (BOOT - 40 * 86400),                  # implausibly old
@@ -606,10 +608,9 @@ def fuzz_wykryj_twardy_pad(seed, n):
                 else str(s.rng.choice([BOOT - 600, BOOT + 1, 0, -1, 1e18])))
             czysty = s.rng.random() < 0.3
             hv = s.rng.choice(hist_warianty)
-            # EVENTS tez: kazdy przypadek fuzzera ma byc NIEZALEZNY. Bez tego drugi
-            # przypadek z tym samym pulsem trafia w deduplikacje twardego padu
-            # (guard.pad_juz_zapisany, od 2.1.9) i oracle bledy odczytuje to jako
-            # "pad przeoczony" - a to jest dokladnie zamierzone zachowanie.
+            # EVENTS too: every fuzzer case must be independent. Otherwise the
+            # second case with the same heartbeat hits hard-shutdown deduplication,
+            # and the oracle misreads intended behavior as a "missed shutdown".
             for p in (HB, CLEAN, HIST, EVENTS):
                 if os.path.exists(p):
                     os.unlink(p)
@@ -632,7 +633,7 @@ def fuzz_wykryj_twardy_pad(seed, n):
             if r is not None and not isinstance(r, dict):
                 s.bzdura(wej, "zwrocono %s zamiast dict/None" % type(r).__name__, "WYSOKA",
                          klucz="zly-typ-wyniku")
-            # oracle: jednoznaczny twardy pad MUSI zostac wykryty
+            # Oracle: an unambiguous hard shutdown must be detected.
             if hb is not None and not czysty:
                 try:
                     epoch = float(hb.split()[0])
@@ -658,8 +659,8 @@ def fuzz_wykryj_twardy_pad(seed, n):
 
 LOG = os.path.join(TMP, "guard.log")
 
-# Wpisy budujemy Z TYCH SAMYCH SLOWNIKOW, ktorych uzywa guard - dzieki temu test
-# nie zestarzeje sie przy poprawce tlumaczen.
+# Build entries from the same dictionaries the guard uses so this test does not
+# become stale when translations change.
 K_PAUZA = "PAUSED %s (pid %d, %.0f%% CPU) - %s"
 K_WZNOW = "RESUMED %s (pid %d) - %s"
 K_UBICIE = "TERMINATED (SIGTERM) %s (pid %d) - %s"
@@ -670,18 +671,19 @@ def _wpis(lang, klucz, args):
     return (guard.DICTS.get(lang, {}).get(klucz, klucz)) % args
 
 
+# Production prepends a language-neutral tag via log(msg, tag=...); the parser
+# contract is the tag alone, so fixtures must carry it exactly like real lines.
 WPISY = {}
 for _l in ("en", "pl", "ru", "zh", "es"):
     WPISY[_l] = {
-        "pauza": _wpis(_l, K_PAUZA, ("ffmpeg", 1, 99, "chip 90 C")),
-        "wznow": _wpis(_l, K_WZNOW, ("ffmpeg", 1, "cooled down")),
-        "ubicie": _wpis(_l, K_UBICIE, ("ffmpeg", 1, "chip 95 C")),
-        "zapowiedz": _wpis(_l, K_ZAPOWIEDZ, (45, "ffmpeg", 1)),
+        "pauza": "[PAUSE] " + _wpis(_l, K_PAUZA, ("ffmpeg", 1, 99, "chip 90 C")),
+        "wznow": "[RESUME] " + _wpis(_l, K_WZNOW, ("ffmpeg", 1, "cooled down")),
+        "ubicie": "[KILL] " + _wpis(_l, K_UBICIE, ("ffmpeg", 1, "chip 95 C")),
+        "zapowiedz": "[KILL] " + _wpis(_l, K_ZAPOWIEDZ, (45, "ffmpeg", 1)),
     }
 
 
-TRIGGERY = ("PAUZA ", "PAUSED ", "WZNOWIONE", "RESUMED", "SIGTERM",
-            "koncze zadanie", "terminating job")
+TRIGGERY = ("[PAUSE]", "[RESUME]", "[KILL]")
 
 
 def fuzz_statystyki_dnia(seed, n):
@@ -699,7 +701,7 @@ def fuzz_statystyki_dnia(seed, n):
             linie = []
             oczek = {"pauses": 0, "resumes": 0, "kills": 0}
             zapowiedzi = 0
-            zatrute = False        # smieci, ktore SAME zawieraja slowo-klucz
+            zatrute = False        # Junk that itself contains a parser keyword.
             lang = list(WPISY)[i % 5] if i < 40 else s.rng.choice(list(WPISY))
             for _ in range(s.rng.randint(0, 20)):
                 r = s.rng.random()
@@ -765,7 +767,7 @@ def fuzz_statystyki_dnia(seed, n):
 def fuzz_loguj_awake(seed, n):
     s = Sesja("guard._loguj_awake", seed)
     stary_log = guard.log
-    guard.log = lambda msg: None
+    guard.log = lambda msg, tag=None: None
     try:
         for i in range(n):
             if s.czas_minal():
@@ -791,7 +793,7 @@ def fuzz_heat_stuck(seed, n):
     wyjscia_ps = [
         "",
         "123 T   01:00 ffmpeg",
-        "123 T\n",                                    # za malo pol
+        "123 T\n",                                    # Too few fields.
         "  1 TXs  10-01:02:03 kernel_task\n2 S 00:01 launchd\n",
         "-1 T 00:01 " + EMOJI + "\n",
         "abc T 00:01 x\n",
@@ -849,7 +851,7 @@ def fuzz_heat_stuck(seed, n):
 STATUS = os.path.join(TMP, "status.json")
 
 STATUSY = [
-    None,                                    # brak pliku
+    None,                                    # Missing file.
     "",
     "null",
     "[]",
@@ -905,9 +907,9 @@ def fuzz_chip_juz_goracy(seed, n):
         try:
             r = saferun.chip_juz_goracy()
         except Exception as e:
-            # status.json guard zapisuje atomowo (tmp + os.replace) i zawsze jako dict,
-            # wiec takie tresci biora sie z recznej edycji, uszkodzenia FS albo obcego
-            # narzedzia - stad SREDNIA, mimo ze skutek (traceback w safe-run) jest ciezki
+            # The guard writes status.json atomically (tmp + os.replace) and always
+            # as a dict. These contents imply manual edits, FS damage, or a foreign
+            # tool, so severity is MEDIUM even though safe-run tracebacks are serious.
             s.blad(tresc, e, "SREDNIA")
             continue
         if not (isinstance(r, tuple) and len(r) == 2 and isinstance(r[0], bool)
@@ -976,7 +978,7 @@ def fuzz_czas_z(seed, n):
     s.koniec()
 
 
-# ---------------------------------------------------------------- raport koncowy
+# ---------------------------------------------------------------- final report
 
 def wypisz_raport(seed, n):
     print("=" * 78)
