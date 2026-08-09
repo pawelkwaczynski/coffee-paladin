@@ -1141,7 +1141,7 @@ final class Welcome: NSObject {
 
     func maybeShow() {
         guard !FileManager.default.fileExists(atPath: flagPath) else { return }
-        grajPaladyna()
+        playPaladinSound()
         let W: CGFloat = 440, H: CGFloat = 470
         let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: W, height: H),
                            styleMask: [.titled, .fullSizeContentView], backing: .buffered, defer: false)
@@ -1281,28 +1281,28 @@ struct FleetHost {
 ///
 /// Return file age too: numbers from a machine that has not reported for fifteen minutes
 /// must not look current.
-func fleetStats() -> [(host: String, ses: [String: Int], sum: [String: Int], wiek: TimeInterval)] {
+func fleetStats() -> [(host: String, ses: [String: Int], sum: [String: Int], age: TimeInterval)] {
     let raw = GuardCfg.string("fleet_dir", "")
     guard !raw.isEmpty else { return [] }
     let dir = NSString(string: raw).expandingTildeInPath
     guard let items = try? FileManager.default.contentsOfDirectory(atPath: dir) else { return [] }
-    var out: [(host: String, ses: [String: Int], sum: [String: Int], wiek: TimeInterval)] = []
+    var out: [(host: String, ses: [String: Int], sum: [String: Int], age: TimeInterval)] = []
     for fname in items.sorted() {
         guard fname.hasSuffix(".json"), !fname.hasPrefix(".") else { continue }
         let path = dir + "/" + fname
         guard let d = FileManager.default.contents(atPath: path),
               let j = try? JSONSerialization.jsonObject(with: d) as? [String: Any] else { continue }
-        func licz(_ klucz: String) -> [String: Int] {
+        func readCounts(_ key: String) -> [String: Int] {
             var w: [String: Int] = [:]
-            if let t = j[klucz] as? [String: Any] {
+            if let t = j[key] as? [String: Any] {
                 for (k, v) in t { if let n = v as? Int { w[k] = n } }
             }
             return w
         }
         let mtime = (try? FileManager.default.attributesOfItem(atPath: path)[.modificationDate]) as? Date
         let host = (j["host"] as? String) ?? String(fname.dropLast(5))
-        out.append((host: host, ses: licz("stats_session"), sum: licz("stats_total"),
-                    wiek: mtime.map { Date().timeIntervalSince($0) } ?? 1e9))
+        out.append((host: host, ses: readCounts("stats_session"), sum: readCounts("stats_total"),
+                    age: mtime.map { Date().timeIntervalSince($0) } ?? 1e9))
     }
     return out
 }
@@ -1391,7 +1391,7 @@ final class FooterLogoRow: NSView {
     @objc private func openSite() {
         let raw = GuardCfg.string("footer_logo_url", "")
         if !raw.isEmpty, let url = URL(string: raw) {
-            NSWorkspace.shared.open(zUTM(url.absoluteString) ?? url)
+            NSWorkspace.shared.open(urlWithUTM(url.absoluteString) ?? url)
         }
     }
 
@@ -1402,7 +1402,7 @@ final class FooterLogoRow: NSView {
 /// If ~/.coffee-paladin/logo.png exists, show it; otherwise draw the built-in squircle.
 /// Every external app link carries UTM so analytics can distinguish menu-bar traffic
 /// from README or post traffic.
-func zUTM(_ s: String, medium: String = "app") -> URL? {
+func urlWithUTM(_ s: String, medium: String = "app") -> URL? {
     guard var c = URLComponents(string: s) else { return URL(string: s) }
     var q = c.queryItems ?? []
     q.append(contentsOf: [URLQueryItem(name: "utm_source", value: "coffee-paladin"),
@@ -1413,15 +1413,15 @@ func zUTM(_ s: String, medium: String = "app") -> URL? {
 }
 
 /// Build the repository link with UTM "share" for share posts and emails.
-func linkPodajDalej() -> String {
-    zUTM("https://github.com/pawelkwaczynski/coffee-paladin", medium: "share")?.absoluteString
+func shareLink() -> String {
+    urlWithUTM("https://github.com/pawelkwaczynski/coffee-paladin", medium: "share")?.absoluteString
         ?? "https://github.com/pawelkwaczynski/coffee-paladin"
 }
 
 
 /// Play the optional paladin armor sound when showing paladin art.
 /// The same Sounds switch controls it; missing file means silence, not an error.
-func grajPaladyna() {
+func playPaladinSound() {
     guard GuardCfg.bool("sound", true) else { return }
     let p = base + "/sounds/paladin.wav"
     guard FileManager.default.fileExists(atPath: p) else { return }
@@ -1456,34 +1456,34 @@ final class Guide {
         fx.state = .active
         w.contentView = fx
 
-        let ikona = NSImageView(frame: NSRect(x: (W - 40) / 2, y: H - 58, width: 40, height: 40))
-        if let img = NSImage(contentsOfFile: base + "/paladin_welcome.png") { ikona.image = img }
-        ikona.imageScaling = .scaleProportionallyUpOrDown
-        fx.addSubview(ikona)
-        let tytul = NSTextField(labelWithString: T("First steps with the paladin"))
-        tytul.font = .boldSystemFont(ofSize: 14)
-        tytul.alignment = .center
-        tytul.frame = NSRect(x: 0, y: H - 84, width: W, height: 20)
-        fx.addSubview(tytul)
+        let iconView = NSImageView(frame: NSRect(x: (W - 40) / 2, y: H - 58, width: 40, height: 40))
+        if let img = NSImage(contentsOfFile: base + "/paladin_welcome.png") { iconView.image = img }
+        iconView.imageScaling = .scaleProportionallyUpOrDown
+        fx.addSubview(iconView)
+        let title = NSTextField(labelWithString: T("First steps with the paladin"))
+        title.font = .boldSystemFont(ofSize: 14)
+        title.alignment = .center
+        title.frame = NSRect(x: 0, y: H - 84, width: W, height: 20)
+        fx.addSubview(title)
 
-        let tekst = NSMutableAttributedString()
-        let sekcje = [T(GUIDE_CAN), T(GUIDE_WILL), T(GUIDE_SET), T(GUIDE_NTFY)]
-        for s in sekcje {
-            let linie = s.split(separator: "\n", maxSplits: 1, omittingEmptySubsequences: false)
+        let text = NSMutableAttributedString()
+        let sections = [T(GUIDE_CAN), T(GUIDE_WILL), T(GUIDE_SET), T(GUIDE_NTFY)]
+        for s in sections {
+            let lines = s.split(separator: "\n", maxSplits: 1, omittingEmptySubsequences: false)
             // Add the colon and blank line under each section header while assembling text,
             // not in dictionaries. Otherwise every change would touch four headers in five
             // languages, twenty entries total.
-            var naglowek = String(linie[0]).trimmingCharacters(in: .whitespaces)
-            if !naglowek.hasSuffix(":") { naglowek += ":" }
-            tekst.append(NSAttributedString(string: naglowek + "\n\n",
+            var header = String(lines[0]).trimmingCharacters(in: .whitespaces)
+            if !header.hasSuffix(":") { header += ":" }
+            text.append(NSAttributedString(string: header + "\n\n",
                 attributes: [.font: NSFont.boldSystemFont(ofSize: 12), .foregroundColor: NSColor.labelColor]))
-            if linie.count > 1 {
-                tekst.append(NSAttributedString(string: String(linie[1]),
+            if lines.count > 1 {
+                text.append(NSAttributedString(string: String(lines[1]),
                     attributes: [.font: NSFont.systemFont(ofSize: 12), .foregroundColor: NSColor.secondaryLabelColor]))
             }
-            tekst.append(NSAttributedString(string: "\n\n"))
+            text.append(NSAttributedString(string: "\n\n"))
         }
-        tekst.append(NSAttributedString(string: T(GUIDE_BYE),
+        text.append(NSAttributedString(string: T(GUIDE_BYE),
             attributes: [.font: NSFont.systemFont(ofSize: 12, weight: .medium), .foregroundColor: NSColor.labelColor]))
 
         let scroll = NSScrollView(frame: NSRect(x: 16, y: 14, width: W - 32, height: H - 108))
@@ -1493,7 +1493,7 @@ final class Guide {
         tv.isEditable = false
         tv.drawsBackground = false
         tv.textContainerInset = NSSize(width: 0, height: 4)
-        tv.textStorage?.setAttributedString(tekst)
+        tv.textStorage?.setAttributedString(text)
         tv.isVerticallyResizable = true
         tv.autoresizingMask = [.width]
         scroll.documentView = tv
@@ -1516,7 +1516,7 @@ let GUIDE_BYE = "Enjoy your work!\nPaweł"
 final class HeaderRow: NSView {
     private var logoView: NSImageView?
     private var appLabel: NSTextField?
-    private var srodkowane: [NSTextField] = []
+    private var centeredLabels: [NSTextField] = []
 
     init() {
         // 360, not 400: the header must not be what widens the whole menu.
@@ -1552,7 +1552,7 @@ final class HeaderRow: NSView {
         app.frame = NSRect(x: 0, y: 38, width: 360, height: 18)
         addSubview(app)
         appLabel = app
-        srodkowane.append(app)
+        centeredLabels.append(app)
 
         let motto = NSTextField(labelWithString: MOTTO)
         motto.font = .systemFont(ofSize: 11, weight: .regular)
@@ -1560,7 +1560,7 @@ final class HeaderRow: NSView {
         motto.alignment = .center
         motto.frame = NSRect(x: 0, y: 22, width: 360, height: 14)
         addSubview(motto)
-        srodkowane.append(motto)
+        centeredLabels.append(motto)
 
         let name = NSTextField(labelWithString: T("A project of the AIrON student research club."))
         name.font = .systemFont(ofSize: 11)
@@ -1568,7 +1568,7 @@ final class HeaderRow: NSView {
         name.alignment = .center
         name.frame = NSRect(x: 0, y: 6, width: 360, height: 14)
         addSubview(name)
-        srodkowane.append(name)
+        centeredLabels.append(name)
 
         // .inVisibleRect: the tracking area follows EVERY row resize, so the
         // pointing cursor still works after NSMenu stretches the view.
@@ -1576,7 +1576,7 @@ final class HeaderRow: NSView {
                                        options: [.mouseEnteredAndExited, .activeAlways,
                                                  .cursorUpdate, .inVisibleRect],
                                        owner: self, userInfo: nil))
-        rozmiesc()
+        layoutContent()
     }
     required init?(coder: NSCoder) { fatalError() }
 
@@ -1584,35 +1584,35 @@ final class HeaderRow: NSView {
     // Center from bounds.
     override func setFrameSize(_ newSize: NSSize) {
         super.setFrameSize(newSize)
-        rozmiesc()
+        layoutContent()
     }
 
-    private func rozmiesc() {
+    private func layoutContent() {
         if let iv = logoView {
             iv.frame.origin.x = (bounds.width - iv.frame.width) / 2
         }
-        for l in srodkowane { l.frame.size.width = bounds.width }
+        for l in centeredLabels { l.frame.size.width = bounds.width }
     }
 
-    private func naLogo(_ p: NSPoint) -> Bool { logoView?.frame.contains(p) ?? false }
-    private func naNazwie(_ p: NSPoint) -> Bool { appLabel?.frame.contains(p) ?? false }
+    private func isOnLogo(_ p: NSPoint) -> Bool { logoView?.frame.contains(p) ?? false }
+    private func isOnName(_ p: NSPoint) -> Bool { appLabel?.frame.contains(p) ?? false }
 
     override func cursorUpdate(with event: NSEvent) {
         let p = convert(event.locationInWindow, from: nil)
-        if naLogo(p) || naNazwie(p) { NSCursor.pointingHand.set() } else { NSCursor.arrow.set() }
+        if isOnLogo(p) || isOnName(p) { NSCursor.pointingHand.set() } else { NSCursor.arrow.set() }
     }
 
     override func mouseUp(with event: NSEvent) {
         let p = convert(event.locationInWindow, from: nil)
-        if naLogo(p) {
+        if isOnLogo(p) {
             // The AIrON logo links to the student club's English CS program at AHE.
             enclosingMenuItem?.menu?.cancelTracking()
-            if let u = zUTM("https://www.ahe.lodz.pl/study-in-english/eng-in-computer-science") {
+            if let u = urlWithUTM("https://www.ahe.lodz.pl/study-in-english/eng-in-computer-science") {
                 NSWorkspace.shared.open(u)
             }
             return
         }
-        guard naNazwie(p) else { return }
+        guard isOnName(p) else { return }
         // Close the menu before showing the panel; otherwise it captures mouse events
         // and the panel cannot be dismissed by click.
         enclosingMenuItem?.menu?.cancelTracking()
@@ -1627,14 +1627,14 @@ final class HeaderRow: NSView {
 final class PaladinPanel: NSObject {
     static let shared = PaladinPanel()
     private var panel: NSPanel?
-    private var monitorLokalny: Any?
-    private var monitorGlobalny: Any?
+    private var localMonitor: Any?
+    private var globalMonitor: Any?
 
     func toggle() {
         if panel != nil { close(); return }
         guard let sprite = NSImage(contentsOfFile: base + "/paladin_welcome.gif")
             ?? NSImage(contentsOfFile: base + "/paladin_welcome.png") else { return }
-        grajPaladyna()   // Play armor sound for the panel too.
+        playPaladinSound()   // Play armor sound for the panel too.
 
         let ratio = sprite.size.width / max(sprite.size.height, 1)
         let ih: CGFloat = 210
@@ -1664,11 +1664,11 @@ final class PaladinPanel: NSObject {
         iv.animates = true
         fx.addSubview(iv)
 
-        let nazwa = NSTextField(labelWithString: APPNAME)
-        nazwa.font = .systemFont(ofSize: 13, weight: .semibold)
-        nazwa.alignment = .center
-        nazwa.frame = NSRect(x: 0, y: 28, width: W, height: 18)
-        fx.addSubview(nazwa)
+        let nameLabel = NSTextField(labelWithString: APPNAME)
+        nameLabel.font = .systemFont(ofSize: 13, weight: .semibold)
+        nameLabel.alignment = .center
+        nameLabel.frame = NSRect(x: 0, y: 28, width: W, height: 18)
+        fx.addSubview(nameLabel)
 
         let motto = NSTextField(labelWithString: MOTTO)
         motto.font = .systemFont(ofSize: 11)
@@ -1677,14 +1677,14 @@ final class PaladinPanel: NSObject {
         motto.frame = NSRect(x: 8, y: 10, width: W - 16, height: 14)
         fx.addSubview(motto)
 
-        ustawPod(p, szerokosc: W, wysokosc: H)
+        positionBelow(p, width: W, height: H)
         p.orderFrontRegardless()
         panel = p
 
         // Close on any click, including inside the panel, or Esc.
-        monitorGlobalny = NSEvent.addGlobalMonitorForEvents(
+        globalMonitor = NSEvent.addGlobalMonitorForEvents(
             matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in self?.close() }
-        monitorLokalny = NSEvent.addLocalMonitorForEvents(
+        localMonitor = NSEvent.addLocalMonitorForEvents(
             matching: [.leftMouseDown, .rightMouseDown, .keyDown]) { [weak self] e in
                 if e.type == .keyDown && e.keyCode != 53 { return e }   // 53 = Esc
                 self?.close(); return e
@@ -1694,12 +1694,12 @@ final class PaladinPanel: NSObject {
     /// Anchor the panel under the menu bar icon.
     /// If the icon cannot be located (another display, hidden by Bartender), fall back
     /// to the top-right screen corner.
-    private func ustawPod(_ p: NSPanel, szerokosc W: CGFloat, wysokosc H: CGFloat) {
-        if let b = Bar.shared?.item.button, let okno = b.window {
-            let ekranowa = okno.convertToScreen(b.convert(b.bounds, to: nil))
-            var x = ekranowa.midX - W/2
-            let y = ekranowa.minY - H - 6
-            if let vis = (okno.screen ?? NSScreen.main)?.visibleFrame {
+    private func positionBelow(_ p: NSPanel, width W: CGFloat, height H: CGFloat) {
+        if let b = Bar.shared?.item.button, let buttonWindow = b.window {
+            let screenRect = buttonWindow.convertToScreen(b.convert(b.bounds, to: nil))
+            var x = screenRect.midX - W/2
+            let y = screenRect.minY - H - 6
+            if let vis = (buttonWindow.screen ?? NSScreen.main)?.visibleFrame {
                 x = min(max(x, vis.minX + 8), vis.maxX - W - 8)
             }
             p.setFrameOrigin(NSPoint(x: x, y: y))
@@ -1711,8 +1711,8 @@ final class PaladinPanel: NSObject {
     }
 
     func close() {
-        if let m = monitorGlobalny { NSEvent.removeMonitor(m); monitorGlobalny = nil }
-        if let m = monitorLokalny { NSEvent.removeMonitor(m); monitorLokalny = nil }
+        if let m = globalMonitor { NSEvent.removeMonitor(m); globalMonitor = nil }
+        if let m = localMonitor { NSEvent.removeMonitor(m); localMonitor = nil }
         panel?.orderOut(nil)
         panel = nil
     }
@@ -1723,11 +1723,11 @@ final class PaladinPanel: NSObject {
 /// NSSwitch inherits the system accent color; here green must mean protected and gray
 /// must mean not protected. The colors are systemGreen / tertiaryLabel, so they work
 /// in light and dark appearances.
-final class Przelacznik: NSControl {
-    var wlaczony: Bool { didSet { needsDisplay = true } }
-    var kolor: NSColor = .systemGreen
+final class ToggleSwitch: NSControl {
+    var isOn: Bool { didSet { needsDisplay = true } }
+    var color: NSColor = .systemGreen
     init(on: Bool, target: AnyObject, action: Selector) {
-        self.wlaczony = on
+        self.isOn = on
         super.init(frame: NSRect(x: 0, y: 0, width: 38, height: 22))
         self.target = target
         self.action = action
@@ -1735,30 +1735,30 @@ final class Przelacznik: NSControl {
     required init?(coder: NSCoder) { fatalError() }
 
     override func draw(_ r: NSRect) {
-        let tor = NSRect(x: 0, y: 2, width: bounds.width, height: bounds.height - 4)
-        let sciezka = NSBezierPath(roundedRect: tor, xRadius: tor.height / 2, yRadius: tor.height / 2)
-        (wlaczony ? kolor : NSColor.tertiaryLabelColor).setFill()
-        sciezka.fill()
-        let d = tor.height - 4
-        let x = wlaczony ? tor.maxX - d - 2 : tor.minX + 2
-        let knob = NSBezierPath(ovalIn: NSRect(x: x, y: tor.minY + 2, width: d, height: d))
+        let trackRect = NSRect(x: 0, y: 2, width: bounds.width, height: bounds.height - 4)
+        let trackPath = NSBezierPath(roundedRect: trackRect, xRadius: trackRect.height / 2, yRadius: trackRect.height / 2)
+        (isOn ? color : NSColor.tertiaryLabelColor).setFill()
+        trackPath.fill()
+        let d = trackRect.height - 4
+        let x = isOn ? trackRect.maxX - d - 2 : trackRect.minX + 2
+        let knob = NSBezierPath(ovalIn: NSRect(x: x, y: trackRect.minY + 2, width: d, height: d))
         NSColor.white.setFill()
         NSGraphicsContext.saveGraphicsState()
-        let cien = NSShadow()
-        cien.shadowColor = NSColor.black.withAlphaComponent(0.25)
-        cien.shadowBlurRadius = 1.5
-        cien.shadowOffset = NSSize(width: 0, height: -0.5)
-        cien.set()
+        let shadow = NSShadow()
+        shadow.shadowColor = NSColor.black.withAlphaComponent(0.25)
+        shadow.shadowBlurRadius = 1.5
+        shadow.shadowOffset = NSSize(width: 0, height: -0.5)
+        shadow.set()
         knob.fill()
         NSGraphicsContext.restoreGraphicsState()
     }
 
     override func mouseDown(with event: NSEvent) {
-        przelacz()
+        toggle()
     }
 
-    func przelacz() {
-        wlaczony.toggle()
+    func toggle() {
+        isOn.toggle()
         if let a = action { NSApp.sendAction(a, to: target, from: self) }
     }
 
@@ -1768,14 +1768,14 @@ final class Przelacznik: NSControl {
     // not keyboard-operable.
     override func isAccessibilityElement() -> Bool { true }
     override func accessibilityRole() -> NSAccessibility.Role? { .checkBox }
-    override func accessibilityValue() -> Any? { wlaczony }
+    override func accessibilityValue() -> Any? { isOn }
     override func isAccessibilityEnabled() -> Bool { true }
-    override func accessibilityPerformPress() -> Bool { przelacz(); return true }
+    override func accessibilityPerformPress() -> Bool { toggle(); return true }
 
     override var acceptsFirstResponder: Bool { true }
     override func keyDown(with event: NSEvent) {
         // Space and Enter behave like any system control.
-        if event.keyCode == 49 || event.keyCode == 36 { przelacz() } else { super.keyDown(with: event) }
+        if event.keyCode == 49 || event.keyCode == 36 { toggle() } else { super.keyDown(with: event) }
     }
 }
 
@@ -1787,20 +1787,20 @@ final class SwitchRow: NSView {
     /// Update the subtitle live after the switch changes.
     /// It used to be built once when the menu opened: a click changed config, but the
     /// text stayed old until close/reopen, which makes the switch look broken.
-    private var podpis: NSTextField?
-    private var etykieta: NSTextField?
-    private var przelacznik: Przelacznik?
-    private var xTekst: CGFloat = 21
-    private let opisGdyWylaczone: String?
-    private weak var celZewnetrzny: AnyObject?
-    private let akcjaZewnetrzna: Selector
+    private var subtitleLabel: NSTextField?
+    private var titleLabel: NSTextField?
+    private var toggleSwitch: ToggleSwitch?
+    private var textX: CGFloat = 21
+    private let offSubtitle: String?
+    private weak var externalTarget: AnyObject?
+    private let externalAction: Selector
 
-    init(_ tytul: String, on: Bool, target: AnyObject, action: Selector,
-         opisGdyWylaczone: String? = nil, ikona: String? = nil,
-         podpisStaly: String? = nil, kolor: NSColor = .systemGreen) {
-        self.opisGdyWylaczone = opisGdyWylaczone
-        self.celZewnetrzny = target
-        self.akcjaZewnetrzna = action
+    init(_ title: String, on: Bool, target: AnyObject, action: Selector,
+         offSubtitle: String? = nil, iconName: String? = nil,
+         fixedSubtitle: String? = nil, color: NSColor = .systemGreen) {
+        self.offSubtitle = offSubtitle
+        self.externalTarget = target
+        self.externalAction = action
         // Height is CONSTANT, even when the subtitle is temporarily absent; otherwise
         // the row jumps on every toggle and widens the menu.
         // Reserve space for the red subtitle ONLY when protection is off as the menu
@@ -1809,71 +1809,71 @@ final class SwitchRow: NSView {
         // there is no room for the red subtitle; the switch state and "watch-only"
         // guard notification carry the state.
         let W: CGFloat = 360
-        let H: CGFloat = (podpisStaly != nil || (opisGdyWylaczone != nil && !on)) ? 40 : 26
+        let H: CGFloat = (fixedSubtitle != nil || (offSubtitle != nil && !on)) ? 40 : 26
         super.init(frame: NSRect(x: 0, y: 0, width: W, height: H))
         // The switch hugs the RIGHT edge of the real menu, not a fixed 400 pt width.
         autoresizingMask = [.width]
 
         // Icon on the left, like regular menu items. A switch row must not look
         // truncated next to rows that have icons.
-        if let ikona = ikona,
-           let sym = NSImage(systemSymbolName: ikona, accessibilityDescription: nil) {
+        if let iconName = iconName,
+           let sym = NSImage(systemSymbolName: iconName, accessibilityDescription: nil) {
             sym.isTemplate = true
             let iv = NSImageView(image: sym)
             iv.contentTintColor = .secondaryLabelColor
             iv.frame = NSRect(x: 20, y: H - 21, width: 16, height: 16)
             addSubview(iv)
-            xTekst = 44
+            textX = 44
         }
 
-        let et = NSTextField(labelWithString: tytul)
+        let et = NSTextField(labelWithString: title)
         et.font = .menuFont(ofSize: 0)
         et.textColor = .labelColor
-        et.frame = NSRect(x: xTekst, y: H - 20, width: W - 69 - xTekst, height: 17)
+        et.frame = NSRect(x: textX, y: H - 20, width: W - 69 - textX, height: 17)
         addSubview(et)
-        etykieta = et
+        titleLabel = et
 
-        if opisGdyWylaczone != nil && !on {
+        if offSubtitle != nil && !on {
             let pod = NSTextField(labelWithString: "")
             pod.font = .systemFont(ofSize: 11, weight: .medium)
             pod.textColor = .systemRed
-            pod.frame = NSRect(x: xTekst, y: 3, width: W - 69 - xTekst, height: 14)
+            pod.frame = NSRect(x: textX, y: 3, width: W - 69 - textX, height: 14)
             addSubview(pod)
-            podpis = pod
-        } else if let staly = podpisStaly {
+            subtitleLabel = pod
+        } else if let fixedSubtitle = fixedSubtitle {
             // Permanent informational subtitle, such as heavy process count; neutral color.
-            let pod = NSTextField(labelWithString: staly)
+            let pod = NSTextField(labelWithString: fixedSubtitle)
             pod.font = .systemFont(ofSize: 11)
             pod.textColor = .secondaryLabelColor
-            pod.frame = NSRect(x: xTekst, y: 3, width: W - 69 - xTekst, height: 14)
+            pod.frame = NSRect(x: textX, y: 3, width: W - 69 - textX, height: 14)
             addSubview(pod)
         }
 
         // Align the switch with the label center, not the whole row center. In a row
         // with a subtitle (H=44), the label sits high and a row-centered switch looked low.
-        let sw = Przelacznik(on: on, target: self, action: #selector(przelaczono(_:)))
-        sw.kolor = kolor
+        let sw = ToggleSwitch(on: on, target: self, action: #selector(switchChanged(_:)))
+        sw.color = color
         sw.frame = NSRect(x: W - 62, y: H - 22.5, width: 38, height: 22)
         addSubview(sw)
-        przelacznik = sw
-        pokazPodpis(on: on)
+        toggleSwitch = sw
+        updateSubtitle(on: on)
     }
     required init?(coder: NSCoder) { fatalError() }
 
     override func setFrameSize(_ newSize: NSSize) {
         super.setFrameSize(newSize)
-        przelacznik?.frame.origin.x = bounds.width - 62
-        etykieta?.frame.size.width = bounds.width - 69 - xTekst
-        podpis?.frame.size.width = bounds.width - 69 - xTekst
+        toggleSwitch?.frame.origin.x = bounds.width - 62
+        titleLabel?.frame.size.width = bounds.width - 69 - textX
+        subtitleLabel?.frame.size.width = bounds.width - 69 - textX
     }
 
-    private func pokazPodpis(on: Bool) {
-        podpis?.stringValue = on ? "" : (opisGdyWylaczone ?? "")
+    private func updateSubtitle(on: Bool) {
+        subtitleLabel?.stringValue = on ? "" : (offSubtitle ?? "")
     }
 
-    @objc private func przelaczono(_ s: Przelacznik) {
-        pokazPodpis(on: s.wlaczony)
-        if let cel = celZewnetrzny { NSApp.sendAction(akcjaZewnetrzna, to: cel, from: self) }
+    @objc private func switchChanged(_ s: ToggleSwitch) {
+        updateSubtitle(on: s.isOn)
+        if let cel = externalTarget { NSApp.sendAction(externalAction, to: cel, from: self) }
     }
 }
 
@@ -1947,9 +1947,9 @@ final class Prefs {
     func enabled(_ i: Item) -> Bool { on[i.rawValue] ?? i.byDefault }
     func toggle(_ i: Item) { on[i.rawValue] = !enabled(i); save() }
     /// Return whether everything is already shown, to disable "Show all".
-    var wszystkoWlaczone: Bool { Item.allCases.allSatisfy { enabled($0) } }
+    var allEnabled: Bool { Item.allCases.allSatisfy { enabled($0) } }
     /// Save the whole batch once; clicking item by item means N file writes and N refreshes.
-    func wlaczWszystko() {
+    func enableAll() {
         for i in Item.allCases { on[i.rawValue] = true }
         save()
     }
@@ -1967,7 +1967,7 @@ enum GuardCfg {
     /// This is not the same as an empty config: `set()` must then refuse to write,
     /// or one failed read deletes all 30 keys. Missing `dry_run` is read by the daemon
     /// as watch-only, so moving a slider would silently disable protection.
-    static func czytaj() -> [String: Any]? {
+    static func read() -> [String: Any]? {
         guard let d = FileManager.default.contents(atPath: configPath) else {
             return FileManager.default.fileExists(atPath: configPath) ? nil : [:]
         }
@@ -1985,21 +1985,21 @@ enum GuardCfg {
     /// reads it on a background thread (DispatchQueue.global). Swift dictionaries are
     /// not thread-safe; concurrent read/write is undefined behavior, from garbage values
     /// to a crashed menu bar. All access goes through this lock.
-    private static let zamek = NSLock()
+    private static let lock = NSLock()
 
-    static func zacznijCache() {
-        let swieze = czytaj() ?? [:]
-        zamek.lock(); cache = swieze; zamek.unlock()
+    static func beginCache() {
+        let fresh = read() ?? [:]
+        lock.lock(); cache = fresh; lock.unlock()
     }
 
-    static func zakonczCache() { zamek.lock(); cache = nil; zamek.unlock() }
+    static func endCache() { lock.lock(); cache = nil; lock.unlock() }
 
     static func all() -> [String: Any] {
-        zamek.lock()
-        let biezacy = cache
-        zamek.unlock()
+        lock.lock()
+        let current = cache
+        lock.unlock()
         // Read from disk OUTSIDE the lock; I/O under lock would stall the main thread.
-        return biezacy ?? (czytaj() ?? [:])
+        return current ?? (read() ?? [:])
     }
 
     /// Read once per call, not twice.
@@ -2021,7 +2021,7 @@ enum GuardCfg {
         let fd = open(base + "/config.lock", O_CREAT | O_WRONLY, 0o644)
         if fd >= 0 { flock(fd, LOCK_EX) }
         defer { if fd >= 0 { flock(fd, LOCK_UN); close(fd) } }
-        guard var j = czytaj() else {
+        guard var j = read() else {
             // Config exists but is unreadable. Writing would erase the rest of its keys,
             // so leave it untouched. A switch doing nothing is better than silently
             // disabling protection.
@@ -2234,7 +2234,7 @@ struct Job { let name: String; let minutes: Int }
 struct TopCPU { let name: String; let cpu: Int }
 struct TopRAM { let name: String; let gb: Double }
 
-struct Kandydat {
+struct FreezeCandidate {
     let pid: Int
     let name: String
     let cpu: Int
@@ -2258,7 +2258,7 @@ struct Snap {
     /// The daemon publishes this because only it knows the never-touch lists. Previously
     /// the menu showed top CPU here, including WindowServer and AI agents the guard
     /// would never touch.
-    var freezeCandidates: [Kandydat] = []
+    var freezeCandidates: [FreezeCandidate] = []
     var heavyCount: Int = 0
     var topRamList: [TopRAM] = []
     var pausesToday = 0, killsToday = 0
@@ -2308,7 +2308,7 @@ func readSnap() -> Snap? {
         if let fc = j["freeze_candidates"] as? [[String: Any]] {
             s.freezeCandidates = fc.compactMap {
                 guard let pid = numInt($0["pid"]) else { return nil }
-                return Kandydat(pid: pid, name: ($0["name"] as? String) ?? "?",
+                return FreezeCandidate(pid: pid, name: ($0["name"] as? String) ?? "?",
                                 cpu: numInt($0["cpu"]) ?? 0)
             }
         }
@@ -2345,48 +2345,48 @@ func readSnap() -> Snap? {
 /// pause markers (level >= 2), and min/max labels at the edges instead of unscaled
 /// black text bars. Draw once when the menu opens, with no timers; the chart must not
 /// heat the Mac it protects.
-final class WykresRow: NSView {
-    private let wartosci: [Double]
-    private let pauzy: [Bool]
-    private let czasy: [String]
-    private let procesy: [String]
-    private let progPauza: Double
-    private let progWznow: Double
+final class ChartRow: NSView {
+    private let values: [Double]
+    private let pauseMarkers: [Bool]
+    private let times: [String]
+    private let processes: [String]
+    private let pauseThreshold: Double
+    private let resumeThreshold: Double
     /// Bar under the cursor; nil means the mouse is outside the chart.
-    private var podKursorem: Int?
-    private var obszar: NSTrackingArea?
+    private var hoveredIndex: Int?
+    private var trackingArea: NSTrackingArea?
 
-    static func make() -> WykresRow? {
+    static func make() -> ChartRow? {
         guard let text = try? String(contentsOfFile: historyPath, encoding: .utf8) else { return nil }
         var vals: [Double] = []
-        var pau: [Bool] = []
-        var czasy: [String] = []
-        var proc: [String] = []
+        var pauseMarkers: [Bool] = []
+        var times: [String] = []
+        var processes: [String] = []
         for line in text.split(separator: "\n").suffix(61) {
             let c = line.split(separator: ",", omittingEmptySubsequences: false)
             if c.count > 11, let v = Double(c[2]) {
                 vals.append(v)
-                pau.append((Int(c[11]) ?? 0) >= 2)
+                pauseMarkers.append((Int(c[11]) ?? 0) >= 2)
                 // "YYYY-MM-DD HH:MM:SS" -> "HH:MM" for time-axis labels under the chart.
                 let t = String(c[0])
-                czasy.append(t.count >= 16 ? String(t.dropFirst(11).prefix(5)) : "")
+                times.append(t.count >= 16 ? String(t.dropFirst(11).prefix(5)) : "")
                 // Heaviest process at that moment, for the hover callout.
-                let nazwa = c.count > 12 ? String(c[12]).trimmingCharacters(in: .whitespaces) : ""
+                let processName = c.count > 12 ? String(c[12]).trimmingCharacters(in: .whitespaces) : ""
                 let cpu = c.count > 13 ? String(c[13]).trimmingCharacters(in: .whitespaces) : ""
-                proc.append(nazwa.isEmpty ? "" : (cpu.isEmpty ? nazwa : "\(nazwa) \(cpu)%"))
+                processes.append(processName.isEmpty ? "" : (cpu.isEmpty ? processName : "\(processName) \(cpu)%"))
             }
         }
         guard vals.count >= 3 else { return nil }
-        return WykresRow(vals, pau, czasy, proc)
+        return ChartRow(vals, pauseMarkers, times, processes)
     }
 
     init(_ v: [Double], _ p: [Bool], _ t: [String], _ pr: [String]) {
-        wartosci = v
-        pauzy = p
-        czasy = t
-        procesy = pr
-        progPauza = GuardCfg.double("soc_pause_c", 90)
-        progWznow = GuardCfg.double("soc_resume_c", 82)
+        values = v
+        pauseMarkers = p
+        times = t
+        processes = pr
+        pauseThreshold = GuardCfg.double("soc_pause_c", 90)
+        resumeThreshold = GuardCfg.double("soc_resume_c", 82)
         // +12 pt for the time axis under the bars.
         super.init(frame: NSRect(x: 0, y: 0, width: 400, height: 76))
         autoresizingMask = [.width]
@@ -2397,76 +2397,76 @@ final class WykresRow: NSView {
     // changes the selected bar.
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
-        if let o = obszar { removeTrackingArea(o) }
+        if let o = trackingArea { removeTrackingArea(o) }
         let o = NSTrackingArea(rect: bounds,
                                options: [.mouseEnteredAndExited, .mouseMoved, .activeAlways, .inVisibleRect],
                                owner: self, userInfo: nil)
         addTrackingArea(o)
-        obszar = o
+        trackingArea = o
     }
 
     override func mouseMoved(with event: NSEvent) {
         let p = convert(event.locationInWindow, from: nil)
-        let lewy: CGFloat = 44, prawy: CGFloat = 16
-        let W = bounds.width - lewy - prawy
-        guard W > 0, !wartosci.isEmpty else { return }
-        let krok = W / CGFloat(wartosci.count)
-        let i = Int((p.x - lewy) / krok)
-        let nowy = (p.x >= lewy && i >= 0 && i < wartosci.count) ? i : nil
-        if nowy != podKursorem { podKursorem = nowy; needsDisplay = true }
+        let left: CGFloat = 44, right: CGFloat = 16
+        let W = bounds.width - left - right
+        guard W > 0, !values.isEmpty else { return }
+        let step = W / CGFloat(values.count)
+        let i = Int((p.x - left) / step)
+        let newIndex = (p.x >= left && i >= 0 && i < values.count) ? i : nil
+        if newIndex != hoveredIndex { hoveredIndex = newIndex; needsDisplay = true }
     }
 
     override func mouseExited(with event: NSEvent) {
-        if podKursorem != nil { podKursorem = nil; needsDisplay = true }
+        if hoveredIndex != nil { hoveredIndex = nil; needsDisplay = true }
     }
 
     override func draw(_ dirtyRect: NSRect) {
-        let lewy: CGFloat = 44, prawy: CGFloat = 16, dol: CGFloat = 18, gora: CGFloat = 8
-        let W = bounds.width - lewy - prawy, H = bounds.height - dol - gora
-        guard W > 40, H > 20, !wartosci.isEmpty else { return }
-        let lo = wartosci.min()!, hi = wartosci.max()!
+        let left: CGFloat = 44, right: CGFloat = 16, bottom: CGFloat = 18, topInset: CGFloat = 8
+        let W = bounds.width - left - right, H = bounds.height - bottom - topInset
+        guard W > 40, H > 20, !values.isEmpty else { return }
+        let lo = values.min()!, hi = values.max()!
         // Include the pause threshold in the scale only when the machine runs near it;
         // otherwise cold readings compress into a flat line at the bottom.
-        let top = hi >= progPauza - 15 ? Swift.max(hi, progPauza) : hi
+        let top = hi >= pauseThreshold - 15 ? Swift.max(hi, pauseThreshold) : hi
         let span = Swift.max(top - lo, 1.0)
-        func y(_ v: Double) -> CGFloat { dol + CGFloat((v - lo) / span) * H }
+        func y(_ v: Double) -> CGFloat { bottom + CGFloat((v - lo) / span) * H }
 
-        let n = wartosci.count
-        let krok = W / CGFloat(n)
-        let szer = Swift.max(krok - 1.5, 1.0)
-        for (i, v) in wartosci.enumerated() {
-            let kolor: NSColor = v >= progPauza ? .systemRed
-                               : v > progWznow ? .systemYellow : .systemGreen
-            kolor.withAlphaComponent(0.85).setFill()
-            let x = lewy + CGFloat(i) * krok
+        let n = values.count
+        let step = W / CGFloat(n)
+        let barWidth = Swift.max(step - 1.5, 1.0)
+        for (i, v) in values.enumerated() {
+            let color: NSColor = v >= pauseThreshold ? .systemRed
+                               : v > resumeThreshold ? .systemYellow : .systemGreen
+            color.withAlphaComponent(0.85).setFill()
+            let x = left + CGFloat(i) * step
             NSBezierPath(roundedRect:
-                NSRect(x: x, y: dol, width: szer, height: Swift.max(y(v) - dol, 1.5)),
+                NSRect(x: x, y: bottom, width: barWidth, height: Swift.max(y(v) - bottom, 1.5)),
                 xRadius: 0.5, yRadius: 0.5).fill()
-            if pauzy[i] {
+            if pauseMarkers[i] {
                 // Pause marker: red dot ABOVE the bar, a guard intervention.
                 NSColor.systemRed.setFill()
-                NSBezierPath(ovalIn: NSRect(x: x + szer / 2 - 1.5,
+                NSBezierPath(ovalIn: NSRect(x: x + barWidth / 2 - 1.5,
                                             y: bounds.height - 6, width: 3, height: 3)).fill()
             }
         }
 
         // Hovered bar: outline it so the selected reading is clear.
-        if let k = podKursorem, wartosci.indices.contains(k) {
-            let x = lewy + CGFloat(k) * krok
+        if let k = hoveredIndex, values.indices.contains(k) {
+            let x = left + CGFloat(k) * step
             NSColor.labelColor.withAlphaComponent(0.55).setStroke()
-            let ramka = NSBezierPath(rect: NSRect(x: x - 0.5, y: dol - 0.5,
-                                                  width: szer + 1,
-                                                  height: Swift.max(y(wartosci[k]) - dol, 1.5) + 1))
-            ramka.lineWidth = 1
-            ramka.stroke()
+            let outline = NSBezierPath(rect: NSRect(x: x - 0.5, y: bottom - 0.5,
+                                                  width: barWidth + 1,
+                                                  height: Swift.max(y(values[k]) - bottom, 1.5) + 1))
+            outline.lineWidth = 1
+            outline.stroke()
         }
 
         // Pause-threshold line (dashed), if it fits the scale.
-        if progPauza >= lo && progPauza <= top {
-            let yp = y(progPauza)
+        if pauseThreshold >= lo && pauseThreshold <= top {
+            let yp = y(pauseThreshold)
             let path = NSBezierPath()
-            path.move(to: NSPoint(x: lewy, y: yp))
-            path.line(to: NSPoint(x: lewy + W, y: yp))
+            path.move(to: NSPoint(x: left, y: yp))
+            path.line(to: NSPoint(x: left + W, y: yp))
             path.setLineDash([3, 3], count: 2, phase: 0)
             path.lineWidth = 1
             NSColor.systemRed.withAlphaComponent(0.6).setStroke()
@@ -2477,44 +2477,44 @@ final class WykresRow: NSView {
         let atr: [NSAttributedString.Key: Any] = [
             .font: NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .regular),
             .foregroundColor: NSColor.secondaryLabelColor]
-        String(format: "%.0f°", top).draw(at: NSPoint(x: 14, y: bounds.height - gora - 8),
+        String(format: "%.0f°", top).draw(at: NSPoint(x: 14, y: bounds.height - topInset - 8),
                                           withAttributes: atr)
-        String(format: "%.0f°", lo).draw(at: NSPoint(x: 14, y: dol - 1), withAttributes: atr)
+        String(format: "%.0f°", lo).draw(at: NSPoint(x: 14, y: bottom - 1), withAttributes: atr)
 
         // Hover callout: reading time, temperature, and heaviest process. Draw it in
         // the view, not NSToolTip; menu tooltips appear late and get lost during mouse
         // movement.
-        if let k = podKursorem, wartosci.indices.contains(k) {
-            var opis = czasy.indices.contains(k) && !czasy[k].isEmpty ? czasy[k] + "   " : ""
-            opis += String(format: "%.1f°C", wartosci[k])
-            if procesy.indices.contains(k), !procesy[k].isEmpty { opis += "   " + procesy[k] }
+        if let k = hoveredIndex, values.indices.contains(k) {
+            var description = times.indices.contains(k) && !times[k].isEmpty ? times[k] + "   " : ""
+            description += String(format: "%.1f°C", values[k])
+            if processes.indices.contains(k), !processes[k].isEmpty { description += "   " + processes[k] }
             let atrP: [NSAttributedString.Key: Any] = [
                 .font: NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .medium),
                 .foregroundColor: NSColor.labelColor]
-            let rozmiar = (opis as NSString).size(withAttributes: atrP)
+            let size = (description as NSString).size(withAttributes: atrP)
             // Keep the callout within the chart so it does not escape the menu.
-            let xSrodek = lewy + CGFloat(k) * krok + szer / 2
-            let x = Swift.min(Swift.max(xSrodek - rozmiar.width / 2, lewy),
-                              lewy + W - rozmiar.width)
-            let yT = bounds.height - rozmiar.height - 1
+            let centerX = left + CGFloat(k) * step + barWidth / 2
+            let x = Swift.min(Swift.max(centerX - size.width / 2, left),
+                              left + W - size.width)
+            let yT = bounds.height - size.height - 1
             NSColor.windowBackgroundColor.withAlphaComponent(0.92).setFill()
             NSBezierPath(roundedRect: NSRect(x: x - 4, y: yT - 2,
-                                             width: rozmiar.width + 8, height: rozmiar.height + 3),
+                                             width: size.width + 8, height: size.height + 3),
                          xRadius: 3, yRadius: 3).fill()
-            (opis as NSString).draw(at: NSPoint(x: x, y: yT), withAttributes: atrP)
+            (description as NSString).draw(at: NSPoint(x: x, y: yT), withAttributes: atrP)
         }
 
         // Time axis: start, middle, and end of measurement range (HH:MM from history.csv).
-        if podKursorem == nil,
-           let pierwszy = czasy.first(where: { !$0.isEmpty }),
-           let ostatni = czasy.last(where: { !$0.isEmpty }) {
-            pierwszy.draw(at: NSPoint(x: lewy, y: 2), withAttributes: atr)
-            let wOst = (ostatni as NSString).size(withAttributes: atr).width
-            ostatni.draw(at: NSPoint(x: lewy + W - wOst, y: 2), withAttributes: atr)
-            let i = czasy.count / 2
-            if czasy.indices.contains(i), !czasy[i].isEmpty, czasy.count > 6 {
-                let wSr = (czasy[i] as NSString).size(withAttributes: atr).width
-                czasy[i].draw(at: NSPoint(x: lewy + W / 2 - wSr / 2, y: 2), withAttributes: atr)
+        if hoveredIndex == nil,
+           let first = times.first(where: { !$0.isEmpty }),
+           let last = times.last(where: { !$0.isEmpty }) {
+            first.draw(at: NSPoint(x: left, y: 2), withAttributes: atr)
+            let lastWidth = (last as NSString).size(withAttributes: atr).width
+            last.draw(at: NSPoint(x: left + W - lastWidth, y: 2), withAttributes: atr)
+            let i = times.count / 2
+            if times.indices.contains(i), !times[i].isEmpty, times.count > 6 {
+                let middleWidth = (times[i] as NSString).size(withAttributes: atr).width
+                times[i].draw(at: NSPoint(x: left + W / 2 - middleWidth / 2, y: 2), withAttributes: atr)
             }
         }
     }
@@ -2538,7 +2538,7 @@ final class LangRow: NSView {
     private let codes = ["en", "pl", "ru", "zh", "es"]
     private let labels = ["EN", "PL", "RU", "中文", "ES"]
 
-    private var przyciski: [NSButton] = []
+    private var buttons: [NSButton] = []
 
     init() {
         super.init(frame: NSRect(x: 0, y: 0, width: 400, height: 30))
@@ -2557,9 +2557,9 @@ final class LangRow: NSView {
                 b.contentTintColor = .white
             }
             addSubview(b)
-            przyciski.append(b)
+            buttons.append(b)
         }
-        rozmiesc()
+        layoutContent()
     }
 
     required init?(coder: NSCoder) { fatalError() }
@@ -2568,14 +2568,14 @@ final class LangRow: NSView {
     // and layout() without a layer may not run at all.
     override func setFrameSize(_ newSize: NSSize) {
         super.setFrameSize(newSize)
-        rozmiesc()
+        layoutContent()
     }
 
-    private func rozmiesc() {
+    private func layoutContent() {
         let w: CGFloat = 66, gap: CGFloat = 6
-        var x: CGFloat = (bounds.width - (CGFloat(przyciski.count) * w
-                                          + CGFloat(przyciski.count - 1) * gap)) / 2
-        for b in przyciski {
+        var x: CGFloat = (bounds.width - (CGFloat(buttons.count) * w
+                                          + CGFloat(buttons.count - 1) * gap)) / 2
+        for b in buttons {
             b.frame = NSRect(x: x, y: 3, width: w, height: 22)
             x += w + gap
         }
@@ -2605,16 +2605,16 @@ final class Bar: NSObject, NSMenuDelegate {
     /// The fixed timer runs every 5 s and should stay that way; at idle it costs almost
     /// nothing. After a click, 5 s is forever: the daemon reacts in ~0.4 s and the bar
     /// used to show stale state.
-    private var poAkcjiTimery: [Timer] = []
+    private var postActionTimers: [Timer] = []
     /// Track the watch-only state the human JUST requested before the daemon confirms it.
     /// `nil` means no pending expectation.
-    private var oczekiwanyDry: Bool?
-    private var oczekiwanyDryOd = Date.distantPast
+    private var expectedDryRun: Bool?
+    private var expectedDryRunSince = Date.distantPast
     /// Prevent the guide from returning every 5 s when the signal file cannot be removed.
-    private var pokazanyGuideZSygnalu = false
+    private var shownGuideFromSignal = false
     /// Exist only while the manual-freeze confirmation window is open.
-    private var wszystkieCheckbox: NSButton?
-    private var checkboxyProcesow: [NSButton] = []
+    private var allCheckbox: NSButton?
+    private var processCheckboxes: [NSButton] = []
 
     override init() {
         super.init()
@@ -2634,7 +2634,7 @@ final class Bar: NSObject, NSMenuDelegate {
         // human is looking at the temperature.
         timer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
             guard let self = self else { return }
-            self.obsluzSygnaly()
+            self.handleSignals()
             self.refresh()
             self.tick += 1
             if self.tick % 6 == 0 { self.refreshFleet() }   // fleet every ~30 s, in background
@@ -2651,33 +2651,33 @@ final class Bar: NSObject, NSMenuDelegate {
     /// refresh(). An empty signal file stopped bar refresh for 30 s; a file with future
     /// mtime (clock skew, Time Machine restore, iCloud file from a machine with a fast
     /// clock) stopped it forever.
-    func obsluzSygnaly() {
+    func handleSignals() {
         let fm = FileManager.default
-        let sygnalGuide = base + "/show_guide"
-        if fm.fileExists(atPath: sygnalGuide) {
+        let guideSignal = base + "/show_guide"
+        if fm.fileExists(atPath: guideSignal) {
             // If the file cannot be removed (read-only directory, uchg flag), the window
             // would return every 5 s and make work impossible. Show it once.
-            let usuniety = (try? fm.removeItem(atPath: sygnalGuide)) != nil
-            if usuniety || !pokazanyGuideZSygnalu {
-                pokazanyGuideZSygnalu = true
+            let removed = (try? fm.removeItem(atPath: guideSignal)) != nil
+            if removed || !shownGuideFromSignal {
+                shownGuideFromSignal = true
                 Guide.shared.show()
             }
         } else {
-            pokazanyGuideZSygnalu = false
+            shownGuideFromSignal = false
         }
 
-        let sygnalOkno = base + "/show_window"
-        guard let dane = try? String(contentsOfFile: sygnalOkno, encoding: .utf8) else { return }
-        let tresc = dane.trimmingCharacters(in: .whitespacesAndNewlines)
+        let windowSignal = base + "/show_window"
+        guard let contents = try? String(contentsOfFile: windowSignal, encoding: .utf8) else { return }
+        let body = contents.trimmingCharacters(in: .whitespacesAndNewlines)
         // `echo ntfy > file` first truncates the file to zero, then writes content.
         // If the timer hits that window it reads an empty string and used to open Guide
         // instead of ntfy. Leave an empty file for the next cycle; if it is still empty
         // after 30 s, clean it up. abs(), because future mtime counts too.
-        if tresc.isEmpty {
-            if let a = try? fm.attributesOfItem(atPath: sygnalOkno),
+        if body.isEmpty {
+            if let a = try? fm.attributesOfItem(atPath: windowSignal),
                let m = a[.modificationDate] as? Date,
                abs(Date().timeIntervalSince(m)) > 30 {
-                try? fm.removeItem(atPath: sygnalOkno)
+                try? fm.removeItem(atPath: windowSignal)
             }
             return
         }
@@ -2689,9 +2689,9 @@ final class Bar: NSObject, NSMenuDelegate {
         if NSApp.modalWindow != nil {
             return
         }
-        try? fm.removeItem(atPath: sygnalOkno)
+        try? fm.removeItem(atPath: windowSignal)
         NSApp.activate(ignoringOtherApps: true)
-        switch tresc {
+        switch body {
         case "ntfy": ntfyDialog()
         case "fleetname": fleetNameDialog()
         case "observe": explainDry()
@@ -2728,28 +2728,28 @@ final class Bar: NSObject, NSMenuDelegate {
     // FLAMING BAR: at critical level the icon burns for ~3 seconds and GOES OUT.
     // Keep it deliberately short, with a 60 s pause: animation wakes the CPU, and we
     // will not heat the Mac just to show that it is hot.
-    private var plomienTimer: Timer?
-    private var plomienKlatka = 0
-    private var plomienOstatnio = Date.distantPast
+    private var animationTimer: Timer?
+    private var animationFrame = 0
+    private var lastFlameAt = Date.distantPast
 
-    private func zapalPasek(_ s: Snap) {
-        plomienOstatnio = Date()
-        plomienKlatka = 0
-        plomienTimer = Timer.scheduledTimer(withTimeInterval: 0.12, repeats: true) { [weak self] t in
+    private func lightBar(_ s: Snap) {
+        lastFlameAt = Date()
+        animationFrame = 0
+        animationTimer = Timer.scheduledTimer(withTimeInterval: 0.12, repeats: true) { [weak self] t in
             guard let self = self else { t.invalidate(); return }
-            self.plomienKlatka += 1
-            if self.plomienKlatka > 25 {
+            self.animationFrame += 1
+            if self.animationFrame > 25 {
                 t.invalidate()
-                self.plomienTimer = nil
+                self.animationTimer = nil
                 self.refresh()
                 return
             }
-            let kolory: [NSColor] = [.systemRed, .systemOrange, .systemYellow]
+            let colors: [NSColor] = [.systemRed, .systemOrange, .systemYellow]
             let out = NSMutableAttributedString()
-            out.append(icon(self.plomienKlatka % 2 == 0 ? "flame.fill" : "flame",
+            out.append(icon(self.animationFrame % 2 == 0 ? "flame.fill" : "flame",
                             fallback: "!", size: 13))
             if let c = s.chip { out.append(NSAttributedString(string: String(format: " %.0f°", c))) }
-            out.addAttributes([.foregroundColor: kolory[self.plomienKlatka % 3],
+            out.addAttributes([.foregroundColor: colors[self.animationFrame % 3],
                                .font: NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .bold)],
                               range: NSRange(location: 0, length: out.length))
             self.item.button?.attributedTitle = out
@@ -2758,40 +2758,40 @@ final class Bar: NSObject, NSMenuDelegate {
         // switches to tracking mode and a .default timer stops ticking. The animation
         // used to stall mid-frame and block refresh(), freezing the bar on stale
         // temperature exactly when the user was looking at it.
-        if let t = plomienTimer { RunLoop.main.add(t, forMode: .common) }
+        if let t = animationTimer { RunLoop.main.add(t, forMode: .common) }
     }
 
     // FAN: when fans start from zero, the icon spins blue for ~3 s. Same CPU-saving
     // rule as the flame: short, with a 60 s pause.
-    private var wentylOstatnio = Date.distantPast
-    private var ostatnieObroty = -1
+    private var lastFanAt = Date.distantPast
+    private var lastFanRpm = -1
     // Last good chip reading. Under full load, a single macmon read can fail (null in
     // the snapshot for ~1 cycle) and the bar flashed blank even though the daemon had
     // a good temperature moments earlier. Hold the last value for max. 2 daemon cycles
     // and draw it gray.
-    private var ostatniChip: Double?
-    private var ostatniChipKiedy = Date.distantPast
+    private var lastChip: Double?
+    private var lastChipAt = Date.distantPast
 
-    private func zakrecPasek(_ s: Snap) {
-        wentylOstatnio = Date()
-        plomienKlatka = 0
-        plomienTimer = Timer.scheduledTimer(withTimeInterval: 0.12, repeats: true) { [weak self] t in
+    private func spinBar(_ s: Snap) {
+        lastFanAt = Date()
+        animationFrame = 0
+        animationTimer = Timer.scheduledTimer(withTimeInterval: 0.12, repeats: true) { [weak self] t in
             guard let self = self else { t.invalidate(); return }
-            self.plomienKlatka += 1
-            if self.plomienKlatka > 25 {
+            self.animationFrame += 1
+            if self.animationFrame > 25 {
                 t.invalidate()
-                self.plomienTimer = nil
+                self.animationTimer = nil
                 self.refresh()
                 return
             }
-            let kolory: [NSColor] = [.systemBlue, .systemCyan, .systemTeal]
+            let colors: [NSColor] = [.systemBlue, .systemCyan, .systemTeal]
             let out = NSMutableAttributedString()
-            out.append(icon(self.plomienKlatka % 2 == 0 ? "fan.fill" : "fan",
+            out.append(icon(self.animationFrame % 2 == 0 ? "fan.fill" : "fan",
                             fallback: "fan", size: 13))
             if let f = s.fans.max(), f > 0 {
                 out.append(NSAttributedString(string: " " + (f >= 1000 ? String(format: "%.1fk", Double(f) / 1000.0) : "\(f)")))
             }
-            out.addAttributes([.foregroundColor: kolory[self.plomienKlatka % 3],
+            out.addAttributes([.foregroundColor: colors[self.animationFrame % 3],
                                .font: NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .bold)],
                               range: NSRange(location: 0, length: out.length))
             self.item.button?.attributedTitle = out
@@ -2800,30 +2800,30 @@ final class Bar: NSObject, NSMenuDelegate {
         // switches to tracking mode and a .default timer stops ticking. The animation
         // used to stall mid-frame and block refresh(), freezing the bar on stale
         // temperature exactly when the user was looking at it.
-        if let t = plomienTimer { RunLoop.main.add(t, forMode: .common) }
+        if let t = animationTimer { RunLoop.main.add(t, forMode: .common) }
     }
 
     // CUP: when caffeinate starts, the cup blinks for ~3 s.
-    private var kubekOstatnio = Date.distantPast
-    private var czuwanieBylo: Bool? = nil
+    private var lastMugAt = Date.distantPast
+    private var wasAwake: Bool? = nil
 
-    private func mrugnijKubkiem() {
-        kubekOstatnio = Date()
-        plomienKlatka = 0
-        plomienTimer = Timer.scheduledTimer(withTimeInterval: 0.12, repeats: true) { [weak self] t in
+    private func blinkMug() {
+        lastMugAt = Date()
+        animationFrame = 0
+        animationTimer = Timer.scheduledTimer(withTimeInterval: 0.12, repeats: true) { [weak self] t in
             guard let self = self else { t.invalidate(); return }
-            self.plomienKlatka += 1
-            if self.plomienKlatka > 25 {
+            self.animationFrame += 1
+            if self.animationFrame > 25 {
                 t.invalidate()
-                self.plomienTimer = nil
+                self.animationTimer = nil
                 self.refresh()
                 return
             }
             let out = NSMutableAttributedString()
-            out.append(icon(self.plomienKlatka % 2 == 0 ? MUG_FILL : MUG,
+            out.append(icon(self.animationFrame % 2 == 0 ? MUG_FILL : MUG,
                             fallback: "cafe", size: 13))
-            let kolor: NSColor = self.plomienKlatka % 2 == 0 ? .systemBrown : .labelColor
-            out.addAttributes([.foregroundColor: kolor,
+            let color: NSColor = self.animationFrame % 2 == 0 ? .systemBrown : .labelColor
+            out.addAttributes([.foregroundColor: color,
                                .font: NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .bold)],
                               range: NSRange(location: 0, length: out.length))
             self.item.button?.attributedTitle = out
@@ -2832,26 +2832,26 @@ final class Bar: NSObject, NSMenuDelegate {
         // switches to tracking mode and a .default timer stops ticking. The animation
         // used to stall mid-frame and block refresh(), freezing the bar on stale
         // temperature exactly when the user was looking at it.
-        if let t = plomienTimer { RunLoop.main.add(t, forMode: .common) }
+        if let t = animationTimer { RunLoop.main.add(t, forMode: .common) }
     }
 
     /// Return seconds until the timer session ends.
     /// `nil` means the session has no end or has already passed. Read `awake.json`
     /// because it carries `until`; the snapshot only says keep-awake is active.
-    func pozostaloCzuwania() -> Double? {
+    func awakeSecondsLeft() -> Double? {
         let a = Awake.read()
         guard (a["mode"] as? String) == "timer", let until = a["until"] as? Double else { return nil }
-        let zostalo = until - Date().timeIntervalSince1970
-        return zostalo > 0 ? zostalo : nil
+        let remaining = until - Date().timeIntervalSince1970
+        return remaining > 0 ? remaining : nil
     }
 
     /// Pull the snapshot a few times after a human action instead of waiting for the tick.
     /// Three shots give the daemon time to wake (~0.5 s), execute, and rewrite
     /// `status.json`. These are one-shot timers, so there is no loop here.
-    func odswiezPoAkcji() {
-        poAkcjiTimery.forEach { $0.invalidate() }
-        poAkcjiTimery = [0.7, 1.6, 3.0].map { opoznienie in
-            let t = Timer.scheduledTimer(withTimeInterval: opoznienie, repeats: false) { [weak self] _ in
+    func refreshAfterAction() {
+        postActionTimers.forEach { $0.invalidate() }
+        postActionTimers = [0.7, 1.6, 3.0].map { delay in
+            let t = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in
                 self?.refresh()
             }
             // .common like the fixed timer; otherwise it does not tick with an open menu
@@ -2864,10 +2864,10 @@ final class Bar: NSObject, NSMenuDelegate {
     /// Remember what the human JUST requested so the bar does not show old state briefly.
     /// Do not lie for long: after 6 s, truth returns from the snapshot even if the
     /// daemon died. A dead daemon must look dead.
-    func zapowiedzTrybObserwacji(_ dry: Bool) {
-        oczekiwanyDry = dry
-        oczekiwanyDryOd = Date()
-        odswiezPoAkcji()
+    func expectDryRun(_ dry: Bool) {
+        expectedDryRun = dry
+        expectedDryRunSince = Date()
+        refreshAfterAction()
     }
 
     func refresh() {
@@ -2886,11 +2886,11 @@ final class Bar: NSObject, NSMenuDelegate {
         // after a click it is simply OLDER than the human's decision. Show that decision
         // until the daemon confirms it or 6 s pass, whichever comes first. Without this
         // expiration a dead daemon would look healthy.
-        if let chce = oczekiwanyDry {
-            if s.dryRun == chce || Date().timeIntervalSince(oczekiwanyDryOd) > 6 {
-                oczekiwanyDry = nil
+        if let expected = expectedDryRun {
+            if s.dryRun == expected || Date().timeIntervalSince(expectedDryRunSince) > 6 {
+                expectedDryRun = nil
             } else {
-                s.dryRun = chce
+                s.dryRun = expected
             }
         }
 
@@ -2898,42 +2898,42 @@ final class Bar: NSObject, NSMenuDelegate {
         // for max. 45 s (2 daemon cycles at ~15 s plus margin), show the last good value
         // in gray. A stale snapshot is different: then the daemon is likely dead and no
         // "last value" is truth about NOW.
-        var chipZPamieci = false
+        var chipFromMemory = false
         if !s.stale, let c = s.chip {
             // Remember ONLY from a fresh snapshot. A value from a dead daemon's file
             // would refresh the timestamp on every cycle and pretend to be current
             // after the daemon restarts.
-            ostatniChip = c
-            ostatniChipKiedy = Date()
-        } else if !s.stale, let c = ostatniChip,
-                  Date().timeIntervalSince(ostatniChipKiedy) <= 45 {
+            lastChip = c
+            lastChipAt = Date()
+        } else if !s.stale, let c = lastChip,
+                  Date().timeIntervalSince(lastChipAt) <= 45 {
             s.chip = c
-            chipZPamieci = true
+            chipFromMemory = true
         }
 
-        if prefs.enabled(.flame), s.level >= 3, plomienTimer == nil,
-           Date().timeIntervalSince(plomienOstatnio) > 60 {
-            zapalPasek(s)
+        if prefs.enabled(.flame), s.level >= 3, animationTimer == nil,
+           Date().timeIntervalSince(lastFlameAt) > 60 {
+            lightBar(s)
         }
-        if plomienTimer != nil { return }   // Flame frames have priority for ~3 s.
+        if animationTimer != nil { return }   // Flame frames have priority for ~3 s.
 
         // Fans started from zero -> blue spin.
-        let maxObroty = s.fans.max() ?? 0
-        if prefs.enabled(.flame), !s.stale, ostatnieObroty == 0, maxObroty > 0,
-           Date().timeIntervalSince(wentylOstatnio) > 60 {
-            ostatnieObroty = maxObroty
-            zakrecPasek(s)
+        let maxRpm = s.fans.max() ?? 0
+        if prefs.enabled(.flame), !s.stale, lastFanRpm == 0, maxRpm > 0,
+           Date().timeIntervalSince(lastFanAt) > 60 {
+            lastFanRpm = maxRpm
+            spinBar(s)
         } else {
-            ostatnieObroty = maxObroty
+            lastFanRpm = maxRpm
         }
         // caffeinate started -> blinking cup.
-        let czuwa = !Awake.read().isEmpty
-        if plomienTimer == nil, prefs.enabled(.flame), !s.stale, czuwanieBylo == false, czuwa,
-           Date().timeIntervalSince(kubekOstatnio) > 60 {
-            mrugnijKubkiem()
+        let isAwakeActive = !Awake.read().isEmpty
+        if animationTimer == nil, prefs.enabled(.flame), !s.stale, wasAwake == false, isAwakeActive,
+           Date().timeIntervalSince(lastMugAt) > 60 {
+            blinkMug()
         }
-        czuwanieBylo = czuwa
-        if plomienTimer != nil { return }
+        wasAwake = isAwakeActive
+        if animationTimer != nil { return }
 
         let out = NSMutableAttributedString()
         func text(_ t: String) { out.append(NSAttributedString(string: t)) }
@@ -2944,12 +2944,12 @@ final class Bar: NSObject, NSMenuDelegate {
         if prefs.enabled(.chip) { temps.append(s.chip.map { String(format: "%.0f°", $0) } ?? "—") }
         if prefs.enabled(.gpu), let g = s.gpu { temps.append(String(format: "%.0f°", g)) }
         if prefs.enabled(.battery), let b = s.batt { temps.append(String(format: "%.0f°", b)) }
-        var zakresChipa: NSRange?
+        var chipRange: NSRange?
         if !temps.isEmpty {
             let start = out.length + 1                       // after the space following the icon
             text(" " + temps.joined(separator: "/"))
-            if chipZPamieci, prefs.enabled(.chip), let pierwszy = temps.first {
-                zakresChipa = NSRange(location: start, length: (pierwszy as NSString).length)
+            if chipFromMemory, prefs.enabled(.chip), let first = temps.first {
+                chipRange = NSRange(location: start, length: (first as NSString).length)
             }
         }
 
@@ -2990,10 +2990,10 @@ final class Bar: NSObject, NSMenuDelegate {
         // Show ONLY sessions with a concrete end. Indefinite mode, "while app runs",
         // and "while downloading" have nothing to count down; inventing a timer would
         // be a lie.
-        if prefs.enabled(.awakeLeft), s.keepAwake, let doKonca = pozostaloCzuwania() {
+        if prefs.enabled(.awakeLeft), s.keepAwake, let secondsLeft = awakeSecondsLeft() {
             gap()
             out.append(icon(MUG, fallback: "awake"))
-            let h = Int(doKonca) / 3600, m = (Int(doKonca) % 3600) / 60
+            let h = Int(secondsLeft) / 3600, m = (Int(secondsLeft) % 3600) / 60
             out.append(NSAttributedString(
                 string: " " + (h > 0 ? String(format: "%d:%02d", h, m)
                                      : String(format: "%d min", max(m, 1)))))
@@ -3006,7 +3006,7 @@ final class Bar: NSObject, NSMenuDelegate {
                           range: NSRange(location: 0, length: out.length))
         // Gray = "value from memory, not current reading"; apply AFTER whole-bar color
         // so no tint overwrites it.
-        if let z = zakresChipa {
+        if let z = chipRange {
             out.addAttribute(.foregroundColor, value: NSColor.secondaryLabelColor, range: z)
         }
         item.button?.attributedTitle = out
@@ -3017,8 +3017,8 @@ final class Bar: NSObject, NSMenuDelegate {
     }
 
     func menuNeedsUpdate(_ m: NSMenu) {
-        GuardCfg.zacznijCache()          // one config read for the whole menu
-        defer { GuardCfg.zakonczCache() }
+        GuardCfg.beginCache()          // one config read for the whole menu
+        defer { GuardCfg.endCache() }
         m.removeAllItems()
         // Brand section: logo + name, with nothing above it. This is the product's face.
         let head = NSMenuItem()
@@ -3036,7 +3036,7 @@ final class Bar: NSObject, NSMenuDelegate {
             // "Quit coffee-paladin". Dead end.
             m.addItem(NSMenuItem(title: T("no data - is coffee-paladin running?"), action: nil, keyEquivalent: ""))
             let restart = m.addItem(withTitle: T("Start the guard again"),
-                                    action: #selector(restartGuarda), keyEquivalent: "")
+                                    action: #selector(restartGuard), keyEquivalent: "")
             restart.target = self
             restart.image = img("arrow.clockwise")
             m.addItem(.separator())
@@ -3069,10 +3069,10 @@ final class Bar: NSObject, NSMenuDelegate {
         // Leading icons match the bar exactly (thermometer/fan/bolt/memorychip/internaldrive),
         // so the bar readout and card readout use the same visual language.
         // Icons inside a line (fan, bolt) are NSTextAttachment values from icon().
-        func rowI(_ symbol: String, _ tresc: NSAttributedString) {
+        func rowI(_ symbol: String, _ body: NSAttributedString) {
             let it = NSMenuItem(title: "", action: nil, keyEquivalent: "")
             it.image = img(symbol)
-            let a = NSMutableAttributedString(attributedString: tresc)
+            let a = NSMutableAttributedString(attributedString: body)
             a.addAttribute(.font, value: NSFont.menuFont(ofSize: 0),
                            range: NSRange(location: 0, length: a.length))
             it.attributedTitle = a
@@ -3154,10 +3154,10 @@ final class Bar: NSObject, NSMenuDelegate {
             }
         }
 
-        if let wykres = WykresRow.make() {
+        if let chart = ChartRow.make() {
             m.addItem(.separator())
             let it = NSMenuItem()
-            it.view = wykres
+            it.view = chart
             m.addItem(it)
         }
         // The "about N min to pause" forecast was removed from the card: linear
@@ -3169,40 +3169,40 @@ final class Bar: NSObject, NSMenuDelegate {
         m.addItem(.separator())
         // PROTECTION SWITCH: the most important decision in the app, so do not hide it
         // in Settings. Switch ON means protection is active (dry_run = false).
-        let obserwuje = GuardCfg.bool("dry_run", true)
-        let ochrona = NSMenuItem()
-        ochrona.view = SwitchRow(T("Pause jobs when the Mac overheats"),
-                                 on: !obserwuje,
+        let watchOnly = GuardCfg.bool("dry_run", true)
+        let protectionItem = NSMenuItem()
+        protectionItem.view = SwitchRow(T("Pause jobs when the Mac overheats"),
+                                 on: !watchOnly,
                                  target: self, action: #selector(toggleDry),
-                                 opisGdyWylaczone: T("OFF - the Mac is only being watched"),
-                                 ikona: "pause")
-        m.addItem(ochrona)
+                                 offSubtitle: T("OFF - the Mac is only being watched"),
+                                 iconName: "pause")
+        m.addItem(protectionItem)
         // Autostart directly under protection: two switches together, one on/off section;
         // loop icon means "again at every login".
         let auto = NSMenuItem()
         auto.view = SwitchRow(T("Start at login"), on: Autostart.enabled(),
                               target: self, action: #selector(toggleAutostart),
-                              ikona: "arrow.triangle.2.circlepath")
+                              iconName: "arrow.triangle.2.circlepath")
         m.addItem(auto)
         // Switch instead of a clickable item: ON = manually frozen. Blue avoids confusion
         // with green PROTECTION; the heavy-process count sits beside it.
-        let zamrozone = !s.paused.isEmpty
-        let mrozek = NSMenuItem()
-        let mrozView = SwitchRow(T("Freeze all heavy jobs now"),
-                                 on: zamrozone,
+        let frozen = !s.paused.isEmpty
+        let freezeItem = NSMenuItem()
+        let freezeView = SwitchRow(T("Freeze all heavy jobs now"),
+                                 on: frozen,
                                  target: self, action: #selector(toggleFreeze(_:)),
                                  // Icon describes the row FUNCTION; state lives in the switch.
                                  // A "play" icon beside an ON switch contradicted itself.
-                                 ikona: "pause.circle",
-                                 podpisStaly: String(format: T("Heavy processes right now: %d"),
+                                 iconName: "pause.circle",
+                                 fixedSubtitle: String(format: T("Heavy processes right now: %d"),
                                                     s.heavyCount),
-                                 kolor: .systemBlue)
+                                 color: .systemBlue)
         // Tooltip says WHICH processes are targeted (top 3 by CPU).
         if !s.topCpuList.isEmpty {
-            mrozView.toolTip = s.topCpuList.map { "\($0.name) (\($0.cpu)%)" }.joined(separator: ", ")
+            freezeView.toolTip = s.topCpuList.map { "\($0.name) (\($0.cpu)%)" }.joined(separator: ", ")
         }
-        mrozek.view = mrozView
-        m.addItem(mrozek)
+        freezeItem.view = freezeView
+        m.addItem(freezeItem)
         m.addItem(.separator())
 
         // Export: the user chooses the format, not us.
@@ -3252,19 +3252,19 @@ final class Bar: NSObject, NSMenuDelegate {
         // the separate "hold for heavy jobs" path runs beside it. Without this, the menu
         // reported "Off" while the main card said "Keeping the Mac awake". The daemon
         // snapshot is proof because the daemon holds caffeinate.
-        let trzymaneNaprawde = readSnap()?.keepAwake ?? false
+        let actuallyHeld = readSnap()?.keepAwake ?? false
 
-        let stan = NSMenuItem(title: T(trzymaneNaprawde ? "Right now: keeping the Mac awake"
+        let stateItem = NSMenuItem(title: T(actuallyHeld ? "Right now: keeping the Mac awake"
                                                         : "Right now: NOT keeping the Mac awake"),
                               action: nil, keyEquivalent: "")
-        stan.isEnabled = false
-        km.addItem(stan)
+        stateItem.isEnabled = false
+        km.addItem(stateItem)
         km.addItem(.separator())
 
         let off = NSMenuItem(title: T("Off"), action: #selector(awakeOff), keyEquivalent: "")
         off.target = self
         // Checkmark only when NOTHING holds keep-awake, neither manual session nor auto.
-        off.state = (curMode == nil && !trzymaneNaprawde) ? .on : .off
+        off.state = (curMode == nil && !actuallyHeld) ? .on : .off
         km.addItem(off)
         km.addItem(.separator())
         for min in [15, 30, 45, 60, 120, 180, 300, 480, 720] {
@@ -3288,30 +3288,30 @@ final class Bar: NSObject, NSMenuDelegate {
         let untilItem = NSMenuItem(title: T("Until a set hour"), action: nil, keyEquivalent: "")
         let um = NSMenu()
         um.autoenablesItems = false
-        let kal = Calendar.current
-        let teraz = Date()
+        let calendar = Calendar.current
+        let now = Date()
         let fmt = DateFormatter()
         fmt.locale = Locale.current
         fmt.setLocalizedDateFormatFromTemplate("j:mm")   // 17:00 or 5:00 PM per system settings
-        var znalezione = 0
+        var foundCount = 0
         // Start from the CURRENT whole hour built from components. `date(bySetting:)`
         // searches for the NEXT matching date, so at 16:20 it already returned 17:00;
         // the loop then added another hour and the nearest option became 18:00. The
         // nearest whole hour is the useful one here, so do not lose it.
-        var skladniki = kal.dateComponents([.year, .month, .day, .hour], from: teraz)
-        skladniki.minute = 0
-        skladniki.second = 0
-        var kandydat = kal.date(from: skladniki) ?? teraz
-        while znalezione < 12 {
-            kandydat = kal.date(byAdding: .hour, value: 1, to: kandydat) ?? kandydat
-            let pelna = kandydat
-            if pelna <= teraz.addingTimeInterval(60) { continue }
-            let it = NSMenuItem(title: String(format: T("until %@"), fmt.string(from: pelna)),
+        var components = calendar.dateComponents([.year, .month, .day, .hour], from: now)
+        components.minute = 0
+        components.second = 0
+        var candidateDate = calendar.date(from: components) ?? now
+        while foundCount < 12 {
+            candidateDate = calendar.date(byAdding: .hour, value: 1, to: candidateDate) ?? candidateDate
+            let wholeHour = candidateDate
+            if wholeHour <= now.addingTimeInterval(60) { continue }
+            let it = NSMenuItem(title: String(format: T("until %@"), fmt.string(from: wholeHour)),
                                 action: #selector(awakeUntil(_:)), keyEquivalent: "")
             it.target = self
-            it.representedObject = pelna.timeIntervalSince1970
+            it.representedObject = wholeHour.timeIntervalSince1970
             um.addItem(it)
-            znalezione += 1
+            foundCount += 1
         }
         untilItem.submenu = um
         km.addItem(untilItem)
@@ -3365,7 +3365,7 @@ final class Bar: NSObject, NSMenuDelegate {
         let kaAuto = NSMenuItem()
         kaAuto.view = SwitchRow(T("Keep the Mac awake while heavy jobs run"),
                                 on: GuardCfg.bool("keep_awake_auto", false),
-                                target: self, action: #selector(toggleAwake), kolor: .systemGray)
+                                target: self, action: #selector(toggleAwake), color: .systemGray)
         km.addItem(kaAuto)
         // Screen is separate from system wake: `caffeinate -is` keeps the system awake
         // but lets the display sleep. A lit panel costs more power and heat, so default off.
@@ -3373,7 +3373,7 @@ final class Bar: NSObject, NSMenuDelegate {
         kaScreen.view = SwitchRow(T("Keep the screen on too (uses more power)"),
                                   on: GuardCfg.bool("keep_awake_display", false),
                                   target: self, action: #selector(toggleAwakeDisplay),
-                                  kolor: .systemGray)
+                                  color: .systemGray)
         km.addItem(kaScreen)
         ka.submenu = km
         m.addItem(ka)
@@ -3385,11 +3385,11 @@ final class Bar: NSObject, NSMenuDelegate {
         sub.autoenablesItems = false
         // At the top, so users do not click every item separately. Disabled when
         // everything is already visible; a dead click confuses more than it helps.
-        let wszystko = NSMenuItem(title: T("Show all"), action: #selector(showAllItems),
+        let showAll = NSMenuItem(title: T("Show all"), action: #selector(showAllItems),
                                   keyEquivalent: "")
-        wszystko.target = self
-        wszystko.isEnabled = !prefs.wszystkoWlaczone
-        sub.addItem(wszystko)
+        showAll.target = self
+        showAll.isEnabled = !prefs.allEnabled
+        sub.addItem(showAll)
         sub.addItem(.separator())
         for (i, it) in Item.allCases.enumerated() {
             let mi = NSMenuItem(title: it.label, action: #selector(toggleItem(_:)), keyEquivalent: "")
@@ -3478,45 +3478,45 @@ final class Bar: NSObject, NSMenuDelegate {
 
         let notif = NSMenuItem()
         notif.view = SwitchRow(T("Notifications"), on: GuardCfg.bool("notify", true),
-                               target: self, action: #selector(toggleNotify), kolor: .systemBlue)
+                               target: self, action: #selector(toggleNotify), color: .systemBlue)
         ss.addItem(notif)
-        func infoLinia(_ tekst: String) {
+        func infoLine(_ text: String) {
             let it = NSMenuItem(title: "", action: nil, keyEquivalent: "")
             it.attributedTitle = NSAttributedString(
-                string: tekst,
+                string: text,
                 attributes: [.font: NSFont.systemFont(ofSize: 11),
                              .foregroundColor: NSColor.secondaryLabelColor])
             it.isEnabled = false
             ss.addItem(it)
         }
-        infoLinia(T("Turns off banners, their sounds and phone push - one gate for all."))
+        infoLine(T("Turns off banners, their sounds and phone push - one gate for all."))
         // Watch-only help lives in the popup shown when DISABLING protection.
         // Notifications / Sounds / Push form one compact section.
 
         let snd = NSMenuItem()
         snd.view = SwitchRow(T("Sounds"), on: GuardCfg.bool("sound", true),
-                             target: self, action: #selector(toggleSound), kolor: .systemBlue)
+                             target: self, action: #selector(toggleSound), color: .systemBlue)
         ss.addItem(snd)
-        infoLinia(T("Exception: the critical banner shouts regardless."))
+        infoLine(T("Exception: the critical banner shouts regardless."))
 
         // "Keep awake while heavy jobs run" now lives in the Keep awake submenu.
 
         let ntfy = NSMenuItem()
         ntfy.view = SwitchRow(T("Phone push (ntfy.sh)…"),
                               on: !GuardCfg.string("ntfy_topic", "").isEmpty,
-                              target: self, action: #selector(toggleNtfy), kolor: .systemBlue)
+                              target: self, action: #selector(toggleNtfy), color: .systemBlue)
         ss.addItem(ntfy)
 
         ss.addItem(.separator())
         let flabel = NSMenuItem(title: "", action: #selector(fleetNameDialog), keyEquivalent: "")
         // After "|", show the current name in gray so fleet identity is visible at once.
-        let nazwaFloty = GuardCfg.string("fleet_label", "")
-        let pokazNazwe = nazwaFloty.isEmpty
+        let fleetName = GuardCfg.string("fleet_label", "")
+        let displayName = fleetName.isEmpty
             ? (Host.current().localizedName ?? "Mac")
-            : nazwaFloty
+            : fleetName
         let ft = NSMutableAttributedString(string: T("Name this Mac in the fleet…") + "  |  ",
                                            attributes: [.font: NSFont.menuFont(ofSize: 0)])
-        ft.append(NSAttributedString(string: pokazNazwe,
+        ft.append(NSAttributedString(string: displayName,
                                      attributes: [.font: NSFont.menuFont(ofSize: 0),
                                                   .foregroundColor: NSColor.secondaryLabelColor]))
         flabel.attributedTitle = ft
@@ -3542,81 +3542,81 @@ final class Bar: NSObject, NSMenuDelegate {
         } else {
             // Pair fields by line: model+chip / cores+NE / RAM+disk /
             // macOS+setup date / fans+battery cycles.
-            let chipNazwa = (hw["chip"] as? String) ?? "?"
-            arow(((hw["model_name"] as? String) ?? "?") + "  ·  " + chipNazwa)
+            let chipName = (hw["chip"] as? String) ?? "?"
+            arow(((hw["model_name"] as? String) ?? "?") + "  ·  " + chipName)
             // Neural Engine has no public read API. Derive ANE cores from chip model:
             // Ultra = 2x die = 32; every other M chip = 16.
-            let ane = chipNazwa.contains("Ultra") ? 32 : 16
+            let ane = chipName.contains("Ultra") ? 32 : 16
             arow(String(format: T("Cores:  %d performance + %d efficiency  ·  Neural Engine: %d"),
                         (hw["p_cores"] as? Int) ?? 0, (hw["e_cores"] as? Int) ?? 0, ane))
-            var ramLinia = String(format: T("RAM:  %d GB"), (hw["ram_gb"] as? Int) ?? 0)
-            let snapDysk = readSnap()
-            if let dt = snapDysk?.diskTotal, let dp = snapDysk?.diskPct {
-                ramLinia += "  ·  " + String(format: T("Disk: %d GB (%d%% free)"), dt, 100 - dp)
+            var ramLine = String(format: T("RAM:  %d GB"), (hw["ram_gb"] as? Int) ?? 0)
+            let diskSnap = readSnap()
+            if let dt = diskSnap?.diskTotal, let dp = diskSnap?.diskPct {
+                ramLine += "  ·  " + String(format: T("Disk: %d GB (%d%% free)"), dt, 100 - dp)
             }
-            arow(ramLinia)
+            arow(ramLine)
             // Marketing system name, as in "About This Mac" (Tahoe/Sequoia/...).
-            let wersjaOS = (hw["macos"] as? String) ?? "?"
-            let nazwaOS: String
-            switch Int(wersjaOS.split(separator: ".").first.map(String.init) ?? "") ?? 0 {
-            case 26: nazwaOS = "macOS Tahoe"
-            case 15: nazwaOS = "macOS Sequoia"
-            case 14: nazwaOS = "macOS Sonoma"
-            case 13: nazwaOS = "macOS Ventura"
-            case 12: nazwaOS = "macOS Monterey"
-            case 11: nazwaOS = "macOS Big Sur"
-            default: nazwaOS = "macOS"
+            let osVersion = (hw["macos"] as? String) ?? "?"
+            let osName: String
+            switch Int(osVersion.split(separator: ".").first.map(String.init) ?? "") ?? 0 {
+            case 26: osName = "macOS Tahoe"
+            case 15: osName = "macOS Sequoia"
+            case 14: osName = "macOS Sonoma"
+            case 13: osName = "macOS Ventura"
+            case 12: osName = "macOS Monterey"
+            case 11: osName = "macOS Big Sur"
+            default: osName = "macOS"
             }
-            var osLinia = nazwaOS + " " + wersjaOS
-            var dataSetup: Date?
+            var osLine = osName + " " + osVersion
+            var setupDate: Date?
             if let atr = try? FileManager.default.attributesOfItem(atPath: "/var/db/.AppleSetupDone"),
-               let data = (atr[.creationDate] ?? atr[.modificationDate]) as? Date {
-                dataSetup = data
+               let setupDoneDate = (atr[.creationDate] ?? atr[.modificationDate]) as? Date {
+                setupDate = setupDoneDate
                 let f = DateFormatter()
                 f.dateFormat = "dd.MM.yyyy"
         f.locale = Locale(identifier: "en_US_POSIX")
         f.calendar = Calendar(identifier: .gregorian)
-                osLinia += "  ·  " + String(format: T("set up: %@"), f.string(from: data))
+                osLine += "  ·  " + String(format: T("set up: %@"), f.string(from: setupDoneDate))
             }
-            arow(osLinia)
-            var wentLinia = String(format: T("Fans:  %d"), (hw["fan_count"] as? Int) ?? 0)
+            arow(osLine)
+            var fanLine = String(format: T("Fans:  %d"), (hw["fan_count"] as? Int) ?? 0)
             if let cyc = hw["battery_cycles"] as? Int {
                 let warn = (hw["battery_failure"] as? Bool) == true ? " (!)" : ""
-                wentLinia += "  ·  " + String(format: T("Battery cycles:  %@"), "\(cyc)\(warn)")
+                fanLine += "  ·  " + String(format: T("Battery cycles:  %@"), "\(cyc)\(warn)")
             }
-            if let poj = hw["battery_max_capacity_pct"] as? Int {
-                wentLinia += "  ·  " + String(format: T("max capacity: %d%%"), poj)
+            if let capacity = hw["battery_max_capacity_pct"] as? Int {
+                fanLine += "  ·  " + String(format: T("max capacity: %d%%"), capacity)
             }
-            arow(wentLinia)
+            arow(fanLine)
             if let ser = hw["serial"] as? String, !ser.isEmpty {
-                var serLinia = String(format: T("Serial:  %@"), ser)
+                var serialLine = String(format: T("Serial:  %@"), ser)
                 // Warranty: macOS does not expose it programmatically. Estimate one year
                 // from first system setup and state clearly that it is an estimate.
-                if let ds = dataSetup {
+                if let ds = setupDate {
                     let f = DateFormatter()
                     f.dateFormat = "dd.MM.yyyy"
         f.locale = Locale(identifier: "en_US_POSIX")
         f.calendar = Calendar(identifier: .gregorian)
-                    let koniec = ds.addingTimeInterval(365 * 86400)
-                    serLinia += "  ·  " + String(format: T("limited warranty (est.): until %@"),
-                                                 f.string(from: koniec))
+                    let warrantyEnd = ds.addingTimeInterval(365 * 86400)
+                    serialLine += "  ·  " + String(format: T("limited warranty (est.): until %@"),
+                                                 f.string(from: warrantyEnd))
                 }
-                arow(serLinia)
+                arow(serialLine)
             }
             // Show all measurement sources, not only macmon. If one fails, users can
             // immediately see what else is still watching the machine.
-            let ok = T("yes"), nie = T("no")
+            let ok = T("yes"), noText = T("no")
             let mac = (hw["chip_sensor"] as? Bool) == true
-            let stanOK = FileManager.default.isExecutableFile(atPath:
+            let thermalStateOK = FileManager.default.isExecutableFile(atPath:
                 NSHomeDirectory() + "/.local/bin/thermalstate")
-            let snapZ = readSnap()
-            let battOK = snapZ?.batt != nil
-            let thrOK = (snapZ?.cpuLimit ?? 0) > 0
+            let sensorSnap = readSnap()
+            let battOK = sensorSnap?.batt != nil
+            let thrOK = (sensorSnap?.cpuLimit ?? 0) > 0
             arow(T("Sensors:"))
-            arow("   - " + String(format: T("chip and GPU (macmon/IOReport):  %@"), mac ? ok : nie))
-            arow("   - " + String(format: T("thermal state (Apple API):  %@"), stanOK ? ok : nie))
-            arow("   - " + String(format: T("battery (ioreg):  %@"), battOK ? ok : nie))
-            arow("   - " + String(format: T("CPU throttling (pmset):  %@"), thrOK ? ok : nie))
+            arow("   - " + String(format: T("chip and GPU (macmon/IOReport):  %@"), mac ? ok : noText))
+            arow("   - " + String(format: T("thermal state (Apple API):  %@"), thermalStateOK ? ok : noText))
+            arow("   - " + String(format: T("battery (ioreg):  %@"), battOK ? ok : noText))
+            arow("   - " + String(format: T("CPU throttling (pmset):  %@"), thrOK ? ok : noText))
             let sp = GuardCfg.double("soc_pause_c", 85), sk = GuardCfg.double("soc_kill_c", 90)
             arow(String(format: T("Chip thresholds:  pause %.0f C, kill %.0f C"), sp, sk))
         }
@@ -3678,15 +3678,15 @@ final class Bar: NSObject, NSMenuDelegate {
         // from the read time.
         let cacheDrift = max(0, Date().timeIntervalSince(fleetCacheAt))
         // Read counters ONCE per menu open, not once per host.
-        var statystykiHosta: [String: [String: Int]] = [:]
-        for m in fleetStats() { statystykiHosta[m.host] = m.sum }
+        var hostStats: [String: [String: Int]] = [:]
+        for m in fleetStats() { hostStats[m.host] = m.sum }
         if let hosts = fleetCache {
             if hosts.isEmpty {
                 frow(T("no agent snapshots yet (agents publish about once a minute)"))
             }
             // Read this Mac's serial ONCE, not once per host: hardwareInfo() is a full
             // disk file read and used to run inside the per-host loop on every menu open.
-            let mojSerial = (hardwareInfo()["serial"] as? String) ?? ""
+            let mySerial = (hardwareInfo()["serial"] as? String) ?? ""
             for h0 in hosts {
                 let h = FleetHost(name: h0.name, model: h0.model, serial: h0.serial,
                                   age: h0.age + cacheDrift, chip: h0.chip,
@@ -3714,10 +3714,10 @@ final class Bar: NSObject, NSMenuDelegate {
                 a.append(icon(h.level >= 3 ? "flame.fill"
                               : h.level >= 2 ? "exclamationmark.triangle.fill"
                               : "laptopcomputer", fallback: ">"))
-                let toJa = !mojSerial.isEmpty && h.serial == mojSerial
+                let isMe = !mySerial.isEmpty && h.serial == mySerial
                 a.append(NSAttributedString(
                     string: "  " + h.name,
-                    attributes: [.font: toJa ? NSFont.boldSystemFont(ofSize: 13)
+                    attributes: [.font: isMe ? NSFont.boldSystemFont(ofSize: 13)
                                              : NSFont.menuFont(ofSize: 0)]))
                 a.append(NSAttributedString(string: "   " + bits.joined(separator: "  ·  "),
                                             attributes: [.font: NSFont.menuFont(ofSize: 0)]))
@@ -3725,7 +3725,7 @@ final class Bar: NSObject, NSMenuDelegate {
                 it.target = self
                 it.attributedTitle = a
                 // Counters for this host, used by the click popup.
-                let st = statystykiHosta[h.name] ?? [:]
+                let st = hostStats[h.name] ?? [:]
                 it.representedObject = [
                     "stat_pauses": String(st["pauses"] ?? 0),
                     "stat_resumes": String(st["resumes"] ?? 0),
@@ -3776,8 +3776,8 @@ final class Bar: NSObject, NSMenuDelegate {
 
         // Share note in the LANGUAGE SELECTED IN MENU, plus the UTM share link.
         // No Facebook: its sharer cuts text and requires login.
-        let podaj = NSMenuItem(title: T("Like the paladin? Pass it on!"), action: nil, keyEquivalent: "")
-        podaj.image = img("square.and.arrow.up")
+        let shareItem = NSMenuItem(title: T("Like the paladin? Pass it on!"), action: nil, keyEquivalent: "")
+        shareItem.image = img("square.and.arrow.up")
         let pd = NSMenu()
         let px = pd.addItem(withTitle: T("Share on X…"), action: #selector(shareX), keyEquivalent: "")
         px.target = self
@@ -3788,8 +3788,8 @@ final class Bar: NSObject, NSMenuDelegate {
         let pc = pd.addItem(withTitle: T("Copy link with note"), action: #selector(shareCopy), keyEquivalent: "")
         pc.target = self
         pc.image = img("doc.on.doc")
-        podaj.submenu = pd
-        m.addItem(podaj)
+        shareItem.submenu = pd
+        m.addItem(shareItem)
 
         m.addItem(.separator())
 
@@ -3822,23 +3822,23 @@ final class Bar: NSObject, NSMenuDelegate {
 
     // --- keep awake (record request; daemon executes it with thermal fuse overriding)
 
-    @objc func awakeOff() { Awake.set(nil); odswiezPoAkcji() }
+    @objc func awakeOff() { Awake.set(nil); refreshAfterAction() }
 
     @objc func awakeTimer(_ sender: NSMenuItem) {
         guard let min = sender.representedObject as? Int else { return }
         let t = Date().timeIntervalSince1970
         Awake.set(["mode": "timer", "until": t + Double(min * 60), "set_at": t])
-        odswiezPoAkcji()
+        refreshAfterAction()
     }
 
-    @objc func awakeForever() { Awake.set(["mode": "forever"]); odswiezPoAkcji() }
+    @objc func awakeForever() { Awake.set(["mode": "forever"]); refreshAfterAction() }
 
     @objc func awakeUntil(_ sender: NSMenuItem) {
         guard let until = sender.representedObject as? Double else { return }
         let t = Date().timeIntervalSince1970
         guard until > t else { return }        // past hour = no-op
         Awake.set(["mode": "timer", "until": until, "set_at": t])
-        odswiezPoAkcji()
+        refreshAfterAction()
     }
 
     /// Extend a RUNNING timer session, or start a new one for that many minutes.
@@ -3848,31 +3848,31 @@ final class Bar: NSObject, NSMenuDelegate {
         guard let min = sender.representedObject as? Int else { return }
         let t = Date().timeIntervalSince1970
         let cur = Awake.read()
-        var baza = t
+        var baseTime = t
         if (cur["mode"] as? String) == "timer", let until = cur["until"] as? Double, until > t {
-            baza = until
+            baseTime = until
         }
-        Awake.set(["mode": "timer", "until": baza + Double(min * 60), "set_at": t])
-        odswiezPoAkcji()
+        Awake.set(["mode": "timer", "until": baseTime + Double(min * 60), "set_at": t])
+        refreshAfterAction()
     }
 
     @objc func awakeApp(_ sender: NSMenuItem) {
         guard let app = sender.representedObject as? String else { return }
         Awake.set(["mode": "app", "app": app])
-        odswiezPoAkcji()
+        refreshAfterAction()
     }
 
-    @objc func awakeDownload() { Awake.set(["mode": "download"]); odswiezPoAkcji() }
+    @objc func awakeDownload() { Awake.set(["mode": "download"]); refreshAfterAction() }
 
     // --- heavy jobs
 
     @objc func coresEfficiency() {
         GuardCfg.set(["job_cores_mode": "efficiency"])
-        odswiezPoAkcji()
+        refreshAfterAction()
     }
     @objc func coresAll() {
         GuardCfg.set(["job_cores_mode": "all"])
-        odswiezPoAkcji()
+        refreshAfterAction()
     }
 
     // --- phone push
@@ -3884,7 +3884,7 @@ final class Bar: NSObject, NSMenuDelegate {
     @objc func toggleNtfy() {
         // Switch ON means topic is required (dialog); OFF clears topic and silences push.
         if GuardCfg.string("ntfy_topic", "").isEmpty {
-            pokazModalnie { self.ntfyDialog() }
+            showModally { self.ntfyDialog() }
         } else {
             GuardCfg.set(["ntfy_topic": ""])
         }
@@ -3904,31 +3904,31 @@ final class Bar: NSObject, NSMenuDelegate {
     /// Title and body wrap with margins, and their measured heights count toward window
     /// height. A one-line full-width title clipped sentence endings; the Polish quit
     /// title needed 338 pt with only 300 pt available.
-    func oknoPaladyna(tytul: String, tresc: String, przyciski: [String],
-                      domyslny: Int = 0, dodatek: NSView? = nil,
-                      szerokosc SZER: CGFloat = 380) -> Int {
-        let MARG: CGFloat = 22
+    func paladinWindow(title: String, body: String, buttons: [String],
+                      defaultIndex: Int = 0, accessoryView: NSView? = nil,
+                      width windowWidth: CGFloat = 380) -> Int {
+        let margin: CGFloat = 22
 
-        func zawijana(_ t: String, _ rozmiar: CGFloat, _ bold: Bool,
-                      _ kolor: NSColor) -> (NSTextField, CGFloat) {
+        func wrappedLabel(_ t: String, _ size: CGFloat, _ bold: Bool,
+                      _ color: NSColor) -> (NSTextField, CGFloat) {
             // Non-breaking space before the hyphen: without it, wrapping could break
             // EXACTLY before " - " and the next line started with only the hyphen
             // ("OFF" / "- coffee-paladin entered mode...").
-            let zwiazany = t.replacingOccurrences(of: " - ", with: "\u{00A0}- ")
-            let p = NSTextField(wrappingLabelWithString: zwiazany)
-            p.font = bold ? .boldSystemFont(ofSize: rozmiar) : .systemFont(ofSize: rozmiar)
-            p.textColor = kolor
+            let nonBreakingText = t.replacingOccurrences(of: " - ", with: "\u{00A0}- ")
+            let p = NSTextField(wrappingLabelWithString: nonBreakingText)
+            p.font = bold ? .boldSystemFont(ofSize: size) : .systemFont(ofSize: size)
+            p.textColor = color
             p.alignment = .center
-            p.preferredMaxLayoutWidth = SZER - 2 * MARG
-            return (p, p.sizeThatFits(NSSize(width: SZER - 2 * MARG, height: 600)).height)
+            p.preferredMaxLayoutWidth = windowWidth - 2 * margin
+            return (p, p.sizeThatFits(NSSize(width: windowWidth - 2 * margin, height: 600)).height)
         }
 
-        let (etTytul, hTytulu) = zawijana(tytul, 13, true, .labelColor)
-        let (etTresc, hTresci) = zawijana(tresc, 11, false, .secondaryLabelColor)
-        let hDodatku: CGFloat = dodatek.map { $0.frame.height + 14 } ?? 0
+        let (titleLabel, titleHeight) = wrappedLabel(title, 13, true, .labelColor)
+        let (bodyLabel, bodyHeight) = wrappedLabel(body, 11, false, .secondaryLabelColor)
+        let accessoryHeight: CGFloat = accessoryView.map { $0.frame.height + 14 } ?? 0
 
-        let hOkna = 18 + 44 + 8 + hTytulu + 10 + hTresci + hDodatku + 18 + 32 + 18
-        let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: SZER, height: hOkna),
+        let windowHeight = 18 + 44 + 8 + titleHeight + 10 + bodyHeight + accessoryHeight + 18 + 32 + 18
+        let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: windowWidth, height: windowHeight),
                            styleMask: [.titled, .fullSizeContentView],
                            backing: .buffered, defer: false)
         win.titlebarAppearsTransparent = true
@@ -3936,102 +3936,102 @@ final class Bar: NSObject, NSMenuDelegate {
         win.isMovableByWindowBackground = true
         win.level = .modalPanel
         win.center()
-        let tlo = NSVisualEffectView(frame: NSRect(x: 0, y: 0, width: SZER, height: hOkna))
-        tlo.material = .popover
-        tlo.state = .active
-        win.contentView = tlo
+        let backgroundView = NSVisualEffectView(frame: NSRect(x: 0, y: 0, width: windowWidth, height: windowHeight))
+        backgroundView.material = .popover
+        backgroundView.state = .active
+        win.contentView = backgroundView
 
-        var y = hOkna - 18 - 44
-        let ikonaV = NSImageView(frame: NSRect(x: (SZER - 44) / 2, y: y, width: 44, height: 44))
-        if let img = NSImage(contentsOfFile: base + "/paladin_welcome.png") { ikonaV.image = img }
-        ikonaV.imageScaling = .scaleProportionallyUpOrDown
-        tlo.addSubview(ikonaV)
+        var y = windowHeight - 18 - 44
+        let iconView = NSImageView(frame: NSRect(x: (windowWidth - 44) / 2, y: y, width: 44, height: 44))
+        if let img = NSImage(contentsOfFile: base + "/paladin_welcome.png") { iconView.image = img }
+        iconView.imageScaling = .scaleProportionallyUpOrDown
+        backgroundView.addSubview(iconView)
 
-        y -= 8 + hTytulu
-        etTytul.frame = NSRect(x: MARG, y: y, width: SZER - 2 * MARG, height: hTytulu)
-        tlo.addSubview(etTytul)
+        y -= 8 + titleHeight
+        titleLabel.frame = NSRect(x: margin, y: y, width: windowWidth - 2 * margin, height: titleHeight)
+        backgroundView.addSubview(titleLabel)
 
-        y -= 10 + hTresci
-        etTresc.frame = NSRect(x: MARG, y: y, width: SZER - 2 * MARG, height: hTresci)
-        tlo.addSubview(etTresc)
+        y -= 10 + bodyHeight
+        bodyLabel.frame = NSRect(x: margin, y: y, width: windowWidth - 2 * margin, height: bodyHeight)
+        backgroundView.addSubview(bodyLabel)
 
-        if let d = dodatek {
+        if let d = accessoryView {
             y -= 14 + d.frame.height
-            d.frame = NSRect(x: (SZER - d.frame.width) / 2, y: y,
+            d.frame = NSRect(x: (windowWidth - d.frame.width) / 2, y: y,
                              width: d.frame.width, height: d.frame.height)
-            tlo.addSubview(d)
+            backgroundView.addSubview(d)
         }
 
         y -= 18 + 32
-        let luka: CGFloat = 10
+        let gap: CGFloat = 10
         // Width from CONTENT, not a constant. The Russian localized Quit anyway label
         // needs 162 pt; a fixed 130 pt clipped it halfway on the button that disables
         // thermal protection, the most serious decision in the program.
-        let probne = przyciski.map { t -> CGFloat in
+        let trialWidths = buttons.map { t -> CGFloat in
             let b = NSButton(title: t, target: nil, action: nil)
             b.bezelStyle = .rounded
             b.sizeToFit()
             return b.frame.width + 20
         }
-        let szerB = min(max(probne.max() ?? 90, 90), 170)
-        let xB = (SZER - (szerB * CGFloat(przyciski.count)
-                          + luka * CGFloat(przyciski.count - 1))) / 2
+        let buttonWidth = min(max(trialWidths.max() ?? 90, 90), 170)
+        let xB = (windowWidth - (buttonWidth * CGFloat(buttons.count)
+                          + gap * CGFloat(buttons.count - 1))) / 2
         // ORDER: macOS keeps the confirming button at the far RIGHT, and people
         // instinctively click the lower-right corner. Callers pass the list as "most
         // important first" because that reads naturally in code; draw it reversed.
-        for (i, t) in przyciski.enumerated() {
-            let b = NSButton(title: t, target: self, action: #selector(zamknijOknoPaladyna(_:)))
+        for (i, t) in buttons.enumerated() {
+            let b = NSButton(title: t, target: self, action: #selector(closePaladinWindow(_:)))
             b.bezelStyle = .rounded
             b.tag = i
-            let poz = przyciski.count - 1 - i          // 0 = far left
-            b.frame = NSRect(x: xB + CGFloat(poz) * (szerB + luka), y: y,
-                             width: szerB, height: 32)
-            if i == domyslny { b.keyEquivalent = "\r" }
+            let position = buttons.count - 1 - i          // 0 = far left
+            b.frame = NSRect(x: xB + CGFloat(position) * (buttonWidth + gap), y: y,
+                             width: buttonWidth, height: 32)
+            if i == defaultIndex { b.keyEquivalent = "\r" }
             // Escape closes the window like Cancel, or like OK when there is only OK.
-            if przyciski.count == 1 || i == przyciski.count - 1 { b.keyEquivalent = "\u{1b}" }
-            if i == domyslny { b.keyEquivalent = "\r" }
-            tlo.addSubview(b)
+            if buttons.count == 1 || i == buttons.count - 1 { b.keyEquivalent = "\u{1b}" }
+            if i == defaultIndex { b.keyEquivalent = "\r" }
+            backgroundView.addSubview(b)
         }
 
         NSApp.activate(ignoringOtherApps: true)
-        let wynik = NSApp.runModal(for: win)
+        let result = NSApp.runModal(for: win)
         win.orderOut(nil)
-        return wynik.rawValue
+        return result.rawValue
     }
 
     /// Add a button row.
     /// Width comes from CONTENT; Russian labels are about half longer than Polish ones.
     /// The confirming button stays far RIGHT per macOS, and Escape maps to Cancel.
-    func rzadPrzyciskow(_ tlo: NSView, _ SZER: CGFloat, _ y: CGFloat,
-                        _ tytuly: [String], domyslny: Int, akcja: Selector) {
-        let luka: CGFloat = 10
-        let probne = tytuly.map { t -> CGFloat in
+    func buttonRow(_ backgroundView: NSView, _ windowWidth: CGFloat, _ y: CGFloat,
+                        _ titles: [String], defaultIndex: Int, action: Selector) {
+        let gap: CGFloat = 10
+        let trialWidths = titles.map { t -> CGFloat in
             let b = NSButton(title: t, target: nil, action: nil)
             b.bezelStyle = .rounded
             b.sizeToFit()
             return b.frame.width + 20
         }
-        let szerB = min(max(probne.max() ?? 90, 90), 170)
-        let xB = (SZER - (szerB * CGFloat(tytuly.count) + luka * CGFloat(tytuly.count - 1))) / 2
-        for (i, t) in tytuly.enumerated() {
-            let b = NSButton(title: t, target: self, action: akcja)
+        let buttonWidth = min(max(trialWidths.max() ?? 90, 90), 170)
+        let xB = (windowWidth - (buttonWidth * CGFloat(titles.count) + gap * CGFloat(titles.count - 1))) / 2
+        for (i, t) in titles.enumerated() {
+            let b = NSButton(title: t, target: self, action: action)
             b.bezelStyle = .rounded
             b.tag = i
-            let poz = tytuly.count - 1 - i
-            b.frame = NSRect(x: xB + CGFloat(poz) * (szerB + luka), y: y, width: szerB, height: 32)
-            if i == tytuly.count - 1 { b.keyEquivalent = "\u{1b}" }
-            if i == domyslny { b.keyEquivalent = "\r" }
-            tlo.addSubview(b)
+            let position = titles.count - 1 - i
+            b.frame = NSRect(x: xB + CGFloat(position) * (buttonWidth + gap), y: y, width: buttonWidth, height: 32)
+            if i == titles.count - 1 { b.keyEquivalent = "\u{1b}" }
+            if i == defaultIndex { b.keyEquivalent = "\r" }
+            backgroundView.addSubview(b)
         }
     }
 
-    @objc func zamknijOknoPaladyna(_ sender: NSButton) {
+    @objc func closePaladinWindow(_ sender: NSButton) {
         NSApp.stopModal(withCode: NSApplication.ModalResponse(rawValue: sender.tag))
     }
 
-    func pokazModalnie(_ akcja: @escaping () -> Void) {
+    func showModally(_ action: @escaping () -> Void) {
         item.menu?.cancelTracking()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { akcja() }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { action() }
     }
 
     @objc func ntfyDialog() {
@@ -4045,30 +4045,30 @@ final class Bar: NSObject, NSMenuDelegate {
         gen.frame = NSRect(x: 320 - 110, y: 0, width: 110, height: 28)
         box.addSubview(gen)
         ntfyField = field
-        let result = oknoPaladyna(
-            tytul: T("Phone push (ntfy.sh)…"),
-            tresc: T("The topic name is the ONLY protection: anyone who knows or guesses it can read your alerts and send fake ones. Click Generate for a random unguessable name. On your phone install the ntfy.sh app (from ntfy.sh - mind the lookalike apps) and subscribe to the same topic. Leave empty to disable."),
-            przyciski: ["OK", T("Cancel")], dodatek: box)
+        let result = paladinWindow(
+            title: T("Phone push (ntfy.sh)…"),
+            body: T("The topic name is the ONLY protection: anyone who knows or guesses it can read your alerts and send fake ones. Click Generate for a random unguessable name. On your phone install the ntfy.sh app (from ntfy.sh - mind the lookalike apps) and subscribe to the same topic. Leave empty to disable."),
+            buttons: ["OK", T("Cancel")], accessoryView: box)
         ntfyField = nil
         if result == 0 {
             // Topic goes straight into the URL. A space or newline makes curl send
             // nothing at all, silently; "#" and "?" publish to a SHORTER topic than the
             // user sees in the field, making it easier to guess. Reject immediately
             // instead of failing silently for weeks.
-            let temat = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-            let dozwolone = CharacterSet(charactersIn:
+            let topic = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            let allowedChars = CharacterSet(charactersIn:
                 "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-")
-            if !temat.isEmpty &&
-                (temat.count > 64 || temat.rangeOfCharacter(from: dozwolone.inverted) != nil) {
-                _ = oknoPaladyna(
-                    tytul: T("This topic will not work"),
-                    tresc: T("Use only letters, digits, _ and -, up to 64 characters. "
+            if !topic.isEmpty &&
+                (topic.count > 64 || topic.rangeOfCharacter(from: allowedChars.inverted) != nil) {
+                _ = paladinWindow(
+                    title: T("This topic will not work"),
+                    body: T("Use only letters, digits, _ and -, up to 64 characters. "
                         + "A space stops the push silently, and # or ? publish to a shorter topic "
                         + "than the one you typed."),
-                    przyciski: ["OK"])
+                    buttons: ["OK"])
                 return
             }
-            GuardCfg.set(["ntfy_topic": temat])
+            GuardCfg.set(["ntfy_topic": topic])
         }
     }
 
@@ -4078,9 +4078,9 @@ final class Bar: NSObject, NSMenuDelegate {
         let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 300, height: 24))
         field.stringValue = GuardCfg.string("fleet_label", "")
         field.placeholderString = T("e.g. render-01, studio-mini, mbp-14")
-        if oknoPaladyna(tytul: T("Name this Mac in the fleet…"),
-                        tresc: T("With five identical MacBooks the system hostname says nothing. This name shows in the fleet table and menu on every machine. Empty = system hostname."),
-                        przyciski: ["OK", T("Cancel")], dodatek: field) == 0 {
+        if paladinWindow(title: T("Name this Mac in the fleet…"),
+                        body: T("With five identical MacBooks the system hostname says nothing. This name shows in the fleet table and menu on every machine. Empty = system hostname."),
+                        buttons: ["OK", T("Cancel")], accessoryView: field) == 0 {
             GuardCfg.set(["fleet_label": field.stringValue.trimmingCharacters(in: .whitespaces)])
         }
     }
@@ -4093,7 +4093,7 @@ final class Bar: NSObject, NSMenuDelegate {
     /// This is the key option for users who are cautious about letting the tool control
     /// their processes.
     @objc func explainDry() {
-        let tresc = T("""
+        let body = T("""
 Protection is now OFF\n- coffee-paladin has entered watch-only mode.
 
 It still measures everything (chip, GPU, battery, fans) and writes to the event log exactly \
@@ -4106,33 +4106,33 @@ too eagerly, or not soon enough.
 
 Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on when you are done.
 """)
-        _ = oknoPaladyna(tytul: T("Watch only (dry run)"), tresc: tresc,
-                         przyciski: ["OK"], szerokosc: 440)
+        _ = paladinWindow(title: T("Watch only (dry run)"), body: body,
+                         buttons: ["OK"], width: 440)
     }
 
     @objc func enableProtection() {
         GuardCfg.set(["dry_run": false])
-        zapowiedzTrybObserwacji(false)
+        expectDryRun(false)
     }
 
     @objc func toggleNotify() { GuardCfg.set(["notify": !GuardCfg.bool("notify", true)]) }
     @objc func toggleDry() {
-        let obserwacjaTeraz = !GuardCfg.bool("dry_run", true)
-        GuardCfg.set(["dry_run": obserwacjaTeraz])
-        zapowiedzTrybObserwacji(obserwacjaTeraz)
+        let watchOnlyNow = !GuardCfg.bool("dry_run", true)
+        GuardCfg.set(["dry_run": watchOnlyNow])
+        expectDryRun(watchOnlyNow)
         // Disabling protection is a serious decision; explain what it means immediately.
-        if obserwacjaTeraz { pokazModalnie { self.explainDry() } }
+        if watchOnlyNow { showModally { self.explainDry() } }
     }
 
     @objc func toggleSound() { GuardCfg.set(["sound": !GuardCfg.bool("sound", true)]) }
     @objc func toggleAwake() {
         GuardCfg.set(["keep_awake_auto": !GuardCfg.bool("keep_awake_auto", false)])
-        odswiezPoAkcji()
+        refreshAfterAction()
     }
 
     @objc func toggleAwakeDisplay() {
         GuardCfg.set(["keep_awake_display": !GuardCfg.bool("keep_awake_display", false)])
-        odswiezPoAkcji()
+        refreshAfterAction()
     }
 
     /// Restart the bar after a language change.
@@ -4145,7 +4145,7 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
     }
 
     @objc func showAllItems() {
-        prefs.wlaczWszystko()
+        prefs.enableAll()
         refresh()
     }
 
@@ -4162,7 +4162,7 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
         // The daemon wakes on a command file in ~0.5 s, but the bar would wait until
         // the next fixed tick (5 s) before showing the effect. One narrow path handles
         // ALL commands, so every command gets quick confirmation for free.
-        odswiezPoAkcji()
+        refreshAfterAction()
     }
 
     @objc func freeze() { send("freeze") }
@@ -4176,13 +4176,13 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
         // Manual freeze is the one place where users consciously stop THEIR work.
         // Before doing that, they must see exactly WHAT will stop and what to expect;
         // otherwise the switch is a blind shot.
-        pokazModalnie { [weak self] in
+        showModally { [weak self] in
             guard let self = self else { return }
-            guard let wybrane = self.potwierdzZamrozenie(s) else { return }   // canceled
-            if wybrane.isEmpty {
+            guard let selected = self.confirmFreeze(s) else { return }   // canceled
+            if selected.isEmpty {
                 self.send("freeze")                       // nothing selectable
             } else {
-                self.send("freeze:" + wybrane.map(String.init).joined(separator: ","))
+                self.send("freeze:" + selected.map(String.init).joined(separator: ","))
             }
         }
     }
@@ -4194,46 +4194,46 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
     /// Custom window, not NSAlert: alert pins the icon to the left edge and reserves a
     /// header strip for it. The paladin must stand centered above the title.
     /// Return nil on cancel, or PID list; empty list means freeze every eligible process.
-    func potwierdzZamrozenie(_ s: Snap?) -> [Int]? {
-        let kandydaci = s?.freezeCandidates ?? []
-        let SZER: CGFloat = 360
-        let MARG: CGFloat = 20
-        let WYS_WIERSZA: CGFloat = 20
+    func confirmFreeze(_ s: Snap?) -> [Int]? {
+        let candidates = s?.freezeCandidates ?? []
+        let windowWidth: CGFloat = 360
+        let margin: CGFloat = 20
+        let rowHeight: CGFloat = 20
 
-        func akapit(_ tekst: String, _ rozmiar: CGFloat, _ kolor: NSColor) -> (NSTextField, CGFloat) {
-            let p = NSTextField(wrappingLabelWithString: tekst)
-            p.font = .systemFont(ofSize: rozmiar)
-            p.textColor = kolor
+        func paragraph(_ text: String, _ size: CGFloat, _ color: NSColor) -> (NSTextField, CGFloat) {
+            let p = NSTextField(wrappingLabelWithString: text)
+            p.font = .systemFont(ofSize: size)
+            p.textColor = color
             p.alignment = .left
-            p.preferredMaxLayoutWidth = SZER - 2 * MARG
-            return (p, p.sizeThatFits(NSSize(width: SZER - 2 * MARG, height: 400)).height)
+            p.preferredMaxLayoutWidth = windowWidth - 2 * margin
+            return (p, p.sizeThatFits(NSSize(width: windowWidth - 2 * margin, height: 400)).height)
         }
 
-        let (a1, h1) = akapit(T("A freeze is not a kill. The process stops between two "
+        let (a1, h1) = paragraph(T("A freeze is not a kill. The process stops between two "
             + "instructions, keeps its memory and its open files, and carries on from the "
             + "same place when you switch this off. It is safe."), 11, .labelColor)
-        let (a2, h2) = akapit(T("What a freeze does NOT protect: anything waiting on the "
+        let (a2, h2) = paragraph(T("What a freeze does NOT protect: anything waiting on the "
             + "network or watching a clock will notice the gap. A download or an upload can "
             + "drop, a server can disconnect you, a video call freezes, a game stops "
             + "responding."), 11, .secondaryLabelColor)
-        let (a3, h3) = akapit(T("The paladin will NEVER touch the system, Finder, your "
+        let (a3, h3) = paragraph(T("The paladin will NEVER touch the system, Finder, your "
             + "terminal or your AI agent."), 11, .labelColor)
 
-        let hLista: CGFloat = kandydaci.isEmpty ? 0
-            : WYS_WIERSZA * CGFloat(kandydaci.count + 1) + 8
-        let (pusty, hPusty) = akapit(T("Nothing heavy is running right now. Anything that "
+        let listHeight: CGFloat = candidates.isEmpty ? 0
+            : rowHeight * CGFloat(candidates.count + 1) + 8
+        let (emptyMessage, emptyHeight) = paragraph(T("Nothing heavy is running right now. Anything that "
             + "gets heavy will be frozen until you switch this back off."), 11, .secondaryLabelColor)
-        let hPustego: CGFloat = kandydaci.isEmpty ? hPusty + 10 : 0
+        let emptyBlockHeight: CGFloat = candidates.isEmpty ? emptyHeight + 10 : 0
 
-        let tytul = NSTextField(wrappingLabelWithString: T("Freeze heavy jobs now?"))
-        tytul.font = .boldSystemFont(ofSize: 13)
-        tytul.alignment = .center
-        tytul.preferredMaxLayoutWidth = SZER - 2 * MARG
-        let hTytulu = tytul.sizeThatFits(NSSize(width: SZER - 2 * MARG, height: 200)).height
+        let title = NSTextField(wrappingLabelWithString: T("Freeze heavy jobs now?"))
+        title.font = .boldSystemFont(ofSize: 13)
+        title.alignment = .center
+        title.preferredMaxLayoutWidth = windowWidth - 2 * margin
+        let titleHeight = title.sizeThatFits(NSSize(width: windowWidth - 2 * margin, height: 200)).height
 
-        let hOkna = 18 + 44 + 8 + hTytulu + 12 + hLista + hPustego
+        let windowHeight = 18 + 44 + 8 + titleHeight + 12 + listHeight + emptyBlockHeight
                   + h1 + 10 + h2 + 10 + h3 + 16 + 32 + 18
-        let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: SZER, height: hOkna),
+        let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: windowWidth, height: windowHeight),
                            styleMask: [.titled, .fullSizeContentView],
                            backing: .buffered, defer: false)
         win.titlebarAppearsTransparent = true
@@ -4241,37 +4241,37 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
         win.isMovableByWindowBackground = true
         win.level = .modalPanel
         win.center()
-        let tlo = NSVisualEffectView(frame: NSRect(x: 0, y: 0, width: SZER, height: hOkna))
-        tlo.material = .popover
-        tlo.state = .active
-        win.contentView = tlo
+        let backgroundView = NSVisualEffectView(frame: NSRect(x: 0, y: 0, width: windowWidth, height: windowHeight))
+        backgroundView.material = .popover
+        backgroundView.state = .active
+        win.contentView = backgroundView
 
-        var y = hOkna - 18 - 44
-        let ikonaV = NSImageView(frame: NSRect(x: (SZER - 44) / 2, y: y, width: 44, height: 44))
-        if let img = NSImage(contentsOfFile: base + "/paladin_welcome.png") { ikonaV.image = img }
-        ikonaV.imageScaling = .scaleProportionallyUpOrDown
-        tlo.addSubview(ikonaV)
+        var y = windowHeight - 18 - 44
+        let iconView = NSImageView(frame: NSRect(x: (windowWidth - 44) / 2, y: y, width: 44, height: 44))
+        if let img = NSImage(contentsOfFile: base + "/paladin_welcome.png") { iconView.image = img }
+        iconView.imageScaling = .scaleProportionallyUpOrDown
+        backgroundView.addSubview(iconView)
 
-        y -= 8 + hTytulu
-        tytul.frame = NSRect(x: MARG, y: y, width: SZER - 2 * MARG, height: hTytulu)
-        tlo.addSubview(tytul)
+        y -= 8 + titleHeight
+        title.frame = NSRect(x: margin, y: y, width: windowWidth - 2 * margin, height: titleHeight)
+        backgroundView.addSubview(title)
 
-        var przelaczniki: [NSButton] = []
+        var toggles: [NSButton] = []
         y -= 12
-        if kandydaci.isEmpty {
-            y -= hPusty + 10
-            pusty.frame = NSRect(x: MARG, y: y, width: SZER - 2 * MARG, height: hPusty)
-            tlo.addSubview(pusty)
+        if candidates.isEmpty {
+            y -= emptyHeight + 10
+            emptyMessage.frame = NSRect(x: margin, y: y, width: windowWidth - 2 * margin, height: emptyHeight)
+            backgroundView.addSubview(emptyMessage)
         } else {
-            y -= WYS_WIERSZA
-            let wszystkie = NSButton(checkboxWithTitle: T("Freeze all of them"),
-                                     target: self, action: #selector(przelaczWszystkie(_:)))
-            wszystkie.state = .on
-            wszystkie.font = .systemFont(ofSize: 12, weight: .medium)
-            wszystkie.frame = NSRect(x: MARG, y: y, width: SZER - 2 * MARG, height: WYS_WIERSZA)
-            tlo.addSubview(wszystkie)
-            for k in kandydaci {
-                y -= WYS_WIERSZA
+            y -= rowHeight
+            let allToggle = NSButton(checkboxWithTitle: T("Freeze all of them"),
+                                     target: self, action: #selector(toggleAll(_:)))
+            allToggle.state = .on
+            allToggle.font = .systemFont(ofSize: 12, weight: .medium)
+            allToggle.frame = NSRect(x: margin, y: y, width: windowWidth - 2 * margin, height: rowHeight)
+            backgroundView.addSubview(allToggle)
+            for k in candidates {
+                y -= rowHeight
                 let c = NSButton(checkboxWithTitle: "\(k.name)   \(k.cpu)% CPU   pid \(k.pid)",
                                  target: nil, action: nil)
                 c.state = .on
@@ -4279,58 +4279,58 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
                 c.font = .systemFont(ofSize: 11)
                 // Gray, so process selection does not shout louder than the decision.
                 c.contentTintColor = .secondaryLabelColor
-                c.frame = NSRect(x: MARG + 16, y: y, width: SZER - 2 * MARG - 16, height: WYS_WIERSZA)
-                tlo.addSubview(c)
-                przelaczniki.append(c)
+                c.frame = NSRect(x: margin + 16, y: y, width: windowWidth - 2 * margin - 16, height: rowHeight)
+                backgroundView.addSubview(c)
+                toggles.append(c)
             }
             y -= 8
-            checkboxyProcesow = przelaczniki
+            processCheckboxes = toggles
         }
 
         for (p, h) in [(a1, h1), (a2, h2), (a3, h3)] {
             y -= h
-            p.frame = NSRect(x: MARG, y: y, width: SZER - 2 * MARG, height: h)
-            tlo.addSubview(p)
+            p.frame = NSRect(x: margin, y: y, width: windowWidth - 2 * margin, height: h)
+            backgroundView.addSubview(p)
             y -= 10
         }
 
         y -= 6 + 32
-        rzadPrzyciskow(tlo, SZER, y, [T("Freeze"), T("Cancel")], domyslny: 0,
-                       akcja: #selector(zamknijZamrozenie(_:)))
+        buttonRow(backgroundView, windowWidth, y, [T("Freeze"), T("Cancel")], defaultIndex: 0,
+                       action: #selector(closeFreezeDialog(_:)))
 
         NSApp.activate(ignoringOtherApps: true)
-        let wynik = NSApp.runModal(for: win)
+        let result = NSApp.runModal(for: win)
         win.orderOut(nil)
-        defer { checkboxyProcesow = [] }
-        guard wynik.rawValue == 0 else { return nil }
-        if przelaczniki.isEmpty { return [] }
-        return przelaczniki.filter { $0.state == .on }.map { $0.tag }
+        defer { processCheckboxes = [] }
+        guard result.rawValue == 0 else { return nil }
+        if toggles.isEmpty { return [] }
+        return toggles.filter { $0.state == .on }.map { $0.tag }
     }
 
-    @objc func zamknijZamrozenie(_ sender: NSButton) {
+    @objc func closeFreezeDialog(_ sender: NSButton) {
         NSApp.stopModal(withCode: NSApplication.ModalResponse(rawValue: sender.tag))
     }
 
-    @objc func przelaczWszystkie(_ sender: NSButton) {
-        for c in checkboxyProcesow { c.state = sender.state }
+    @objc func toggleAll(_ sender: NSButton) {
+        for c in processCheckboxes { c.state = sender.state }
     }
     @objc func resume() { send("resume") }
 
     @objc func reportDialog() {
         // Custom window, not NSAlert: alert reserves a header strip even with empty text,
         // leaving a large blank rectangle at the top.
-        let SZER: CGFloat = 300
-        let notka = NSTextField(wrappingLabelWithString:
+        let windowWidth: CGFloat = 300
+        let note = NSTextField(wrappingLabelWithString:
             T("Included: hardware, battery, sudden shutdowns, interventions, measurement timeline."))
-        notka.font = .systemFont(ofSize: 11)
-        notka.textColor = .secondaryLabelColor
-        notka.alignment = .center
-        notka.preferredMaxLayoutWidth = SZER - 32
-        let hNotki = notka.sizeThatFits(NSSize(width: SZER - 32, height: 200)).height
+        note.font = .systemFont(ofSize: 11)
+        note.textColor = .secondaryLabelColor
+        note.alignment = .center
+        note.preferredMaxLayoutWidth = windowWidth - 32
+        let noteHeight = note.sizeThatFits(NSSize(width: windowWidth - 32, height: 200)).height
 
-        let hOkna: CGFloat = 16 + 44 + 6 + 18 + 4 + 15 + 12 + 24 + 6 + 24 + 10 + 20
-                            + 8 + hNotki + 14 + 32 + 16
-        let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: SZER, height: hOkna),
+        let windowHeight: CGFloat = 16 + 44 + 6 + 18 + 4 + 15 + 12 + 24 + 6 + 24 + 10 + 20
+                            + 8 + noteHeight + 14 + 32 + 16
+        let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: windowWidth, height: windowHeight),
                            styleMask: [.titled, .fullSizeContentView],
                            backing: .buffered, defer: false)
         win.titlebarAppearsTransparent = true
@@ -4338,86 +4338,86 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
         win.isMovableByWindowBackground = true
         win.level = .modalPanel
         win.center()
-        let tlo = NSVisualEffectView(frame: NSRect(x: 0, y: 0, width: SZER, height: hOkna))
-        tlo.material = .popover
-        tlo.state = .active
-        win.contentView = tlo
+        let backgroundView = NSVisualEffectView(frame: NSRect(x: 0, y: 0, width: windowWidth, height: windowHeight))
+        backgroundView.material = .popover
+        backgroundView.state = .active
+        win.contentView = backgroundView
 
-        var y = hOkna - 16 - 44
-        let ikonaV = NSImageView(frame: NSRect(x: (SZER - 44) / 2, y: y, width: 44, height: 44))
-        if let img = NSImage(contentsOfFile: base + "/paladin_welcome.png") { ikonaV.image = img }
-        ikonaV.imageScaling = .scaleProportionallyUpOrDown
-        tlo.addSubview(ikonaV)
+        var y = windowHeight - 16 - 44
+        let iconView = NSImageView(frame: NSRect(x: (windowWidth - 44) / 2, y: y, width: 44, height: 44))
+        if let img = NSImage(contentsOfFile: base + "/paladin_welcome.png") { iconView.image = img }
+        iconView.imageScaling = .scaleProportionallyUpOrDown
+        backgroundView.addSubview(iconView)
 
         y -= 6 + 18
-        let tytul = NSTextField(labelWithString: T("Export report for a repair shop"))
-        tytul.font = .boldSystemFont(ofSize: 13)
-        tytul.alignment = .center
-        tytul.frame = NSRect(x: 0, y: y, width: SZER, height: 18)
-        tlo.addSubview(tytul)
+        let title = NSTextField(labelWithString: T("Export report for a repair shop"))
+        title.font = .boldSystemFont(ofSize: 13)
+        title.alignment = .center
+        title.frame = NSRect(x: 0, y: y, width: windowWidth, height: 18)
+        backgroundView.addSubview(title)
 
         y -= 4 + 15
-        let podtytul = NSTextField(labelWithString: T("Pick the report period."))
-        podtytul.font = .systemFont(ofSize: 11)
-        podtytul.textColor = .secondaryLabelColor
-        podtytul.alignment = .center
-        podtytul.frame = NSRect(x: 0, y: y, width: SZER, height: 15)
-        tlo.addSubview(podtytul)
+        let subtitle = NSTextField(labelWithString: T("Pick the report period."))
+        subtitle.font = .systemFont(ofSize: 11)
+        subtitle.textColor = .secondaryLabelColor
+        subtitle.alignment = .center
+        subtitle.frame = NSRect(x: 0, y: y, width: windowWidth, height: 15)
+        backgroundView.addSubview(subtitle)
 
-        let szerPary: CGFloat = 42 + 4 + 118
-        let x0 = (SZER - szerPary) / 2
+        let pairWidth: CGFloat = 42 + 4 + 118
+        let x0 = (windowWidth - pairWidth) / 2
         y -= 12 + 24
-        let od = NSDatePicker(frame: NSRect(x: x0 + 46, y: y, width: 118, height: 24))
-        od.datePickerStyle = .textFieldAndStepper
-        od.datePickerElements = .yearMonthDay
-        od.dateValue = Date().addingTimeInterval(-14 * 86400)
-        tlo.addSubview(od)
-        let odL = NSTextField(labelWithString: T("From:"))
-        odL.frame = NSRect(x: x0, y: y + 4, width: 42, height: 16)
-        odL.alignment = .right
-        tlo.addSubview(odL)
+        let fromPicker = NSDatePicker(frame: NSRect(x: x0 + 46, y: y, width: 118, height: 24))
+        fromPicker.datePickerStyle = .textFieldAndStepper
+        fromPicker.datePickerElements = .yearMonthDay
+        fromPicker.dateValue = Date().addingTimeInterval(-14 * 86400)
+        backgroundView.addSubview(fromPicker)
+        let fromLabel = NSTextField(labelWithString: T("From:"))
+        fromLabel.frame = NSRect(x: x0, y: y + 4, width: 42, height: 16)
+        fromLabel.alignment = .right
+        backgroundView.addSubview(fromLabel)
 
         y -= 6 + 24
-        let doP = NSDatePicker(frame: NSRect(x: x0 + 46, y: y, width: 118, height: 24))
-        doP.datePickerStyle = .textFieldAndStepper
-        doP.datePickerElements = .yearMonthDay
-        doP.dateValue = Date()
+        let toPicker = NSDatePicker(frame: NSRect(x: x0 + 46, y: y, width: 118, height: 24))
+        toPicker.datePickerStyle = .textFieldAndStepper
+        toPicker.datePickerElements = .yearMonthDay
+        toPicker.dateValue = Date()
         // Without this, a reversed range went straight to thermal-report and returned empty.
-        doP.maxDate = Date()
-        od.maxDate = Date()
-        tlo.addSubview(doP)
-        let doL = NSTextField(labelWithString: T("To:"))
-        doL.frame = NSRect(x: x0, y: y + 4, width: 42, height: 16)
-        doL.alignment = .right
-        tlo.addSubview(doL)
+        toPicker.maxDate = Date()
+        fromPicker.maxDate = Date()
+        backgroundView.addSubview(toPicker)
+        let toLabel = NSTextField(labelWithString: T("To:"))
+        toLabel.frame = NSRect(x: x0, y: y + 4, width: 42, height: 16)
+        toLabel.alignment = .right
+        backgroundView.addSubview(toLabel)
 
         y -= 10 + 20
-        let calosc = NSButton(checkboxWithTitle: T("Everything on record"), target: nil, action: nil)
-        calosc.sizeToFit()
-        calosc.frame = NSRect(x: (SZER - calosc.frame.width) / 2, y: y,
-                              width: calosc.frame.width, height: 20)
-        tlo.addSubview(calosc)
+        let allHistory = NSButton(checkboxWithTitle: T("Everything on record"), target: nil, action: nil)
+        allHistory.sizeToFit()
+        allHistory.frame = NSRect(x: (windowWidth - allHistory.frame.width) / 2, y: y,
+                              width: allHistory.frame.width, height: 20)
+        backgroundView.addSubview(allHistory)
 
-        y -= 8 + hNotki
-        notka.frame = NSRect(x: 16, y: y, width: SZER - 32, height: hNotki)
-        tlo.addSubview(notka)
+        y -= 8 + noteHeight
+        note.frame = NSRect(x: 16, y: y, width: windowWidth - 32, height: noteHeight)
+        backgroundView.addSubview(note)
 
         y -= 14 + 32
-        let szerB: CGFloat = 80, luka: CGFloat = 8
-        let xB = (SZER - (3 * szerB + 2 * luka)) / 2
-        for (i, tytulB) in ["PDF", "TXT", T("Cancel")].enumerated() {
-            let b = NSButton(title: tytulB, target: self, action: #selector(zamknijRaport(_:)))
+        let buttonWidth: CGFloat = 80, gap: CGFloat = 8
+        let xB = (windowWidth - (3 * buttonWidth + 2 * gap)) / 2
+        for (i, buttonTitle) in ["PDF", "TXT", T("Cancel")].enumerated() {
+            let b = NSButton(title: buttonTitle, target: self, action: #selector(closeReportDialog(_:)))
             b.bezelStyle = .rounded
             b.tag = i
-            b.frame = NSRect(x: xB + CGFloat(i) * (szerB + luka), y: y, width: szerB, height: 32)
+            b.frame = NSRect(x: xB + CGFloat(i) * (buttonWidth + gap), y: y, width: buttonWidth, height: 32)
             if i == 0 { b.keyEquivalent = "\r" }
-            tlo.addSubview(b)
+            backgroundView.addSubview(b)
         }
 
         NSApp.activate(ignoringOtherApps: true)
-        let wynik = NSApp.runModal(for: win)
+        let result = NSApp.runModal(for: win)
         win.orderOut(nil)
-        guard wynik.rawValue != 2 else { return }
+        guard result.rawValue != 2 else { return }
         let f = DateFormatter()
         // en_US_POSIX is required: Thai region would output Buddhist-calendar dates
         // (2569-08-02), while Saudi region would output Arabic digits. The report would
@@ -4426,45 +4426,45 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
         f.calendar = Calendar(identifier: .gregorian)
         f.timeZone = TimeZone.current
         f.dateFormat = "yyyy-MM-dd"
-        let zakres: [String] = calosc.state == .on
+        let rangeArgs: [String] = allHistory.state == .on
             ? ["--all"]
-            : ["--from", f.string(from: od.dateValue), "--to", f.string(from: doP.dateValue)]
-        report(pdf: wynik.rawValue == 0, zakres: zakres)
+            : ["--from", f.string(from: fromPicker.dateValue), "--to", f.string(from: toPicker.dateValue)]
+        report(pdf: result.rawValue == 0, rangeArgs: rangeArgs)
     }
 
     @objc func fleetDetails(_ sender: NSMenuItem) {
         // Custom window instead of NSAlert: everything centered, no empty reserved strips.
         guard let d = sender.representedObject as? [String: String] else { return }
-        var linie: [String] = []
-        if let m = d["model"], !m.isEmpty { linie.append(m) }
-        if let s = d["serial"], !s.isEmpty { linie.append("SN " + s) }
-        linie.append(T("Chip") + ": " + (d["chip"] ?? "-") + "   ·   "
+        var lines: [String] = []
+        if let m = d["model"], !m.isEmpty { lines.append(m) }
+        if let s = d["serial"], !s.isEmpty { lines.append("SN " + s) }
+        lines.append(T("Chip") + ": " + (d["chip"] ?? "-") + "   ·   "
                      + T("Battery") + ": " + (d["batt"] ?? "-"))
-        linie.append(T("Fans") + ": " + (d["fans"] ?? "-") + "   ·   "
+        lines.append(T("Fans") + ": " + (d["fans"] ?? "-") + "   ·   "
                      + T("draw") + ": " + (d["watts"] ?? "-"))
-        linie.append("RAM: " + (d["ram"] ?? "-") + "   ·   " + (d["power"] ?? "-"))
-        linie.append(T("State") + ": " + (d["state"] ?? "-"))
-        if let p = d["paused"], !p.isEmpty { linie.append(T("paused") + ": " + p) }
-        linie.append(T("Snapshot") + ": " + (d["age"] ?? "-"))
-        let liczby = ["stat_pauses", "stat_resumes", "stat_kills", "stat_awake"].map { d[$0] ?? "0" }
-        if liczby.contains(where: { $0 != "0" }) {
-            linie.append("")
-            linie.append(T("What the guard did here (total)"))
-            linie.append(T("Heavy jobs paused") + ": " + liczby[0])
-            linie.append(T("Jobs resumed after cooling") + ": " + liczby[1])
-            linie.append(T("Jobs terminated at the kill threshold") + ": " + liczby[2])
-            linie.append(T("Times keep-awake gave way to heat") + ": " + liczby[3])
+        lines.append("RAM: " + (d["ram"] ?? "-") + "   ·   " + (d["power"] ?? "-"))
+        lines.append(T("State") + ": " + (d["state"] ?? "-"))
+        if let p = d["paused"], !p.isEmpty { lines.append(T("paused") + ": " + p) }
+        lines.append(T("Snapshot") + ": " + (d["age"] ?? "-"))
+        let counts = ["stat_pauses", "stat_resumes", "stat_kills", "stat_awake"].map { d[$0] ?? "0" }
+        if counts.contains(where: { $0 != "0" }) {
+            lines.append("")
+            lines.append(T("What the guard did here (total)"))
+            lines.append(T("Heavy jobs paused") + ": " + counts[0])
+            lines.append(T("Jobs resumed after cooling") + ": " + counts[1])
+            lines.append(T("Jobs terminated at the kill threshold") + ": " + counts[2])
+            lines.append(T("Times keep-awake gave way to heat") + ": " + counts[3])
         }
 
-        let SZER: CGFloat = 240
-        let tekst = NSTextField(wrappingLabelWithString: linie.joined(separator: "\n"))
-        tekst.font = .systemFont(ofSize: 12)
-        tekst.alignment = .center
-        tekst.preferredMaxLayoutWidth = SZER - 24
-        let hTekstu = tekst.sizeThatFits(NSSize(width: SZER - 24, height: 400)).height
+        let windowWidth: CGFloat = 240
+        let text = NSTextField(wrappingLabelWithString: lines.joined(separator: "\n"))
+        text.font = .systemFont(ofSize: 12)
+        text.alignment = .center
+        text.preferredMaxLayoutWidth = windowWidth - 24
+        let textHeight = text.sizeThatFits(NSSize(width: windowWidth - 24, height: 400)).height
 
-        let hOkna: CGFloat = 16 + 44 + 6 + 18 + 8 + hTekstu + 14 + 32 + 16
-        let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: SZER, height: hOkna),
+        let windowHeight: CGFloat = 16 + 44 + 6 + 18 + 8 + textHeight + 14 + 32 + 16
+        let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: windowWidth, height: windowHeight),
                            styleMask: [.titled, .fullSizeContentView],
                            backing: .buffered, defer: false)
         win.titlebarAppearsTransparent = true
@@ -4472,49 +4472,49 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
         win.isMovableByWindowBackground = true
         win.level = .modalPanel
         win.center()
-        let tlo = NSVisualEffectView(frame: NSRect(x: 0, y: 0, width: SZER, height: hOkna))
-        tlo.material = .popover
-        tlo.state = .active
-        win.contentView = tlo
+        let backgroundView = NSVisualEffectView(frame: NSRect(x: 0, y: 0, width: windowWidth, height: windowHeight))
+        backgroundView.material = .popover
+        backgroundView.state = .active
+        win.contentView = backgroundView
 
-        var y = hOkna - 16 - 44
-        let ikonaV = NSImageView(frame: NSRect(x: (SZER - 44) / 2, y: y, width: 44, height: 44))
-        if let img = NSImage(contentsOfFile: base + "/paladin_welcome.png") { ikonaV.image = img }
-        ikonaV.imageScaling = .scaleProportionallyUpOrDown
-        tlo.addSubview(ikonaV)
+        var y = windowHeight - 16 - 44
+        let iconView = NSImageView(frame: NSRect(x: (windowWidth - 44) / 2, y: y, width: 44, height: 44))
+        if let img = NSImage(contentsOfFile: base + "/paladin_welcome.png") { iconView.image = img }
+        iconView.imageScaling = .scaleProportionallyUpOrDown
+        backgroundView.addSubview(iconView)
 
         y -= 6 + 18
-        let tytul = NSTextField(labelWithString: d["name"] ?? "?")
-        tytul.font = .boldSystemFont(ofSize: 13)
-        tytul.alignment = .center
-        tytul.frame = NSRect(x: 0, y: y, width: SZER, height: 18)
-        tlo.addSubview(tytul)
+        let title = NSTextField(labelWithString: d["name"] ?? "?")
+        title.font = .boldSystemFont(ofSize: 13)
+        title.alignment = .center
+        title.frame = NSRect(x: 0, y: y, width: windowWidth, height: 18)
+        backgroundView.addSubview(title)
 
-        y -= 8 + hTekstu
-        tekst.frame = NSRect(x: 12, y: y, width: SZER - 24, height: hTekstu)
-        tlo.addSubview(tekst)
+        y -= 8 + textHeight
+        text.frame = NSRect(x: 12, y: y, width: windowWidth - 24, height: textHeight)
+        backgroundView.addSubview(text)
 
         y -= 14 + 32
-        let ok = NSButton(title: "OK", target: self, action: #selector(zamknijRaport(_:)))
+        let ok = NSButton(title: "OK", target: self, action: #selector(closeReportDialog(_:)))
         ok.bezelStyle = .rounded
         ok.tag = 0
         ok.keyEquivalent = "\r"
-        ok.frame = NSRect(x: (SZER - 90) / 2, y: y, width: 90, height: 32)
-        tlo.addSubview(ok)
+        ok.frame = NSRect(x: (windowWidth - 90) / 2, y: y, width: 90, height: 32)
+        backgroundView.addSubview(ok)
 
         NSApp.activate(ignoringOtherApps: true)
         NSApp.runModal(for: win)
         win.orderOut(nil)
     }
 
-    @objc func zamknijRaport(_ sender: NSButton) {
+    @objc func closeReportDialog(_ sender: NSButton) {
         NSApp.stopModal(withCode: NSApplication.ModalResponse(rawValue: sender.tag))
     }
 
-    func report(pdf: Bool, zakres: [String] = ["--days", "14"]) {
+    func report(pdf: Bool, rangeArgs: [String] = ["--days", "14"]) {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: reportBin)
-        p.arguments = zakres + (pdf ? ["--pdf"] : [])
+        p.arguments = rangeArgs + (pdf ? ["--pdf"] : [])
         let pipe = Pipe()
         p.standardOutput = pipe
         do { try p.run() } catch { return }
@@ -4527,7 +4527,7 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
     }
 
     /// Restart the daemon through launchd from the "no data" rescue menu item.
-    @objc func restartGuarda() {
+    @objc func restartGuard() {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/bin/launchctl")
         p.arguments = ["kickstart", "-k", "gui/\(getuid())/pl.pawel.coffee-paladin"]
@@ -4538,7 +4538,7 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
     @objc func openLog() { NSWorkspace.shared.open(URL(fileURLWithPath: logPath)) }
 
     // Share note in the current menu language; one key, translations in DICTS.
-    private var notkaPodajDalej: String {
+    private var shareNote: String {
         T("Is your Mac heating up with AI and renders? coffee-paladin watches the battery (temperature and charge), the chip (CPU) and the GPU. It pauses heavy jobs when the system overheats and resumes them by itself once the temperature drops, so you can sleep peacefully (literally!). Open source, free, for you:")
     }
 
@@ -4548,7 +4548,7 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
         // URLComponents handles percent-encoding; localized characters do not break links.
         c.queryItems = [URLQueryItem(name: "text",
                                      value: String(format: T("Is your Mac heating up with AI and renders? coffee-paladin watches battery, chip and GPU temperatures. It pauses heavy jobs and resumes them by itself once the temperature drops.\n\nOpen source, free, for you:\n%@\n\n#panbookovsky #macbook #protect #temperature #guard"),
-                                                   linkPodajDalej()))]
+                                                   shareLink()))]
         if let u = c.url { NSWorkspace.shared.open(u) }
     }
 
@@ -4556,39 +4556,39 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
         // Personal "to a colleague" tone with paladin GIF attached. mailto cannot attach
         // files, so compose through Mail.app (osascript).
         // Arguments go through argv, avoiding quote-escaping trouble.
-        let temat = T("you have to see this: coffee-paladin")
-        let tresc = String(format: T("Hey,\n\nI found something you need on your Mac: coffee-paladin. It watches the chip, GPU and battery temperatures, and when things get hot it pauses heavy jobs and resumes them by itself once the machine cools down.\n\nIt is damn good, because the pause is lossless (the process freezes and continues from the same spot), it sends nothing anywhere, and it is free, open source:\n%@\n\nThe knight with the coffee in the attachment is its mascot.\n\nCheers!"), linkPodajDalej())
+        let topic = T("you have to see this: coffee-paladin")
+        let body = String(format: T("Hey,\n\nI found something you need on your Mac: coffee-paladin. It watches the chip, GPU and battery temperatures, and when things get hot it pauses heavy jobs and resumes them by itself once the machine cools down.\n\nIt is damn good, because the pause is lossless (the process freezes and continues from the same spot), it sends nothing anywhere, and it is free, open source:\n%@\n\nThe knight with the coffee in the attachment is its mascot.\n\nCheers!"), shareLink())
             .replacingOccurrences(of: "\\n", with: "\n")
         let gif = base + "/paladin_welcome.gif"
-        var skrypt = [
+        var script = [
             "on run argv",
             "tell application \"Mail\"",
             "set msg to make new outgoing message with properties {subject:(item 1 of argv), content:(item 2 of argv), visible:true}",
         ]
         if FileManager.default.fileExists(atPath: gif) {
-            skrypt.append("tell msg to make new attachment with properties {file name:(POSIX file (item 3 of argv))} at after the last paragraph of content")
+            script.append("tell msg to make new attachment with properties {file name:(POSIX file (item 3 of argv))} at after the last paragraph of content")
         }
-        skrypt += ["activate", "end tell", "end run"]
+        script += ["activate", "end tell", "end run"]
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
-        var argumenty: [String] = []
-        for linia in skrypt { argumenty += ["-e", linia] }
-        argumenty += [temat, tresc, gif]
-        p.arguments = argumenty
+        var argumentsList: [String] = []
+        for line in script { argumentsList += ["-e", line] }
+        argumentsList += [topic, body, gif]
+        p.arguments = argumentsList
         try? p.run()
     }
 
     @objc func shareCopy() {
         NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(notkaPodajDalej + "\n" + linkPodajDalej(), forType: .string)
+        NSPasteboard.general.setString(shareNote + "\n" + shareLink(), forType: .string)
     }
 
     @objc func sponsorGithub() {
-        if let u = zUTM("https://github.com/sponsors/pawelkwaczynski") { NSWorkspace.shared.open(u) }
+        if let u = urlWithUTM("https://github.com/sponsors/pawelkwaczynski") { NSWorkspace.shared.open(u) }
     }
 
     @objc func shareStar() {
-        if let u = zUTM("https://github.com/pawelkwaczynski/coffee-paladin", medium: "share") {
+        if let u = urlWithUTM("https://github.com/pawelkwaczynski/coffee-paladin", medium: "share") {
             NSWorkspace.shared.open(u)
         }
     }
@@ -4598,13 +4598,13 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
     /// acted. This is the one statistic an app without a thermal fuse cannot have.
     @objc func openStats() {
         let snap = readSnap()
-        let etykiety: [(String, String)] = [
+        let labels: [(String, String)] = [
             (T("Heavy jobs paused"), "pauses"),
             (T("Jobs resumed after cooling"), "resumes"),
             (T("Jobs terminated at the kill threshold"), "kills"),
             (T("Times keep-awake gave way to heat"), "awake_released_hot"),
         ]
-        func data(_ epoch: Int?) -> String {
+        func dateText(_ epoch: Int?) -> String {
             guard let e = epoch, e > 0 else { return "?" }
             let f = DateFormatter()
             f.dateStyle = .short
@@ -4612,65 +4612,65 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
             return f.string(from: Date(timeIntervalSince1970: Double(e)))
         }
 
-        var linie: [String] = []
+        var lines: [String] = []
         let ses = snap?.statsSession ?? [:]
         let sum = snap?.statsTotal ?? [:]
 
-        if etykiety.allSatisfy({ (ses[$0.1] ?? 0) == 0 }) {
-            linie.append(T("Nothing here - and that is good news: your Mac has not been overheating."))
+        if labels.allSatisfy({ (ses[$0.1] ?? 0) == 0 }) {
+            lines.append(T("Nothing here - and that is good news: your Mac has not been overheating."))
         } else {
-            linie.append(String(format: T("in this session (since %@)"), data(ses["since"])))
-            linie.append("")
-            linie.append(contentsOf: etykiety.map { "\($0.0):  \(ses[$0.1] ?? 0)" })
+            lines.append(String(format: T("in this session (since %@)"), dateText(ses["since"])))
+            lines.append("")
+            lines.append(contentsOf: labels.map { "\($0.0):  \(ses[$0.1] ?? 0)" })
         }
-        if etykiety.contains(where: { (sum[$0.1] ?? 0) > 0 }) {
-            linie.append("")
-            linie.append(String(format: T("total since %@"), data(sum["since"])))
-            linie.append("")
-            linie.append(contentsOf: etykiety.map { "\($0.0):  \(sum[$0.1] ?? 0)" })
+        if labels.contains(where: { (sum[$0.1] ?? 0) > 0 }) {
+            lines.append("")
+            lines.append(String(format: T("total since %@"), dateText(sum["since"])))
+            lines.append("")
+            lines.append(contentsOf: labels.map { "\($0.0):  \(sum[$0.1] ?? 0)" })
         }
 
         // FLEET: ONE number per category. Per-machine breakdown lives in the "Apple
         // fleet" submenu after clicking a Mac, where users already look when they want
         // to know which machine is cooking.
-        let flota = fleetStats()
-        if flota.count > 1 {
-            var razem: [String: Int] = [:]
-            for m in flota {
-                for (_, k) in etykiety { razem[k] = (razem[k] ?? 0) + (m.sum[k] ?? 0) }
+        let fleet = fleetStats()
+        if fleet.count > 1 {
+            var totals: [String: Int] = [:]
+            for m in fleet {
+                for (_, k) in labels { totals[k] = (totals[k] ?? 0) + (m.sum[k] ?? 0) }
             }
-            if etykiety.contains(where: { (razem[$0.1] ?? 0) > 0 }) {
-                linie.append("")
-                linie.append(String(format: T("Across the fleet (%d machines)"), flota.count))
-                linie.append("")
-                linie.append(contentsOf: etykiety.map { "\($0.0):  \(razem[$0.1] ?? 0)" })
+            if labels.contains(where: { (totals[$0.1] ?? 0) > 0 }) {
+                lines.append("")
+                lines.append(String(format: T("Across the fleet (%d machines)"), fleet.count))
+                lines.append("")
+                lines.append(contentsOf: labels.map { "\($0.0):  \(totals[$0.1] ?? 0)" })
                 // Stale snapshots must be visible; otherwise the total hides that part
                 // of the fleet has been silent for a long time.
-                let stare = flota.filter { $0.wiek > 300 }
-                if !stare.isEmpty {
-                    linie.append("")
-                    linie.append(String(format: T("%d machine(s) not reporting - their numbers may be old"),
-                                        stare.count))
+                let staleHosts = fleet.filter { $0.age > 300 }
+                if !staleHosts.isEmpty {
+                    lines.append("")
+                    lines.append(String(format: T("%d machine(s) not reporting - their numbers may be old"),
+                                        staleHosts.count))
                 }
-                linie.append(T("per machine: menu > Apple fleet > click a Mac"))
+                lines.append(T("per machine: menu > Apple fleet > click a Mac"))
             }
         }
 
-        pokazModalnie { [weak self] in
-            _ = self?.oknoPaladyna(tytul: T("Session statistics"),
-                                   tresc: linie.joined(separator: "\n"),
-                                   przyciski: ["OK"], szerokosc: 460)
+        showModally { [weak self] in
+            _ = self?.paladinWindow(title: T("Session statistics"),
+                                   body: lines.joined(separator: "\n"),
+                                   buttons: ["OK"], width: 460)
         }
     }
 
     @objc func openGuide() { Guide.shared.show() }
 
     @objc func openIssues() {
-        if let u = zUTM("https://github.com/pawelkwaczynski/coffee-paladin/issues") { NSWorkspace.shared.open(u) }
+        if let u = urlWithUTM("https://github.com/pawelkwaczynski/coffee-paladin/issues") { NSWorkspace.shared.open(u) }
     }
 
     @objc func buyCoffee() {
-        if let u = zUTM("https://suppi.pl/panbookovsky") { NSWorkspace.shared.open(u) }
+        if let u = urlWithUTM("https://suppi.pl/panbookovsky") { NSWorkspace.shared.open(u) }
     }
 
     /// Quit means END THE PROGRAM, not just hide the icon.
@@ -4682,27 +4682,27 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
         // Custom window, as with manual freeze: this is the most serious decision in
         // the menu, so the paladin stands centered instead of pinned to the left edge
         // like in NSAlert.
-        let SZER: CGFloat = 340, MARG: CGFloat = 20
-        let tresc = NSTextField(wrappingLabelWithString:
+        let windowWidth: CGFloat = 340, margin: CGFloat = 20
+        let body = NSTextField(wrappingLabelWithString:
             T("The daemon and the menu bar both stop. Nothing will pause hot jobs until you start it again."))
-        tresc.font = .systemFont(ofSize: 11)
-        tresc.textColor = .secondaryLabelColor
-        tresc.alignment = .center
-        tresc.preferredMaxLayoutWidth = SZER - 2 * MARG
-        let hTresci = tresc.sizeThatFits(NSSize(width: SZER - 2 * MARG, height: 300)).height
+        body.font = .systemFont(ofSize: 11)
+        body.textColor = .secondaryLabelColor
+        body.alignment = .center
+        body.preferredMaxLayoutWidth = windowWidth - 2 * margin
+        let bodyHeight = body.sizeThatFits(NSSize(width: windowWidth - 2 * margin, height: 300)).height
 
         // Title MUST wrap and have margins. A one-line label across the full window
         // clipped sentence endings; longer Russian and Spanish translations would lose
         // even more.
-        let tytul = NSTextField(wrappingLabelWithString:
+        let title = NSTextField(wrappingLabelWithString:
             T("Turn off thermal protection for this Mac?"))
-        tytul.font = .boldSystemFont(ofSize: 13)
-        tytul.alignment = .center
-        tytul.preferredMaxLayoutWidth = SZER - 2 * MARG
-        let hTytulu = tytul.sizeThatFits(NSSize(width: SZER - 2 * MARG, height: 200)).height
+        title.font = .boldSystemFont(ofSize: 13)
+        title.alignment = .center
+        title.preferredMaxLayoutWidth = windowWidth - 2 * margin
+        let titleHeight = title.sizeThatFits(NSSize(width: windowWidth - 2 * margin, height: 200)).height
 
-        let hOkna = 18 + 44 + 8 + hTytulu + 10 + hTresci + 18 + 32 + 18
-        let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: SZER, height: hOkna),
+        let windowHeight = 18 + 44 + 8 + titleHeight + 10 + bodyHeight + 18 + 32 + 18
+        let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: windowWidth, height: windowHeight),
                            styleMask: [.titled, .fullSizeContentView],
                            backing: .buffered, defer: false)
         win.titlebarAppearsTransparent = true
@@ -4710,34 +4710,34 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
         win.isMovableByWindowBackground = true
         win.level = .modalPanel
         win.center()
-        let tlo = NSVisualEffectView(frame: NSRect(x: 0, y: 0, width: SZER, height: hOkna))
-        tlo.material = .popover
-        tlo.state = .active
-        win.contentView = tlo
+        let backgroundView = NSVisualEffectView(frame: NSRect(x: 0, y: 0, width: windowWidth, height: windowHeight))
+        backgroundView.material = .popover
+        backgroundView.state = .active
+        win.contentView = backgroundView
 
-        var y = hOkna - 18 - 44
-        let ikonaV = NSImageView(frame: NSRect(x: (SZER - 44) / 2, y: y, width: 44, height: 44))
-        if let img = NSImage(contentsOfFile: base + "/paladin_welcome.png") { ikonaV.image = img }
-        ikonaV.imageScaling = .scaleProportionallyUpOrDown
-        tlo.addSubview(ikonaV)
+        var y = windowHeight - 18 - 44
+        let iconView = NSImageView(frame: NSRect(x: (windowWidth - 44) / 2, y: y, width: 44, height: 44))
+        if let img = NSImage(contentsOfFile: base + "/paladin_welcome.png") { iconView.image = img }
+        iconView.imageScaling = .scaleProportionallyUpOrDown
+        backgroundView.addSubview(iconView)
 
-        y -= 8 + hTytulu
-        tytul.frame = NSRect(x: MARG, y: y, width: SZER - 2 * MARG, height: hTytulu)
-        tlo.addSubview(tytul)
+        y -= 8 + titleHeight
+        title.frame = NSRect(x: margin, y: y, width: windowWidth - 2 * margin, height: titleHeight)
+        backgroundView.addSubview(title)
 
-        y -= 10 + hTresci
-        tresc.frame = NSRect(x: MARG, y: y, width: SZER - 2 * MARG, height: hTresci)
-        tlo.addSubview(tresc)
+        y -= 10 + bodyHeight
+        body.frame = NSRect(x: margin, y: y, width: windowWidth - 2 * margin, height: bodyHeight)
+        backgroundView.addSubview(body)
 
         y -= 18 + 32
         // Default key is CANCEL; Enter must not disable protection.
-        rzadPrzyciskow(tlo, SZER, y, [T("Quit anyway"), T("Cancel")], domyslny: 1,
-                       akcja: #selector(zamknijZamrozenie(_:)))
+        buttonRow(backgroundView, windowWidth, y, [T("Quit anyway"), T("Cancel")], defaultIndex: 1,
+                       action: #selector(closeFreezeDialog(_:)))
 
         NSApp.activate(ignoringOtherApps: true)
-        let wynik = NSApp.runModal(for: win)
+        let result = NSApp.runModal(for: win)
         win.orderOut(nil)
-        guard wynik.rawValue == 0 else { return }
+        guard result.rawValue == 0 else { return }
 
         // Daemon goes first: if the bar died earlier, the user would be left with active
         // protection and no way to see it.
