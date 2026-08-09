@@ -1,6 +1,6 @@
 #!/bin/bash
-# install.sh — instaluje coffee-paladin na tym Macu.
-# Uruchom: bash install.sh   (z katalogu repozytorium)
+# install.sh - installs coffee-paladin on this Mac.
+# Run: bash install.sh   (from the repository directory)
 set -uo pipefail
 
 SRC="$(cd "$(dirname "$0")" && pwd)"
@@ -74,12 +74,12 @@ for OLD in pl.pawel.thermal-guard pl.pawel.heatbar; do
   rm -f "$HOME/Library/LaunchAgents/$OLD.plist"
 done
 if [ -d "$HOME/.thermal-guard" ]; then
-  echo "  ⚠️  znaleziono ~/.thermal-guard (dane sprzed zmiany nazwy)."
-  echo "     Historia pomiarow i czarna skrzynka zostaly tam - przenies je recznie,"
-  echo "     jesli sa Ci potrzebne:  mv ~/.thermal-guard/history.csv ~/.coffee-paladin/"
+  echo "  ⚠️  found ~/.thermal-guard (data from before the rename)."
+  echo "     The measurement history and black box are still there - move them"
+  echo "     yourself if you need them:  mv ~/.thermal-guard/history.csv ~/.coffee-paladin/"
 fi
 
-echo "== coffee-paladin: instalacja na $(scutil --get ComputerName 2>/dev/null || hostname) =="
+echo "== coffee-paladin: installing on $(scutil --get ComputerName 2>/dev/null || hostname) =="
 mkdir -p "$BIN" "$BASE" "$BASE/managed" "$HOME/Library/LaunchAgents"
 # data directory owner-only: config.json holds the ntfy topic (the only
 # protection for notifications) and managed/ holds full job command lines
@@ -90,11 +90,11 @@ for f in guard.py safe-run heat thermal-report fleet thermalstate.swift heatbar.
          pl.pawel.coffee-paladin.plist pl.pawel.coffee-paladin-bar.plist \
          branding/paladin.png branding/app_icon.png tools/zrob_ikone.sh; do
   if [ ! -f "$SRC/$f" ]; then
-    echo "  ❌ brak pliku zrodlowego: $SRC/$f — przerwano (niepelna paczka/klon?)"
+    echo "  ❌ missing source file: $SRC/$f - aborting (incomplete package/clone?)"
     exit 1
   fi
 done
-echo "  ℹ️  bundle aplikacji: $APP_BUNDLE"
+echo "  ℹ️  app bundle: $APP_BUNDLE"
 
 # 0. DEPENDENCIES. Without swiftc you lose the chip sensor AND the menu bar
 # at once - what remains is the battery-only fuse, half the product. So we ask
@@ -112,53 +112,53 @@ if ! command -v brew   >/dev/null 2>&1; then BRAKI="$BRAKI brew"; fi
 
 if [ -n "$BRAKI" ]; then
   echo ""
-  echo "  ⚠️  BRAKUJE ZALEZNOSCI:$BRAKI"
+  echo "  ⚠️  MISSING DEPENDENCIES:$BRAKI"
   case "$BRAKI" in *swiftc*)
-    echo "     • swiftc (Xcode command line tools) — bez niego NIE BEDZIE paska menu"
-    echo "       ani czujnika temperatury chipa. Zostanie sam bezpiecznik bateryjny." ;;
+    echo "     • swiftc (Xcode command line tools) - without it there is NO menu bar"
+    echo "       and no chip temperature sensor. Only the battery fuse remains." ;;
   esac
   case "$BRAKI" in *brew*)
-    echo "     • Homebrew — bez niego nie da sie pobrac macmon (temperatura chipa"
-    echo "       i obroty wentylatorow)." ;;
+    echo "     • Homebrew - needed to install macmon (chip temperature"
+    echo "       and fan speeds)." ;;
   esac
   echo ""
   if [ -t 0 ] && [ -t 1 ]; then
     case "$BRAKI" in *swiftc*)
-      printf "  Uruchomic teraz 'xcode-select --install'? [T/n] "
+      printf "  Run 'xcode-select --install' now? [Y/n] "
       read -r ODP
-      case "${ODP:-T}" in
+      case "${ODP:-Y}" in
         [TtYy]*|"")
           xcode-select --install 2>/dev/null \
-            && echo "  → otworzylo sie okno Apple. Dokoncz instalacje i URUCHOM TEN SKRYPT PONOWNIE." \
-            || echo "  → narzedzia juz sa albo instalacja trwa. Poczekaj i uruchom skrypt ponownie."
+            && echo "  → an Apple dialog opened. Finish that install and RUN THIS SCRIPT AGAIN." \
+            || echo "  → the tools are already there or still installing. Wait and run the script again."
           echo ""
-          echo "  Przerywam, zeby nie zainstalowac polowy produktu."
+          echo "  Stopping here rather than installing half the product."
           exit 1 ;;
-        *) echo "  → pomijam. Pasek menu i czujnik chipa NIE zostana zainstalowane." ;;
+        *) echo "  → skipping. The menu bar and chip sensor will NOT be installed." ;;
       esac ;;
     esac
     case "$BRAKI" in *brew*)
-      echo "  Homebrew zainstalujesz sam (swiadomie - to skrypt z zewnatrz, prosi o sudo):"
-      # shellcheck disable=SC2016  # celowo BEZ rozwijania: to komenda do skopiowania
+      echo "  Install Homebrew yourself (deliberately - it is an external script asking for sudo):"
+      # shellcheck disable=SC2016  # deliberately NOT expanded: a command to copy-paste
       echo '    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
-      printf "  Kontynuowac BEZ macmon? [T/n] "
+      printf "  Continue WITHOUT macmon? [Y/n] "
       read -r ODP2
-      case "${ODP2:-T}" in [Nn]*) echo "  Przerwano."; exit 1 ;; esac ;;
+      case "${ODP2:-Y}" in [Nn]*) echo "  Aborted."; exit 1 ;; esac ;;
     esac
   else
-    echo "  (tryb nieinteraktywny — instaluje to, co sie da)"
-    case "$BRAKI" in *swiftc*) echo "     napraw:  xcode-select --install" ;; esac
-    # shellcheck disable=SC2016  # celowo BEZ rozwijania: to komenda do skopiowania
-    case "$BRAKI" in *brew*)   echo '     napraw:  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"' ;; esac
+    echo "  (non-interactive mode - installing what is possible)"
+    case "$BRAKI" in *swiftc*) echo "     fix:  xcode-select --install" ;; esac
+    # shellcheck disable=SC2016  # deliberately NOT expanded: a command to copy-paste
+    case "$BRAKI" in *brew*)   echo '     fix:  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"' ;; esac
   fi
   echo ""
 fi
 
 # 1. thermal state sensor (Swift, no sudo)
 if command -v swiftc >/dev/null 2>&1; then
-  swiftc -O -o "$BIN/thermalstate" "$SRC/thermalstate.swift" && echo "  ✅ thermalstate skompilowany"
+  swiftc -O -o "$BIN/thermalstate" "$SRC/thermalstate.swift" && echo "  ✅ thermalstate compiled"
 else
-  echo "  ⚠️  brak swiftc (xcode-select --install) — guard użyje samej temperatury baterii"
+  echo "  ⚠️  no swiftc (xcode-select --install) - the guard will use battery temperature only"
 fi
 
 # 1b. macmon - CHIP temperature without sudo (via IOReport).
@@ -167,19 +167,19 @@ fi
 # processes - IOReport (macmon) still works. Without macmon the guard does not
 # fail, it only loses chip thresholds and fan readings.
 if command -v macmon >/dev/null 2>&1; then
-  echo "  ℹ️  macmon już jest"
+  echo "  ℹ️  macmon already installed"
 elif command -v brew >/dev/null 2>&1; then
-  brew install macmon >/dev/null 2>&1 && echo "  ✅ macmon zainstalowany (temperatura chipa + wentylatory)" \
-    || echo "  ⚠️  nie udało się zainstalować macmon — guard użyje samej baterii"
+  brew install macmon >/dev/null 2>&1 && echo "  ✅ macmon installed (chip temperature + fans)" \
+    || echo "  ⚠️  could not install macmon - the guard will use battery temperature only"
 else
-  echo "  ⚠️  brak brew i macmon — guard użyje samej temperatury baterii"
+  echo "  ⚠️  no brew and no macmon - the guard will use battery temperature only"
 fi
 
 # 1c. menu bar - a compile error must be VISIBLE, not swallowed
 if command -v swiftc >/dev/null 2>&1; then
   HB_VERSION="$(wersja_heatbar)"
   if [ -z "$HB_VERSION" ]; then
-    echo "  ⚠️  pasek NIE zbudowany — brak let VERSION w heatbar.swift"
+    echo "  ⚠️  menu bar NOT built - no let VERSION in heatbar.swift"
   else
     mkdir -p "$APP_MACOS" "$APP_RESOURCES"
   fi
@@ -192,23 +192,23 @@ if command -v swiftc >/dev/null 2>&1; then
     # optional third argument in case one is ever needed.
     if "$SRC/tools/zrob_ikone.sh" "$SRC/branding/app_icon.png" "$APP_RESOURCES/AppIcon.icns" \
         >/dev/null 2>"$BASE/icon_build.err"; then
-      echo "  ✅ AppIcon.icns zbudowany z branding/app_icon.png"
+      echo "  ✅ AppIcon.icns built from branding/app_icon.png"
     else
-      echo "  ⚠️  ikona NIE zbudowana — szczegoly: $BASE/icon_build.err"
+      echo "  ⚠️  icon NOT built - details: $BASE/icon_build.err"
     fi
     if command -v codesign >/dev/null 2>&1; then
       codesign -s - -f "$APP_BUNDLE" >/dev/null 2>"$BASE/codesign.err" \
-        && echo "  ✅ bundle podpisany ad hoc" \
-        || echo "  ⚠️  podpis ad hoc nieudany — szczegoly: $BASE/codesign.err"
+        && echo "  ✅ bundle signed ad hoc" \
+        || echo "  ⚠️  ad hoc signing failed - details: $BASE/codesign.err"
     else
-      echo "  ⚠️  brak codesign — bundle zostal bez podpisu ad hoc"
+      echo "  ⚠️  no codesign - the bundle is left unsigned"
     fi
     rm -f "$BIN/coffee-paladin-bar"
     ln -s "$BAR_EXEC" "$BIN/coffee-paladin-bar"
-    echo "  ✅ coffee-paladin.app (pasek menu) -> $APP_BUNDLE"
+    echo "  ✅ coffee-paladin.app (menu bar) -> $APP_BUNDLE"
     echo "  ✅ coffee-paladin-bar -> $BAR_EXEC"
   else
-    echo "  ⚠️  pasek NIE zbudowany — szczegoly: $BASE/heatbar_build.err (demon dziala bez paska)"
+    echo "  ⚠️  menu bar NOT built - details: $BASE/heatbar_build.err (the daemon works without it)"
   fi
 fi
 
@@ -225,7 +225,7 @@ if [ -d "$SRC/sounds" ]; then
   mkdir -p "$BASE/sounds"
   cp "$SRC/sounds/"*.wav "$BASE/sounds/" 2>/dev/null || true
   cp "$SRC/sounds/LICENSES.md" "$BASE/sounds/" 2>/dev/null || true
-  echo "  ✅ dzwieki -> $BASE/sounds"
+  echo "  ✅ sounds -> $BASE/sounds"
 fi
 
 # 3. configuration (never overwrites an existing one)
@@ -252,11 +252,11 @@ if [ ! -f "$BASE/config.json" ]; then
 }
 JSON
   chmod 600 "$BASE/config.json"
-  echo "  ✅ config.json (chip 85/90 °C, bateria 40/45 °C, bramka 10 %)"
-  echo "  ℹ️  START W TRYBIE OBSERWACJI: guard mierzy i alarmuje, ale niczego nie wstrzymuje."
-  echo "      Ochronę włączysz w menu paska (🌡 > jeden klik) albo: dry_run=false w config.json"
+  echo "  ✅ config.json (chip 85/90 °C, battery 40/45 °C, gate 10 %)"
+  echo "  ℹ️  STARTING IN WATCH-ONLY MODE: the guard measures and alerts but pauses nothing."
+  echo "      Enable protection in the menu bar (🌡 > one click) or: dry_run=false in config.json"
 else
-  echo "  ℹ️  config.json już istnieje — zostawiam"
+  echo "  ℹ️  config.json already exists - leaving it alone"
 fi
 
 # 3b. branding: header/footer logos + the paladin (welcome window, menu icon).
@@ -268,7 +268,7 @@ if [ -d "$SRC/branding" ]; then
            paladin_welcome.gif paladin_welcome.png; do
     [ -f "$SRC/branding/$g" ] && cp "$SRC/branding/$g" "$BASE/"
   done
-  echo "  ✅ grafika (logotypy + paladyn) skopiowana"
+  echo "  ✅ artwork (logos + the paladin) copied"
 fi
 
 # 3c. skill for AI agents (Claude Code and compatible): teaches the agent to
@@ -279,7 +279,7 @@ fi
 if [ -f "$SRC/skills/coffee-paladin/SKILL.md" ] && [ -d "$HOME/.claude" ]; then
   mkdir -p "$HOME/.claude/skills/coffee-paladin"
   cp "$SRC/skills/coffee-paladin/SKILL.md" "$HOME/.claude/skills/coffee-paladin/SKILL.md"
-  echo "  ✅ skill dla Claude Code zainstalowany (agent bedzie wspolpracowal z guardem)"
+  echo "  ✅ Claude Code skill installed (the agent will cooperate with the guard)"
 fi
 
 # a service counts as running ONLY with a PID - "loaded" is not enough
@@ -299,9 +299,9 @@ for _ in 1 2 3; do
   ma_pid "$AGENT" && break
 done
 if ma_pid "$AGENT"; then
-  echo "  ✅ demon wystartował i wstaje po każdym logowaniu"
+  echo "  ✅ daemon started and will start at every login"
 else
-  echo "  ❌ demon nie wstał — sprawdź $BASE/stderr.log"
+  echo "  ❌ daemon did not start - check $BASE/stderr.log"
 fi
 
 # 5. menu bar (separate agent - can be disabled without touching the fuse)
@@ -320,13 +320,13 @@ if [ -x "$BAR_EXEC" ] && [ -f "$SRC/pl.pawel.coffee-paladin-bar.plist" ]; then
     ma_pid "pl.pawel.coffee-paladin-bar" && break
   done
   ma_pid "pl.pawel.coffee-paladin-bar" \
-    && echo "  ✅ pasek menu działa (🌡 w prawym górnym rogu)" \
-    || echo "  ⚠️  pasek menu nie wstał — sprawdź $BASE/heatbar.err i: launchctl kickstart gui/$UID/pl.pawel.coffee-paladin-bar"
+    && echo "  ✅ menu bar is running (🌡 in the top-right corner)" \
+    || echo "  ⚠️  menu bar did not start - check $BASE/heatbar.err and: launchctl kickstart gui/$UID/pl.pawel.coffee-paladin-bar"
 fi
 
 echo
-echo "Sprawdź teraz:  heat"
-echo "Ciężkie zadania odpalaj:  safe-run -- <polecenie>"
-echo "Pasek menu wyłączysz:  launchctl bootout gui/$UID/pl.pawel.coffee-paladin-bar"
-echo "Flota (wiele Maków):   fleet --setup"
-echo "Odinstalowanie:        bash uninstall.sh"
+echo "Check the state now:   heat"
+echo "Run heavy jobs with:   safe-run -- <command>"
+echo "Disable the menu bar:  launchctl bootout gui/$UID/pl.pawel.coffee-paladin-bar"
+echo "Fleet (several Macs):  fleet --setup"
+echo "Uninstall:             bash uninstall.sh"

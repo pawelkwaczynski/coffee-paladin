@@ -343,13 +343,13 @@ def load_hosts(d):
         try:
             st = os.lstat(path)
             if not stat.S_ISREG(st.st_mode):
-                raise ValueError("nie jest zwyklym plikiem")
+                raise ValueError("not a regular file")
             if st.st_size > 256 * 1024:
-                raise ValueError("migawka za duza: %d B" % st.st_size)
+                raise ValueError("snapshot too large: %d B" % st.st_size)
             with open(path, encoding="utf-8", errors="replace") as f:
                 snap = json.load(f)
             if not isinstance(snap, dict):
-                raise ValueError("JSON nie jest obiektem")
+                raise ValueError("JSON is not an object")
         except Exception:
             # A broken file must NOT vanish silently: the host used to drop out
             # of the table and the operator saw "all machines look fine". It
@@ -583,7 +583,7 @@ def set_dir(path):
             with open(cfgp) as f:
                 c = json.load(f)
             if not isinstance(c, dict):
-                raise ValueError("config.json nie jest obiektem")
+                raise ValueError("config.json is not an object")
         except Exception as e:
             print(T("fleet: cannot read %s (%s) - not touching it. Fix the file first.")
                   % (cfgp, e), file=sys.stderr)
