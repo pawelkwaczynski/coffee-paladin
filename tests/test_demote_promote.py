@@ -16,21 +16,21 @@ import subprocess
 import sys
 import tempfile
 
-KATALOG = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DIRECTORY = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 os.environ["TG_BASE"] = tempfile.mkdtemp(prefix="tg_test_demote_")
-sys.path.insert(0, KATALOG)
+sys.path.insert(0, DIRECTORY)
 import guard  # noqa: E402  (TG_BASE must be in the environment before import.)
 
-WYNIKI = []
+RESULTS = []
 
 
-def check(nazwa, warunek, szczegol=""):
-    WYNIKI.append((nazwa, bool(warunek)))
-    print("  [%s] %s%s" % ("PASS" if warunek else "FAIL", nazwa,
-                           (" - " + szczegol) if (szczegol and not warunek) else ""))
+def check(name, condition, detail=""):
+    RESULTS.append((name, bool(condition)))
+    print("  [%s] %s%s" % ("PASS" if condition else "FAIL", name,
+                           (" - " + detail) if (detail and not condition) else ""))
 
 
-def pri_z_ps(pid):
+def priority_from_ps(pid):
     """Return scheduling priority from ps.
 
     taskpolicy -b lowers it from ~31 to ~4; -B restores it. This intentionally does
@@ -42,7 +42,7 @@ def pri_z_ps(pid):
     return int(out) if out else None
 
 
-def swiezy_stan():
+def fresh_state():
     return {"paused": {}, "demoted": [], "demoted_info": {}}
 
 
@@ -71,9 +71,9 @@ def main():
               guard.demote_threshold(dict(CFG, demote_above_c=70)) == 70.0)
 
         print("2) timer accumulates, demotion only after the limit (HOT machine)")
-        st, hist = swiezy_stan(), {}
-        pri_przed = pri_z_ps(pid)
-        for cykl in range(3):
+        st, hist = fresh_state(), {}
+        priority_before = priority_from_ps(pid)
+        for cycle in range(3):
             guard.do_demote(CFG, st, targets, hist, soc_t=90.0)
         check("after 45 s accumulated: not demoted yet",
               not st["demoted"], str(st["demoted"]))
@@ -82,10 +82,10 @@ def main():
         check("demoted_info carries process name",
               st["demoted_info"].get(str(pid), {}).get("comm") == "yes")
         import time; time.sleep(0.5)
-        pri_po_demote = pri_z_ps(pid)
+        priority_after_demote = priority_from_ps(pid)
         check("taskpolicy -b really reached the system (priority dropped)",
-              pri_po_demote is not None and pri_po_demote < pri_przed,
-              "pri %s -> %s" % (pri_przed, pri_po_demote))
+              priority_after_demote is not None and priority_after_demote < priority_before,
+              "pri %s -> %s" % (priority_before, priority_after_demote))
 
         print("3) hysteresis: hot keeps E-cores, cooling restores P-cores")
         guard.do_promote(CFG, st, hist, soc_t=90.0)
@@ -96,13 +96,13 @@ def main():
         check("chip 80 C (<= soc_resume_c): promotes", pid not in st["demoted"])
         check("demoted_info cleared", str(pid) not in st["demoted_info"])
         import time; time.sleep(0.5)
-        check("priority returned to the pre-demotion value", pri_z_ps(pid) == pri_przed,
-              "pri=%s expected %s" % (pri_z_ps(pid), pri_przed))
+        check("priority returned to the pre-demotion value", priority_from_ps(pid) == priority_before,
+              "pri=%s expected %s" % (priority_from_ps(pid), priority_before))
         check("timer reset - return is return, not a 15 s gap",
               hist.get(pid) == 0.0, str(hist.get(pid)))
 
         print("4) cool machine NEVER demotes (lesson: ffmpeg 11x slower at 44 C)")
-        st2, hist2 = swiezy_stan(), {}
+        st2, hist2 = fresh_state(), {}
         for _ in range(10):
             guard.do_demote(CFG, st2, targets, hist2, soc_t=44.0)
         check("10 cycles at 44 C: zero demotion", not st2["demoted"])
@@ -115,24 +115,24 @@ def main():
         print("5) B3 core: timer entry survives pause (accumulation, not time since start)")
         # Simulate pause: the process drops out of targets for any duration, leaving
         # hist unchanged. After "resume", accumulation continues from the same point.
-        st3, hist3 = swiezy_stan(), {}
+        st3, hist3 = fresh_state(), {}
         guard.do_demote(CFG, st3, targets, hist3, soc_t=90.0)   # 15 s
-        zebrane_przed_pauza = hist3[pid]
+        collected_before_pause = hist3[pid]
         guard.do_demote(CFG, st3, [], hist3, soc_t=90.0)         # Pause: absent from targets.
-        check("pause neither clears nor adds time", hist3[pid] == zebrane_przed_pauza)
+        check("pause neither clears nor adds time", hist3[pid] == collected_before_pause)
         for _ in range(3):
             guard.do_demote(CFG, st3, targets, hist3, soc_t=90.0)
         check("after pause it reaches the limit and demotes", pid in st3["demoted"])
 
         print("6) safe-run --normal is not demoted (B1.4)")
-        st5, hist5 = swiezy_stan(), {}
+        st5, hist5 = fresh_state(), {}
         hist5[pid] = 999.0
         guard.do_demote(CFG, st5, targets, hist5, soc_t=90.0, saferun_normal={pid})
         check("pid with --normal stays out of demotion despite limit and heat", not st5["demoted"])
         check("--normal timer is not touched at all", hist5[pid] == 999.0)
 
         print("7) dry_run: observation, zero process changes")
-        st4, hist4 = swiezy_stan(), {}
+        st4, hist4 = fresh_state(), {}
         hist4[proc.pid] = 999.0
         guard.do_demote(dict(CFG, dry_run=True), st4, targets, hist4, soc_t=90.0)
         check("dry_run does not demote", not st4["demoted"])
@@ -140,9 +140,9 @@ def main():
         proc.kill()
         proc.wait()
 
-    padniete = [n for n, ok in WYNIKI if not ok]
-    print("\nRESULT: %d/%d" % (len(WYNIKI) - len(padniete), len(WYNIKI)))
-    if padniete:
+    dead = [n for n, ok in RESULTS if not ok]
+    print("\nRESULT: %d/%d" % (len(RESULTS) - len(dead), len(RESULTS)))
+    if dead:
         sys.exit(1)
 
 

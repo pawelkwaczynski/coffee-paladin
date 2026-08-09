@@ -30,105 +30,105 @@ from datetime import datetime, timedelta, timezone
 SRC = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FLEET = os.path.join(SRC, "fleet")
 BASE = tempfile.mkdtemp(prefix="tg-fleet-wiek-")
-FLOTA = os.path.join(BASE, "flota")
-os.makedirs(FLOTA)
+FLEET_DATA_DIR = os.path.join(BASE, "flota")
+os.makedirs(FLEET_DATA_DIR)
 
-wyniki = []
-
-
-def test(nazwa, warunek, detal=""):
-    wyniki.append(bool(warunek))
-    print("  [%s] %s%s" % ("PASS" if warunek else "FAIL", nazwa,
-                           ("  -> " + detal) if detal and not warunek else ""))
+results = []
 
 
-def zapisz(nazwa, tresc, mtime=None):
-    p = os.path.join(FLOTA, nazwa + ".json")
+def test(name, condition, detail=""):
+    results.append(bool(condition))
+    print("  [%s] %s%s" % ("PASS" if condition else "FAIL", name,
+                           ("  -> " + detail) if detail and not condition else ""))
+
+
+def write_snapshot(name, content, mtime=None):
+    p = os.path.join(FLEET_DATA_DIR, name + ".json")
     with io.open(p, "w", encoding="utf-8") as f:
-        json.dump(tresc, f)
+        json.dump(content, f)
     if mtime is not None:
         os.utime(p, (mtime, mtime))
     return p
 
 
-def czas_txt(epoch, strefa=None):
-    tz = strefa if strefa is not None else timezone(timedelta(seconds=-time.timezone))
+def time_text(epoch, zone=None):
+    tz = zone if zone is not None else timezone(timedelta(seconds=-time.timezone))
     return datetime.fromtimestamp(epoch, tz).strftime("%Y-%m-%d %H:%M:%S%z")
 
 
-def uruchom():
-    p = subprocess.run([sys.executable, FLEET, "--dir", FLOTA], capture_output=True,
+def run_tool():
+    p = subprocess.run([sys.executable, FLEET, "--dir", FLEET_DATA_DIR], capture_output=True,
                        text=True, timeout=90, env=dict(os.environ, TG_LANG="en"))
     return p.returncode, p.stdout, p.stderr
 
 
-def linia(out, host):
+def line(out, host):
     for w in out.splitlines():
         if w.startswith(host):
             return w
     return ""
 
 
-def czysc():
-    for n in os.listdir(FLOTA):
-        os.remove(os.path.join(FLOTA, n))
+def clean():
+    for n in os.listdir(FLEET_DATA_DIR):
+        os.remove(os.path.join(FLEET_DATA_DIR, n))
 
 
-BAZOWA = {"thermal_state": "nominal", "paused": [], "fans": [500], "level": 0}
-teraz = time.time()
+BASELINE = {"thermal_state": "nominal", "paused": [], "fans": [500], "level": 0}
+now = time.time()
 
 print("=== 1+2: content beats mtime in BOTH directions ===")
-czysc()
+clean()
 # iCloud artifact: report from moments ago, mtime from 94 h ago.
-zapisz("SwiezyStaryMtime", dict(BAZOWA, host="SwiezyStaryMtime",
-       epoch=round(teraz - 30, 3), time=czas_txt(teraz - 30)), mtime=teraz - 94 * 3600)
+write_snapshot("SwiezyStaryMtime", dict(BASELINE, host="SwiezyStaryMtime",
+       epoch=round(now - 30, 3), time=time_text(now - 30)), mtime=now - 94 * 3600)
 # Opposite case: the daemon died an hour ago and iCloud just synced the file.
-zapisz("StaraTresc", dict(BAZOWA, host="StaraTresc",
-       epoch=round(teraz - 3600, 3), time=czas_txt(teraz - 3600)), mtime=teraz)
-rc, out, err = uruchom()
+write_snapshot("StaraTresc", dict(BASELINE, host="StaraTresc",
+       epoch=round(now - 3600, 3), time=time_text(now - 3600)), mtime=now)
+rc, out, err = run_tool()
 test("1. fresh content + old mtime: NOT STALE",
-     "STALE" not in linia(out, "SwiezyStaryMtime"), linia(out, "SwiezyStaryMtime")[:90])
+     "STALE" not in line(out, "SwiezyStaryMtime"), line(out, "SwiezyStaryMtime")[:90])
 test("2. old content + fresh mtime: IS STALE",
-     "STALE" in linia(out, "StaraTresc"), linia(out, "StaraTresc")[:90])
+     "STALE" in line(out, "StaraTresc"), line(out, "StaraTresc")[:90])
 
 print("\n=== 3+4: daemons from before the `epoch` format ===")
-czysc()
-d = dict(BAZOWA, host="TylkoTime", time=czas_txt(teraz - 3600))
+clean()
+d = dict(BASELINE, host="TylkoTime", time=time_text(now - 3600))
 d.pop("epoch", None)
-zapisz("TylkoTime", d, mtime=teraz)                       # Without epoch, time counts.
-d = dict(BAZOWA, host="SmieciTime", time="wczoraj kolo poludnia")
+write_snapshot("TylkoTime", d, mtime=now)                       # Without epoch, time counts.
+d = dict(BASELINE, host="SmieciTime", time="wczoraj kolo poludnia")
 d.pop("epoch", None)
-zapisz("SmieciTime", d, mtime=teraz - 3600)               # Junk time: fallback to mtime.
-d = dict(BAZOWA, host="SmieciSwiezy", time=12345)
+write_snapshot("SmieciTime", d, mtime=now - 3600)               # Junk time: fallback to mtime.
+d = dict(BASELINE, host="SmieciSwiezy", time=12345)
 d.pop("epoch", None)
-zapisz("SmieciSwiezy", d, mtime=teraz)                    # Junk time + fresh mtime: healthy.
-rc, out, err = uruchom()
+write_snapshot("SmieciSwiezy", d, mtime=now)                    # Junk time + fresh mtime: healthy.
+rc, out, err = run_tool()
 test("3. old zoned `time`, no epoch: STALE despite fresh mtime",
-     "STALE" in linia(out, "TylkoTime"), linia(out, "TylkoTime")[:90])
+     "STALE" in line(out, "TylkoTime"), line(out, "TylkoTime")[:90])
 test("4a. junk `time`: fallback to mtime (old -> STALE)",
-     "STALE" in linia(out, "SmieciTime"), linia(out, "SmieciTime")[:90])
+     "STALE" in line(out, "SmieciTime"), line(out, "SmieciTime")[:90])
 test("4b. junk `time`: fallback to mtime (fresh -> healthy)",
-     "STALE" not in linia(out, "SmieciSwiezy"), linia(out, "SmieciSwiezy")[:90])
+     "STALE" not in line(out, "SmieciSwiezy"), line(out, "SmieciSwiezy")[:90])
 
 print("\n=== 5+6: clocks on remote machines ===")
-czysc()
-zapisz("ZegarWPrzod", dict(BAZOWA, host="ZegarWPrzod",
-       epoch=round(teraz + 900, 3), time=czas_txt(teraz + 900)), mtime=teraz)
-d = dict(BAZOWA, host="InnaStrefa",
-         time=czas_txt(teraz - 30, timezone(timedelta(hours=-7))))
+clean()
+write_snapshot("ZegarWPrzod", dict(BASELINE, host="ZegarWPrzod",
+       epoch=round(now + 900, 3), time=time_text(now + 900)), mtime=now)
+d = dict(BASELINE, host="InnaStrefa",
+         time=time_text(now - 30, timezone(timedelta(hours=-7))))
 d.pop("epoch", None)
-zapisz("InnaStrefa", d, mtime=teraz - 94 * 3600)
+write_snapshot("InnaStrefa", d, mtime=now - 94 * 3600)
 # Junk epoch (inf/text) cannot crash the table or outrank time.
-zapisz("EpochSmieci", dict(BAZOWA, host="EpochSmieci",
-       epoch="duzo", time=czas_txt(teraz - 30)), mtime=teraz - 94 * 3600)
-rc, out, err = uruchom()
+write_snapshot("EpochSmieci", dict(BASELINE, host="EpochSmieci",
+       epoch="duzo", time=time_text(now - 30)), mtime=now - 94 * 3600)
+rc, out, err = run_tool()
 test("5. epoch from the future: not STALE, table lives",
-     rc in (0, 2) and linia(out, "ZegarWPrzod") != "" and
-     "STALE" not in linia(out, "ZegarWPrzod"), linia(out, "ZegarWPrzod")[:90])
+     rc in (0, 2) and line(out, "ZegarWPrzod") != "" and
+     "STALE" not in line(out, "ZegarWPrzod"), line(out, "ZegarWPrzod")[:90])
 test("6. fresh `time` in -0700 zone + old mtime: NOT STALE (absolute time)",
-     "STALE" not in linia(out, "InnaStrefa"), linia(out, "InnaStrefa")[:90])
+     "STALE" not in line(out, "InnaStrefa"), line(out, "InnaStrefa")[:90])
 test("7. junk epoch: fresh `time` saves it, not mtime",
-     "STALE" not in linia(out, "EpochSmieci"), linia(out, "EpochSmieci")[:90])
+     "STALE" not in line(out, "EpochSmieci"), line(out, "EpochSmieci")[:90])
 
 print("\n=== guard --version ===")
 env = dict(os.environ, TG_BASE=os.path.join(BASE, "dom"))
@@ -142,5 +142,5 @@ test("9. --version does not create data directory (works before ensure_dirs)",
      not os.path.exists(os.path.join(BASE, "dom")))
 
 shutil.rmtree(BASE, ignore_errors=True)
-print("\nTOTAL: %d/%d PASS" % (sum(wyniki), len(wyniki)))
-sys.exit(0 if all(wyniki) else 1)
+print("\nTOTAL: %d/%d PASS" % (sum(results), len(results)))
+sys.exit(0 if all(results) else 1)

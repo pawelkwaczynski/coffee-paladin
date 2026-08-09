@@ -34,16 +34,16 @@ os.makedirs(os.path.join(BASE, "managed"), exist_ok=True)
 
 g = importlib.machinery.SourceFileLoader("bz_guard", os.path.join(SRC, "guard.py")).load_module()
 
-wyniki = []
+results = []
 
 
-def test(nazwa, warunek, detal=""):
-    wyniki.append(bool(warunek))
-    print("  [%s] %s%s" % ("PASS" if warunek else "FAIL", nazwa,
-                           ("  -> " + detal) if detal and not warunek else ""))
+def test(name, condition, detail=""):
+    results.append(bool(condition))
+    print("  [%s] %s%s" % ("PASS" if condition else "FAIL", name,
+                           ("  -> " + detail) if detail and not condition else ""))
 
 
-def rejestruj(pid, pgid, prawa=0o600, started=None):
+def register(pid, pgid, prawa=0o600, started=None):
     p = os.path.join(BASE, "managed", "%d.json" % pid)
     with io.open(p, "w", encoding="utf-8") as f:
         json.dump({"pid": pid, "pgid": pgid,
@@ -55,29 +55,29 @@ def rejestruj(pid, pgid, prawa=0o600, started=None):
 # ---------------------------------------------------------------- item 10
 print("=== item 10: take pgid from the KERNEL, not from the file ===")
 # start_new_session gives a private process group; otherwise pgid equals ours.
-ofiara = subprocess.Popen(["sleep", "300"], start_new_session=True)
-prawdziwy = os.getpgid(ofiara.pid)
-cudzy = os.getpgid(0)
-rejestruj(ofiara.pid, cudzy)              # Foreign pgid in the file.
+victim = subprocess.Popen(["sleep", "300"], start_new_session=True)
+real_value = os.getpgid(victim.pid)
+foreign = os.getpgid(0)
+register(victim.pid, foreign)              # Foreign pgid in the file.
 res, _ = g.managed_pids_from_saferun()
 test("1. guard uses the process's REAL pgid, not the one from the file",
-     res.get(ofiara.pid) == prawdziwy,
-     "read %s, real %s, substituted %s" % (res.get(ofiara.pid), prawdziwy, cudzy))
+     res.get(victim.pid) == real_value,
+     "read %s, real %s, substituted %s" % (res.get(victim.pid), real_value, foreign))
 test("2. ...so the signal does NOT go to the substituted group",
-     res.get(ofiara.pid) != cudzy or prawdziwy == cudzy)
+     res.get(victim.pid) != foreign or real_value == foreign)
 
-drugi = subprocess.Popen(["sleep", "300"], start_new_session=True)
-sciezka = rejestruj(drugi.pid, os.getpgid(drugi.pid), prawa=0o666)
+second = subprocess.Popen(["sleep", "300"], start_new_session=True)
+path = register(second.pid, os.getpgid(second.pid), prawa=0o666)
 res, _ = g.managed_pids_from_saferun()
-test("3. world-writable registration is IGNORED", drugi.pid not in res,
+test("3. world-writable registration is IGNORED", second.pid not in res,
      "0666 file was accepted")
-os.chmod(sciezka, 0o600)
+os.chmod(path, 0o600)
 res, _ = g.managed_pids_from_saferun()
-test("4. the same registration with 0600 permissions is accepted", drugi.pid in res,
+test("4. the same registration with 0600 permissions is accepted", second.pid in res,
      "blocking our own valid jobs")
 
-ofiara.kill(); ofiara.wait()
-drugi.kill(); drugi.wait()
+victim.kill(); victim.wait()
+second.kill(); second.wait()
 for n in os.listdir(os.path.join(BASE, "managed")):
     os.remove(os.path.join(BASE, "managed", n))
 
@@ -96,13 +96,13 @@ if os.path.exists(g.LOG_PATH):
 
 procs = [(4001, 1, 90.0, "mds_solver"), (4002, 1, 85.0, "sshd-worker"),
          (4003, 1, 95.0, "ffmpeg"), (4004, 1, 88.0, "mds")]
-cele = [c[2] for c in g.pick_targets(cfg, procs, {})]
+targets = [c[2] for c in g.pick_targets(cfg, procs, {})]
 log = io.open(g.LOG_PATH, encoding="utf-8", errors="replace").read() if os.path.exists(g.LOG_PATH) else ""
 
 test("5. protection was NOT weakened - mds_solver remains untouchable",
-     "mds_solver" not in cele, "cele: %s" % cele)
-test("6. sshd-worker also untouchable", "sshd-worker" not in cele, "cele: %s" % cele)
-test("7. plain encoder still pausable", "ffmpeg" in cele, "cele: %s" % cele)
+     "mds_solver" not in targets, "cele: %s" % targets)
+test("6. sshd-worker also untouchable", "sshd-worker" not in targets, "cele: %s" % targets)
+test("7. plain encoder still pausable", "ffmpeg" in targets, "cele: %s" % targets)
 test("8. log SAYS why hot mds_solver is skipped",
      "mds_solver" in log and "untouchable" in log,
      "missing log explanation - user gets silence")
@@ -118,10 +118,10 @@ with io.open(os.path.join(BIN, "curl"), "w", encoding="utf-8") as f:
 os.chmod(os.path.join(BIN, "curl"), 0o755)
 os.environ["PATH"] = BIN + os.pathsep + os.environ["PATH"]
 
-TEMAT = "sekretny_temat_ABC123"
+SUBJECT = "sekretny_temat_ABC123"
 cfg = g.load_cfg()
 cfg["notify"] = True
-cfg["ntfy_topic"] = TEMAT
+cfg["ntfy_topic"] = SUBJECT
 g.push(cfg, "Cooling alarm", "chip 98.7 C, fans 0 rpm")
 # `push` starts curl in the background, so wait for the file, not for fixed time.
 # A fixed `sleep(0.8)` passed on a slow Mac, but under the full test suite with a
@@ -129,8 +129,8 @@ g.push(cfg, "Cooling alarm", "chip 98.7 C, fans 0 rpm")
 # A flaky test damages the gate just like a test that never fails.
 _argv_path = os.path.join(BIN, "curl.argv")
 _stdin_path = os.path.join(BIN, "curl.stdin")
-_koniec = time.time() + 20.0
-while time.time() < _koniec:
+_end = time.time() + 20.0
+while time.time() < _end:
     if os.path.exists(_argv_path) and os.path.exists(_stdin_path):
         break
     time.sleep(0.05)
@@ -139,16 +139,16 @@ stdin = io.open(_stdin_path, encoding="utf-8").read() if os.path.exists(_stdin_p
 test("9b. curl stub was actually started (otherwise the rest proves nothing)",
      bool(argv), "curl.argv was not created within 20 s - the check below would be falsely green")
 
-test("10. topic is NOT in argv (so it is not in ps)", TEMAT not in argv,
+test("10. topic is NOT in argv (so it is not in ps)", SUBJECT not in argv,
      "argv: %s" % argv.strip()[:110])
 test("11. alert body is not in argv either", "98.7" not in argv,
      "argv: %s" % argv.strip()[:110])
-test("12. topic goes through stdin, so push still WORKS", TEMAT in stdin,
+test("12. topic goes through stdin, so push still WORKS", SUBJECT in stdin,
      "stdin: %s" % stdin.strip()[:110])
 test("13. body and title arrive in the request body", "98.7" in stdin and "Cooling alarm" in stdin,
      "stdin: %s" % stdin.strip()[:110])
 
 shutil.rmtree(BASE, ignore_errors=True)
-ok = sum(wyniki)
-print("\nRESULT: %d/%d" % (ok, len(wyniki)))
-sys.exit(0 if ok == len(wyniki) else 1)
+ok = sum(results)
+print("\nRESULT: %d/%d" % (ok, len(results)))
+sys.exit(0 if ok == len(results) else 1)

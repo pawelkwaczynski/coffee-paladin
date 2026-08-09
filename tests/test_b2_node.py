@@ -17,18 +17,18 @@ import subprocess
 import sys
 import tempfile
 
-KATALOG = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DIRECTORY = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 os.environ["TG_BASE"] = tempfile.mkdtemp(prefix="tg_test_b2_")
-sys.path.insert(0, KATALOG)
+sys.path.insert(0, DIRECTORY)
 import guard  # noqa: E402
 
-WYNIKI = []
+RESULTS = []
 
 
-def check(nazwa, warunek, szczegol=""):
-    WYNIKI.append((nazwa, bool(warunek)))
-    print("  [%s] %s%s" % ("PASS" if warunek else "FAIL", nazwa,
-                           (" - " + szczegol) if (szczegol and not warunek) else ""))
+def check(name, condition, detail=""):
+    RESULTS.append((name, bool(condition)))
+    print("  [%s] %s%s" % ("PASS" if condition else "FAIL", name,
+                           (" - " + detail) if (detail and not condition) else ""))
 
 
 CFG = dict(
@@ -47,7 +47,7 @@ def spawn(*args):
                             stdout=subprocess.DEVNULL, start_new_session=True)
 
 
-def spawn_skrypt(podkatalog):
+def spawn_skrypt(subdir):
     """Start an interpreter running a script path and return (process, directory).
 
     This matches a real MCP server or language server command such as
@@ -55,64 +55,64 @@ def spawn_skrypt(podkatalog):
     """
     import tempfile
     kat = tempfile.mkdtemp()
-    sciezka = os.path.join(kat, podkatalog)
-    os.makedirs(os.path.dirname(sciezka), exist_ok=True)
-    with open(sciezka, "w") as f:
+    path = os.path.join(kat, subdir)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w") as f:
         f.write("import time\ntime.sleep(120)\n")
-    return subprocess.Popen(["python3", sciezka],
+    return subprocess.Popen(["python3", path],
                             stdout=subprocess.DEVNULL, start_new_session=True), kat
 
 
 def main():
-    procesy = []
-    kat_agenta = None
+    processes = []
+    agent_dir = None
     try:
         build = spawn("build.js")          # Pretend to be: node build.js.
         # A real MCP server is an interpreter plus a script path. Putting the path
         # after `-c` does not occur in normal commands. Identity comes from the
         # program name and executed script, not from data the process handles.
-        agent, kat_agenta = spawn_skrypt(".claude/mcp/server.py")
-        procesy = [build, agent]
+        agent, agent_dir = spawn_skrypt(".claude/mcp/server.py")
+        processes = [build, agent]
         import time
         time.sleep(1)
 
-        def cele(comm, proc):
+        def targets(comm, proc):
             procs = [(proc.pid, 1, 95.0, comm)]
             return [t[0] for t in guard.pick_targets(CFG, procs, {})]
 
         print("1) plain node build.js IS pausable")
-        check("comm=node, args=build.js -> in targets", build.pid in cele("node", build))
+        check("comm=node, args=build.js -> in targets", build.pid in targets("node", build))
 
         print("2) agent backends are untouchable by ARGUMENTS")
         check("comm=node, args with .claude/mcp -> outside targets",
-              agent.pid not in cele("node", agent))
+              agent.pid not in targets("node", agent))
 
         print("3) by NAME, only things that never compute remain untouchable")
-        check("comm=claude -> outside targets", build.pid not in cele("claude", build))
-        check("comm=codex -> outside targets", build.pid not in cele("codex", build))
-        check("comm=tmux -> outside targets", build.pid not in cele("tmux", build))
+        check("comm=claude -> outside targets", build.pid not in targets("claude", build))
+        check("comm=codex -> outside targets", build.pid not in targets("codex", build))
+        check("comm=tmux -> outside targets", build.pid not in targets("tmux", build))
         for comm in ("node", "npm", "npx", "bun", "deno"):
             check("'%s' is NOT in never_patterns by name" % comm,
                   comm not in CFG["never_patterns"])
 
         print("4) argument patterns cover the whole backend")
-        for wzor in ("claude", "codex", "cursor", "mcp", "language-server", ".vscode"):
-            check("'%s' in never_arg_patterns" % wzor, wzor in CFG["never_arg_patterns"])
+        for pattern in ("claude", "codex", "cursor", "mcp", "language-server", ".vscode"):
+            check("'%s' in never_arg_patterns" % pattern, pattern in CFG["never_arg_patterns"])
 
         print("5) SIGTTIN net remains: skip_foreground_tty enabled by default")
         check("skip_foreground_tty=True in DEFAULTS",
               guard.DEFAULTS.get("skip_foreground_tty") is True)
     finally:
-        for p in procesy:
+        for p in processes:
             p.kill()
             p.wait()
         import shutil
-        if kat_agenta:
-            shutil.rmtree(kat_agenta, ignore_errors=True)   # Fake MCP server directory.
+        if agent_dir:
+            shutil.rmtree(agent_dir, ignore_errors=True)   # Fake MCP server directory.
 
-    padniete = [n for n, ok in WYNIKI if not ok]
-    print("\nRESULT: %d/%d" % (len(WYNIKI) - len(padniete), len(WYNIKI)))
-    if padniete:
+    dead = [n for n, ok in RESULTS if not ok]
+    print("\nRESULT: %d/%d" % (len(RESULTS) - len(dead), len(RESULTS)))
+    if dead:
         sys.exit(1)
 
 

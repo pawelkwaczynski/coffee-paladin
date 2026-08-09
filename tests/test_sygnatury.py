@@ -21,20 +21,20 @@ import os
 import sys
 
 SRC = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-PLIKI = ["guard.py", "heat", "safe-run", "fleet", "thermal-report"]
+FILES = ["guard.py", "heat", "safe-run", "fleet", "thermal-report"]
 
-bledy = []
-sprawdzonych = 0
+errors = []
+checked = 0
 
 
-def sygnatury(drzewo):
+def signatures(tree):
     """Return module-level function signatures.
 
     Class methods are skipped because calls go through objects; matching by bare name
     would produce false alarms.
     """
     out = {}
-    for w in drzewo.body:
+    for w in tree.body:
         if isinstance(w, (ast.FunctionDef, ast.AsyncFunctionDef)):
             a = w.args
             out[w.name] = {
@@ -49,62 +49,62 @@ def sygnatury(drzewo):
     return out
 
 
-for nazwa in PLIKI:
-    sciezka = os.path.join(SRC, nazwa)
-    if not os.path.exists(sciezka):
+for name in FILES:
+    path = os.path.join(SRC, name)
+    if not os.path.exists(path):
         continue
-    with open(sciezka, encoding="utf-8") as f:
-        zrodlo = f.read()
+    with open(path, encoding="utf-8") as f:
+        source = f.read()
     try:
-        drzewo = ast.parse(zrodlo)
+        tree = ast.parse(source)
     except SyntaxError as e:
-        bledy.append("%s: does not parse (%s)" % (nazwa, e))
+        errors.append("%s: does not parse (%s)" % (name, e))
         continue
-    sygn = sygnatury(drzewo)
+    signature_map = signatures(tree)
 
-    for wezel in ast.walk(drzewo):
-        if not isinstance(wezel, ast.Call) or not isinstance(wezel.func, ast.Name):
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Name):
             continue
-        s = sygn.get(wezel.func.id)
+        s = signature_map.get(node.func.id)
         if s is None:
             continue
-        sprawdzonych += 1
-        gdzie = "%s:%d  %s()" % (nazwa, wezel.lineno, wezel.func.id)
+        checked += 1
+        location = "%s:%d  %s()" % (name, node.lineno, node.func.id)
 
         # 1. Unknown keyword argument.
         if not s["ma_kwargs"]:
-            dozwolone = set(s["pozycyjne"]) | set(s["kwonly"])
-            for kw in wezel.keywords:
-                if kw.arg is not None and kw.arg not in dozwolone:
-                    bledy.append("%s: unknown argument '%s' (definition on line %d, accepts: %s)"
-                                 % (gdzie, kw.arg, s["linia"], ", ".join(dozwolone) or "none"))
+            allowed = set(s["pozycyjne"]) | set(s["kwonly"])
+            for kw in node.keywords:
+                if kw.arg is not None and kw.arg not in allowed:
+                    errors.append("%s: unknown argument '%s' (definition on line %d, accepts: %s)"
+                                 % (location, kw.arg, s["linia"], ", ".join(allowed) or "none"))
 
         # 2. Too many positional arguments.
         if not s["ma_gwiazdke"]:
-            podane = len([a for a in wezel.args if not isinstance(a, ast.Starred)])
-            if not any(isinstance(a, ast.Starred) for a in wezel.args) and podane > len(s["pozycyjne"]):
-                bledy.append("%s: %d positional arguments, but function accepts %d (line %d)"
-                             % (gdzie, podane, len(s["pozycyjne"]), s["linia"]))
+            supplied = len([a for a in node.args if not isinstance(a, ast.Starred)])
+            if not any(isinstance(a, ast.Starred) for a in node.args) and supplied > len(s["pozycyjne"]):
+                errors.append("%s: %d positional arguments, but function accepts %d (line %d)"
+                             % (location, supplied, len(s["pozycyjne"]), s["linia"]))
 
         # 3. Missing required argument.
-        rozwija = any(isinstance(a, ast.Starred) for a in wezel.args) or \
-                  any(k.arg is None for k in wezel.keywords)
-        if not rozwija:
-            wymagane = len(s["pozycyjne"]) - s["domyslne"]
-            nazwane = {k.arg for k in wezel.keywords if k.arg}
-            pokryte = len(wezel.args) + len([n for n in s["pozycyjne"][:wymagane] if n in nazwane])
-            if pokryte < wymagane:
-                bledy.append("%s: missing arguments - requires %d, gets %d (line %d)"
-                             % (gdzie, wymagane, pokryte, s["linia"]))
+        expands = any(isinstance(a, ast.Starred) for a in node.args) or \
+                  any(k.arg is None for k in node.keywords)
+        if not expands:
+            required = len(s["pozycyjne"]) - s["domyslne"]
+            named = {k.arg for k in node.keywords if k.arg}
+            covered = len(node.args) + len([n for n in s["pozycyjne"][:required] if n in named])
+            if covered < required:
+                errors.append("%s: missing arguments - requires %d, gets %d (line %d)"
+                             % (location, required, covered, s["linia"]))
             for n in s["kwonly_wymagane"]:
-                if n not in nazwane:
-                    bledy.append("%s: missing required named argument '%s'" % (gdzie, n))
+                if n not in named:
+                    errors.append("%s: missing required named argument '%s'" % (location, n))
 
-print("CHECKED CALLS: %d in %d files" % (sprawdzonych, len(PLIKI)))
-if bledy:
-    for b in bledy:
+print("CHECKED CALLS: %d in %d files" % (checked, len(FILES)))
+if errors:
+    for b in errors:
         print("  [FAIL] %s" % b)
-    print("\n%d error(s)" % len(bledy))
+    print("\n%d error(s)" % len(errors))
     sys.exit(1)
 print("  all calls match signatures")
 sys.exit(0)

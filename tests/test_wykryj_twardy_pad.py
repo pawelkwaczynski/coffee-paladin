@@ -8,26 +8,26 @@ import importlib.util, os, shutil, sys, tempfile, time
 MARKER = ".piaskownica-testu"
 
 
-def odmow(powod):
-    print("REFUSAL: %s" % powod, file=sys.stderr)
+def refuse(reason):
+    print("REFUSAL: %s" % reason, file=sys.stderr)
     print("This test deletes heartbeat/clean_stop/events.log. Run without an argument "
           "or provide an empty directory, for example $(mktemp -d).", file=sys.stderr)
     sys.exit(2)
 
 
-sprzatac = len(sys.argv) < 2
-home = (tempfile.mkdtemp(prefix="paladin_pad_") if sprzatac
+should_clean = len(sys.argv) < 2
+home = (tempfile.mkdtemp(prefix="paladin_pad_") if should_clean
         else os.path.abspath(os.path.expanduser(sys.argv[1])))
-prawdziwy_home = os.path.realpath(os.path.expanduser("~"))
-if os.path.realpath(home) == prawdziwy_home:
-    odmow("specified directory is the real home directory (%s)" % prawdziwy_home)
-if prawdziwy_home.startswith(os.path.realpath(home).rstrip("/") + "/"):
-    odmow("real home directory is inside %s" % home)
+real_home = os.path.realpath(os.path.expanduser("~"))
+if os.path.realpath(home) == real_home:
+    refuse("specified directory is the real home directory (%s)" % real_home)
+if real_home.startswith(os.path.realpath(home).rstrip("/") + "/"):
+    refuse("real home directory is inside %s" % home)
 
 base = os.path.join(home, ".coffee-paladin")
 # Marker distinguishes this sandbox from foreign data and allows repeated runs.
 if os.path.exists(base) and not os.path.exists(os.path.join(base, MARKER)):
-    odmow("%s already exists and is not this test's sandbox" % base)
+    refuse("%s already exists and is not this test's sandbox" % base)
 os.makedirs(base, exist_ok=True)
 open(os.path.join(base, MARKER), "w").close()
 # ---------------------------------------------------------------------------------
@@ -39,66 +39,66 @@ for n in [n for n in dir(g) if n.endswith(("_PATH", "_DIR"))]:
 assert g.EVENTS_PATH.startswith(base), "isolation did not work"
 boot = g.boot_time()
 
-def setup(puls, czyste=None, tresc=None, mtime=None):
+def setup(heartbeat_time, clean_run=None, content=None, mtime=None):
     for p in (g.HEARTBEAT_PATH, g.CLEAN_STOP_PATH, g.EVENTS_PATH):
         if os.path.exists(p): os.remove(p)
     with open(g.HEARTBEAT_PATH, "w") as f:
-        f.write(tresc if tresc is not None else "%d %s" % (puls, g.ts(puls)))   # New format.
-    m = mtime if mtime is not None else puls
+        f.write(content if content is not None else "%d %s" % (heartbeat_time, g.ts(heartbeat_time)))   # New format.
+    m = mtime if mtime is not None else heartbeat_time
     os.utime(g.HEARTBEAT_PATH, (m, m))
     with open(g.HIST_PATH, "w") as f:
         f.write("time,thermal_state,chip_C\n2026-07-30 09:00:00,nominal,40.0\n")
-    if czyste is not None:
-        open(g.CLEAN_STOP_PATH, "w").close(); os.utime(g.CLEAN_STOP_PATH, (czyste, czyste))
+    if clean_run is not None:
+        open(g.CLEAN_STOP_PATH, "w").close(); os.utime(g.CLEAN_STOP_PATH, (clean_run, clean_run))
 
-def run(nazwa, oczekiwane, **kw):
+def run(name, expected, **kw):
     setup(**kw); r = g.detect_hard_shutdown()
     got = "SHUTDOWN" if r else "silent"
-    ok = got == oczekiwane
-    print(f"  [{'PASS' if ok else 'FAIL'}] {nazwa}: {got}" + (f" ({r['time']})" if r else ""))
+    ok = got == expected
+    print(f"  [{'PASS' if ok else 'FAIL'}] {name}: {got}" + (f" ({r['time']})" if r else ""))
     return ok
 
 print(f"=== A. matrix of 8 cases, NEW format (boot={g.ts(boot)}) ===")
-A = [run("1. hard shutdown, no clean_stop", "SHUTDOWN", puls=boot-600),
-     run("2. clean stop before boot", "silent", puls=boot-600, czyste=boot-600),
-     run("3. clean_stop from current session does not silence", "SHUTDOWN", puls=boot-600, czyste=time.time()),
-     run("4. clean_stop from the future does not silence", "SHUTDOWN", puls=boot-600, czyste=time.time()+86400),
-     run("5. old clean_stop (3 days) does not silence", "SHUTDOWN", puls=boot-600, czyste=boot-3*86400),
-     run("6. heartbeat from current session", "silent", puls=boot+60),
+A = [run("1. hard shutdown, no clean_stop", "SHUTDOWN", heartbeat_time=boot-600),
+     run("2. clean stop before boot", "silent", heartbeat_time=boot-600, clean_run=boot-600),
+     run("3. clean_stop from current session does not silence", "SHUTDOWN", heartbeat_time=boot-600, clean_run=time.time()),
+     run("4. clean_stop from the future does not silence", "SHUTDOWN", heartbeat_time=boot-600, clean_run=time.time()+86400),
+     run("5. old clean_stop (3 days) does not silence", "SHUTDOWN", heartbeat_time=boot-600, clean_run=boot-3*86400),
+     run("6. heartbeat from current session", "silent", heartbeat_time=boot+60),
      # Decision change: the 30-day floor used to discard evidence instead of marking it,
      # making the black box silent exactly when the clock was broken: drained RTC or NTP
      # jump. The event is now written with `confidence: low` and a reason; service staff
      # make the final assessment. Details and countercases: tests/test_pewnosc_padu.py.
-     run("7. 1970 phantom: written, but with low confidence", "SHUTDOWN", puls=833377),
-     run("8. restore without -p: mtime=now, epoch real", "SHUTDOWN", puls=boot-600, mtime=time.time())]
+     run("7. 1970 phantom: written, but with low confidence", "SHUTDOWN", heartbeat_time=833377),
+     run("8. restore without -p: mtime=now, epoch real", "SHUTDOWN", heartbeat_time=boot-600, mtime=time.time())]
 
 print("\n=== B. file format variants ===")
-B = [run("legacy (text only, no epoch)", "SHUTDOWN", puls=boot-600, tresc=g.ts(boot-600)),
-     run("junk in content -> fallback to mtime", "SHUTDOWN", puls=boot-600, tresc="xyzzy"),
-     run("empty file -> fallback to mtime", "SHUTDOWN", puls=boot-600, tresc=""),
-     run("new format + junk tail", "SHUTDOWN", puls=boot-600, tresc="%d cokolwiek" % (boot-600))]
+B = [run("legacy (text only, no epoch)", "SHUTDOWN", heartbeat_time=boot-600, content=g.ts(boot-600)),
+     run("junk in content -> fallback to mtime", "SHUTDOWN", heartbeat_time=boot-600, content="xyzzy"),
+     run("empty file -> fallback to mtime", "SHUTDOWN", heartbeat_time=boot-600, content=""),
+     run("new format + junk tail", "SHUTDOWN", heartbeat_time=boot-600, content="%d cokolwiek" % (boot-600))]
 
 print("\n=== C. time zones (real shutdown 10 min before boot) ===")
-def tz(tz_pad, tz_boot, legacy=False):
-    os.environ["TZ"] = tz_pad; time.tzset()
-    puls = boot - 600
-    tresc = g.ts(puls) if legacy else "%d %s" % (puls, g.ts(puls))
-    setup(puls, tresc=tresc)
-    os.environ["TZ"] = tz_boot; time.tzset()
+def tz(shutdown_tz, boot_tz, legacy=False):
+    os.environ["TZ"] = shutdown_tz; time.tzset()
+    heartbeat_time = boot - 600
+    content = g.ts(heartbeat_time) if legacy else "%d %s" % (heartbeat_time, g.ts(heartbeat_time))
+    setup(heartbeat_time, content=content)
+    os.environ["TZ"] = boot_tz; time.tzset()
     r = g.detect_hard_shutdown()
-    print(f"  [{'PASS' if r else 'FAIL'}] {'legacy' if legacy else 'new'}: shutdown in {tz_pad} "
-          f"-> boot in {tz_boot}: {'SHUTDOWN detected' if r else 'SILENT - evidence lost'}")
+    print(f"  [{'PASS' if r else 'FAIL'}] {'legacy' if legacy else 'new'}: shutdown in {shutdown_tz} "
+          f"-> boot in {boot_tz}: {'SHUTDOWN detected' if r else 'SILENT - evidence lost'}")
     return bool(r)
 C = [tz("Europe/Warsaw", "Europe/Warsaw"),
      tz("Europe/Warsaw", "America/New_York"),
      tz("Pacific/Kiritimati", "Pacific/Midway"),
      tz("Europe/Warsaw", "America/New_York", legacy=True)]
 os.environ["TZ"] = "Europe/Warsaw"; time.tzset()
-if sprzatac:
+if should_clean:
     shutil.rmtree(home, ignore_errors=True)
-zaliczone, wszystkie = sum(A) + sum(B) + sum(C), len(A) + len(B) + len(C)
+passed, total = sum(A) + sum(B) + sum(C), len(A) + len(B) + len(C)
 print(f"\nRESULT: A {sum(A)}/{len(A)}   B {sum(B)}/{len(B)}   C {sum(C)}/{len(C)}"
-      f"   TOTAL {zaliczone}/{wszystkie}")
+      f"   TOTAL {passed}/{total}")
 # Without this, the file never exited with an error code; it was "green" only because
 # nobody checked the exit code, even though it is the first command in AGENTS.md.
-sys.exit(0 if zaliczone == wszystkie else 1)
+sys.exit(0 if passed == total else 1)

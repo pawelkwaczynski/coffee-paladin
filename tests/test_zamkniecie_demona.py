@@ -34,94 +34,94 @@ BASE = tempfile.mkdtemp(prefix="tg-zamkniecie-")
 os.environ["TG_BASE"] = BASE
 os.environ.setdefault("TG_LANG", "en")
 
-wyniki = []
-DZIECI = []
+results = []
+CHILDREN = []
 
 
-def test(nazwa, warunek, detal=""):
-    wyniki.append(bool(warunek))
-    print("  [%s] %s%s" % ("PASS" if warunek else "FAIL", nazwa,
-                           ("  -> " + detal) if detal and not warunek else ""))
+def test(name, condition, detail=""):
+    results.append(bool(condition))
+    print("  [%s] %s%s" % ("PASS" if condition else "FAIL", name,
+                           ("  -> " + detail) if detail and not condition else ""))
 
 
-def czekaj_na(warunek, ile=25.0, krok=0.25):
-    koniec = time.time() + ile
-    while time.time() < koniec:
-        if warunek():
+def wait_for(condition, amount=25.0, step=0.25):
+    finish = time.time() + amount
+    while time.time() < finish:
+        if condition():
             return True
-        time.sleep(krok)
+        time.sleep(step)
     return False
 
 
-def plik(n):
+def file_path(n):
     return os.path.join(BASE, n)
 
 
-def start_demona(dry_run=True):
-    with io.open(plik("config.json"), "w", encoding="utf-8") as f:
+def start_daemon(dry_run=True):
+    with io.open(file_path("config.json"), "w", encoding="utf-8") as f:
         json.dump({"dry_run": dry_run, "poll_seconds": 1, "notify": False, "sound": False,
                    "soc_pause_c": 200, "soc_kill_c": 250, "batt_pause_c": 200,
                    "keep_awake_auto": False, "fan_check": False}, f)
     p = subprocess.Popen([sys.executable, os.path.join(SRC, "guard.py")],
                          stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
                          env=dict(os.environ, TG_BASE=BASE, TG_LANG="en"))
-    DZIECI.append(p)
+    CHILDREN.append(p)
     return p
 
 
-def log_tekst():
+def log_text():
     try:
-        return io.open(plik("guard.log"), encoding="utf-8", errors="replace").read()
+        return io.open(file_path("guard.log"), encoding="utf-8", errors="replace").read()
     except OSError:
         return ""
 
 
 # ---------------------------------------------------------------- main loop
 print("=== main loop really runs ===")
-demon = start_demona()
-test("1. daemon started and wrote status", czekaj_na(lambda: os.path.exists(plik("status.json"))),
+daemon = start_daemon()
+test("1. daemon started and wrote status", wait_for(lambda: os.path.exists(file_path("status.json"))),
      "no status.json after 25 s")
-test("2. ...and ticks heartbeat", os.path.exists(plik("heartbeat")))
-test("3. ...and wrote startup entry in log", "coffee-paladin start" in log_tekst())
+test("2. ...and ticks heartbeat", os.path.exists(file_path("heartbeat")))
+test("3. ...and wrote startup entry in log", "coffee-paladin start" in log_text())
 
-mtime1 = os.path.getmtime(plik("status.json"))
+mtime1 = os.path.getmtime(file_path("status.json"))
 test("4. loop performs NEXT ticks (status refreshes)",
-     czekaj_na(lambda: os.path.getmtime(plik("status.json")) > mtime1, ile=15),
+     wait_for(lambda: os.path.getmtime(file_path("status.json")) > mtime1, amount=15),
      "status.json was not rewritten - loop is stuck after first pass")
 
 try:
-    dane = json.load(io.open(plik("status.json"), encoding="utf-8"))
+    data = json.load(io.open(file_path("status.json"), encoding="utf-8"))
 except Exception:
-    dane = {}
+    data = {}
 test("5. snapshot carries real measurements, not an empty skeleton",
-     isinstance(dane.get("level"), (int, float)) and "thermal_state" in dane,
-     "status.json: %s" % sorted(dane)[:8])
-test("6. measurement history is written", os.path.exists(plik("history.csv")))
+     isinstance(data.get("level"), (int, float)) and "thermal_state" in data,
+     "status.json: %s" % sorted(data)[:8])
+test("6. measurement history is written", os.path.exists(file_path("history.csv")))
 
 # ---------------------------------------------------------------- shutdown
 print("\n=== shutdown: SIGTERM on live daemon ===")
-demon.send_signal(signal.SIGTERM)
+daemon.send_signal(signal.SIGTERM)
 try:
-    demon.wait(timeout=40)
+    daemon.wait(timeout=40)
 except subprocess.TimeoutExpired:
-    demon.kill()
-test("7. daemon exits by itself after SIGTERM (no kill needed)", demon.returncode is not None,
+    daemon.kill()
+test("7. daemon exits by itself after SIGTERM (no kill needed)", daemon.returncode is not None,
      "had to receive SIGKILL")
-test("8. wrote clean shutdown marker", os.path.exists(plik("clean_stop")),
+test("8. wrote clean shutdown marker", os.path.exists(file_path("clean_stop")),
      "no clean_stop - next start will treat this as HARD SHUTDOWN")
-test("9. ...and final entry in log", "coffee-paladin stop" in log_tekst())
+test("9. ...and final entry in log", "coffee-paladin stop" in log_text())
 
 # ---------------------------------------------------------------- core invariant
 print("\n=== clean shutdown MUST NOT be reported as hard shutdown ===")
 g = importlib.machinery.SourceFileLoader("zd_guard", os.path.join(SRC, "guard.py")).load_module()
 try:
-    zdarzenia = [json.loads(l) for l in
-                 io.open(plik("events.log"), encoding="utf-8").read().splitlines() if l.strip()]
+    events = [json.loads(l) for l in
+                 io.open(file_path("events.log"), encoding="utf-8").read().splitlines() if l.strip()]
 except OSError:
-    zdarzenia = []
-pady = [z for z in zdarzenia if z.get("type") == "HARD_SHUTDOWN"]
-test("10. after clean shutdown the black box has NO hard shutdown", not pady,
-     "fabricated shutdowns: %s" % [z.get("time") for z in pady])
+    events = []
+shutdowns = [z for z in events if z.get("type") == "HARD_SHUTDOWN"]
+test("10. after clean shutdown the black box has NO hard shutdown", not shutdowns,
+     "fabricated shutdowns: %s" % [z.get("time") for z in shutdowns])
 
 # The same from the detector side: heartbeat before "boot" plus clean_stop means silence.
 boot = g.boot_time()
@@ -142,44 +142,44 @@ test("12. OPPOSITE case: without clean_stop shutdown IS detected",
 # ---------------------------------------------------------------- caffeinate
 print("\n=== keep-awake does not outlive daemon ===")
 for n in ("clean_stop", "heartbeat", "events.log", "state.json"):
-    if os.path.exists(plik(n)):
-        os.remove(plik(n))
-with io.open(plik("awake.json"), "w", encoding="utf-8") as f:
+    if os.path.exists(file_path(n)):
+        os.remove(file_path(n))
+with io.open(file_path("awake.json"), "w", encoding="utf-8") as f:
     json.dump({"mode": "forever", "until": None, "app": None}, f)
-demon2 = start_demona()
-czekaj_na(lambda: os.path.exists(plik("status.json")), ile=25)
+daemon2 = start_daemon()
+wait_for(lambda: os.path.exists(file_path("status.json")), amount=25)
 
 
-def moje_caffeinate():
+def my_caffeinate():
     """Return caffeinate processes whose parent is our daemon, ignoring foreign ones."""
     out = subprocess.run(["ps", "-Ao", "pid=,ppid=,comm="], capture_output=True, text=True).stdout
     zn = []
     for l in out.splitlines():
         cz = l.split(None, 2)
-        if len(cz) == 3 and cz[2].strip().endswith("caffeinate") and int(cz[1]) == demon2.pid:
+        if len(cz) == 3 and cz[2].strip().endswith("caffeinate") and int(cz[1]) == daemon2.pid:
             zn.append(int(cz[0]))
     return zn
 
 
-mial_caffeinate = czekaj_na(lambda: bool(moje_caffeinate()), ile=20)
-przed = moje_caffeinate()
-demon2.send_signal(signal.SIGTERM)
+had_caffeinate = wait_for(lambda: bool(my_caffeinate()), amount=20)
+before = my_caffeinate()
+daemon2.send_signal(signal.SIGTERM)
 try:
-    demon2.wait(timeout=40)
+    daemon2.wait(timeout=40)
 except subprocess.TimeoutExpired:
-    demon2.kill()
+    daemon2.kill()
 time.sleep(1.5)
-zyje_po = [p for p in przed
+alive_after = [p for p in before
            if subprocess.run(["ps", "-o", "stat=", "-p", str(p)],
                              capture_output=True, text=True).stdout.strip() not in ("", "Z", "Z+")]
-if mial_caffeinate:
-    test("13. daemon caffeinate does NOT survive its shutdown", not zyje_po,
-         "alive: %s - Mac will never sleep, with no trace in UI" % zyje_po)
+if had_caffeinate:
+    test("13. daemon caffeinate does NOT survive its shutdown", not alive_after,
+         "alive: %s - Mac will never sleep, with no trace in UI" % alive_after)
 else:
     test("13. keep-awake did not start in this environment - condition does not apply", True)
-test("14. second shutdown also left clean_stop", os.path.exists(plik("clean_stop")))
+test("14. second shutdown also left clean_stop", os.path.exists(file_path("clean_stop")))
 
-for p in DZIECI:
+for p in CHILDREN:
     try:
         p.kill()
         p.wait(timeout=5)
@@ -187,6 +187,6 @@ for p in DZIECI:
         pass
 shutil.rmtree(BASE, ignore_errors=True)
 
-ok = sum(wyniki)
-print("\nRESULT: %d/%d" % (ok, len(wyniki)))
-sys.exit(0 if ok == len(wyniki) else 1)
+ok = sum(results)
+print("\nRESULT: %d/%d" % (ok, len(results)))
+sys.exit(0 if ok == len(results) else 1)

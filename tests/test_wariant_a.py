@@ -30,30 +30,30 @@ os.environ["TG_BASE"] = BASE
 os.environ["TG_LANG"] = "en"
 g = importlib.machinery.SourceFileLoader("g", GUARD_SRC).load_module()
 
-zaliczone = wszystkie = 0
-dzieci = []
+passed = total = 0
+children = []
 
 
-def test(nazwa, warunek, szczegol=""):
-    global zaliczone, wszystkie
-    wszystkie += 1
-    if warunek:
-        zaliczone += 1
-        print("  [PASS] %s" % nazwa)
+def test(name, condition, detail=""):
+    global passed, total
+    total += 1
+    if condition:
+        passed += 1
+        print("  [PASS] %s" % name)
     else:
-        print("  [FAIL] %s %s" % (nazwa, szczegol))
+        print("  [FAIL] %s %s" % (name, detail))
 
 
-def dziecko():
+def child():
     p = subprocess.Popen(["sleep", "300"],
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    dzieci.append(p)
+    children.append(p)
     return p
 
 
-logi = []
-stary_log, stary_notify, stary_play = g.log, g.notify, g.play_sound
-g.log = lambda *a, **k: logi.append(a[0] if a else "")
+logs = []
+old_log, old_notify, old_play = g.log, g.notify, g.play_sound
+g.log = lambda *a, **k: logs.append(a[0] if a else "")
 g.notify = lambda *a, **k: None
 g.play_sound = lambda *a, **k: None
 
@@ -67,14 +67,14 @@ try:
     procs = [(11111, 1, 200.0, "corespotlightd"),
              (22222, 1, 150.0, "bluetoothd"),          # never, but not system_demote.
              (33333, 1, 120.0, "spotlightknowledged.updater")]
-    cele = g.pick_targets(cfg, procs, {})
-    pidy_celow = {c[0] for c in cele}
+    targets = g.pick_targets(cfg, procs, {})
+    target_pids = {c[0] for c in targets}
     demote_pidy = {d[0] for d in g._DEMOTE_ONLY}
-    test("corespotlightd outside pause targets", 11111 not in pidy_celow)
+    test("corespotlightd outside pause targets", 11111 not in target_pids)
     test("corespotlightd in demote-only channel", 11111 in demote_pidy)
     test("substring: spotlightknowledged.updater also in channel", 33333 in demote_pidy)
     test("bluetoothd COMPLETELY untouchable (neither pause nor demote)",
-         22222 not in pidy_celow and 22222 not in demote_pidy)
+         22222 not in target_pids and 22222 not in demote_pidy)
 
     # snapshot carries the channel as element 14, the live-system integration point.
     mig = g.snapshot(cfg)
@@ -86,7 +86,7 @@ try:
     cfg["demote_cpu_percent"] = 10.0
     cfg["demote_after_minutes"] = 0
     cfg["demote_above_c"] = 10.0
-    p = dziecko()
+    p = child()
     st = {"paused": {}, "demoted": [], "demoted_info": {}}
     hist = {}
     g.do_demote(cfg, st, [(p.pid, 100.0, "sleep", None)], hist, soc_t=50.0)
@@ -98,15 +98,15 @@ try:
 
     # pid taskpolicy will not accept: pid 1 = launchd, foreign owner.
     st2 = {"paused": {}, "demoted": [], "demoted_info": {}}
-    logi[:] = []
+    logs[:] = []
     g.do_demote(cfg, st2, [(1, 100.0, "launchd", None)], {}, soc_t=50.0)
     test("foreign process: NOT entered into demoted (log does not lie)", 1 not in st2["demoted"])
     test("foreign process: one DEMOTE failed line",
-         sum(1 for m in logi if "DEMOTE failed" in str(m)) == 1, repr(logi))
-    logi[:] = []
+         sum(1 for m in logs if "DEMOTE failed" in str(m)) == 1, repr(logs))
+    logs[:] = []
     g.do_demote(cfg, st2, [(1, 100.0, "launchd", None)], {}, soc_t=50.0)
     test("retry silenced (skipped set)",
-         not any("DEMOTE failed" in str(m) for m in logi))
+         not any("DEMOTE failed" in str(m) for m in logs))
     g._demote_nie_da_sie.clear()
 
     # ------------------------------------------------ 3. keep-awake hold
@@ -115,25 +115,25 @@ try:
     cfg["keep_awake_display"] = False
     cfg["keep_awake_hold_s"] = 3600
     cfg["sound"] = False
-    zadanie = [(999999, 300.0, "ffmpeg", None)]
+    job = [(999999, 300.0, "ffmpeg", None)]
 
-    trzyma = g.keep_awake_update(cfg, zadanie, lvl=0)
-    test("heavy job + cool = wake lock starts", trzyma is True)
-    trzyma = g.keep_awake_update(cfg, [], lvl=0)
-    test("job disappears, hold active = wake lock does NOT drop", trzyma is True)
-    trzyma = g.keep_awake_update(cfg, [], lvl=2)
-    test("heat during hold = wake lock drops IMMEDIATELY", trzyma is False)
+    keeps = g.keep_awake_update(cfg, job, lvl=0)
+    test("heavy job + cool = wake lock starts", keeps is True)
+    keeps = g.keep_awake_update(cfg, [], lvl=0)
+    test("job disappears, hold active = wake lock does NOT drop", keeps is True)
+    keeps = g.keep_awake_update(cfg, [], lvl=2)
+    test("heat during hold = wake lock drops IMMEDIATELY", keeps is False)
 
     # hold=0 restores old behavior: stop immediately after the job exits.
     cfg["keep_awake_hold_s"] = 0
-    g.keep_awake_update(cfg, zadanie, lvl=0)
-    trzyma = g.keep_awake_update(cfg, [], lvl=0)
-    test("hold=0: stop immediately (old behavior)", trzyma is False)
+    g.keep_awake_update(cfg, job, lvl=0)
+    keeps = g.keep_awake_update(cfg, [], lvl=0)
+    test("hold=0: stop immediately (old behavior)", keeps is False)
 
     # hold never starts keep-awake; it only extends a live one.
     cfg["keep_awake_hold_s"] = 3600
-    trzyma = g.keep_awake_update(cfg, [], lvl=0)
-    test("hold does not start wake lock from nothing", trzyma is False)
+    keeps = g.keep_awake_update(cfg, [], lvl=0)
+    test("hold does not start wake lock from nothing", keeps is False)
 
 finally:
     # keep-awake must not survive the test.
@@ -146,7 +146,7 @@ finally:
     if proc is not None and proc.poll() is None:
         proc.kill()
         proc.wait(timeout=5)
-    for p in dzieci:
+    for p in children:
         try:
             os.kill(p.pid, signal.SIGKILL)
         except OSError:
@@ -155,7 +155,7 @@ finally:
             p.wait(timeout=5)
         except Exception:
             pass
-    g.log, g.notify, g.play_sound = stary_log, stary_notify, stary_play
+    g.log, g.notify, g.play_sound = old_log, old_notify, old_play
 
-print("\nRESULT: %d/%d" % (zaliczone, wszystkie))
-sys.exit(0 if zaliczone == wszystkie else 1)
+print("\nRESULT: %d/%d" % (passed, total))
+sys.exit(0 if passed == total else 1)

@@ -24,17 +24,17 @@ os.environ["TG_BASE"] = BASE
 os.environ["TG_LANG"] = "en"
 g = importlib.machinery.SourceFileLoader("g", os.path.join(SRC, "guard.py")).load_module()
 
-zaliczone = wszystkie = 0
+passed = total = 0
 
 
-def test(nazwa, warunek, szczegol=""):
-    global zaliczone, wszystkie
-    wszystkie += 1
-    if warunek:
-        zaliczone += 1
-        print("  [PASS] %s" % nazwa)
+def test(name, condition, detail=""):
+    global passed, total
+    total += 1
+    if condition:
+        passed += 1
+        print("  [PASS] %s" % name)
     else:
-        print("  [FAIL] %s  -> %s" % (nazwa, szczegol))
+        print("  [FAIL] %s  -> %s" % (name, detail))
 
 
 def prawa(p):
@@ -59,10 +59,10 @@ test("old install: config tightened to 0600", prawa(g.CFG_PATH) == 0o600, oct(pr
 test("config remains readable by owner after permission change",
      json.load(open(g.CFG_PATH)).get("ntfy_topic") == "sekret-123")
 
-for sciezka, opis in ((BASE, "katalog"), (g.CFG_PATH, "config.json")):
-    test("%s: no permissions for group or others" % opis, not (prawa(sciezka) & 0o077),
-         oct(prawa(sciezka)))
+for path, description in ((BASE, "katalog"), (g.CFG_PATH, "config.json")):
+    test("%s: no permissions for group or others" % description, not (prawa(path) & 0o077),
+         oct(prawa(path)))
 
 shutil.rmtree(BASE, ignore_errors=True)
-print("\nRESULT: %d/%d" % (zaliczone, wszystkie))
-sys.exit(0 if zaliczone == wszystkie else 1)
+print("\nRESULT: %d/%d" % (passed, total))
+sys.exit(0 if passed == total else 1)

@@ -27,28 +27,28 @@ os.environ["SAFE_RUN_WAIT_POLL"] = "0.01"
 sr = importlib.machinery.SourceFileLoader("sr", os.path.join(SRC, "safe-run")).load_module()
 json.dump({"soc_pause_c": 95.0, "soc_resume_c": 87.0}, open(os.path.join(BASE, "config.json"), "w"))
 
-zaliczone = 0
-wszystkie = 0
+passed = 0
+total = 0
 
 
-def test(nazwa, warunek, szczegol=""):
-    global zaliczone, wszystkie
-    wszystkie += 1
-    if warunek:
-        zaliczone += 1
-        print("  [PASS] %s" % nazwa)
+def test(name, condition, detail=""):
+    global passed, total
+    total += 1
+    if condition:
+        passed += 1
+        print("  [PASS] %s" % name)
     else:
-        print("  [FAIL] %s  -> %s" % (nazwa, szczegol))
+        print("  [FAIL] %s  -> %s" % (name, detail))
 
 
-def migawka(chip, resume=87.0, wiek=0, level=0):
+def snapshot(chip, resume=87.0, age=0, level=0):
     p = os.path.join(BASE, "status.json")
-    progi = {"pause": 95, "kill": 100}
+    thresholds = {"pause": 95, "kill": 100}
     if resume is not None:
-        progi["resume"] = resume
-    json.dump({"level": level, "chip_c": chip, "thresholds": progi}, open(p, "w"))
-    if wiek:
-        os.utime(p, (time.time() - wiek, time.time() - wiek))
+        thresholds["resume"] = resume
+    json.dump({"level": level, "chip_c": chip, "thresholds": thresholds}, open(p, "w"))
+    if age:
+        os.utime(p, (time.time() - age, time.time() - age))
     return p
 
 
@@ -67,101 +67,101 @@ test("--wait-cool sets flag and does not eat the command",
 sys.argv = argv0
 
 # --- read_chip_state ---
-migawka(91.0)
-chip, prog, lvl = sr.read_chip_state()
+snapshot(91.0)
+chip, threshold, lvl = sr.read_chip_state()
 test("fresh snapshot: chip and resume threshold from snapshot",
-     chip == 91.0 and prog == 87.0, "chip=%s threshold=%s" % (chip, prog))
+     chip == 91.0 and threshold == 87.0, "chip=%s threshold=%s" % (chip, threshold))
 
-migawka(91.0, resume=None)
-chip, prog, lvl = sr.read_chip_state()
+snapshot(91.0, resume=None)
+chip, threshold, lvl = sr.read_chip_state()
 test("snapshot without resume field: threshold from config.json (old guard)",
-     chip == 91.0 and prog == 87.0, "chip=%s threshold=%s" % (chip, prog))
+     chip == 91.0 and threshold == 87.0, "chip=%s threshold=%s" % (chip, threshold))
 
-migawka(99.0, wiek=300)
-chip, prog, lvl = sr.read_chip_state()
+snapshot(99.0, age=300)
+chip, threshold, lvl = sr.read_chip_state()
 test("5-minute-old snapshot: chip unknown (do not hang on a dead guard)",
      chip is None, "chip=%s" % chip)
 
-migawka("zepsute")
-chip, prog, lvl = sr.read_chip_state()
+snapshot("zepsute")
+chip, threshold, lvl = sr.read_chip_state()
 test("junk chip_c in snapshot does not crash read", chip is None, "chip=%s" % chip)
 
 os.remove(os.path.join(BASE, "status.json"))
-chip, prog, lvl = sr.read_chip_state()
+chip, threshold, lvl = sr.read_chip_state()
 test("missing snapshot: chip unknown, threshold from config",
-     chip is None and prog == 87.0, "chip=%s threshold=%s" % (chip, prog))
+     chip is None and threshold == 87.0, "chip=%s threshold=%s" % (chip, threshold))
 
 # --- wait loop; replace measurement sources and count sleeps ---
-prawdziwe = (sr.thermal_state, sr.batt_temp, sr.read_chip_state, sr.time.sleep)
-drzemki = []
+real_values = (sr.thermal_state, sr.batt_temp, sr.read_chip_state, sr.time.sleep)
+sleeps = []
 
 
-def czekaj(sekwencja_chip, stan="nominal", bateria=30.0, sekwencja_lvl=None):
+def wait(chip_sequence, state="nominal", battery=30.0, level_sequence=None):
     """Run the wait loop over chip readings and return (result, sleep_count)."""
-    drzemki.clear()
-    licznik = {"i": 0}
+    sleeps.clear()
+    counter = {"i": 0}
 
-    def falszywy_chip():
-        i = min(licznik["i"], len(sekwencja_chip) - 1)
-        lvl = sekwencja_lvl[min(licznik["i"], len(sekwencja_lvl) - 1)] if sekwencja_lvl else 0
-        licznik["i"] += 1
-        return sekwencja_chip[i], 87.0, lvl
+    def fake_chip():
+        i = min(counter["i"], len(chip_sequence) - 1)
+        lvl = level_sequence[min(counter["i"], len(level_sequence) - 1)] if level_sequence else 0
+        counter["i"] += 1
+        return chip_sequence[i], 87.0, lvl
 
-    sr.thermal_state = lambda: stan
-    sr.batt_temp = lambda: bateria
-    sr.read_chip_state = falszywy_chip
-    sr.time.sleep = lambda s: drzemki.append(s)
+    sr.thermal_state = lambda: state
+    sr.batt_temp = lambda: battery
+    sr.read_chip_state = fake_chip
+    sr.time.sleep = lambda s: sleeps.append(s)
     try:
         with contextlib.redirect_stdout(io.StringIO()) as out:
             minuty = sr.wait_for_cooldown(40.0)
-        return minuty, len(drzemki), out.getvalue()
+        return minuty, len(sleeps), out.getvalue()
     finally:
-        sr.thermal_state, sr.batt_temp, sr.read_chip_state, sr.time.sleep = prawdziwe
+        sr.thermal_state, sr.batt_temp, sr.read_chip_state, sr.time.sleep = real_values
 
 
-minuty, ile, tekst = czekaj([91.0, 89.0, 86.0])
+minuty, amount, text = wait([91.0, 89.0, 86.0])
 test("waits until chip drops TO resume threshold (2 sleeps at 91->89->86)",
-     ile == 2, "sleeps=%d" % ile)
+     amount == 2, "sleeps=%d" % amount)
 test("waiting message printed with reason",
-     "wait" in tekst and "chip 91.0" in tekst, tekst.strip()[:100])
+     "wait" in text and "chip 91.0" in text, text.strip()[:100])
 
-minuty, ile, tekst = czekaj([86.0])
-test("cool machine: returns without sleeping", ile == 0, "sleeps=%d" % ile)
+minuty, amount, text = wait([86.0])
+test("cool machine: returns without sleeping", amount == 0, "sleeps=%d" % amount)
 
-minuty, ile, tekst = czekaj([None])
+minuty, amount, text = wait([None])
 test("chip unknown (dead guard) + cool rest: does NOT hang forever",
-     ile == 0, "sleeps=%d" % ile)
+     amount == 0, "sleeps=%d" % amount)
 
-minuty, ile, tekst = czekaj([50.0, 50.0, 50.0], sekwencja_lvl=[2, 2, 0])
+minuty, amount, text = wait([50.0, 50.0, 50.0], level_sequence=[2, 2, 0])
 test("guard level>=2 keeps waiting despite cool chip (throttling/battery)",
-     ile == 2 and "guard level 2" in tekst,
-     "sleeps=%d %s" % (ile, tekst.strip()[:80]))
+     amount == 2 and "guard level 2" in text,
+     "sleeps=%d %s" % (amount, text.strip()[:80]))
 
 # Hot battery keeps waiting despite a cool chip; cooling battery ends it.
-licznik_bat = {"i": 0}
+battery_counter = {"i": 0}
 
 
-def bateria_stygnie():
-    licznik_bat["i"] += 1
-    return 41.0 if licznik_bat["i"] <= 2 else 30.0
+def battery_cools():
+    battery_counter["i"] += 1
+    return 41.0 if battery_counter["i"] <= 2 else 30.0
 
 
 sr.thermal_state = lambda: "nominal"
-sr.batt_temp = bateria_stygnie
+sr.batt_temp = battery_cools
 sr.read_chip_state = lambda: (50.0, 87.0, 0)
-sr.time.sleep = lambda s: drzemki.append(s)
-drzemki.clear()
+sr.time.sleep = lambda s: sleeps.append(s)
+sleeps.clear()
 try:
     with contextlib.redirect_stdout(io.StringIO()) as out_bat:
         sr.wait_for_cooldown(40.0)
 finally:
-    sr.thermal_state, sr.batt_temp, sr.read_chip_state, sr.time.sleep = prawdziwe
+    sr.thermal_state, sr.batt_temp, sr.read_chip_state, sr.time.sleep = real_values
 test("hot battery keeps waiting despite cool chip, cooling battery ends it",
-     len(drzemki) == 2 and "batt 41.0" in out_bat.getvalue(),
-     "sleeps=%d %s" % (len(drzemki), out_bat.getvalue().strip()[:80]))
+     len(sleeps) == 2 and "batt 41.0" in out_bat.getvalue(),
+     "sleeps=%d %s" % (len(sleeps), out_bat.getvalue().strip()[:80]))
 
 # --- main() routing: without flag, refusal rc 3 before anything starts ---
-migawka(92.0)
+snapshot(92.0)
 sys.argv = ["safe-run", "--", "true"]
 with contextlib.redirect_stdout(io.StringIO()) as out:
     rc = sr.main()
@@ -172,5 +172,5 @@ test("refusal suggests --wait-cool", "--wait-cool" in out.getvalue(),
 sys.argv = argv0
 
 shutil.rmtree(BASE, ignore_errors=True)
-print("\nRESULT: %d/%d" % (zaliczone, wszystkie))
-sys.exit(0 if zaliczone == wszystkie else 1)
+print("\nRESULT: %d/%d" % (passed, total))
+sys.exit(0 if passed == total else 1)

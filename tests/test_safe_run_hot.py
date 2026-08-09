@@ -26,32 +26,32 @@ os.environ["TG_LANG"] = "en"
 sr = importlib.machinery.SourceFileLoader("sr", os.path.join(SRC, "safe-run")).load_module()
 json.dump({"soc_pause_c": 85.0}, open(os.path.join(BASE, "config.json"), "w"))
 
-zaliczone = 0
-wszystkie = 0
+passed = 0
+total = 0
 
 
-def test(nazwa, warunek, szczegol=""):
-    global zaliczone, wszystkie
-    wszystkie += 1
-    if warunek:
-        zaliczone += 1
-        print("  [PASS] %s" % nazwa)
+def test(name, condition, detail=""):
+    global passed, total
+    total += 1
+    if condition:
+        passed += 1
+        print("  [PASS] %s" % name)
     else:
-        print("  [FAIL] %s  -> %s" % (nazwa, szczegol))
+        print("  [FAIL] %s  -> %s" % (name, detail))
 
 
-def migawka(level, chip, wiek=0):
+def snapshot(level, chip, age=0):
     p = os.path.join(BASE, "status.json")
     json.dump({"level": level, "chip_c": chip,
                "thresholds": {"pause": 85, "kill": 90}}, open(p, "w"))
-    if wiek:
-        os.utime(p, (time.time() - wiek, time.time() - wiek))
+    if age:
+        os.utime(p, (time.time() - age, time.time() - age))
     return p
 
 
 print("safe-run: refusing start on a hot machine")
 
-for opis, lvl, chip, oczekiwane in [
+for description, lvl, chip, expected in [
     ("cold machine does not block start", 0, 45.0, False),
     ("warm, but more than 5 C below threshold - start allowed", 0, 79.0, False),
     ("5 C below pause threshold - START BLOCKED", 0, 80.0, True),
@@ -59,11 +59,11 @@ for opis, lvl, chip, oczekiwane in [
     ("guard reports level 2 - START BLOCKED", 2, 50.0, True),
     ("guard reports critical level - START BLOCKED", 3, 50.0, True),
 ]:
-    migawka(lvl, chip)
-    wynik, _ = sr.chip_already_hot()
-    test(opis, wynik is oczekiwane, "level=%s chip=%s -> %s" % (lvl, chip, wynik))
+    snapshot(lvl, chip)
+    result, _ = sr.chip_already_hot()
+    test(description, result is expected, "level=%s chip=%s -> %s" % (lvl, chip, result))
 
-migawka(0, 99.0, wiek=300)
+snapshot(0, 99.0, age=300)
 w, _ = sr.chip_already_hot()
 test("5-minute-old snapshot is not a basis for blocking", w is False, "returned %s" % w)
 
@@ -72,5 +72,5 @@ w, _ = sr.chip_already_hot()
 test("missing status.json does not block start (guard will warn anyway)", w is False, "returned %s" % w)
 
 shutil.rmtree(BASE, ignore_errors=True)
-print("\nRESULT: %d/%d" % (zaliczone, wszystkie))
-sys.exit(0 if zaliczone == wszystkie else 1)
+print("\nRESULT: %d/%d" % (passed, total))
+sys.exit(0 if passed == total else 1)

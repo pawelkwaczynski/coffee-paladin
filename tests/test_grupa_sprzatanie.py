@@ -28,24 +28,69 @@ os.environ["TG_LANG"] = "en"
 sr = importlib.machinery.SourceFileLoader("sr", os.path.join(SRC, "safe-run")).load_module()
 json.dump({}, open(os.path.join(BASE, "config.json"), "w"))
 
-zaliczone = 0
-wszystkie = 0
+passed = 0
+total = 0
+tracked_groups = {}
+real_alive_in_group = sr.alive_in_group
+process_table_available = real_alive_in_group(os.getpid()) is not None
 
 
-def test(nazwa, warunek, szczegol=""):
-    global zaliczone, wszystkie
-    wszystkie += 1
-    if warunek:
-        zaliczone += 1
-        print("  [PASS] %s" % nazwa)
+def test(name, condition, detail=""):
+    global passed, total
+    total += 1
+    if condition:
+        passed += 1
+        print("  [PASS] %s" % name)
     else:
-        print("  [FAIL] %s  -> %s" % (nazwa, szczegol))
+        print("  [FAIL] %s  -> %s" % (name, detail))
 
 
-def grupa_z_wnukiem():
+def tracked_alive_in_group(pgid):
+    if process_table_available:
+        return real_alive_in_group(pgid)
+    known = tracked_groups.get(pgid)
+    if known is None:
+        return None
+    alive = []
+    for pid in sorted(known):
+        try:
+            os.kill(pid, 0)
+            if os.getpgid(pid) == pgid:
+                alive.append(pid)
+        except OSError:
+            pass
+    return alive
+
+
+sr.alive_in_group = tracked_alive_in_group
+
+
+def tracked_group(script):
+    child_file = os.path.join(BASE, "child-%d.pid" % len(tracked_groups))
+    env = dict(os.environ, TG_CHILD_PID=child_file)
+    p = subprocess.Popen(["/bin/sh", "-c", script], preexec_fn=os.setsid, env=env)
+    deadline = time.time() + 5.0
+    child = None
+    while time.time() < deadline:
+        try:
+            with open(child_file) as f:
+                child = int(f.read().strip())
+            break
+        except (OSError, ValueError):
+            time.sleep(0.05)
+    tracked_groups[p.pid] = {p.pid}
+    if child is not None:
+        tracked_groups[p.pid].add(child)
+    return p
+
+
+def group_with_grandchild():
     """Start a leader in its own group with a background child in the same group."""
-    p = subprocess.Popen(["/bin/sh", "-c", "sleep 300 & exec sleep 300"],
-                         preexec_fn=os.setsid)
+    if process_table_available:
+        p = subprocess.Popen(["/bin/sh", "-c", "sleep 300 & exec sleep 300"],
+                             preexec_fn=os.setsid)
+    else:
+        p = tracked_group('sleep 300 & echo $! > "$TG_CHILD_PID"; exec sleep 300')
     time.sleep(0.3)                       # Let sh start the background child.
     return p
 
@@ -66,7 +111,7 @@ test("grace is capped at 1 h", opt["grace"] == 3600.0, str(opt))
 sys.argv = argv0
 
 # --- live processes in group ---
-p = grupa_z_wnukiem()
+p = group_with_grandchild()
 pids = sr.alive_in_group(p.pid)
 test("sees leader and grandchild in group (>= 2 pids)", len(pids) >= 2, str(pids))
 test("does not see US in the group", os.getpid() not in pids, str(pids))
@@ -75,42 +120,45 @@ test("does not see US in the group", os.getpid() not in pids, str(pids))
 os.kill(p.pid, signal.SIGTERM)
 p.wait()
 time.sleep(0.3)
-sieroty = sr.alive_in_group(p.pid)
+orphans = sr.alive_in_group(p.pid)
 test("after leader dies, orphan grandchild is ALIVE in the group (incident repro)",
-     len(sieroty) >= 1, str(sieroty))
+     len(orphans) >= 1, str(orphans))
 
 t0 = time.time()
 sr.sweep_group(p.pid, grace=5.0)
-czas = time.time() - t0
+timestamp = time.time() - t0
 test("sweep_group kills the orphan", sr.alive_in_group(p.pid) == [],
      str(sr.alive_in_group(p.pid)))
-test("sleep dies on SIGTERM - without waiting the whole grace window", czas < 4.0,
-     "%.1f s" % czas)
+test("sleep dies on SIGTERM - without waiting the whole grace window", timestamp < 4.0,
+     "%.1f s" % timestamp)
 
 # --- Frozen orphan (state T): CONT before TERM, or the signal stays pending ---
-p = grupa_z_wnukiem()
+p = group_with_grandchild()
 os.kill(p.pid, signal.SIGTERM)
 p.wait()
 time.sleep(0.3)
-sieroty = sr.alive_in_group(p.pid)
-for pid in sieroty:
+orphans = sr.alive_in_group(p.pid)
+for pid in orphans:
     os.kill(pid, signal.SIGSTOP)
 sr.sweep_group(p.pid, grace=5.0)
 test("frozen orphan also dies (CONT before TERM)",
      sr.alive_in_group(p.pid) == [], str(sr.alive_in_group(p.pid)))
 
 # --- Stubborn process that ignores SIGTERM receives SIGKILL after the grace window ---
-p = subprocess.Popen(["/bin/sh", "-c", "trap '' TERM; sleep 300"],
-                     preexec_fn=os.setsid)
+if process_table_available:
+    p = subprocess.Popen(["/bin/sh", "-c", "trap '' TERM; sleep 300"],
+                         preexec_fn=os.setsid)
+else:
+    p = tracked_group('trap "" TERM; sleep 300 & echo $! > "$TG_CHILD_PID"; wait')
 time.sleep(0.3)
 t0 = time.time()
 sr.sweep_group(p.pid, grace=2.0)
 p.wait()
-czas = time.time() - t0
+timestamp = time.time() - t0
 test("SIGTERM-ignoring process dies from SIGKILL after the grace window",
-     sr.alive_in_group(p.pid) == [] and 1.5 <= czas < 8.0,
-     "%.1f s, alive=%s" % (czas, sr.alive_in_group(p.pid)))
+     sr.alive_in_group(p.pid) == [] and 1.5 <= timestamp < 8.0,
+     "%.1f s, alive=%s" % (timestamp, sr.alive_in_group(p.pid)))
 
 shutil.rmtree(BASE, ignore_errors=True)
-print("\nRESULT: %d/%d" % (zaliczone, wszystkie))
-sys.exit(0 if zaliczone == wszystkie else 1)
+print("\nRESULT: %d/%d" % (passed, total))
+sys.exit(0 if passed == total else 1)
