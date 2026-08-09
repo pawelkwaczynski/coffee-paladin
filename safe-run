@@ -52,12 +52,12 @@ AGENT_LABEL = "pl.pawel.coffee-paladin"
 SUPPORTED_LANGS = ("en", "pl", "ru", "zh", "es")
 
 
-def czas_abs(s):
+def abs_epoch(s):
     """Return an absolute epoch parsed from `ts()` output.
 
     Accept timestamps with or without a UTC offset; rows before 2.1.8 have no
     offset. Return 0.0 when the input is not parseable, including non-strings.
-    This is an intentional copy of `guard.czas_abs`; tests/test_spojnosc.py keeps
+    This is an intentional copy of `guard.abs_epoch`; tests/test_spojnosc.py keeps
     all copies aligned.
     """
     # Evidence-file parser: it must never raise. One bad row must not abort the
@@ -309,7 +309,7 @@ def batt_temp():
 
 
 def guard_running():
-    return guard_zyje()
+    return guard_alive()
 
 
 def start_guard():
@@ -372,7 +372,7 @@ def parse():
     return opt, cmd
 
 
-def migawka_swieza(nazwa, max_wiek=120):
+def snapshot_fresh(nazwa, max_wiek=120):
     """Return whether a daemon snapshot is fresh enough to mean anything.
 
     `max_wiek` is seconds. False means the file is missing, stale, or unreadable.
@@ -403,7 +403,7 @@ def guard_paused(pid):
     the guard's back while the guard still counted it as paused and eventually
     sent SIGTERM at the pause limit.
     """
-    if not migawka_swieza("state.json"):
+    if not snapshot_fresh("state.json"):
         return False
     try:
         with open(os.path.join(BASE, "state.json")) as f:
@@ -475,7 +475,7 @@ def guard_hot():
     # Close the remaining race: the guard may have sent SIGSTOP before writing
     # state.json. The level in status.json is enough to keep the limiter from
     # waking the group.
-    if not migawka_swieza("status.json"):
+    if not snapshot_fresh("status.json"):
         return False
     try:
         with open(os.path.join(BASE, "status.json")) as f:
@@ -484,7 +484,7 @@ def guard_hot():
         return False
 
 
-def chip_juz_goracy():
+def chip_already_hot():
     """Return whether the chip is already near the pause threshold.
 
     Use the guard snapshot, not ProcessInfo.thermalState. Return (hot, reason);
@@ -527,7 +527,7 @@ def chip_juz_goracy():
     return False, ""
 
 
-def chip_odczyt():
+def read_chip_state():
     """Return (chip_c, resume_threshold_c, level) from a fresh guard snapshot.
 
     Temperatures are degrees C. chip_c is None when the snapshot is stale,
@@ -571,7 +571,7 @@ def chip_odczyt():
 WAIT_POLL_S = float(os.environ.get("SAFE_RUN_WAIT_POLL", 60))
 
 
-def czekaj_na_ochlodzenie(limit):
+def wait_for_cooldown(limit):
     """Block until the machine cools down and return waited minutes.
 
     The target is the guard's resume threshold, not "pause threshold minus 5":
@@ -584,7 +584,7 @@ def czekaj_na_ochlodzenie(limit):
     t0 = time.time()
     ostatni_komunikat = 0.0
     while True:
-        chip, prog, lvl = chip_odczyt()
+        chip, prog, lvl = read_chip_state()
         stan = thermal_state()
         bat = batt_temp()
         powody = []
@@ -657,7 +657,7 @@ def max_temp_since(t0):
                 if len(p) < 3 or not p[2]:
                     continue
                 try:
-                    when = czas_abs(p[0])
+                    when = abs_epoch(p[0])
                     if not when:
                         continue
                 except Exception:
@@ -670,7 +670,7 @@ def max_temp_since(t0):
     return best
 
 
-def zywi_w_grupie(pgid):
+def alive_in_group(pgid):
     """Return live PIDs in a job process group.
 
     safe-run itself is in another group. None means unknown: pgrep failed or
@@ -694,7 +694,7 @@ def zywi_w_grupie(pgid):
     return pids
 
 
-def sprzatnij_grupe(pgid, grace):
+def sweep_group(pgid, grace):
     """Send SIGCONT and SIGTERM to the group, then SIGKILL survivors after grace.
 
     `grace` is seconds. SIGCONT is sent first because SIGTERM delivered to a
@@ -709,21 +709,21 @@ def sprzatnij_grupe(pgid, grace):
     while time.time() < koniec:
         # Only an explicitly empty group exits early. None (pgrep failed) waits
         # until SIGKILL; firing at an empty group is safer than skipping a live one.
-        if zywi_w_grupie(pgid) == []:
+        if alive_in_group(pgid) == []:
             return
         time.sleep(1)
-    if zywi_w_grupie(pgid) != []:
+    if alive_in_group(pgid) != []:
         try:
             os.killpg(pgid, signal.SIGKILL)
         except Exception:
             pass
 
 
-def guard_zyje():
+def guard_alive():
     """Return whether the daemon is really alive, not only loaded in launchd.
 
     `launchctl list` can print "-  1  pl.pawel.coffee-paladin" for a dead job.
-    Check the PID column, matching install.sh (`ma_pid`). Fall back to the real
+    Check the PID column, matching install.sh (`has_pid`). Fall back to the real
     binary name, not only "guard.py".
     """
     for linia in sh(["launchctl", "list"]).splitlines():
@@ -765,7 +765,7 @@ def main():
 
     state, temp = thermal_state(), batt_temp()
     limit = cfg().get("batt_pause_c", 40.0)
-    chip_hot, chip_powod = chip_juz_goracy()
+    chip_hot, chip_powod = chip_already_hot()
     if chip_powod == "STALE":
         chip_powod = ""
         print(T("safe-run: WARNING - the guard's snapshot is stale, the daemon is probably "
@@ -785,7 +785,7 @@ def main():
         # starts below after cooldown. Ctrl-C while waiting is a normal manual
         # interruption (rc 130, same contract as retry_run.sh: do not retry).
         try:
-            minuty = czekaj_na_ochlodzenie(limit)
+            minuty = wait_for_cooldown(limit)
         except KeyboardInterrupt:
             return 130
         print(T("safe-run: cooled down after %d min - starting the job") % round(minuty))
@@ -850,7 +850,7 @@ def main():
         # Cleanup checks the WHOLE group, not proc.poll(): if the leader died
         # while grandchildren were alive, SIGKILL used to be skipped and the
         # grandchildren stayed forever.
-        sprzatnij_grupe(proc.pid, opt["grace"])
+        sweep_group(proc.pid, opt["grace"])
         rc = proc.wait()
 
     # Leftover group members at exit. If the leader dies from an external signal
@@ -863,13 +863,13 @@ def main():
     # After killed_by_time, the group already had the full grace window and
     # SIGKILL. A second cleanup cannot kill anything SIGKILL did not kill, so
     # only report.
-    resztki = zywi_w_grupie(proc.pid)
+    resztki = alive_in_group(proc.pid)
     if resztki:
         smierc_od_sygnalu = rc is not None and (rc < 0 or rc >= 128)
         if smierc_od_sygnalu and not killed_by_time:
             print(T("safe-run: cleaning up %d leftover process(es) from the job's group (SIGTERM, then SIGKILL after %d s)")
                   % (len(resztki), int(opt["grace"])))
-            sprzatnij_grupe(proc.pid, opt["grace"])
+            sweep_group(proc.pid, opt["grace"])
         else:
             print(T("safe-run: WARNING - the job left %d process(es) running in its group (pids: %s) - no time budget applies to them")
                   % (len(resztki), ", ".join(str(p) for p in resztki)))

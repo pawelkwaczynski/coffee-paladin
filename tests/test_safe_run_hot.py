@@ -60,15 +60,15 @@ for opis, lvl, chip, oczekiwane in [
     ("guard reports critical level - START BLOCKED", 3, 50.0, True),
 ]:
     migawka(lvl, chip)
-    wynik, _ = sr.chip_juz_goracy()
+    wynik, _ = sr.chip_already_hot()
     test(opis, wynik is oczekiwane, "level=%s chip=%s -> %s" % (lvl, chip, wynik))
 
 migawka(0, 99.0, wiek=300)
-w, _ = sr.chip_juz_goracy()
+w, _ = sr.chip_already_hot()
 test("5-minute-old snapshot is not a basis for blocking", w is False, "returned %s" % w)
 
 os.remove(os.path.join(BASE, "status.json"))
-w, _ = sr.chip_juz_goracy()
+w, _ = sr.chip_already_hot()
 test("missing status.json does not block start (guard will warn anyway)", w is False, "returned %s" % w)
 
 shutil.rmtree(BASE, ignore_errors=True)

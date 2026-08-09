@@ -117,7 +117,7 @@ class Sesja(object):
             OK_FUNKCJE.append(self.nazwa)
 
 
-# ================================================================ 1. args_bez_sciezek
+# ================================================================ 1. args_without_paths
 #
 # The question is not just whether it crashes. It is whether a file can be named so
 # an agent process loses protection, or a plain encoder gains it and keeps heating
@@ -134,7 +134,7 @@ KATALOGI_NEUTRALNE = ["wideo", "Movies", "archiwum", "Z_FTP"]
 NARZEDZIA = ["ffmpeg", "/opt/homebrew/bin/ffmpeg", "x265", "python3", "HandBrakeCLI"]
 
 # Same check pick_targets performs: guard.py has any(n.lower() in args ...).
-NEVER_ARG = list(guard.DEFAULTS["never_arg_patterns"]) + list(guard.WLASNE_NAZWY)
+NEVER_ARG = list(guard.DEFAULTS["never_arg_patterns"]) + list(guard.OWN_NAMES)
 
 
 def chroniony(args):
@@ -160,7 +160,7 @@ def zadanie_z_danymi(rng):
     elif katalog_jako_arg:
         wyj = os.path.dirname(wyj) + "/"                 # Target directory, not a file.
     narz = rng.choice(NARZEDZIA)
-    if guard.jest_interpreterem(os.path.basename(narz).lower()):
+    if guard.is_interpreter(os.path.basename(narz).lower()):
         # For an interpreter, process identity is the executed script, not the
         # video file. `python3 -y -i rec.mkv` is not a real command shape; it only
         # proves python3 is an interpreter. A real Python job has the script first.
@@ -214,7 +214,7 @@ def agent(rng):
 
 
 def fuzz_args_ochrona(seed, n):
-    s = Sesja("guard.args_bez_sciezek [protection]", seed)
+    s = Sesja("guard.args_without_paths [protection]", seed)
     stary = guard.full_args
     ekstrema = [
         "", "   ", "\x00", "\x00 ffmpeg -i /Users/x/claude/a.mkv",
@@ -243,7 +243,7 @@ def fuzz_args_ochrona(seed, n):
                 cmd, oczek, powod = agent(s.rng)
             guard.full_args = lambda pid, _w=cmd: _w
             try:
-                out = guard.args_bez_sciezek(s.rng.randint(1, 99999))
+                out = guard.args_without_paths(s.rng.randint(1, 99999))
             except Exception as e:
                 s.blad(cmd, e)
                 continue
@@ -448,10 +448,10 @@ def fuzz_run(seed, n):
     s.koniec()
 
 
-# ================================================================ 4. zajmij_wylacznosc
+# ================================================================ 4. acquire_exclusive
 
 def uchwyt(r):
-    """Return whether zajmij_wylacznosc() returned a lock handle.
+    """Return whether acquire_exclusive() returned a lock handle.
 
     guard.main documents three outcomes: file means this process owns the lock, None
     means someone else owns it, and False means the lock file could not be opened and
@@ -463,7 +463,7 @@ def uchwyt(r):
 
 
 def fuzz_wylacznosc(seed, n):
-    s = Sesja("guard.zajmij_wylacznosc", seed)
+    s = Sesja("guard.acquire_exclusive", seed)
     lock = os.path.join(TMP, "guard.lock")
     uchwyty = []
     try:
@@ -481,7 +481,7 @@ def fuzz_wylacznosc(seed, n):
                     del uchwyty[:]
                     if os.path.isdir(lock):
                         shutil.rmtree(lock, ignore_errors=True)
-                    f1 = guard.zajmij_wylacznosc()
+                    f1 = guard.acquire_exclusive()
                     if not uchwyt(f1):
                         s.bzdura(opis, "first instance did NOT get the lock (returned %r)"
                                  % (f1,), "HIGH", klucz="brak-blokady")
@@ -491,7 +491,7 @@ def fuzz_wylacznosc(seed, n):
                     opis = "second instance while lock is held"
                     if not uchwyty:
                         continue      # Nobody holds the lock, so there is nothing to check.
-                    f2 = guard.zajmij_wylacznosc()
+                    f2 = guard.acquire_exclusive()
                     if uchwyt(f2):
                         uchwyty.append(f2)
                         s.bzdura(opis, "TWO instances acquired the lock at once - two daemons on "
@@ -520,7 +520,7 @@ def fuzz_wylacznosc(seed, n):
                         os.unlink(lock)
                     os.makedirs(lock, exist_ok=True)
                     try:
-                        r = guard.zajmij_wylacznosc()
+                        r = guard.acquire_exclusive()
                         if uchwyt(r):
                             uchwyty.append(r)
                     except Exception as e:
@@ -535,7 +535,7 @@ def fuzz_wylacznosc(seed, n):
                         os.unlink(lock)
                     os.chmod(TMP, 0o500)
                     try:
-                        r = guard.zajmij_wylacznosc()
+                        r = guard.acquire_exclusive()
                         if uchwyt(r):
                             uchwyty.append(r)
                     except Exception as e:
@@ -547,7 +547,7 @@ def fuzz_wylacznosc(seed, n):
                     for f in uchwyty:
                         f.close()
                     del uchwyty[:]
-                    r = guard.zajmij_wylacznosc()
+                    r = guard.acquire_exclusive()
                     if r is None:
                         s.bzdura(opis, "after closing the handle, the lock was NOT released",
                                  "HIGH", klucz="blokada-nie-zwolniona")
@@ -791,17 +791,17 @@ def fuzz_fleet(seed, n):
                     s.bzdura(wejscia,
                              "%s character from a foreign snapshot reaches the operator terminal "
                              "directly - it can erase already printed rows together with the failure "
-                             "warning (_czysty_tekst does not cover this field)" % nazwa_zlego,
+                             "warning (_clean_text does not cover this field)" % nazwa_zlego,
                              "HIGH", klucz="wstrzykniecie:" + nazwa_zlego)
     finally:
         shutil.rmtree(FLEET_DIR, ignore_errors=True)
     s.koniec()
 
 
-# ================================================================ 7. chip_juz_goracy
+# ================================================================ 7. chip_already_hot
 
 def fuzz_chip_swiezosc(seed, n):
-    s = Sesja("safe-run.chip_juz_goracy [freshness]", seed)
+    s = Sesja("safe-run.chip_already_hot [freshness]", seed)
     wieki = [0, 1, 60, 119, 119.9, 120, 120.1, 121, 300, 86400, -30, -1e6]
     try:
         for i in range(n):
@@ -824,7 +824,7 @@ def fuzz_chip_swiezosc(seed, n):
                 f.write(tresc)
             os.utime(STATUS_PATH, (time.time() - wiek, time.time() - wiek))
             try:
-                r = saferun.chip_juz_goracy()
+                r = saferun.chip_already_hot()
             except Exception as e:
                 s.blad({"wiek_s": wiek, "status": tresc}, e, "MEDIUM")
                 continue
@@ -899,26 +899,26 @@ def fuzz_report(seed, n):
             #        The upper bound moved from 150 to 110, the Apple Silicon T_j max
             #        described in thermal-report. Rows above it must be counted and
             #        described on a separate line, not silently skipped.
-            wiersze = []
+            iter_lines = []
             oczekiwany = 0.0
             for _ in range(s.rng.randint(0, 12)):
                 r = s.rng.random()
                 if r < 0.6:
                     v = round(s.rng.uniform(30, 109), 1)
-                    wiersze.append("%s 10:00:00,nominal,%s,,,0,10,90,1,100,2.0,0" % (dzis, v))
+                    iter_lines.append("%s 10:00:00,nominal,%s,,,0,10,90,1,100,2.0,0" % (dzis, v))
                     oczekiwany = max(oczekiwany, v)
                 elif r < 0.7:
                     v = s.rng.choice(["999.9", "1e400", "nan", "-5", "0", "120.1", "110.5", ""])
-                    wiersze.append("%s 10:00:00,nominal,%s,,,0,10,90,1,100,2.0,0" % (dzis, v))
+                    iter_lines.append("%s 10:00:00,nominal,%s,,,0,10,90,1,100,2.0,0" % (dzis, v))
                 elif r < 0.8:
-                    wiersze.append("%s 10:00:00,nominal,88.8" % dzis)        # Truncated line.
+                    iter_lines.append("%s 10:00:00,nominal,88.8" % dzis)        # Truncated line.
                 elif r < 0.9:
-                    wiersze.append("2000-01-01 10:00:00,nominal,108.0,,,0,10,90,1,100,2.0,0")
+                    iter_lines.append("2000-01-01 10:00:00,nominal,108.0,,,0,10,90,1,100,2.0,0")
                 else:
-                    wiersze.append(s.rng.choice(["", ",,,,,,,,,,,,", "A" * 2000,
+                    iter_lines.append(s.rng.choice(["", ",,,,,,,,,,,,", "A" * 2000,
                                                  "\x00,\x00,\x00,,,0,0,0,0,0,0,0"]))
             with open(HIST_PATH, "w") as f:
-                f.write(naglowek + "\n".join(wiersze) + "\n")
+                f.write(naglowek + "\n".join(iter_lines) + "\n")
             with open(LOG_PATH, "w") as f:
                 f.write("%s 10:00:00  [PAUSE] PAUSED ffmpeg (pid 1, 90%% CPU) - hot\n" % dzis)
             with open(EVENTS_PATH, "w") as f:
@@ -931,7 +931,7 @@ def fuzz_report(seed, n):
                     f.write('{"chip": "Apple M4 Pro", "fan_count": 2}')
             wyjscie = os.path.join(TMP, "out_%d.txt" % (i % 3))
             sys.argv = ["thermal-report", "--file", wyjscie, "--days", "2"]
-            wej = {"cel": cel, "wierszy": len(wiersze), "hardware": i % 7 == 0}
+            wej = {"cel": cel, "wierszy": len(iter_lines), "hardware": i % 7 == 0}
             try:
                 with redirect_stdout(io.StringIO()):
                     treport.main()
@@ -972,10 +972,10 @@ def fuzz_report(seed, n):
     s.koniec()
 
 
-# ================================================================ 9. statystyki_dnia
+# ================================================================ 9. day_stats
 
 def fuzz_stat_znaczniki(seed, n):
-    s = Sesja("guard.statystyki_dnia [markers]", seed)
+    s = Sesja("guard.day_stats [markers]", seed)
     dzis = time.strftime("%Y-%m-%d")
     jutro = time.strftime("%Y-%m-%d", time.localtime(time.time() + 86400))
     # Process names that themselves contain a parser keyword.
@@ -1027,7 +1027,7 @@ def fuzz_stat_znaczniki(seed, n):
             with open(LOG_PATH, "wb") as f:
                 f.write(bajty)
             try:
-                st = guard.statystyki_dnia()
+                st = guard.day_stats()
             except Exception as e:
                 s.blad(skroc(tresc, 200), e, "HIGH")
                 continue

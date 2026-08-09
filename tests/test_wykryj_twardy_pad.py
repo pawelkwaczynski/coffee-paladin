@@ -52,7 +52,7 @@ def setup(puls, czyste=None, tresc=None, mtime=None):
         open(g.CLEAN_STOP_PATH, "w").close(); os.utime(g.CLEAN_STOP_PATH, (czyste, czyste))
 
 def run(nazwa, oczekiwane, **kw):
-    setup(**kw); r = g.wykryj_twardy_pad()
+    setup(**kw); r = g.detect_hard_shutdown()
     got = "SHUTDOWN" if r else "silent"
     ok = got == oczekiwane
     print(f"  [{'PASS' if ok else 'FAIL'}] {nazwa}: {got}" + (f" ({r['time']})" if r else ""))
@@ -85,7 +85,7 @@ def tz(tz_pad, tz_boot, legacy=False):
     tresc = g.ts(puls) if legacy else "%d %s" % (puls, g.ts(puls))
     setup(puls, tresc=tresc)
     os.environ["TZ"] = tz_boot; time.tzset()
-    r = g.wykryj_twardy_pad()
+    r = g.detect_hard_shutdown()
     print(f"  [{'PASS' if r else 'FAIL'}] {'legacy' if legacy else 'new'}: shutdown in {tz_pad} "
           f"-> boot in {tz_boot}: {'SHUTDOWN detected' if r else 'SILENT - evidence lost'}")
     return bool(r)

@@ -58,7 +58,7 @@ for opis, wpis, wolno_wznowic in [
     ("pause from previous daemon, 10 min by wall clock - resume",
      {"since": g.now() - 600, "since_mono": mono + 5000, "mono_id": "999:1"}, True),
 ]:
-    wiek = g._wiek_pauzy(wpis)
+    wiek = g._pause_age(wpis)
     test(opis, (wiek >= cfg.get("min_pause_seconds", 60)) is wolno_wznowic,
          "age=%.0f s, threshold=%s" % (wiek, cfg.get("min_pause_seconds")))
 
@@ -70,8 +70,8 @@ st = {}
 soc_zimny = {"cpu": 50.0, "fans": [0, 0]}
 soc_gorący = {"cpu": 80.0, "fans": [0, 0]}
 alarmy = []
-_zapisz = g.zapisz_zdarzenie
-g.zapisz_zdarzenie = lambda *a, **k: alarmy.append(a[0] if a else "?")
+_zapisz = g.record_event
+g.record_event = lambda *a, **k: alarmy.append(a[0] if a else "?")
 try:
     # One "hot + zero rpm" reading means spin-up, not failure.
     g.fan_alarm(cfg, soc_gorący, 80.0, st)
@@ -89,7 +89,7 @@ try:
     test("fan movement resets the counter", st2.get("_fan_zero_polls") == 0,
          "counter: %s" % st2.get("_fan_zero_polls"))
 finally:
-    g.zapisz_zdarzenie = _zapisz
+    g.record_event = _zapisz
 
 print("\n3. the same processor cannot be a candidate twice")
 # bash (parent) uses no CPU itself; all CPU belongs to child ffmpeg.
@@ -111,7 +111,7 @@ test("parent CPU carries subtree sum",
      any(t[0] == 100 and t[1] >= 280 for t in cele), "targets: %s" % cele)
 
 # Only the display list is pruned, so the counter does not lie twice.
-pokaz = [t[0] for t in g.bez_potomkow(cele, procs)]
+pokaz = [t[0] for t in g.without_descendants(cele, procs)]
 test("child is no longer on the display list", 200 not in pokaz, "display: %s" % pokaz)
 test("topmost ancestor remains", 100 in pokaz, "display: %s" % pokaz)
 test("independent process remains", 300 in pokaz, "display: %s" % pokaz)

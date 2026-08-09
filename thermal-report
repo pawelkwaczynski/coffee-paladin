@@ -25,7 +25,7 @@ import tempfile
 import sys
 import time
 
-MAX_WIERSZY_OSI = 5000   # timeline row cap, see the comment at the truncation site
+MAX_TIMELINE_ROWS = 5000   # timeline row cap, see the comment at the truncation site
 
 VERSION = "2.4.0"   # FIVE places, not three: guard_version, heatbar VERSION,
                     # README, .claude-plugin/plugin.json and this one.
@@ -340,10 +340,10 @@ def sh(cmd, timeout=30):
         return ""
 
 
-def czas_z(s):
+def abs_epoch(s):
     """Absolute epoch from a stamp with or without a UTC offset (pre-2.1.8 files).
 
-    Deliberate copy of `guard.czas_abs`: the CLI tools in this project are
+    Deliberate copy of `guard.abs_epoch`: the CLI tools in this project are
     self-contained and never import the daemon. Both copies are kept in sync
     by `tests/test_spojnosc.py`.
 
@@ -371,10 +371,10 @@ def czas_z(s):
         return 0
 
 
-ZNANE_FLAGI = ("--help", "-h", "--days", "--pdf", "--file", "--from", "--to", "--all")
+KNOWN_FLAGS = ("--help", "-h", "--days", "--pdf", "--file", "--from", "--to", "--all")
 
 
-def wolna_nazwa(sciezka):
+def free_name(sciezka):
     """Return a path that is GUARANTEED not to overwrite someone's file.
 
     `--pdf` derives the PDF name from the report name, so `--file results.txt`
@@ -392,10 +392,10 @@ def wolna_nazwa(sciezka):
     return sciezka
 
 
-def pokolenia(path):
+def generations(path):
     """Return the current file plus rotated generations, OLDEST FIRST.
 
-    Deliberate copy of `guard.pokolenia`: the CLI tools in this project are
+    Deliberate copy of `guard.generations`: the CLI tools in this project are
     self-contained and never import the daemon. Both copies are kept in sync
     by `tests/test_spojnosc.py`; change one, change the other.
     """
@@ -413,7 +413,7 @@ def pokolenia(path):
     return zrotowane
 
 
-def wiersze(path, pomijaj_naglowek=False):
+def iter_lines(path, pomijaj_naglowek=False):
     """Lines from the current file AND all rotated generations, in order.
 
     The guard rotates `guard.log` and `history.csv` at 5 MB. This report used
@@ -422,7 +422,7 @@ def wiersze(path, pomijaj_naglowek=False):
     98.7 C", after rotation the same `--days 2` reported 44.0 C - while the
     98.7 C reading still sat on disk in the `.1` file nobody looked at.
     """
-    for p in pokolenia(path):
+    for p in generations(path):
         try:
             with open(p, encoding="utf-8", errors="replace") as f:
                 if pomijaj_naglowek:
@@ -433,19 +433,19 @@ def wiersze(path, pomijaj_naglowek=False):
             continue
 
 
-def _alarmy_z_logu(w_zakresie):
+def _alarms_from_log(in_range):
     """Cooling alarms from guard.log that are absent from events.log (old installs).
 
-    `w_zakresie` is passed in from main(), where it closes over the report
+    `in_range` is passed in from main(), where it closes over the report
     boundaries.
     """
     out = []
     try:
-        for linia in wiersze(LOG):
+        for linia in iter_lines(LOG):
             if ("[FANFAIL]" not in linia and "AWARIA CHLODZENIA" not in linia
                     and "COOLING FAILURE" not in linia):
                 continue
-            if not w_zakresie(czas_z(linia[:24])):
+            if not in_range(abs_epoch(linia[:24])):
                 continue
             out.append(linia.rstrip())
     except Exception:
@@ -460,7 +460,7 @@ def main():
     # An unknown flag must NOT silently generate a report on the Desktop.
     # `thermal-report --help` used to do exactly that: it wrote the file and
     # exited 0.
-    obce = [a for a in sys.argv[1:] if a.startswith("-") and a not in ZNANE_FLAGI]
+    obce = [a for a in sys.argv[1:] if a.startswith("-") and a not in KNOWN_FLAGS]
     if obce:
         print(T("thermal-report: unknown argument: %s") % " ".join(obce), file=sys.stderr)
         print(__doc__, file=sys.stderr)
@@ -495,7 +495,7 @@ def main():
     if cel is None:
         cel = os.path.join(HOME, "Desktop",
                            "thermal_report_%s.txt" % time.strftime("%Y%m%d_%H%M"))
-    # NOTE for the next reader: `cel` does NOT go through wolna_nazwa() while
+    # NOTE for the next reader: `cel` does NOT go through free_name() while
     # the PDF does - deliberate, not an oversight. The text file name is given
     # by the user (`--file`), so they may expect exactly that name; swapping
     # in "report-2.txt" would break every script and cron entry. Nobody
@@ -546,7 +546,7 @@ def main():
             time.strftime("%Y-%m-%d", time.localtime(granica)),
             time.strftime("%Y-%m-%d", time.localtime((gorna - 1 if gorna else time.time()))))
 
-    def w_zakresie(t):
+    def in_range(t):
         # `t < gorna`, not `<=`: gorna is midnight of the NEXT day, so with <=
         # a one-day report included the first entry of the following day -
         # including a "peak temperature" attributed to a day it was not on.
@@ -609,7 +609,7 @@ def main():
     _juz_alarmy = []     # czasy alarmow z events.log — do deduplikacji tych z guard.log
     _wpisy = []          # (czas, linie) — sekcja krytyczna musi byc CHRONOLOGICZNA
     try:
-        for linia in wiersze(EVENTS):
+        for linia in iter_lines(EVENTS):
             try:
                 z = json.loads(linia)
             except Exception:
@@ -622,8 +622,8 @@ def main():
             # entry read in another timezone could fall out of the range.
             t_zdarzenia = z.get("epoch")
             if not isinstance(t_zdarzenia, (int, float)):
-                t_zdarzenia = czas_z(z.get("time", ""))
-            if not w_zakresie(t_zdarzenia):
+                t_zdarzenia = abs_epoch(z.get("time", ""))
+            if not in_range(t_zdarzenia):
                 continue
             zdarzen += 1
             if "COOLING" in str(z.get("type", "")):
@@ -651,8 +651,8 @@ def main():
     # events.log; the log reader exists for installs predating that change,
     # so it must skip what already came from events.log - otherwise every
     # alarm counts TWICE in a warranty-claim document.
-    for linia in _alarmy_z_logu(w_zakresie):
-        _t = czas_z(linia[:24])
+    for linia in _alarms_from_log(in_range):
+        _t = abs_epoch(linia[:24])
         if any(abs(_t - e) <= 2 for e in _juz_alarmy):
             continue
         zdarzen += 1
@@ -675,8 +675,8 @@ def main():
     W.append(T("\n## GUARD INTERVENTIONS\n"))
     inter = 0
     try:
-        for linia in wiersze(LOG):
-            if not w_zakresie(czas_z(linia[:24])):
+        for linia in iter_lines(LOG):
+            if not in_range(abs_epoch(linia[:24])):
                 continue
             # Tags are the parser contract (see guard.log()): identical in every
             # language, so intervention matching needs no word lists.
@@ -695,9 +695,9 @@ def main():
     odrzucone, odrzucony_max = 0, 0.0
     osie = []
     try:
-        for linia in wiersze(HIST, pomijaj_naglowek=True):
+        for linia in iter_lines(HIST, pomijaj_naglowek=True):
             c = linia.strip().split(",")
-            if len(c) < 12 or not w_zakresie(czas_z(c[0])):
+            if len(c) < 12 or not in_range(abs_epoch(c[0])):
                 continue
             ile += 1
             try:
@@ -717,7 +717,7 @@ def main():
                 v = float(c[2]) if c[2] else 0.0
                 if v != v:                       # NaN
                     pass
-                elif 0.0 < v <= 110.0 and czas_z(c[0]):
+                elif 0.0 < v <= 110.0 and abs_epoch(c[0]):
                     if v > szczyt[0]:
                         szczyt = (v, c[0])
                 elif v > 110.0 and v != float("inf"):
@@ -746,9 +746,9 @@ def main():
     # the same bug as silently dropping corrupted rows.
     prog_goracy = max(0.0, szczyt[0] - 10.0)
     skrocono = 0
-    if len(osie) > MAX_WIERSZY_OSI:
+    if len(osie) > MAX_TIMELINE_ROWS:
         istotne = [i for i, (_, v, lv) in enumerate(osie) if v >= prog_goracy > 0 or lv > 0]
-        budzet = max(1, MAX_WIERSZY_OSI - len(istotne))
+        budzet = max(1, MAX_TIMELINE_ROWS - len(istotne))
         reszta = [i for i in range(len(osie)) if i not in set(istotne)]
         krok = max(1, len(reszta) // budzet) if reszta else 1
         wybrane = sorted(set(istotne) | set(reszta[::krok]))
@@ -818,7 +818,7 @@ def main():
         # `open(pdf,"wb")` truncated someone's file to 0 B before anything was
         # generated, and `--print-to-pdf` overwrote it entirely. Generate next
         # to it, swap in only after success.
-        pdf = wolna_nazwa(os.path.splitext(cel)[0] + ".pdf")
+        pdf = free_name(os.path.splitext(cel)[0] + ".pdf")
         _fd_pdf, tmp_pdf = tempfile.mkstemp(suffix=".pdf", prefix=".thermal_report_",
                                             dir=os.path.dirname(os.path.abspath(pdf)) or ".")
         os.close(_fd_pdf)

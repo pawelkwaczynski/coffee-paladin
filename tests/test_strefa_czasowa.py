@@ -62,18 +62,18 @@ odczyty = {}
 for strefa in ("Europe/Warsaw", "America/Los_Angeles", "Pacific/Auckland", "Pacific/Midway"):
     os.environ["TZ"] = strefa
     time.tzset()
-    odczyty[strefa] = g.czas_abs(s)
-test("3. czas_abs() from offset timestamp is IDENTICAL in every zone",
+    odczyty[strefa] = g.abs_epoch(s)
+test("3. abs_epoch() from offset timestamp is IDENTICAL in every zone",
      len(set(odczyty.values())) == 1 and abs(list(odczyty.values())[0] - 1785706200.0) < 1,
      "%s" % odczyty)
 
 os.environ["TZ"] = "Europe/Warsaw"
 time.tzset()
 test("4. legacy timestamp (without offset) still parses",
-     abs(g.czas_abs("2026-08-02 23:30:00") - 1785706200.0) < 1,
-     "got %s" % g.czas_abs("2026-08-02 23:30:00"))
+     abs(g.abs_epoch("2026-08-02 23:30:00") - 1785706200.0) < 1,
+     "got %s" % g.abs_epoch("2026-08-02 23:30:00"))
 test("5. junk does not crash parser",
-     g.czas_abs("xyzzy") == 0.0 and g.czas_abs("") == 0.0 and g.czas_abs(None) == 0.0)
+     g.abs_epoch("xyzzy") == 0.0 and g.abs_epoch("") == 0.0 and g.abs_epoch(None) == 0.0)
 
 # --- 3. evidence document is consistent in every zone --------------------------------
 DZIEN = "2026-08-02"

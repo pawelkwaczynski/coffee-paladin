@@ -55,7 +55,7 @@ AWAKE_PATH = os.path.join(BASE, "awake.json")     # manual menu-bar keep-awake t
 HW_PATH = os.path.join(BASE, "hardware.json")     # detected hardware for About my Mac and calibration
 MANAGED_DIR = os.path.join(BASE, "managed")   # <pid>.json files from safe-run
 MAX_LOG_BYTES = 5 * 1024 * 1024
-MAX_LOG_GENERACJI = 5        # number of rotated generations kept, see rotate()
+MAX_LOG_GENERATIONS = 5        # number of rotated generations kept, see rotate()
 
 # "unknown" is not "slightly warm". It means thermalstate did not answer.
 # Mapping it to 1 left Macs without a battery and without macmon, such as mini or Studio,
@@ -215,7 +215,7 @@ DEFAULTS = {
 
 # Config keys whose changes MUST leave a log trail. In one overnight run, thresholds changed
 # twice and it was impossible to tell who changed them or when.
-LOGOWANE_KLUCZE = (
+LOGGED_KEYS = (
     "soc_pause_c", "soc_resume_c", "soc_kill_c",
     "batt_pause_c", "batt_resume_c", "batt_kill_c",
     "demote_after_minutes", "demote_above_c", "demote_cpu_percent",
@@ -225,15 +225,15 @@ LOGOWANE_KLUCZE = (
 )
 
 
-def migawka_logowanych(cfg):
-    return {k: cfg.get(k) for k in LOGOWANE_KLUCZE}
+def logged_keys_snapshot(cfg):
+    return {k: cfg.get(k) for k in LOGGED_KEYS}
 
 
-def loguj_zmiany_configu(poprzednie, cfg):
+def log_config_changes(poprzednie, cfg):
     """Log each observed config-key change and return the new snapshot."""
-    biezace = migawka_logowanych(cfg)
+    biezace = logged_keys_snapshot(cfg)
     if poprzednie is not None:
-        for k in LOGOWANE_KLUCZE:
+        for k in LOGGED_KEYS:
             if poprzednie.get(k) != biezace.get(k):
                 log("CONFIG CHANGED %s: %r -> %r" % (k, poprzednie.get(k), biezace.get(k)))
     return biezace
@@ -281,7 +281,7 @@ def ts(t=None):
     return time.strftime("%Y-%m-%d %H:%M:%S%z", time.localtime(t if t else now()))
 
 
-def czas_abs(s):
+def abs_epoch(s):
     """Parse an absolute epoch from a `ts()` timestamp.
 
     Accepts timestamps with offsets and legacy pre-2.1.8 timestamps without offsets.
@@ -336,7 +336,7 @@ def ensure_dirs():
 # Names this tool can call itself. They must always be on the never-touch list, even if the
 # config was saved before a rename. Otherwise a second instance, or an instance from another
 # directory, sees the daemon as an ordinary CPU-hungry "Python" process and pauses it.
-WLASNE_NAZWY = ("coffee-paladin", "guard.py", "safe-run")
+OWN_NAMES = ("coffee-paladin", "guard.py", "safe-run")
 
 # Config keys that had the wrong type and were replaced with defaults, for logging.
 _zle_typy = []
@@ -485,7 +485,7 @@ def load_cfg():
                   "managed_patterns", "system_demote_patterns"):
         lista = [w for w in (cfg.get(klucz) or []) if isinstance(w, str) and w.strip()]
         if klucz in ("never_patterns", "never_arg_patterns"):
-            for nazwa in WLASNE_NAZWY:
+            for nazwa in OWN_NAMES:
                 if nazwa not in lista:
                     lista.append(nazwa)
         cfg[klucz] = lista
@@ -922,7 +922,7 @@ def rotate(path):
     file, and after the second rotation the 98.7 C reading no longer existed on disk. That
     evidence is the reason this file exists.
 
-    Keeps MAX_LOG_GENERACJI generations. At 5 MB per file, that is about 30 MB per stream,
+    Keeps MAX_LOG_GENERATIONS generations. At 5 MB per file, that is about 30 MB per stream,
     cheap for evidence that cannot be recreated.
     """
     try:
@@ -931,10 +931,10 @@ def rotate(path):
     except OSError:
         return
     try:
-        najstarszy = "%s.%d" % (path, MAX_LOG_GENERACJI)
+        najstarszy = "%s.%d" % (path, MAX_LOG_GENERATIONS)
         if os.path.exists(najstarszy):
             os.remove(najstarszy)
-        for n in range(MAX_LOG_GENERACJI - 1, 0, -1):
+        for n in range(MAX_LOG_GENERATIONS - 1, 0, -1):
             zrodlo = "%s.%d" % (path, n)
             if os.path.exists(zrodlo):
                 os.replace(zrodlo, "%s.%d" % (path, n + 1))
@@ -943,7 +943,7 @@ def rotate(path):
         pass
 
 
-def pokolenia(path):
+def generations(path):
     """Return the current file and rotated generations, oldest first.
 
     Every evidence reader, including thermal-report and statistics, must use this list
@@ -963,10 +963,10 @@ def pokolenia(path):
     return zrotowane
 
 
-_CICHE_AWARIE = {}
+_SILENT_FAILURES = {}
 
 
-def cicha_awaria(gdzie, e):
+def silent_failure(gdzie, e):
     """Record a swallowed exception from a critical path.
 
     In a safety daemon, `except Exception: pass` while writing evidence or state means the
@@ -976,14 +976,14 @@ def cicha_awaria(gdzie, e):
     location and counted in status.json. Exceptions are still swallowed, but no longer
     silently.
     """
-    _CICHE_AWARIE[gdzie] = _CICHE_AWARIE.get(gdzie, 0) + 1
+    _SILENT_FAILURES[gdzie] = _SILENT_FAILURES.get(gdzie, 0) + 1
     znacznik = "_ostatni_log_" + gdzie
     teraz = now()
-    if teraz - _CICHE_AWARIE.get(znacznik, 0) >= 600:
-        _CICHE_AWARIE[znacznik] = teraz
+    if teraz - _SILENT_FAILURES.get(znacznik, 0) >= 600:
+        _SILENT_FAILURES[znacznik] = teraz
         try:
             log("SWALLOWED in %s: %s: %s (%d time(s) so far)"
-                % (gdzie, type(e).__name__, e, _CICHE_AWARIE[gdzie]))
+                % (gdzie, type(e).__name__, e, _SILENT_FAILURES[gdzie]))
         except Exception:
             pass
 
@@ -1011,7 +1011,7 @@ def log(msg, tag=None):
         sys.stdout.flush()
 
 
-def _ubij_grupe(p):
+def _kill_group(p):
     """Kill the child's whole process group and then reap it.
 
     `p.kill()` alone leaves grandchildren alive, and they can hang for hours. If the group
@@ -1054,11 +1054,11 @@ def run(cmd, timeout=10):
         out, _ = p.communicate(timeout=timeout)
         return out.decode("utf-8", "replace")
     except subprocess.TimeoutExpired:
-        _ubij_grupe(p)
+        _kill_group(p)
         return ""
     except Exception:
         if p is not None and p.poll() is None:
-            _ubij_grupe(p)
+            _kill_group(p)
         return ""
 
 
@@ -1386,7 +1386,7 @@ def list_procs():
     return res
 
 
-def pierwszoplanowy_na_tty(pid):
+def foreground_on_tty(pid):
     """Return whether a process leads its terminal foreground group.
 
     If pgid == tpgid, this process owns the keyboard. SIGSTOP makes its shell retake the
@@ -1412,7 +1412,7 @@ def full_args(pid):
 
 # Programs whose own name says nothing. Their process identity is carried by the first
 # argument, a script or module. Treat argv[1] as the program name for them.
-INTERPRETERY = frozenset((
+INTERPRETERS = frozenset((
     "node", "nodejs", "deno", "bun", "python", "ruby", "perl", "php", "java",
     "sh", "bash", "zsh", "osascript", "tsx", "ts-node", "uv", "uvx", "pipx", "npx",
 ))
@@ -1422,16 +1422,16 @@ INTERPRETERY = frozenset((
 # had Homebrew python3.14, `python3.14 /path/mcp_server.py` was not recognized as an
 # interpreter, so the script path was discarded with data paths and the AI agent lost
 # SIGSTOP protection. A version pattern does not age with every release.
-INTERPRETER_WERSJONOWANY = re.compile(
+VERSIONED_INTERPRETER = re.compile(
     r"^(python|ruby|perl|php|node|nodejs|deno|bun)[0-9]+(\.[0-9]+)*$")
 
 
-def jest_interpreterem(nazwa):
+def is_interpreter(nazwa):
     """Return whether `nazwa` is a lowercased, dequoted basename of an interpreter argv[0]."""
-    return nazwa in INTERPRETERY or bool(INTERPRETER_WERSJONOWANY.match(nazwa))
+    return nazwa in INTERPRETERS or bool(VERSIONED_INTERPRETER.match(nazwa))
 
 
-def args_bez_sciezek(pid):
+def args_without_paths(pid):
     """Return the command-line part that identifies the process, without data paths.
 
     never_arg_patterns must recognize an agent, editor, or MCP server, not what the process
@@ -1455,7 +1455,7 @@ def args_bez_sciezek(pid):
     if not czesci:
         return ""
     zostaw = [czesci[0]]
-    interpreter = jest_interpreterem(os.path.basename(czesci[0].strip('"\'')).lower())
+    interpreter = is_interpreter(os.path.basename(czesci[0].strip('"\'')).lower())
     skrypt_wziety = not interpreter
     for a in czesci[1:]:
         if "/" not in a:
@@ -1572,7 +1572,7 @@ def alive(pid):
         return e.errno == errno.EPERM
 
 
-def zatrzask_czujnika(st, klucz, wartosc, prog_pauzy, prog_wznowienia):
+def sensor_latch(st, klucz, wartosc, prog_pauzy, prog_wznowienia):
     """Apply hysteresis for one sensor and return whether that sensor still holds hot.
 
     The latch turns on at its own pause threshold, turns off at its own resume threshold,
@@ -1617,7 +1617,7 @@ def zatrzask_czujnika(st, klucz, wartosc, prog_pauzy, prog_wznowienia):
     return bool(st.get(klucz, False))
 
 
-def zatrzymane_teraz():
+def stopped_now():
     """Return stopped PIDs and groups with stopped members using one `ps` per cycle.
 
     A `st["paused"]` entry means only that guard once sent SIGSTOP, not that the process is
@@ -1655,23 +1655,23 @@ def zatrzymane_teraz():
     return pidy, grupy
 
 
-def wpisy_nieaktualne(paused, stoja):
+def stale_entries(paused, stoja):
     """Return entries for jobs resumed outside guard, to be deleted."""
     if stoja is None:
         return []
     return [k for k, v in paused.items()
-            if not v.get("manual") and not wpis_stoi(k, v, *stoja)]
+            if not v.get("manual") and not entry_stopped(k, v, *stoja)]
 
 
-def wpisy_przeterminowane(paused, limit_s, stoja):
+def expired_entries(paused, limit_s, stoja):
     """Return over-limit entries whose jobs are REALLY stopped; only those may be killed."""
     if stoja is None:
         return []
     return [k for k, v in paused.items()
-            if _wiek_pauzy(v) > limit_s and not v.get("manual") and wpis_stoi(k, v, *stoja)]
+            if _pause_age(v) > limit_s and not v.get("manual") and entry_stopped(k, v, *stoja)]
 
 
-def bramka_wznowienia(cfg, st, temp, soc_t, state):
+def resume_gate(cfg, st, temp, soc_t, state):
     """Return whether frozen jobs may resume.
 
     Every sensor must drop back: battery through the latch, which blocks only if it crossed
@@ -1679,13 +1679,13 @@ def bramka_wznowienia(cfg, st, temp, soc_t, state):
     level. The full decision lives in one function so tests check what the daemon executes,
     not a copied expression that could pass after production logic is broken.
     """
-    batt_trzyma = zatrzask_czujnika(st, "_batt_hot", temp,
+    batt_trzyma = sensor_latch(st, "_batt_hot", temp,
                                     cfg["batt_pause_c"], cfg["batt_resume_c"])
     chip_trzyma = soc_t is not None and soc_t > cfg.get("soc_resume_c", 87.0)
     return not batt_trzyma and not chip_trzyma and LEVELS.get(state, 1) <= 1
 
 
-def wpis_stoi(key, info, pidy, grupy):
+def entry_stopped(key, info, pidy, grupy):
     """Return whether this entry's job is REALLY stopped, directly or through its group.
 
     Unknown state, such as a vanished process or unresponsive `ps`, means "not stopped":
@@ -1718,7 +1718,7 @@ def proc_age_seconds(pid):
     return dni * 86400 + czesci[0] * 3600 + czesci[1] * 60 + czesci[2]
 
 
-def cpu_z_dziecmi(procs):
+def cpu_with_children(procs):
     """Return CPU usage for each process including its whole child subtree.
 
     Without this, the guard is blind to the worst shape: an orchestrator (python) that uses
@@ -1752,10 +1752,10 @@ def cpu_z_dziecmi(procs):
     return suma
 
 
-_NIETYKALNI_PODCIAG = {}
+_UNTOUCHABLE_SUBSTRINGS = {}
 
 
-def _loguj_nietykalny_podciag(comm, wzorzec, cpu):
+def _log_untouchable_match(comm, wzorzec, cpu):
     """Log at most once per hour per process.
 
     The log should inform, not flood. 10 minutes was too often: corespotlightd can grind
@@ -1763,9 +1763,9 @@ def _loguj_nietykalny_podciag(comm, wzorzec, cpu):
     answers "why did guard not touch this".
     """
     teraz = now()
-    if teraz - _NIETYKALNI_PODCIAG.get(comm, 0) < 3600:
+    if teraz - _UNTOUCHABLE_SUBSTRINGS.get(comm, 0) < 3600:
         return
-    _NIETYKALNI_PODCIAG[comm] = teraz
+    _UNTOUCHABLE_SUBSTRINGS[comm] = teraz
     log("%s uses %.0f%% CPU but is untouchable: its name contains the never-pause "
         "pattern %r (partial match). Rename it or narrow never_patterns if this is wrong."
         % (comm, cpu, wzorzec))
@@ -1787,7 +1787,7 @@ def pick_targets(cfg, procs, saferun):
     system_demote = [p.lower() for p in (cfg.get("system_demote_patterns") or [])]
     never = [p.lower() for p in list(cfg["never_patterns"]) + list(cfg.get("never_extra") or [])]
     patterns = [p.lower() for p in cfg["managed_patterns"]]
-    drzewo = cpu_z_dziecmi(procs) if cfg.get("count_children", True) else {}
+    drzewo = cpu_with_children(procs) if cfg.get("count_children", True) else {}
     out = []
     for pid, ppid, cpu, comm in procs:
         cpu = max(cpu, drzewo.get(pid, 0.0))   # evaluate the whole subtree
@@ -1823,7 +1823,7 @@ def pick_targets(cfg, procs, saferun):
             # hot process is skipped by PARTIAL matching, log it so the user can see why
             # the guard did not touch what is heating the Mac.
             if low != trafienie and cpu >= cfg.get("unknown_cpu_percent", 50.0):
-                _loguj_nietykalny_podciag(comm, trafienie, cpu)
+                _log_untouchable_match(comm, trafienie, cpu)
             continue
         if not any(p in low for p in patterns):
             # A name list is inherently incomplete. Custom binaries (b3core, cadical,
@@ -1837,10 +1837,10 @@ def pick_targets(cfg, procs, saferun):
                 continue
             if proc_age_seconds(pid) < cfg.get("unknown_min_seconds", 120):
                 continue
-        args = args_bez_sciezek(pid)
+        args = args_without_paths(pid)
         if any(n.lower() in args for n in (cfg.get("never_arg_patterns") or [])):
             continue
-        if cfg.get("skip_foreground_tty", True) and pierwszoplanowy_na_tty(pid):
+        if cfg.get("skip_foreground_tty", True) and foreground_on_tty(pid):
             continue          # interactive foreground session; see the function above
         out.append((pid, cpu, comm, None))
     out.sort(key=lambda x: -x[1])
@@ -1848,7 +1848,7 @@ def pick_targets(cfg, procs, saferun):
     return out
 
 
-def bez_potomkow(cele, procs):
+def without_descendants(cele, procs):
     """Return the DISPLAY list, excluding processes whose ancestor is already listed.
 
     When child CPU is rolled up to the parent (`count_children`), the same processor lands
@@ -1914,7 +1914,7 @@ def load_state():
                 d["demoted_info"] = {}
             return d
     except Exception as e:
-        cicha_awaria("load_state", e)
+        silent_failure("load_state", e)
     return {"paused": {}, "demoted": [], "demoted_info": {}}
 
 
@@ -1926,7 +1926,7 @@ def save_state(st):
         os.replace(tmp, STATE_PATH)
     except Exception as e:
         # Without saved state, nobody can resume paused processes after restart.
-        cicha_awaria("save_state", e)
+        silent_failure("save_state", e)
 
 
 def sig(pid, pgid, s):
@@ -1993,7 +1993,7 @@ def do_pause(cfg, st, targets, reason, manual=False, lvl_krytyczny=False):
         # window where a killed daemon (SIGKILL, update, kickstart -k) left a process frozen
         # WITHOUT state, forever, because nobody knew about it. Now the disk note comes
         # first, then the shot; if signaling fails, the note is removed. The only remaining
-        # orphan direction is entry without pause, which the loop (wpisy_nieaktualne) or
+        # orphan direction is entry without pause, which the loop (stale_entries) or
         # startup do_resume cleans up. One fsync per pause is cheaper than a process in T
         # forever.
         # Store pause reason in the entry. Without it, the "resume only on AC" gate applied
@@ -2090,7 +2090,7 @@ def do_resume(cfg, st, reason, only_keys=None, po_ostygnieciu=False):
     return True
 
 
-def _wiek_pauzy(v):
+def _pause_age(v):
     """Return how many seconds this pause has lasted.
 
     The monotonic clock is valid only inside the same process, see `mono_id`. Otherwise use
@@ -2118,7 +2118,7 @@ def do_terminate(cfg, st, reason, only_keys=None):
     execution: termination needs proof that something is stopped, and pause is already
     cooling the machine.
     """
-    stoja = zatrzymane_teraz()
+    stoja = stopped_now()
     if stoja is None:
         log("ps unavailable - postponing termination decisions")
         return False
@@ -2135,7 +2135,7 @@ def do_terminate(cfg, st, reason, only_keys=None):
         if cfg["dry_run"]:
             log(T("[DRY-RUN] would terminate %s (pid %d) - %s") % (info.get("comm"), pid, reason))
             continue
-        if not wpis_stoi(key, info, *stoja):
+        if not entry_stopped(key, info, *stoja):
             log(T("dropping stale pause entry: %s (pid %s) is running again "
                   "- resumed outside the guard") % (info.get("comm", "?"), key))
             del st["paused"][key]
@@ -2160,7 +2160,7 @@ def do_terminate(cfg, st, reason, only_keys=None):
     return bool(victims)
 
 
-def prog_demote(cfg):
+def demote_threshold(cfg):
     """Return the chip threshold where demotion has thermal value.
 
     Below it, the machine is cool and pushing anyone to E-cores cools nothing; it only cuts
@@ -2198,7 +2198,7 @@ def do_demote(cfg, st, targets, cpu_hist, soc_t, saferun_normal=frozenset()):
         if zebral < limit or pid in st["demoted"]:
             continue
         # Without a chip reading, demotion has no thermal justification. Do not guess.
-        if soc_t is None or soc_t < prog_demote(cfg):
+        if soc_t is None or soc_t < demote_threshold(cfg):
             continue
         if cfg["dry_run"]:
             log(T("[DRY-RUN] would demote %s (pid %d)") % (comm, pid))
@@ -2305,7 +2305,7 @@ def boot_time():
     return int(m.group(1)) if m else 0
 
 
-def zapisz_zdarzenie(rodzaj, opis, kontekst=None, synthetic=False, kiedy=None):
+def record_event(rodzaj, opis, kontekst=None, synthetic=False, kiedy=None):
     """Write black-box events that must survive restart and enter the report.
 
     synthetic=True marks a test or harness entry. thermal-report skips it so a synthetic
@@ -2327,10 +2327,10 @@ def zapisz_zdarzenie(rodzaj, opis, kontekst=None, synthetic=False, kiedy=None):
             f.write(json.dumps(wpis, ensure_ascii=False) + "\n")
     except Exception as e:
         # Evidence that silently failed to be written is worse than no evidence.
-        cicha_awaria("zapisz_zdarzenie", e)
+        silent_failure("record_event", e)
 
 
-def pad_juz_zapisany(epoch_padu, tolerancja=90.0):
+def crash_already_recorded(epoch_padu, tolerancja=90.0):
     """Return whether the same hard shutdown is already in the black box.
 
     Compare the EVENT MOMENT (`epoch`), not detection time. The same crash detected on
@@ -2360,7 +2360,7 @@ def pad_juz_zapisany(epoch_padu, tolerancja=90.0):
     return False
 
 
-def wykryj_twardy_pad():
+def detect_hard_shutdown():
     """Detect whether the previous session ended in a hard shutdown.
 
     Guard ticks `heartbeat` on every pass and writes `clean_stop` on clean shutdown. If,
@@ -2432,9 +2432,9 @@ def wykryj_twardy_pad():
         ogon = []
         try:
             with open(HIST_PATH) as f:
-                wiersze = f.readlines()
-            naglowek = wiersze[0].strip().split(",") if wiersze else []
-            for w in wiersze[-8:]:
+                iter_lines = f.readlines()
+            naglowek = iter_lines[0].strip().split(",") if iter_lines else []
+            for w in iter_lines[-8:]:
                 if w.strip() and not w.startswith("time,"):
                     ogon.append(dict(zip(naglowek, w.strip().split(","))))
         except Exception:
@@ -2444,13 +2444,13 @@ def wykryj_twardy_pad():
         # loop, every later start sees the same old heartbeat and writes the same event
         # again. Three starts then look like three separate failures in a claim document.
         # An inflated failure count is worse than none because it undermines the report.
-        if pad_juz_zapisany(puls):
+        if crash_already_recorded(puls):
             return None
         opis = (T("Mac went down without a clean shutdown. Guard's last heartbeat: %s, "
                 "system booted: %s.") % (ts(puls), ts(boot)))
         if pewnosc == "low":
             opis += " " + T("CONFIDENCE: LOW - %s.") % powod_pewnosci
-        zapisz_zdarzenie("HARD_SHUTDOWN", opis,
+        record_event("HARD_SHUTDOWN", opis,
                          {"last_readings": ogon, "confidence": pewnosc,
                           "confidence_reason": powod_pewnosci,
                           "gap_to_boot_s": round(luka, 1)},
@@ -2462,7 +2462,7 @@ def wykryj_twardy_pad():
         return None
 
 
-def obsluz_rozkaz(cfg, st, targets):
+def handle_command(cfg, st, targets):
     """Handle menu-bar commands for manual freeze and resume."""
     try:
         if not os.path.exists(COMMAND_PATH):
@@ -2495,7 +2495,7 @@ def obsluz_rozkaz(cfg, st, targets):
         do_resume(cfg, st, T("manual resume (from the menu bar)"))
 
 
-def statystyki_dnia():
+def day_stats():
     """Return how many times guard intervened today for menu-bar display."""
     dzis = time.strftime("%Y-%m-%d")
     pauzy = wznowienia = ubicia = 0
@@ -2523,7 +2523,7 @@ def statystyki_dnia():
 _trend = []
 
 
-def trend_i_prognoza(cfg, soc_t):
+def trend_and_forecast(cfg, soc_t):
     """Return chip C/min growth and minutes until it reaches the pause threshold.
 
     This exposes the problem before freeze time instead of only when the pause happens.
@@ -2545,7 +2545,7 @@ def trend_i_prognoza(cfg, soc_t):
     return round(nachylenie, 1), round((prog - soc_t) / nachylenie, 1)
 
 
-def zadania_saferun():
+def saferun_jobs():
     """Return active jobs started by safe-run, with name and runtime."""
     out = []
     try:
@@ -2967,7 +2967,7 @@ def fleet_write(cfg, status):
         # Authoritative snapshot timestamp. File mtime in iCloud can stand still while
         # content is fresh, and `fleet` uses this to compute report age.
         out["epoch"] = round(time.time(), 3)
-        _bledy = {k: v for k, v in _CICHE_AWARIE.items() if not k.startswith("_ostatni_log_")}
+        _bledy = {k: v for k, v in _SILENT_FAILURES.items() if not k.startswith("_ostatni_log_")}
         if _bledy:
             out["swallowed_errors"] = _bledy
         tmp = os.path.join(d, ".%s.tmp" % hostname())
@@ -2986,7 +2986,7 @@ def status_write(state, temp, soc, soc_t, ac, pct, speed, load, lvl, why, target
     always shows exactly what guard sees.
     """
     # The DISPLAY list excludes children, otherwise the same processor is counted twice.
-    # Signals go to the FULL `targets` list; see `bez_potomkow`. This distinction exists
+    # Signals go to the FULL `targets` list; see `without_descendants`. This distinction exists
     # because filtering targets created broken protection for process trees.
     do_pokazania = pokaz if pokaz is not None else (targets or [])
     top = targets[0] if targets else None
@@ -3055,7 +3055,7 @@ def status_write(state, temp, soc, soc_t, ac, pct, speed, load, lvl, why, target
             json.dump(data, f, ensure_ascii=False)
         os.replace(tmp, STATUS_PATH)   # atomic replace; the menu bar never sees half a file
     except Exception as e:
-        cicha_awaria("status_write", e)   # the menu bar then shows stale data as current
+        silent_failure("status_write", e)   # the menu bar then shows stale data as current
     return data
 
 
@@ -3072,7 +3072,7 @@ def hist_write(row):
                 if f.readline() != HIST_HEADER:
                     os.rename(HIST_PATH, HIST_PATH.replace(".csv", "_old.csv"))
     except Exception as e:
-        cicha_awaria("hist_write/naglowek", e)
+        silent_failure("hist_write/naglowek", e)
     new = not os.path.exists(HIST_PATH)
     try:
         with open(HIST_PATH, "a") as f:
@@ -3080,7 +3080,7 @@ def hist_write(row):
                 f.write(HIST_HEADER)
             f.write(",".join(str(x) for x in row) + "\n")
     except Exception as e:
-        cicha_awaria("hist_write", e)   # no measurements means an empty evidence timeline
+        silent_failure("hist_write", e)   # no measurements means an empty evidence timeline
 
 
 # ---------------------------------------------------------------- loop
@@ -3101,7 +3101,7 @@ def snapshot(cfg):
     # children do not receive SIGSTOP. The counter and confirmation window show the list
     # without descendants, otherwise the same processor is counted twice.
     return (state, temp, speed, load, targets, lvl, why, soc, soc_t, ac, pct,
-            saferun_normal, bez_potomkow(targets, procs), list(_DEMOTE_ONLY))
+            saferun_normal, without_descendants(targets, procs), list(_DEMOTE_ONLY))
 
 
 _fan_zero = {"n": 0}
@@ -3140,12 +3140,12 @@ def fan_alarm(cfg, soc, soc_t, st):
             # to guard.log, while the report builds its critical section from events.log.
             # The document then said "no cooling alarm detected" while showing such alarms
             # elsewhere, contradicting itself.
-            zapisz_zdarzenie("COOLING_ALARM", msg,
+            record_event("COOLING_ALARM", msg,
                              {"chip_c": round(soc_t, 1), "fans": list(fans)})
             notify(cfg, T("Fans stopped while the chip is hot"), msg, key="fan")
 
 
-def zajmij_wylacznosc():
+def acquire_exclusive():
     """Acquire the one-daemon-per-machine lock for this process lifetime.
 
     Two instances are not theoretical: each sees the other as an ordinary CPU-hungry Python
@@ -3192,7 +3192,7 @@ def main():
     # Exclusivity applies ONLY to the daemon. `--once` and `status` are one-shot reads and
     # must always work, including while the daemon is running. Humans and tests use them.
     jednorazowo = ("--once" in sys.argv) or ("status" in sys.argv)
-    _blokada = None if jednorazowo else zajmij_wylacznosc()
+    _blokada = None if jednorazowo else acquire_exclusive()
     # False means the lock file could not be opened (directory, no permission). Start
     # anyway: lack of exclusivity is bad, but lack of PROTECTION is worse. None means
     # somebody else holds it.
@@ -3240,7 +3240,7 @@ def main():
             # happen on a hot machine. Blind resume gave a hot job ~15 s at full speed above
             # the chip threshold before the first loop cycle froze it again. Use the same
             # gate as the loop, not a copy.
-            if bramka_wznowienia(cfg, st, battery_temp_c(), soc_temp_c(), thermal_state()):
+            if resume_gate(cfg, st, battery_temp_c(), soc_temp_c(), thermal_state()):
                 do_resume(cfg, st, T("guard startup - nothing is left frozen"))
             else:
                 log("startup: machine still hot - %d paused entr(ies) stay frozen, "
@@ -3261,7 +3261,7 @@ def main():
     signal.signal(signal.SIGINT, on_signal)
 
     # Black box: did the previous session end in a hard shutdown?
-    pad = wykryj_twardy_pad()
+    pad = detect_hard_shutdown()
     if pad:
         st["_ostatni_pad"] = pad
         notify(cfg, T("Mac shut down without warning"),
@@ -3321,7 +3321,7 @@ def main():
             cfg = load_cfg()
             # Every threshold or behavior change leaves an old -> new trail. The first pass
             # only remembers state, without logging.
-            obserwowane_cfg = loguj_zmiany_configu(obserwowane_cfg, cfg)
+            obserwowane_cfg = log_config_changes(obserwowane_cfg, cfg)
             reap_bg()
             (state, temp, speed, load, targets, lvl, why,
              soc, soc_t, ac, pct, saferun_normal, do_pokazania, demote_only) = snapshot(cfg)
@@ -3337,18 +3337,18 @@ def main():
                 kalibracja_odlozona = False
 
             fan_alarm(cfg, soc, soc_t, st)
-            obsluz_rozkaz(cfg, st, targets)
+            handle_command(cfg, st, targets)
 
             # Helper data for the menu bar: trend, jobs, daily counter.
-            st["_trend_c_min"], st["_eta_min"] = trend_i_prognoza(cfg, soc_t)
+            st["_trend_c_min"], st["_eta_min"] = trend_and_forecast(cfg, soc_t)
             st["_dry"] = bool(cfg.get("dry_run"))
             st["_awake"] = keep_awake_update(cfg, targets, lvl, st)
             st["_prog_pauza"] = cfg.get("soc_pause_c")
             st["_prog_ubicie"] = cfg.get("soc_kill_c")
             st["_prog_wznowienia"] = cfg.get("soc_resume_c")
             if tick % 4 == 0:                      # less often, this reads from disk
-                st["_zadania"] = zadania_saferun()
-                st["_stat"] = statystyki_dnia()
+                st["_zadania"] = saferun_jobs()
+                st["_stat"] = day_stats()
                 st["_top_cpu"], st["_top_ram"] = top_lists()
             # Disk changes slowly; one read every ~5 min is enough.
             if tick % 20 == 0 or not st.get("_disk"):
@@ -3411,14 +3411,14 @@ def main():
             # Snapshot really stopped processes with ONE `ps` per cycle, only when anything
             # is frozen. Both paths that decide another process's life use it: stale-entry
             # cleanup and SIGTERM after the pause limit.
-            stoja = zatrzymane_teraz() if st["paused"] else (set(), set())
+            stoja = stopped_now() if st["paused"] else (set(), set())
             if stoja is None and not st.get("_ps_cicho"):
                 log("ps unavailable - postponing decisions about paused jobs")
             st["_ps_cicho"] = stoja is None
 
             # Update latches in EVERY cycle, even while hot. Otherwise a battery crossing
             # 40 C during a pause would never turn on its latch.
-            wolno_wznowic = bramka_wznowienia(cfg, st, temp, soc_t, state)
+            wolno_wznowic = resume_gate(cfg, st, temp, soc_t, state)
 
             if lvl >= 3:
                 crit_polls += 1
@@ -3450,7 +3450,7 @@ def main():
                 # limiter woke it, the entry is only a delayed sentence. The pause clock
                 # keeps ticking and `max_pause_minutes` later sends SIGTERM into a job
                 # running at full speed. Delete the entry and log it.
-                for _k in wpisy_nieaktualne(st["paused"], stoja):
+                for _k in stale_entries(st["paused"], stoja):
                     log(T("dropping stale pause entry: %s (pid %s) is running again "
                           "- resumed outside the guard")
                         % (st["paused"][_k].get("comm", "?"), _k))
@@ -3469,7 +3469,7 @@ def main():
                 # cyclically and the oldest pause could wait until SIGTERM. Manual menu-bar
                 # freezes have priority and are not touched.
                 gotowe = [k for k, v in st["paused"].items()
-                          if _wiek_pauzy(v) >= min_p and not v.get("manual")
+                          if _pause_age(v) >= min_p and not v.get("manual")
                           and (powered or v.get("powod") != "bateria")]
                 if gotowe and cool:
                     do_resume(cfg, st, T("conditions are back to normal"), only_keys=gotowe,
@@ -3500,7 +3500,7 @@ def main():
             # while its entry keeps aging. SIGTERM after 45 minutes then hits a healthy job
             # mid-work. The clock starts at the FIRST stop, as intended; proof that the
             # process is running saves it, not rewinding the stopwatch.
-            przeterminowane = wpisy_przeterminowane(st["paused"], limit_min * 60, stoja)
+            przeterminowane = expired_entries(st["paused"], limit_min * 60, stoja)
             if przeterminowane:
                 for k in przeterminowane:
                     log(T("PAUSE >%d min - terminating job %s (pid %s)")

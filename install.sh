@@ -13,7 +13,7 @@ sed_repl() {
   printf '%s' "$1" | sed 's/[&|\\]/\\&/g'
 }
 
-wybierz_katalog_aplikacji() {
+pick_app_dir() {
   if [ -n "${COFFEE_PALADIN_APP_PARENT:-}" ]; then
     printf '%s\n' "$COFFEE_PALADIN_APP_PARENT"
   elif [ -d /Applications ] && [ -w /Applications ]; then
@@ -23,11 +23,11 @@ wybierz_katalog_aplikacji() {
   fi
 }
 
-wersja_heatbar() {
+heatbar_version() {
   awk -F\" '/let VERSION = "/ {print $2; exit}' "$SRC/heatbar.swift"
 }
 
-zapisz_info_plist() {
+write_info_plist() {
   local wersja="$1"
   local cel="$2"
   cat > "$cel" <<PLIST
@@ -58,7 +58,7 @@ zapisz_info_plist() {
 PLIST
 }
 
-APP_PARENT="$(wybierz_katalog_aplikacji)"
+APP_PARENT="$(pick_app_dir)"
 APP_BUNDLE="$APP_PARENT/coffee-paladin.app"
 APP_CONTENTS="$APP_BUNDLE/Contents"
 APP_MACOS="$APP_CONTENTS/MacOS"
@@ -88,7 +88,7 @@ chmod 700 "$BASE" "$BASE/managed" 2>/dev/null || true
 # fresh account / incomplete package: check the sources BEFORE touching anything
 for f in guard.py safe-run heat thermal-report fleet thermalstate.swift heatbar.swift \
          pl.pawel.coffee-paladin.plist pl.pawel.coffee-paladin-bar.plist \
-         branding/paladin.png branding/app_icon.png tools/zrob_ikone.sh; do
+         branding/paladin.png branding/app_icon.png tools/make_icon.sh; do
   if [ ! -f "$SRC/$f" ]; then
     echo "  ❌ missing source file: $SRC/$f - aborting (incomplete package/clone?)"
     exit 1
@@ -106,27 +106,27 @@ echo "  ℹ️  app bundle: $APP_BUNDLE"
 # external address asking for sudo. A script doing that for the user without
 # asking teaches a bad habit; we print the command and leave the decision to
 # the human.
-BRAKI=""
-if ! command -v swiftc >/dev/null 2>&1; then BRAKI="$BRAKI swiftc"; fi
-if ! command -v brew   >/dev/null 2>&1; then BRAKI="$BRAKI brew"; fi
+MISSING=""
+if ! command -v swiftc >/dev/null 2>&1; then MISSING="$MISSING swiftc"; fi
+if ! command -v brew   >/dev/null 2>&1; then MISSING="$MISSING brew"; fi
 
-if [ -n "$BRAKI" ]; then
+if [ -n "$MISSING" ]; then
   echo ""
-  echo "  ⚠️  MISSING DEPENDENCIES:$BRAKI"
-  case "$BRAKI" in *swiftc*)
+  echo "  ⚠️  MISSING DEPENDENCIES:$MISSING"
+  case "$MISSING" in *swiftc*)
     echo "     • swiftc (Xcode command line tools) - without it there is NO menu bar"
     echo "       and no chip temperature sensor. Only the battery fuse remains." ;;
   esac
-  case "$BRAKI" in *brew*)
+  case "$MISSING" in *brew*)
     echo "     • Homebrew - needed to install macmon (chip temperature"
     echo "       and fan speeds)." ;;
   esac
   echo ""
   if [ -t 0 ] && [ -t 1 ]; then
-    case "$BRAKI" in *swiftc*)
+    case "$MISSING" in *swiftc*)
       printf "  Run 'xcode-select --install' now? [Y/n] "
-      read -r ODP
-      case "${ODP:-Y}" in
+      read -r ANS
+      case "${ANS:-Y}" in
         [TtYy]*|"")
           xcode-select --install 2>/dev/null \
             && echo "  → an Apple dialog opened. Finish that install and RUN THIS SCRIPT AGAIN." \
@@ -137,19 +137,19 @@ if [ -n "$BRAKI" ]; then
         *) echo "  → skipping. The menu bar and chip sensor will NOT be installed." ;;
       esac ;;
     esac
-    case "$BRAKI" in *brew*)
+    case "$MISSING" in *brew*)
       echo "  Install Homebrew yourself (deliberately - it is an external script asking for sudo):"
       # shellcheck disable=SC2016  # deliberately NOT expanded: a command to copy-paste
       echo '    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
       printf "  Continue WITHOUT macmon? [Y/n] "
-      read -r ODP2
-      case "${ODP2:-Y}" in [Nn]*) echo "  Aborted."; exit 1 ;; esac ;;
+      read -r ANS2
+      case "${ANS2:-Y}" in [Nn]*) echo "  Aborted."; exit 1 ;; esac ;;
     esac
   else
     echo "  (non-interactive mode - installing what is possible)"
-    case "$BRAKI" in *swiftc*) echo "     fix:  xcode-select --install" ;; esac
+    case "$MISSING" in *swiftc*) echo "     fix:  xcode-select --install" ;; esac
     # shellcheck disable=SC2016  # deliberately NOT expanded: a command to copy-paste
-    case "$BRAKI" in *brew*)   echo '     fix:  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"' ;; esac
+    case "$MISSING" in *brew*)   echo '     fix:  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"' ;; esac
   fi
   echo ""
 fi
@@ -177,20 +177,20 @@ fi
 
 # 1c. menu bar - a compile error must be VISIBLE, not swallowed
 if command -v swiftc >/dev/null 2>&1; then
-  HB_VERSION="$(wersja_heatbar)"
+  HB_VERSION="$(heatbar_version)"
   if [ -z "$HB_VERSION" ]; then
     echo "  ⚠️  menu bar NOT built - no let VERSION in heatbar.swift"
   else
     mkdir -p "$APP_MACOS" "$APP_RESOURCES"
   fi
   if [ -n "${HB_VERSION:-}" ] && swiftc -O -o "$BAR_EXEC" "$SRC/heatbar.swift" 2>"$BASE/heatbar_build.err"; then
-    zapisz_info_plist "$HB_VERSION" "$APP_CONTENTS/Info.plist"
+    write_info_plist "$HB_VERSION" "$APP_CONTENTS/Info.plist"
     # The app icon is the SHIELD, not the mascot: a character portrait turns
     # into a blob at 16 px. The shield fills the frame, so it stays legible at
     # 16 px and needs no simplified variant (measured: with and without the
-    # flames - indistinguishable at 16 px). `zrob_ikone.sh` still accepts an
+    # flames - indistinguishable at 16 px). `make_icon.sh` still accepts an
     # optional third argument in case one is ever needed.
-    if "$SRC/tools/zrob_ikone.sh" "$SRC/branding/app_icon.png" "$APP_RESOURCES/AppIcon.icns" \
+    if "$SRC/tools/make_icon.sh" "$SRC/branding/app_icon.png" "$APP_RESOURCES/AppIcon.icns" \
         >/dev/null 2>"$BASE/icon_build.err"; then
       echo "  ✅ AppIcon.icns built from branding/app_icon.png"
     else
@@ -285,7 +285,7 @@ fi
 # a service counts as running ONLY with a PID - "loaded" is not enough
 # (found in the field: the bar was listed without a PID while the installer
 # reported success)
-ma_pid() { launchctl list | awk -v l="$1" '$3==l && $1 != "-" {found=1} END {exit !found}'; }
+has_pid() { launchctl list | awk -v l="$1" '$3==l && $1 != "-" {found=1} END {exit !found}'; }
 
 # 4. LaunchAgent (demon)
 HOME_SED="$(sed_repl "$HOME")"
@@ -296,9 +296,9 @@ sleep 3   # bootout is asynchronous - without this, bootstrap returns an I/O err
 for _ in 1 2 3; do
   launchctl bootstrap "gui/$UID" "$PLIST" 2>/dev/null || launchctl load "$PLIST" 2>/dev/null
   sleep 3
-  ma_pid "$AGENT" && break
+  has_pid "$AGENT" && break
 done
-if ma_pid "$AGENT"; then
+if has_pid "$AGENT"; then
   echo "  ✅ daemon started and will start at every login"
 else
   echo "  ❌ daemon did not start - check $BASE/stderr.log"
@@ -314,12 +314,12 @@ if [ -x "$BAR_EXEC" ] && [ -f "$SRC/pl.pawel.coffee-paladin-bar.plist" ]; then
   for _ in 1 2 3; do
     launchctl bootstrap "gui/$UID" "$HB" 2>/dev/null || launchctl load "$HB" 2>/dev/null
     sleep 3
-    ma_pid "pl.pawel.coffee-paladin-bar" && break
+    has_pid "pl.pawel.coffee-paladin-bar" && break
     launchctl kickstart "gui/$UID/pl.pawel.coffee-paladin-bar" 2>/dev/null
     sleep 2
-    ma_pid "pl.pawel.coffee-paladin-bar" && break
+    has_pid "pl.pawel.coffee-paladin-bar" && break
   done
-  ma_pid "pl.pawel.coffee-paladin-bar" \
+  has_pid "pl.pawel.coffee-paladin-bar" \
     && echo "  ✅ menu bar is running (🌡 in the top-right corner)" \
     || echo "  ⚠️  menu bar did not start - check $BASE/heatbar.err and: launchctl kickstart gui/$UID/pl.pawel.coffee-paladin-bar"
 fi

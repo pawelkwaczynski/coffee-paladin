@@ -47,7 +47,7 @@ test("1. only egg command is --paladin (old flags removed from source)",
 # 2. Color art must be full quality: half-blocks, >=40 lines. This is the version a
 #    modern terminal shows. Check source because the test runs without a tty and would
 #    otherwise get the fallback.
-mk = re.search(r'PALADIN_KOLOR = """\n(.*?)\n"""', zrodlo_heat, re.S)
+mk = re.search(r'PALADIN_COLOR = """\n(.*?)\n"""', zrodlo_heat, re.S)
 art_kolor = mk.group(1).split("\n") if mk else []
 szer_kolor = max((len(re.sub(r"\x1b\[[0-9;]*m", "", l)) for l in art_kolor), default=0)
 test("2. color art: >=40 half-block lines, width fits within 80 columns",

@@ -6,7 +6,7 @@ Eight categories, each from a real failure:
   3. tool without --help: `thermal-report --help` generated a report on Desktop;
   4. install.sh creates something uninstall.sh does not remove: skill, symlinks, fleet snapshot;
   5. guard logs a tag unknown to parsers -> evidence report loses events;
-  6. guard.py and thermal-report copies of pokolenia() must not drift;
+  6. guard.py and thermal-report copies of generations() must not drift;
   7. timestamp parsers in four tools must return the same result;
   8. .app bundle must be created and removed symmetrically without touching /Applications.
 
@@ -92,9 +92,9 @@ if ('coffee-paladin.app' not in inst or 'APP_CONTENTS="$APP_BUNDLE/Contents"' no
     bledy.append("install.sh does not create coffee-paladin.app/Contents structure")
 if 'CFBundleExecutable' not in inst or 'CFBundleIdentifier' not in inst or 'LSUIElement' not in inst:
     bledy.append("install.sh does not write required Info.plist keys for bundle")
-if 'wersja_heatbar' not in inst or 'let VERSION = ' not in inst:
+if 'heatbar_version' not in inst or 'let VERSION = ' not in inst:
     bledy.append("install.sh does not read bundle version from heatbar.swift")
-if 'tools/zrob_ikone.sh' not in inst or 'AppIcon.icns' not in inst:
+if 'tools/make_icon.sh' not in inst or 'AppIcon.icns' not in inst:
     bledy.append("install.sh does not build AppIcon.icns with a separate tool")
 if 'codesign -s - -f "$APP_BUNDLE"' not in inst:
     bledy.append("install.sh does not ad-hoc sign the whole bundle")
@@ -121,9 +121,9 @@ try:
         for _tag in tagi:
             _f.write("%s 10:00:00+0200  [%s] proces testowy (pid 1) - powod\n" % (_dzis, _tag))
     _g5 = importlib.machinery.SourceFileLoader('tag_g', os.path.join(SRC, 'guard.py')).load_module()
-    _stat = _g5.statystyki_dnia() if hasattr(_g5, "statystyki_dnia") else None
+    _stat = _g5.day_stats() if hasattr(_g5, "day_stats") else None
     if _stat is not None and not any(v for v in _stat.values()):
-        bledy.append("statystyki_dnia recognized NONE of the tags %s "
+        bledy.append("day_stats recognized NONE of the tags %s "
                      "- log parser is broken or tags drifted" % tagi)
     # thermal-report: feed it a log and verify it really counted every line.
     # The previous check searched source for literal "[PAUSE]" and reported a false
@@ -143,7 +143,7 @@ try:
 except Exception as _e5:
     bledy.append("cannot check log tags: %s: %s" % (type(_e5).__name__, _e5))
 
-# 6. `pokolenia()` exists in guard.py and thermal-report as an intentional copy because
+# 6. `generations()` exists in guard.py and thermal-report as an intentional copy because
 #    tools are standalone and do not import the daemon. Both must return the same result.
 #    Copied logic is debt that returns; at least this keeps it watched.
 try:
@@ -155,26 +155,26 @@ try:
         io.open(_p + _n, "w").write("x")
     _g = importlib.machinery.SourceFileLoader('pg', os.path.join(SRC, 'guard.py')).load_module()
     _tr = importlib.machinery.SourceFileLoader('ptr', os.path.join(SRC, 'thermal-report')).load_module()
-    if not hasattr(_tr, "pokolenia"):
-        bledy.append("thermal-report lacks pokolenia() - rotation will truncate evidence again")
-    elif _g.pokolenia(_p) != _tr.pokolenia(_p):
-        bledy.append("pokolenia() drifted between guard.py and thermal-report: %s vs %s"
-                     % ([os.path.basename(x) for x in _g.pokolenia(_p)],
-                        [os.path.basename(x) for x in _tr.pokolenia(_p)]))
+    if not hasattr(_tr, "generations"):
+        bledy.append("thermal-report lacks generations() - rotation will truncate evidence again")
+    elif _g.generations(_p) != _tr.generations(_p):
+        bledy.append("generations() drifted between guard.py and thermal-report: %s vs %s"
+                     % ([os.path.basename(x) for x in _g.generations(_p)],
+                        [os.path.basename(x) for x in _tr.generations(_p)]))
     _sh.rmtree(_t, ignore_errors=True)
 except Exception as _e:
-    bledy.append("cannot compare pokolenia(): %s: %s" % (type(_e).__name__, _e))
+    bledy.append("cannot compare generations(): %s: %s" % (type(_e).__name__, _e))
 
-# 7. Timestamp parser lives in four files as an intentional copy: guard.czas_abs,
-#    thermal-report.czas_z, heat.czas_abs, safe-run.czas_abs. All must return the same
+# 7. Timestamp parser lives in four files as an intentional copy: guard.abs_epoch,
+#    thermal-report.abs_epoch, heat.abs_epoch, safe-run.abs_epoch. All must return the same
 #    result for offset, legacy, and junk timestamps, or one tool silently skips every
 #    fresh history.csv row.
 try:
     _probki = ["2026-08-02 23:30:00+0200", "2026-08-02 23:30:00", "2026-08-02 23:30:00-0800",
                "xyzzy", "", "2026-13-45 99:99:99"]
     _impl = {}
-    for _plik, _nazwa in (("guard.py", "czas_abs"), ("thermal-report", "czas_z"),
-                          ("heat", "czas_abs"), ("safe-run", "czas_abs")):
+    for _plik, _nazwa in (("guard.py", "abs_epoch"), ("thermal-report", "abs_epoch"),
+                          ("heat", "abs_epoch"), ("safe-run", "abs_epoch")):
         _m = importlib.machinery.SourceFileLoader(
             'cz_' + re.sub(r'\W', '_', _plik), os.path.join(SRC, _plik)).load_module()
         if not hasattr(_m, _nazwa):

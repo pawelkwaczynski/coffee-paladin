@@ -92,7 +92,7 @@ test("junk in list filtered out, real entry WORKS",
 # --- 3. The guard's own process names are always protected ---
 cfg = ustaw({"never_patterns": ["cokolwiek"]})
 test("own names are appended despite the user's own list",
-     all(n in cfg["never_patterns"] for n in g.WLASNE_NAZWY),
+     all(n in cfg["never_patterns"] for n in g.OWN_NAMES),
      "list: %s" % cfg["never_patterns"])
 
 # --- 4. Unknown keys survive for forward compatibility ---
@@ -121,7 +121,7 @@ wzorce = [w.lower() for w in g.load_cfg()["never_arg_patterns"]]
 
 
 def chroniony(cmd):
-    """Call the real guard.args_bez_sciezek, not a local copy.
+    """Call the real guard.args_without_paths, not a local copy.
 
     A previous local copy drifted from production: it always used argv[1], while
     production uses the first non-flag argument. A test against the copy can pass
@@ -130,7 +130,7 @@ def chroniony(cmd):
     stary = g.full_args
     g.full_args = lambda pid, _w=cmd: _w
     try:
-        args = g.args_bez_sciezek(1)
+        args = g.args_without_paths(1)
     finally:
         g.full_args = stary
     return any(w in args for w in wzorce)

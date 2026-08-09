@@ -263,7 +263,7 @@ def _num(v):
     return None if f != f or f in (float("inf"), float("-inf")) else f
 
 
-def _liczby(v):
+def _numbers(v):
     """Lista intow z czegokolwiek. `_num` przepuszcza stringi ("3.5"), a int() na nich pada."""
     if not isinstance(v, list):
         return []
@@ -279,7 +279,7 @@ def _liczby(v):
     return out
 
 
-def _czysty_tekst(s, limit=60):
+def _clean_text(s, limit=60):
     """Text from a foreign snapshot: no control characters, sane length.
 
     Snapshots live in a shared folder (iCloud, SMB, SharePoint), so anyone
@@ -290,7 +290,7 @@ def _czysty_tekst(s, limit=60):
     return "".join(c for c in str(s) if c.isprintable())[:limit]
 
 
-def _wiek_migawki(snap, path):
+def _snapshot_age(snap, path):
     """Age of a host report, computed from snapshot CONTENT, not file metadata.
 
     iCloud can keep an mtime many days old on perfectly fresh content: a
@@ -324,7 +324,7 @@ def load_hosts(d):
     for name in sorted(os.listdir(d)):
         if name.endswith(".json.icloud"):
             # evicted by iCloud: the host exists, its data is not at hand
-            base = _czysty_tekst(name.lstrip(".")[:-len(".json.icloud")], 18)
+            base = _clean_text(name.lstrip(".")[:-len(".json.icloud")], 18)
             hosts.append({"host": base, "_age": 1e9})
             continue
         if not name.endswith(".json") or name.startswith("."):
@@ -358,7 +358,7 @@ def load_hosts(d):
                 wiek = time.time() - os.lstat(path).st_mtime
             except OSError:
                 wiek = 1e9
-            hosts.append({"host": _czysty_tekst(name[:-5], 18), "_age": wiek,
+            hosts.append({"host": _clean_text(name[:-5], 18), "_age": wiek,
                           "_bad": True, "level": 0, "fans": []})
             continue
         # Implausibility must be noticed BEFORE normalization: `_num()` turns
@@ -388,7 +388,7 @@ def load_hosts(d):
         except (ValueError, OverflowError):
             snap["level"] = 0              # "nan", 1e400: _num passes them, int() does not
         fans = snap.get("fans")
-        snap["fans"] = _liczby(fans)
+        snap["fans"] = _numbers(fans)
         # Fields that go straight to the render. The snapshot comes from a
         # SHARED folder, so treat it as data from a foreign machine: every type
         # can differ, and ANSI control characters in a host name can erase
@@ -398,9 +398,9 @@ def load_hosts(d):
             if v is None or (isinstance(v, str) and not v.strip()):
                 snap.pop(k, None)          # None must not stay: it blocked setdefault below
             else:
-                snap[k] = _czysty_tekst(v if isinstance(v, str) else str(v))
+                snap[k] = _clean_text(v if isinstance(v, str) else str(v))
         p = snap.get("paused")
-        snap["paused"] = [_czysty_tekst(str(x))[:24] for x in p][:6] if isinstance(p, list) else []
+        snap["paused"] = [_clean_text(str(x))[:24] for x in p][:6] if isinstance(p, list) else []
         st = snap.get("stats")
         # Checking "is it a dict" is not enough: %d on a value like "lots"
         # kills the render. `v == v` filtered NaN but let infinity through,
@@ -412,14 +412,14 @@ def load_hosts(d):
         crash = snap.get("last_hard_shutdown")
         if isinstance(crash, dict):
             # this field also reaches the operator's terminal - it must be sanitized
-            snap["last_hard_shutdown"] = {"time": _czysty_tekst(crash.get("time", ""), 30)}
+            snap["last_hard_shutdown"] = {"time": _clean_text(crash.get("time", ""), 30)}
         else:
             snap["last_hard_shutdown"] = None
         if not isinstance(snap.get("on_ac"), bool):
             v = snap.get("on_ac")
             snap["on_ac"] = True if v is None else str(v).strip().lower() in ("1", "true", "yes", "tak")
-        snap["_age"] = max(_wiek_migawki(snap, path), 0.0)   # another machine's clock can run ahead
-        snap.setdefault("host", _czysty_tekst(name[:-5], 18))
+        snap["_age"] = max(_snapshot_age(snap, path), 0.0)   # another machine's clock can run ahead
+        snap.setdefault("host", _clean_text(name[:-5], 18))
         hosts.append(snap)
     return hosts
 

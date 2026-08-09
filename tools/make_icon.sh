@@ -1,9 +1,9 @@
 #!/bin/bash
-# zrob_ikone.sh - buduje AppIcon.icns z portretu paladyna.
+# make_icon.sh - buduje AppIcon.icns z portretu paladyna.
 set -euo pipefail
 
 if [ "$#" -lt 2 ] || [ "$#" -gt 3 ]; then
-  echo "uzycie: tools/zrob_ikone.sh ZRODLO.png AppIcon.icns [ZRODLO_MALE.png]" >&2
+  echo "uzycie: tools/make_icon.sh ZRODLO.png AppIcon.icns [ZRODLO_MALE.png]" >&2
   exit 2
 fi
 

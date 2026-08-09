@@ -64,7 +64,7 @@ def scena(puls, czyste=None, czysc_events=True):
     if czyste is not None:
         io.open(g.CLEAN_STOP_PATH, "w").close()
         os.utime(g.CLEAN_STOP_PATH, (czyste, czyste))
-    return g.wykryj_twardy_pad()
+    return g.detect_hard_shutdown()
 
 
 def zapisane():
@@ -149,12 +149,12 @@ os.remove(g.EVENTS_PATH) if os.path.exists(g.EVENTS_PATH) else None
 scena(BOOT - 600)                      # Start 1: writes.
 przed = ile_hard()
 for _ in range(4):                     # Four more starts, heartbeat unchanged.
-    g.wykryj_twardy_pad()
+    g.detect_hard_shutdown()
 test("13. five starts with the same heartbeat give ONE entry, not five",
      ile_hard() == 1, "entries: %d (after first start: %d)" % (ile_hard(), przed))
 
 test("14. repeated detection returns None (no second notification)",
-     g.wykryj_twardy_pad() is None)
+     g.detect_hard_shutdown() is None)
 
 # Countercase: two different shutdowns produce two entries.
 scena(BOOT - 4000, czysc_events=False)   # Different last heartbeat time = different failure.

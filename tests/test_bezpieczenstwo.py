@@ -86,11 +86,11 @@ print("\n=== item 11: substring protection REMAINS, but stops being silent ===")
 cfg = g.load_cfg()
 cfg["cpu_min_percent"] = 10
 cfg["manage_unknown_heavy"] = True
-g.args_bez_sciezek = lambda pid: "x"
-g.pierwszoplanowy_na_tty = lambda pid: False
+g.args_without_paths = lambda pid: "x"
+g.foreground_on_tty = lambda pid: False
 g.proc_age_seconds = lambda pid: 9999
-g.cpu_z_dziecmi = lambda procs: {}
-g._NIETYKALNI_PODCIAG.clear()
+g.cpu_with_children = lambda procs: {}
+g._UNTOUCHABLE_SUBSTRINGS.clear()
 if os.path.exists(g.LOG_PATH):
     os.remove(g.LOG_PATH)
 

@@ -67,7 +67,7 @@ sys.argv = argv0
 
 # --- live processes in group ---
 p = grupa_z_wnukiem()
-pids = sr.zywi_w_grupie(p.pid)
+pids = sr.alive_in_group(p.pid)
 test("sees leader and grandchild in group (>= 2 pids)", len(pids) >= 2, str(pids))
 test("does not see US in the group", os.getpid() not in pids, str(pids))
 
@@ -75,15 +75,15 @@ test("does not see US in the group", os.getpid() not in pids, str(pids))
 os.kill(p.pid, signal.SIGTERM)
 p.wait()
 time.sleep(0.3)
-sieroty = sr.zywi_w_grupie(p.pid)
+sieroty = sr.alive_in_group(p.pid)
 test("after leader dies, orphan grandchild is ALIVE in the group (incident repro)",
      len(sieroty) >= 1, str(sieroty))
 
 t0 = time.time()
-sr.sprzatnij_grupe(p.pid, grace=5.0)
+sr.sweep_group(p.pid, grace=5.0)
 czas = time.time() - t0
-test("sprzatnij_grupe kills the orphan", sr.zywi_w_grupie(p.pid) == [],
-     str(sr.zywi_w_grupie(p.pid)))
+test("sweep_group kills the orphan", sr.alive_in_group(p.pid) == [],
+     str(sr.alive_in_group(p.pid)))
 test("sleep dies on SIGTERM - without waiting the whole grace window", czas < 4.0,
      "%.1f s" % czas)
 
@@ -92,24 +92,24 @@ p = grupa_z_wnukiem()
 os.kill(p.pid, signal.SIGTERM)
 p.wait()
 time.sleep(0.3)
-sieroty = sr.zywi_w_grupie(p.pid)
+sieroty = sr.alive_in_group(p.pid)
 for pid in sieroty:
     os.kill(pid, signal.SIGSTOP)
-sr.sprzatnij_grupe(p.pid, grace=5.0)
+sr.sweep_group(p.pid, grace=5.0)
 test("frozen orphan also dies (CONT before TERM)",
-     sr.zywi_w_grupie(p.pid) == [], str(sr.zywi_w_grupie(p.pid)))
+     sr.alive_in_group(p.pid) == [], str(sr.alive_in_group(p.pid)))
 
 # --- Stubborn process that ignores SIGTERM receives SIGKILL after the grace window ---
 p = subprocess.Popen(["/bin/sh", "-c", "trap '' TERM; sleep 300"],
                      preexec_fn=os.setsid)
 time.sleep(0.3)
 t0 = time.time()
-sr.sprzatnij_grupe(p.pid, grace=2.0)
+sr.sweep_group(p.pid, grace=2.0)
 p.wait()
 czas = time.time() - t0
 test("SIGTERM-ignoring process dies from SIGKILL after the grace window",
-     sr.zywi_w_grupie(p.pid) == [] and 1.5 <= czas < 8.0,
-     "%.1f s, alive=%s" % (czas, sr.zywi_w_grupie(p.pid)))
+     sr.alive_in_group(p.pid) == [] and 1.5 <= czas < 8.0,
+     "%.1f s, alive=%s" % (czas, sr.alive_in_group(p.pid)))
 
 shutil.rmtree(BASE, ignore_errors=True)
 print("\nRESULT: %d/%d" % (zaliczone, wszystkie))

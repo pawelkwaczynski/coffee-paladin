@@ -34,10 +34,10 @@ ICON = {"nominal": "🟢", "fair": "🟡", "serious": "🟠", "critical": "🔴"
 SUPPORTED_LANGS = ("en", "pl", "ru", "zh", "es")
 
 
-def czas_abs(s):
+def abs_epoch(s):
     """Absolute epoch from a `ts()` stamp, with or without an offset (pre-2.1.8 files).
 
-    Deliberate copy of `guard.czas_abs`: the CLI tools in this project are
+    Deliberate copy of `guard.abs_epoch`: the CLI tools in this project are
     self-contained and never import the daemon. All copies are kept in sync
     by `tests/test_spojnosc.py`. Without the offset tolerance this parser
     would raise ValueError on every new history.csv row and silently drop
@@ -242,7 +242,7 @@ def sh(cmd, timeout=15):
         return ""
 
 
-PALADIN_KOLOR = """
+PALADIN_COLOR = """
 [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m[38;2;56;46;20m▄[38;2;2;0;0m[48;2;94;81;32m▀[0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m
 [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m[38;2;0;0;0m▄[0m [0m[38;2;15;13;7m▄[38;2;116;105;55m[48;2;200;179;87m▀[38;2;229;209;99m[48;2;255;232;119m▀[38;2;8;3;0m[48;2;79;56;13m▀[0m [0m [0m[38;2;4;3;1m▄[0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m
 [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m[38;2;1;3;7m▄[38;2;126;106;47m[48;2;192;147;49m▀[38;2;51;44;21m[48;2;232;195;71m▀[38;2;45;35;8m[48;2;64;53;23m▀[38;2;253;201;76m[48;2;165;130;46m▀[38;2;247;208;111m[48;2;235;192;94m▀[38;2;151;100;17m[48;2;69;36;6m▀[38;2;0;0;0m[48;2;134;116;49m▀[38;2;120;101;42m[48;2;255;202;62m▀[38;2;62;49;17m[48;2;99;78;26m▀[0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m [0m
@@ -311,7 +311,7 @@ PALADIN_MONO = r"""
        '------------------'
 """
 
-def _kolorowy_terminal():
+def _truecolor_terminal():
     """Truecolor: modern terminals (Ghostty, iTerm2, kitty, WezTerm, VS Code).
     Without a tty, with NO_COLOR or with --ascii we fall back to the character
     version - a pipe to a file must stay readable, and Terminal.app (no
@@ -331,10 +331,10 @@ REPO = "github.com/pawelkwaczynski/coffee-paladin"
 
 # Terminal artwork: height in rows. 26 is half the half-block drawing, yet
 # stays sharp - these are real pixels, not characters.
-OBRAZ_WIERSZY = 26
+IMAGE_ROWS = 26
 
 
-def _protokol_obrazkowy():
+def _image_protocol():
     """Can this terminal display a REAL image (not characters)?
 
     Returns "kitty" (Ghostty, kitty, WezTerm), "iterm" (iTerm2) or None.
@@ -359,7 +359,7 @@ def _protokol_obrazkowy():
     return None
 
 
-def _wyslij_obraz(sciezka, protokol, wierszy=OBRAZ_WIERSZY):
+def _send_image(sciezka, protokol, wierszy=IMAGE_ROWS):
     """Wypycha PNG do terminala. Zwraca True, gdy sie udalo."""
     import base64
     try:
@@ -397,10 +397,10 @@ def paladin(ile_stopni=None, straz=None):
     Three tiers, best first: a real image (Ghostty/kitty/WezTerm/iTerm2),
     truecolor half-blocks, ASCII cup. `--ascii` forces the cup, `--bloki`
     forces half-blocks (to preview what someone without graphics sees)."""
-    protokol = _protokol_obrazkowy()
+    protokol = _image_protocol()
     grafika = os.path.expanduser("~/.coffee-paladin/paladin_welcome.png")
-    if not (protokol and _wyslij_obraz(grafika, protokol)):
-        print(PALADIN_KOLOR if _kolorowy_terminal() else PALADIN_MONO)
+    if not (protokol and _send_image(grafika, protokol)):
+        print(PALADIN_COLOR if _truecolor_terminal() else PALADIN_MONO)
     print("   coffee-paladin  -  " + MOTTO)
     if ile_stopni is not None:
         print("   %s %.1f C" % ("Na warcie przy" if LANG == "pl" else "Standing watch at",
@@ -474,7 +474,7 @@ def stuck():
     return 0
 
 
-def guard_zyje():
+def guard_alive():
     """Is the daemon REALLY alive, not merely loaded into launchd.
 
     `launchctl list` prints "-  1  pl.pawel.coffee-paladin" for a dead job,
@@ -557,7 +557,7 @@ def main():
                          "cpu_limit": speed,
                          "load1": round(l1, 2), "load15": round(l15, 2), "cores": ncpu},
             "guard_snapshot": snap or None,
-            "guard_running": guard_zyje(),
+            "guard_running": guard_alive(),
         }, ensure_ascii=False))
         return 0
 
@@ -581,7 +581,7 @@ def main():
     if lifetime:
         print(T("   battery temperature record (whole lifetime): %.1f °C") % lifetime)
 
-    running = guard_zyje()
+    running = guard_alive()
     print(T("   coffee-paladin: %s") % (T("running ✅") if running else T("NOT RUNNING ❌  (launchctl kickstart -k gui/%d/%s)") % (os.getuid(), AGENT)))
 
     try:
@@ -612,7 +612,7 @@ def main():
                 if len(c) < 3 or not c[2]:
                     continue
                 try:
-                    t = czas_abs(c[0])
+                    t = abs_epoch(c[0])
                     if not t:
                         continue
                 except Exception:

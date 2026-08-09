@@ -1,4 +1,4 @@
-# `wykryj_twardy_pad()` Tests - Evidence Matrix
+# `detect_hard_shutdown()` Tests - Evidence Matrix
 
 `test_wykryj_twardy_pad.py` covers 16 cases without starting the daemon and **without
 touching** `~/.coffee-paladin`. Isolation is done by importing through `importlib` and

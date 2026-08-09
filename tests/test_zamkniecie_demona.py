@@ -131,12 +131,12 @@ os.utime(g.HEARTBEAT_PATH, (boot - 600, boot - 600))
 io.open(g.CLEAN_STOP_PATH, "w").close()
 os.utime(g.CLEAN_STOP_PATH, (boot - 590, boot - 590))
 test("11. shutdown detector stays silent when clean_stop accompanies heartbeat",
-     g.wykryj_twardy_pad() is None,
+     g.detect_hard_shutdown() is None,
      "clean shutdown was counted as failure")
 
 os.remove(g.CLEAN_STOP_PATH)
 test("12. OPPOSITE case: without clean_stop shutdown IS detected",
-     g.wykryj_twardy_pad() is not None,
+     g.detect_hard_shutdown() is not None,
      "detector stopped seeing real shutdowns")
 
 # ---------------------------------------------------------------- caffeinate

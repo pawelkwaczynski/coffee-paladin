@@ -4,7 +4,7 @@
 
 1. Startup resume without a measurement. Daemon restart via update or kickstart -k used
    `do_resume("guard startup")` before any measurement, giving a hot job ~15 s of full
-   power above threshold. The same `bramka_wznowienia` used by the loop now gates startup
+   power above threshold. The same `resume_gate` used by the loop now gates startup
    resume.
 
 2. SIGSTOP -> save_state window. State was saved after the signal; a daemon killed in
@@ -14,7 +14,7 @@
 
 3. SIGTERM after a stale snapshot. `ps` from the start of a cycle can be several seconds
    old; manual `kill -CONT` mid-cycle meant SIGTERM to a process already running at full
-   speed. `do_terminate` re-checks `wpis_stoi` just before firing, and a failed measurement
+   speed. `do_terminate` re-checks `entry_stopped` just before firing, and a failed measurement
    (`None`) stops execution entirely.
 
 4. `load_state` trusted format. `paused` as a list or a non-numeric key caused a startup
@@ -86,16 +86,16 @@ def cfg_test():
 
 try:
     # ---------------------------------------------------------------- 1. startup gate
-    print("1. startup resume passes through bramka_wznowienia (AST on live code)")
+    print("1. startup resume passes through resume_gate (AST on live code)")
     drzewo = ast.parse(open(GUARD_SRC).read())
     main_fn = next(n for n in ast.walk(drzewo)
                    if isinstance(n, ast.FunctionDef) and n.name == "main")
     trafiony = False
     for n in ast.walk(main_fn):
         if isinstance(n, ast.If) and "guard startup" in ast.dump(n) \
-                and "bramka_wznowienia" in ast.dump(n.test):
+                and "resume_gate" in ast.dump(n.test):
             trafiony = True
-    test("do_resume('guard startup') is behind bramka_wznowienia", trafiony)
+    test("do_resume('guard startup') is behind resume_gate", trafiony)
 
     # ---------------------------------------------------------------- 2. intent entry
     print("2. do_pause: state entry ALREADY EXISTS when signal is sent")
@@ -229,17 +229,17 @@ try:
     zegar = [1000000.0]
     stary_now = g.now
     g.now = lambda: zegar[0]
-    g._NIETYKALNI_PODCIAG.clear()
+    g._UNTOUCHABLE_SUBSTRINGS.clear()
     logi[:] = []
-    g._loguj_nietykalny_podciag("corespotlightd", "spotlight", 200.0)
+    g._log_untouchable_match("corespotlightd", "spotlight", 200.0)
     zegar[0] += 700          # 11:40 later; old 10 min code would already log.
-    g._loguj_nietykalny_podciag("corespotlightd", "spotlight", 200.0)
+    g._log_untouchable_match("corespotlightd", "spotlight", 200.0)
     test("second entry in the same hour silenced", len(logi) == 1, repr(len(logi)))
     zegar[0] += 3600
-    g._loguj_nietykalny_podciag("corespotlightd", "spotlight", 200.0)
+    g._log_untouchable_match("corespotlightd", "spotlight", 200.0)
     test("after an hour it may log again", len(logi) == 2)
     g.now = stary_now
-    g._NIETYKALNI_PODCIAG.clear()
+    g._UNTOUCHABLE_SUBSTRINGS.clear()
 
     powiadomienia = []
     g.notify = lambda cfg, tytul, tresc, key="d": powiadomienia.append((key, tresc))

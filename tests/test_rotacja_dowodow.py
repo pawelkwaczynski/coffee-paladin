@@ -92,7 +92,7 @@ test("2. after rotation the report STILL shows 98.7 C (not 44.0 from the new fil
 # 3. A second rotation does not delete the first generation.
 przepelnij_i_zrotuj(g.HIST_PATH)
 napisz_historie(("40.0", "11:00:00"))
-zrodla = g.pokolenia(g.HIST_PATH)
+zrodla = g.generations(g.HIST_PATH)
 gdzie = [os.path.basename(p) for p in zrodla
          if "98.7" in io.open(p, encoding="utf-8", errors="replace").read()[:5000]]
 test("3. after SECOND rotation the 98.7 C reading still exists on disk", bool(gdzie),
@@ -100,19 +100,19 @@ test("3. after SECOND rotation the 98.7 C reading still exists on disk", bool(gd
 test("4. and report sees it", szczyt_z(raport()) == 98.7, "got %s" % szczyt_z(raport()))
 
 # 5. Generations are chronological, oldest first, or the timeline lies.
-nazwy = [os.path.basename(p) for p in g.pokolenia(g.HIST_PATH)]
+nazwy = [os.path.basename(p) for p in g.generations(g.HIST_PATH)]
 test("5. generations in chronological order, current file last",
      nazwy == sorted(nazwy, key=lambda n: -int(n.split(".")[-1]) if n[-1].isdigit() else 0)
      and nazwy[-1] == "history.csv",
      "order: %s" % nazwy)
 
 # 6. Generation cap works: old entries fall out instead of growing forever.
-for _ in range(g.MAX_LOG_GENERACJI + 3):
+for _ in range(g.MAX_LOG_GENERATIONS + 3):
     przepelnij_i_zrotuj(g.HIST_PATH)
     napisz_historie(("41.0", "12:00:00"))
 ile = len([n for n in os.listdir(BASE) if n.startswith("history.csv.")])
-test("6. generation count does not exceed MAX_LOG_GENERACJI", ile <= g.MAX_LOG_GENERACJI,
-     "there are %d generations with limit %d" % (ile, g.MAX_LOG_GENERACJI))
+test("6. generation count does not exceed MAX_LOG_GENERATIONS", ile <= g.MAX_LOG_GENERATIONS,
+     "there are %d generations with limit %d" % (ile, g.MAX_LOG_GENERATIONS))
 
 # --- Countercase: without rotation, nothing changes ---
 print("\n=== opposite case (no rotation) ===")
@@ -121,12 +121,12 @@ for n in list(os.listdir(BASE)):
         os.remove(os.path.join(BASE, n))
 napisz_historie(("77.0", "09:00:00"), ("50.0", "09:30:00"))
 test("7. without rotation: one source and peak from it",
-     g.pokolenia(g.HIST_PATH) == [g.HIST_PATH] and szczyt_z(raport()) == 77.0,
-     "sources=%s peak=%s" % (g.pokolenia(g.HIST_PATH), szczyt_z(raport())))
+     g.generations(g.HIST_PATH) == [g.HIST_PATH] and szczyt_z(raport()) == 77.0,
+     "sources=%s peak=%s" % (g.generations(g.HIST_PATH), szczyt_z(raport())))
 
 # 8. No file at all means an empty list, not an exception.
 os.remove(g.HIST_PATH)
-test("8. missing file: pokolenia() returns empty list without exception", g.pokolenia(g.HIST_PATH) == [])
+test("8. missing file: generations() returns empty list without exception", g.generations(g.HIST_PATH) == [])
 
 shutil.rmtree(BASE, ignore_errors=True)
 ok = sum(wyniki)

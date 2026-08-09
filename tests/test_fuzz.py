@@ -259,7 +259,7 @@ def sprawdz_cfg(s, wejscie, cfg):
     except Exception:
         pass
     for k in ("never_patterns", "never_arg_patterns"):
-        for nazwa in guard.WLASNE_NAZWY:
+        for nazwa in guard.OWN_NAMES:
             if nazwa not in cfg.get(k, []):
                 s.bzdura(wejscie, "%s does not contain own name %r - guard can pause itself"
                          % (k, nazwa), "HIGH", klucz="brak-wlasnej-nazwy")
@@ -394,7 +394,7 @@ def fuzz_normalize(seed, n, modul, nazwa):
     s.koniec()
 
 
-# ---------------------------------------------------------------- 4. cpu_z_dziecmi
+# ---------------------------------------------------------------- 4. cpu_with_children
 
 def losowe_procesy(rng, wrogo=False):
     ile = rng.choice([0, 1, 2, 5, 30, 200])
@@ -418,14 +418,14 @@ def losowe_procesy(rng, wrogo=False):
 
 
 def fuzz_cpu_z_dziecmi(seed, n):
-    s = Sesja("guard.cpu_z_dziecmi", seed)
+    s = Sesja("guard.cpu_with_children", seed)
     for _ in range(n):
         if s.czas_minal():
             break
         s.n += 1
         procs = losowe_procesy(s.rng, wrogo=s.rng.random() < 0.2)
         try:
-            suma = guard.cpu_z_dziecmi(procs)
+            suma = guard.cpu_with_children(procs)
         except Exception as e:
             s.blad(procs[:6], e)
             continue
@@ -461,9 +461,9 @@ def fuzz_pick_targets(seed, n):
     s = Sesja("guard.pick_targets", seed)
     wpisz_cfg("{}")
     cfg_bazowy = guard.load_cfg()
-    stare = (guard.proc_age_seconds, guard.pierwszoplanowy_na_tty, guard.full_args)
+    stare = (guard.proc_age_seconds, guard.foreground_on_tty, guard.full_args)
     guard.proc_age_seconds = lambda pid: s.rng.choice([0, 5, 130, 10 ** 6])
-    guard.pierwszoplanowy_na_tty = lambda pid: s.rng.random() < 0.3
+    guard.foreground_on_tty = lambda pid: s.rng.random() < 0.3
     guard.full_args = lambda pid: losowy_string(s.rng)
     try:
         for _ in range(n):
@@ -516,14 +516,14 @@ def fuzz_pick_targets(seed, n):
                                        "breaks sorting - hottest process stops being first)",
                          "LOW", klucz="brak-sortowania")
     finally:
-        guard.proc_age_seconds, guard.pierwszoplanowy_na_tty, guard.full_args = stare
+        guard.proc_age_seconds, guard.foreground_on_tty, guard.full_args = stare
     s.koniec()
 
 
-# ---------------------------------------------------------------- 6. args_bez_sciezek
+# ---------------------------------------------------------------- 6. args_without_paths
 
 def fuzz_args_bez_sciezek(seed, n):
-    s = Sesja("guard.args_bez_sciezek", seed)
+    s = Sesja("guard.args_without_paths", seed)
     stary = guard.full_args
     proby = [
         "", "   ", "\x00", "ffmpeg -i /Users/x/wideo/rec.mkv -c:v libx265 out.mkv",
@@ -538,7 +538,7 @@ def fuzz_args_bez_sciezek(seed, n):
             wej = proby[i] if i < len(proby) else losowy_string(s.rng)
             guard.full_args = lambda pid, _w=wej: _w
             try:
-                out = guard.args_bez_sciezek(s.rng.randint(-5, 99999))
+                out = guard.args_without_paths(s.rng.randint(-5, 99999))
             except Exception as e:
                 s.blad(wej, e)
                 continue
@@ -552,7 +552,7 @@ def fuzz_args_bez_sciezek(seed, n):
     s.koniec()
 
 
-# ---------------------------------------------------------------- 7. wykryj_twardy_pad
+# ---------------------------------------------------------------- 7. detect_hard_shutdown
 
 HB = os.path.join(TMP, "heartbeat")
 CLEAN = os.path.join(TMP, "clean_stop")
@@ -562,7 +562,7 @@ BOOT = int(time.time()) - 3600      # System booted one hour ago.
 
 
 def fuzz_wykryj_twardy_pad(seed, n):
-    s = Sesja("guard.wykryj_twardy_pad", seed)
+    s = Sesja("guard.detect_hard_shutdown", seed)
     stary_boot, stary_log = guard.boot_time, guard.log
     guard.boot_time = lambda: BOOT
     guard.log = lambda msg, tag=None: None
@@ -626,7 +626,7 @@ def fuzz_wykryj_twardy_pad(seed, n):
                     f.write(hv.encode("utf-8", "surrogateescape"))
             wej = {"heartbeat": hb, "clean_stop": czysty, "history": skroc(hv, 60)}
             try:
-                r = guard.wykryj_twardy_pad()
+                r = guard.detect_hard_shutdown()
             except Exception as e:
                 s.blad(wej, e)
                 continue
@@ -655,7 +655,7 @@ def fuzz_wykryj_twardy_pad(seed, n):
     s.koniec()
 
 
-# ---------------------------------------------------------------- 8. statystyki_dnia
+# ---------------------------------------------------------------- 8. day_stats
 
 LOG = os.path.join(TMP, "guard.log")
 
@@ -687,7 +687,7 @@ TRIGGERY = ("[PAUSE]", "[RESUME]", "[KILL]")
 
 
 def fuzz_statystyki_dnia(seed, n):
-    s = Sesja("guard.statystyki_dnia", seed)
+    s = Sesja("guard.day_stats", seed)
     dzis = time.strftime("%Y-%m-%d")
     smieci = [
         "", "\n", "\x00\xff smieci", "linia bez daty", "2020-01-01 PAUSED x",
@@ -728,7 +728,7 @@ def fuzz_statystyki_dnia(seed, n):
             with open(LOG, "wb") as f:
                 f.write(tresc.encode("utf-8", "surrogateescape"))
             try:
-                st = guard.statystyki_dnia()
+                st = guard.day_stats()
             except Exception as e:
                 s.blad(skroc(tresc, 200), e)
                 continue
@@ -846,7 +846,7 @@ def fuzz_heat_stuck(seed, n):
     s.koniec()
 
 
-# ---------------------------------------------------------------- 11. chip_juz_goracy
+# ---------------------------------------------------------------- 11. chip_already_hot
 
 STATUS = os.path.join(TMP, "status.json")
 
@@ -883,7 +883,7 @@ STATUSY = [
 
 
 def fuzz_chip_juz_goracy(seed, n):
-    s = Sesja("safe-run.chip_juz_goracy", seed)
+    s = Sesja("safe-run.chip_already_hot", seed)
     for i in range(n):
         if s.czas_minal():
             break
@@ -905,7 +905,7 @@ def fuzz_chip_juz_goracy(seed, n):
             with open(STATUS, "wb") as f:
                 f.write(tresc.encode("utf-8", "surrogateescape"))
         try:
-            r = saferun.chip_juz_goracy()
+            r = saferun.chip_already_hot()
         except Exception as e:
             # The guard writes status.json atomically (tmp + os.replace) and always
             # as a dict. These contents imply manual edits, FS damage, or a foreign
@@ -920,7 +920,7 @@ def fuzz_chip_juz_goracy(seed, n):
     s.koniec()
 
 
-# ---------------------------------------------------------------- 12. max_temp_since / czas_z
+# ---------------------------------------------------------------- 12. max_temp_since / abs_epoch
 
 def fuzz_max_temp_since(seed, n):
     s = Sesja("safe-run.max_temp_since", seed)
@@ -959,7 +959,7 @@ def fuzz_max_temp_since(seed, n):
 
 
 def fuzz_czas_z(seed, n):
-    s = Sesja("thermal-report.czas_z", seed)
+    s = Sesja("thermal-report.abs_epoch", seed)
     stale = ["", "2026-08-01 10:00:00", "2026-13-45 99:99:99", "0000-00-00 00:00:00",
              "9999-12-31 23:59:59", "1969-12-31 23:59:59", "\x00", "A" * 100000,
              None, 123, [], {}, b"2026-08-01 10:00:00", EMOJI]
@@ -969,7 +969,7 @@ def fuzz_czas_z(seed, n):
         s.n += 1
         x = stale[i] if i < len(stale) else losowa_wartosc(s.rng)
         try:
-            v = treport.czas_z(x)
+            v = treport.abs_epoch(x)
         except Exception as e:
             s.blad(x, e)
             continue

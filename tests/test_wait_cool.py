@@ -66,33 +66,33 @@ test("--wait-cool sets flag and does not eat the command",
      "%s %s" % (opt, cmd))
 sys.argv = argv0
 
-# --- chip_odczyt ---
+# --- read_chip_state ---
 migawka(91.0)
-chip, prog, lvl = sr.chip_odczyt()
+chip, prog, lvl = sr.read_chip_state()
 test("fresh snapshot: chip and resume threshold from snapshot",
      chip == 91.0 and prog == 87.0, "chip=%s threshold=%s" % (chip, prog))
 
 migawka(91.0, resume=None)
-chip, prog, lvl = sr.chip_odczyt()
+chip, prog, lvl = sr.read_chip_state()
 test("snapshot without resume field: threshold from config.json (old guard)",
      chip == 91.0 and prog == 87.0, "chip=%s threshold=%s" % (chip, prog))
 
 migawka(99.0, wiek=300)
-chip, prog, lvl = sr.chip_odczyt()
+chip, prog, lvl = sr.read_chip_state()
 test("5-minute-old snapshot: chip unknown (do not hang on a dead guard)",
      chip is None, "chip=%s" % chip)
 
 migawka("zepsute")
-chip, prog, lvl = sr.chip_odczyt()
+chip, prog, lvl = sr.read_chip_state()
 test("junk chip_c in snapshot does not crash read", chip is None, "chip=%s" % chip)
 
 os.remove(os.path.join(BASE, "status.json"))
-chip, prog, lvl = sr.chip_odczyt()
+chip, prog, lvl = sr.read_chip_state()
 test("missing snapshot: chip unknown, threshold from config",
      chip is None and prog == 87.0, "chip=%s threshold=%s" % (chip, prog))
 
 # --- wait loop; replace measurement sources and count sleeps ---
-prawdziwe = (sr.thermal_state, sr.batt_temp, sr.chip_odczyt, sr.time.sleep)
+prawdziwe = (sr.thermal_state, sr.batt_temp, sr.read_chip_state, sr.time.sleep)
 drzemki = []
 
 
@@ -109,14 +109,14 @@ def czekaj(sekwencja_chip, stan="nominal", bateria=30.0, sekwencja_lvl=None):
 
     sr.thermal_state = lambda: stan
     sr.batt_temp = lambda: bateria
-    sr.chip_odczyt = falszywy_chip
+    sr.read_chip_state = falszywy_chip
     sr.time.sleep = lambda s: drzemki.append(s)
     try:
         with contextlib.redirect_stdout(io.StringIO()) as out:
-            minuty = sr.czekaj_na_ochlodzenie(40.0)
+            minuty = sr.wait_for_cooldown(40.0)
         return minuty, len(drzemki), out.getvalue()
     finally:
-        sr.thermal_state, sr.batt_temp, sr.chip_odczyt, sr.time.sleep = prawdziwe
+        sr.thermal_state, sr.batt_temp, sr.read_chip_state, sr.time.sleep = prawdziwe
 
 
 minuty, ile, tekst = czekaj([91.0, 89.0, 86.0])
@@ -148,14 +148,14 @@ def bateria_stygnie():
 
 sr.thermal_state = lambda: "nominal"
 sr.batt_temp = bateria_stygnie
-sr.chip_odczyt = lambda: (50.0, 87.0, 0)
+sr.read_chip_state = lambda: (50.0, 87.0, 0)
 sr.time.sleep = lambda s: drzemki.append(s)
 drzemki.clear()
 try:
     with contextlib.redirect_stdout(io.StringIO()) as out_bat:
-        sr.czekaj_na_ochlodzenie(40.0)
+        sr.wait_for_cooldown(40.0)
 finally:
-    sr.thermal_state, sr.batt_temp, sr.chip_odczyt, sr.time.sleep = prawdziwe
+    sr.thermal_state, sr.batt_temp, sr.read_chip_state, sr.time.sleep = prawdziwe
 test("hot battery keeps waiting despite cool chip, cooling battery ends it",
      len(drzemki) == 2 and "batt 41.0" in out_bat.getvalue(),
      "sleeps=%d %s" % (len(drzemki), out_bat.getvalue().strip()[:80]))

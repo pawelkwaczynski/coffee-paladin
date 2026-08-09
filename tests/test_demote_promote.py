@@ -66,9 +66,9 @@ def main():
 
         print("1) thermal demotion threshold")
         check("demote_above_c=None -> soc_resume_c + 4",
-              guard.prog_demote(CFG) == 86.0, str(guard.prog_demote(CFG)))
+              guard.demote_threshold(CFG) == 86.0, str(guard.demote_threshold(CFG)))
         check("explicit demote_above_c beats derived value",
-              guard.prog_demote(dict(CFG, demote_above_c=70)) == 70.0)
+              guard.demote_threshold(dict(CFG, demote_above_c=70)) == 70.0)
 
         print("2) timer accumulates, demotion only after the limit (HOT machine)")
         st, hist = swiezy_stan(), {}
