@@ -37,7 +37,7 @@ import subprocess
 import sys
 import time
 
-GUARD_VERSION = "2.3.4"   # bump razem z: heatbar VERSION, thermal-report VERSION, README
+GUARD_VERSION = "2.4.0"   # bump razem z: heatbar VERSION, thermal-report VERSION, README
 
 HOME = os.path.expanduser("~")
 BASE = os.environ.get("TG_BASE") or os.path.join(HOME, ".coffee-paladin")
@@ -3043,7 +3043,11 @@ def status_write(state, temp, soc, soc_t, ac, pct, speed, load, lvl, why, target
                               for t in do_pokazania],
         "top_ram_list": st.get("_top_ram", []),
         "last_hard_shutdown": st.get("_ostatni_pad"),
-        "thresholds": {"pause": st.get("_prog_pauza"), "kill": st.get("_prog_ubicie")},
+        # "resume" doszedl dla safe-run --wait-cool: config.json moze byc skorygowany
+        # w pamieci (sanity-clamp), wiec prog wznowienia trzeba czytac z migawki,
+        # nie z pliku - inaczej czekanie celuje w prog, wedlug ktorego nikt nie dziala.
+        "thresholds": {"pause": st.get("_prog_pauza"), "resume": st.get("_prog_wznowienia"),
+                       "kill": st.get("_prog_ubicie")},
         # False = brak czujnika chipa (macmon). Pasek, flota i agenci maja o tym wiedziec,
         # bo wtedy ochrona opiera sie na samej baterii, ktora reaguje minuty pozniej.
         "chip_sensor": soc is not None,
@@ -3347,6 +3351,7 @@ def main():
             st["_awake"] = keep_awake_update(cfg, targets, lvl, st)
             st["_prog_pauza"] = cfg.get("soc_pause_c")
             st["_prog_ubicie"] = cfg.get("soc_kill_c")
+            st["_prog_wznowienia"] = cfg.get("soc_resume_c")
             if tick % 4 == 0:                      # rzadziej — to czytanie z dysku
                 st["_zadania"] = zadania_saferun()
                 st["_stat"] = statystyki_dnia()

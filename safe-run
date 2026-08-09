@@ -16,6 +16,8 @@ Usage:
   safe-run -- ffmpeg -i in.mp4 ...
   safe-run --hours 3 --name scan -- python scan.py 6 1000000
   safe-run --allow-hot -- ...      # start even though the Mac is warm (deliberately)
+  safe-run --wait-cool -- ...      # on a hot Mac wait for cooldown instead of refusing (exit 3)
+  safe-run --grace 120 -- ...      # seconds between SIGTERM and SIGKILL when cleaning up (default 30)
   safe-run --normal -- ...         # all cores, normal priority (overrides job_cores_mode)
   safe-run --efficiency -- ...     # efficiency cores only (overrides job_cores_mode)
   safe-run --cpu-limit 80 -- ...   # cap the job at 80% duty (overrides job_cpu_percent)
@@ -95,8 +97,16 @@ PL = {
     "safe-run: unknown option %s": "safe-run: nieznana opcja %s",
     "safe-run: thermal state=%s, battery=%s, time budget=%.1f h":
         "safe-run: stan termiczny=%s, bateria=%s, limit czasu=%.1f h",
-    "safe-run: REFUSING TO START - the Mac is already hot. Let it cool down or pass --allow-hot.":
-        "safe-run: ODMOWA STARTU - Mac jest juz goracy. Daj mu ostygnac albo uzyj --allow-hot.",
+    "safe-run: REFUSING TO START - the Mac is already hot. Use --wait-cool to wait, let it cool down, or pass --allow-hot.":
+        "safe-run: ODMOWA STARTU - Mac jest juz goracy. Uzyj --wait-cool zeby poczekac, daj mu ostygnac albo uzyj --allow-hot.",
+    "safe-run: --wait-cool - the Mac is hot (%s), waiting until it cools down (checking every 60 s)":
+        "safe-run: --wait-cool - Mac jest goracy (%s), czekam az ostygnie (sprawdzam co 60 s)",
+    "safe-run: cooled down after %d min - starting the job":
+        "safe-run: ostyglo po %d min - startuje zadanie",
+    "safe-run: cleaning up %d leftover process(es) from the job's group (SIGTERM, then SIGKILL after %d s)":
+        "safe-run: sprzatam %d proces(y) pozostale w grupie zadania (SIGTERM, po %d s SIGKILL)",
+    "safe-run: WARNING - the job left %d process(es) running in its group (pids: %s) - no time budget applies to them":
+        "safe-run: UWAGA - zadanie zostawilo w swojej grupie %d dzialajacych procesow (pidy: %s) - limit czasu ich juz nie obejmuje",
     "safe-run: coffee-paladin is not running - trying to start it...":
         "safe-run: coffee-paladin nie dziala - probuje uruchomic...",
     "safe-run: WARNING - the guard did not start, this job will NOT be supervised.":
@@ -126,8 +136,16 @@ RU = {
     "safe-run: unknown option %s": "safe-run: неизвестный параметр %s",
     "safe-run: thermal state=%s, battery=%s, time budget=%.1f h":
         "safe-run: термосостояние=%s, батарея=%s, лимит времени=%.1f ч",
-    "safe-run: REFUSING TO START - the Mac is already hot. Let it cool down or pass --allow-hot.":
-        "safe-run: ОТКАЗ ЗАПУСКА - Mac уже горячий. Дайте ему остыть или передайте --allow-hot.",
+    "safe-run: REFUSING TO START - the Mac is already hot. Use --wait-cool to wait, let it cool down, or pass --allow-hot.":
+        "safe-run: ОТКАЗ ЗАПУСКА - Mac уже горячий. Используйте --wait-cool чтобы подождать, дайте ему остыть или передайте --allow-hot.",
+    "safe-run: --wait-cool - the Mac is hot (%s), waiting until it cools down (checking every 60 s)":
+        "safe-run: --wait-cool - Mac горячий (%s), жду остывания (проверка каждые 60 с)",
+    "safe-run: cooled down after %d min - starting the job":
+        "safe-run: остыл через %d мин - запускаю задачу",
+    "safe-run: cleaning up %d leftover process(es) from the job's group (SIGTERM, then SIGKILL after %d s)":
+        "safe-run: убираю %d оставшихся процессов из группы задачи (SIGTERM, через %d с SIGKILL)",
+    "safe-run: WARNING - the job left %d process(es) running in its group (pids: %s) - no time budget applies to them":
+        "safe-run: ВНИМАНИЕ - задача оставила в своей группе %d работающих процессов (pid: %s) - лимит времени на них больше не действует",
     "safe-run: coffee-paladin is not running - trying to start it...":
         "safe-run: coffee-paladin не работает - пробую запустить...",
     "safe-run: WARNING - the guard did not start, this job will NOT be supervised.":
@@ -157,8 +175,16 @@ ZH = {
     "safe-run: unknown option %s": "safe-run: 未知选项 %s",
     "safe-run: thermal state=%s, battery=%s, time budget=%.1f h":
         "safe-run: 热状态=%s, 电池=%s, 时间预算=%.1f 小时",
-    "safe-run: REFUSING TO START - the Mac is already hot. Let it cool down or pass --allow-hot.":
-        "safe-run: 拒绝启动 - Mac 已经过热。请等待降温或使用 --allow-hot。",
+    "safe-run: REFUSING TO START - the Mac is already hot. Use --wait-cool to wait, let it cool down, or pass --allow-hot.":
+        "safe-run: 拒绝启动 - Mac 已经过热。可用 --wait-cool 等待降温、让它冷却或使用 --allow-hot。",
+    "safe-run: --wait-cool - the Mac is hot (%s), waiting until it cools down (checking every 60 s)":
+        "safe-run: --wait-cool - Mac 过热 (%s), 等待降温 (每 60 秒检查一次)",
+    "safe-run: cooled down after %d min - starting the job":
+        "safe-run: %d 分钟后已降温 - 启动任务",
+    "safe-run: cleaning up %d leftover process(es) from the job's group (SIGTERM, then SIGKILL after %d s)":
+        "safe-run: 清理任务进程组中残留的 %d 个进程 (SIGTERM, %d 秒后 SIGKILL)",
+    "safe-run: WARNING - the job left %d process(es) running in its group (pids: %s) - no time budget applies to them":
+        "safe-run: 警告 - 任务在其进程组中留下了 %d 个仍在运行的进程 (pid: %s) - 时间预算不再约束它们",
     "safe-run: coffee-paladin is not running - trying to start it...":
         "safe-run: coffee-paladin 未运行 - 正在尝试启动...",
     "safe-run: WARNING - the guard did not start, this job will NOT be supervised.":
@@ -188,8 +214,16 @@ ES = {
     "safe-run: unknown option %s": "safe-run: opción desconocida %s",
     "safe-run: thermal state=%s, battery=%s, time budget=%.1f h":
         "safe-run: estado térmico=%s, batería=%s, límite de tiempo=%.1f h",
-    "safe-run: REFUSING TO START - the Mac is already hot. Let it cool down or pass --allow-hot.":
-        "safe-run: ME NIEGO A EMPEZAR - el Mac ya está caliente. Déjalo enfriarse o pasa --allow-hot.",
+    "safe-run: REFUSING TO START - the Mac is already hot. Use --wait-cool to wait, let it cool down, or pass --allow-hot.":
+        "safe-run: ME NIEGO A EMPEZAR - el Mac ya está caliente. Usa --wait-cool para esperar, déjalo enfriarse o pasa --allow-hot.",
+    "safe-run: --wait-cool - the Mac is hot (%s), waiting until it cools down (checking every 60 s)":
+        "safe-run: --wait-cool - el Mac está caliente (%s), esperando a que se enfríe (comprobando cada 60 s)",
+    "safe-run: cooled down after %d min - starting the job":
+        "safe-run: se enfrió tras %d min - arrancando la tarea",
+    "safe-run: cleaning up %d leftover process(es) from the job's group (SIGTERM, then SIGKILL after %d s)":
+        "safe-run: limpiando %d proceso(s) restantes del grupo de la tarea (SIGTERM, SIGKILL tras %d s)",
+    "safe-run: WARNING - the job left %d process(es) running in its group (pids: %s) - no time budget applies to them":
+        "safe-run: AVISO - la tarea dejó %d proceso(s) en su grupo (pids: %s) - el límite de tiempo ya no les aplica",
     "safe-run: coffee-paladin is not running - trying to start it...":
         "safe-run: coffee-paladin no está funcionando - intentando arrancarlo...",
     "safe-run: WARNING - the guard did not start, this job will NOT be supervised.":
@@ -291,11 +325,13 @@ def parse():
     args = sys.argv[1:]
     c = cfg()
     opt = {"hours": float(os.environ.get("SAFE_RUN_HOURS", 6)), "name": None,
-           "allow_hot": False, "allow_sleep": False,
+           "allow_hot": False, "allow_sleep": False, "wait_cool": False,
            # defaulty z config.json — pasek menu ustawia je przelacznikami
            "normal": (c.get("job_cores_mode") or "efficiency") == "all",
            # 95, nie 100: ten sam default co w DEFAULTS guarda i w dokumentacji
-           "cpu_limit": float(c.get("job_cpu_percent") or 95)}
+           "cpu_limit": float(c.get("job_cpu_percent") or 95),
+           # 30 s = dotychczasowe sztywne okno miedzy SIGTERM a SIGKILL
+           "grace": 30.0}
     i = 0
     while i < len(args):
         a = args[i]
@@ -310,6 +346,10 @@ def parse():
             opt["cpu_limit"] = float(args[i + 1]); i += 2
         elif a == "--allow-hot":
             opt["allow_hot"] = True; i += 1
+        elif a == "--wait-cool":
+            opt["wait_cool"] = True; i += 1
+        elif a == "--grace" and i + 1 < len(args):
+            opt["grace"] = float(args[i + 1]); i += 2
         elif a == "--normal":
             opt["normal"] = True; i += 1
         elif a == "--efficiency":
@@ -328,6 +368,8 @@ def parse():
         sys.exit(2)
     opt["name"] = opt["name"] or os.path.basename(cmd[0])
     opt["cpu_limit"] = min(max(opt["cpu_limit"], 10.0), 100.0)
+    # sufit 1 h: "okno laski" dluzsze niz godzina to juz brak limitu, nie laska
+    opt["grace"] = min(max(opt["grace"], 0.0), 3600.0)
     return opt, cmd
 
 
@@ -490,6 +532,87 @@ def chip_juz_goracy():
     return False, ""
 
 
+def chip_odczyt():
+    """(chip_c, prog_wznowienia, level) wedlug swiezej migawki guarda.
+
+    Prog czytamy z migawki, nie z config.json: sanity-clamp potrafi poprawic
+    progi w pamieci demona (pole config_corrections) i wtedy plik opisuje
+    system, ktory nie dziala. Migawka nieswieza albo bez chipa = chip None -
+    czekanie nie moze wisiec na liczbie, ktorej nikt nie mierzy.
+    Level jest potrzebny osobno: guard potrafi trzymac poziom "goraco" z powodu,
+    ktorego temperatura chipa nie pokazuje (dlawienie, bateria wedlug demona).
+    """
+    try:
+        sciezka = os.path.join(BASE, "status.json")
+        with open(sciezka) as f:
+            st = json.load(f)
+        if not isinstance(st, dict) or (time.time() - os.path.getmtime(sciezka)) > 120:
+            st = {}
+    except Exception:
+        st = {}
+    progi = st.get("thresholds")
+    prog = (progi.get("resume") if isinstance(progi, dict) else None) or cfg().get("soc_resume_c", 76.0)
+    try:
+        prog = float(prog)
+    except (TypeError, ValueError):
+        prog = 76.0
+    try:
+        chip = float(st.get("chip_c"))
+        if chip != chip:                      # NaN
+            chip = None
+    except (TypeError, ValueError):
+        chip = None
+    try:
+        lvl = int(st.get("level"))
+    except (TypeError, ValueError):
+        lvl = None
+    return chip, prog, lvl
+
+
+# Interwal sprawdzania w --wait-cool. Zmienna srodowiskowa istnieje dla testow -
+# petla z prawdziwa minuta snu jest nietestowalna w rozsadnym czasie.
+WAIT_POLL_S = float(os.environ.get("SAFE_RUN_WAIT_POLL", 60))
+
+
+def czekaj_na_ochlodzenie(limit):
+    """Blokuje, az maszyna ostygnie; zwraca liczbe minut czekania.
+
+    Celem jest prog WZNOWIENIA guarda, nie "prog pauzy minus 5": start tuz pod
+    progiem pauzy konczy sie SIGSTOP-em po kilkunastu sekundach i zadanie
+    pelznie w cyklu pauza-wznowienie. Prog wznowienia to poziom, przy ktorym
+    guard sam uznaje, ze wolno pracowac - od niego jest realny zapas.
+    Bateria i thermalState obowiazuja jak przy zwyklej bramce startowej.
+    """
+    t0 = time.time()
+    ostatni_komunikat = 0.0
+    while True:
+        chip, prog, lvl = chip_odczyt()
+        stan = thermal_state()
+        bat = batt_temp()
+        powody = []
+        if stan in HOT:
+            powody.append("thermalState=%s" % stan)
+        if bat is not None and bat >= limit - 2:
+            powody.append("batt %.1f C" % bat)
+        if chip is not None and chip > prog:
+            powody.append("chip %.1f C > %.0f C" % (chip, prog))
+        # Ten sam warunek co w bramce startowej: poziom "goraco" guarda liczy sie
+        # nawet przy chlodnym chipie (dlawienie, bateria). Bez tego czekanie
+        # konczylo sie natychmiast i zadanie startowalo prosto w cykl pauz.
+        if lvl is not None and lvl >= 2:
+            powody.append("guard level %d" % lvl)
+        if not powody:
+            return (time.time() - t0) / 60.0
+        # Komunikat raz na start i potem co ~10 min: log z nocnej kolejki ma
+        # pokazywac, ze czekanie ZYJE, ale nie zalewac pliku identycznymi liniami.
+        if not ostatni_komunikat or time.time() - ostatni_komunikat >= 600.0:
+            print(T("safe-run: --wait-cool - the Mac is hot (%s), waiting until it "
+                    "cools down (checking every 60 s)") % ", ".join(powody))
+            sys.stdout.flush()
+            ostatni_komunikat = time.time()
+        time.sleep(WAIT_POLL_S)
+
+
 def limited_wait(proc, pct, deadline):
     """Czeka na koniec zadania, wymuszajac limit CPU mikropauzami calej grupy.
 
@@ -549,6 +672,56 @@ def max_temp_since(t0):
     return best
 
 
+def zywi_w_grupie(pgid):
+    """Pidy procesow zyjacych w grupie zadania (safe-run jest w INNEJ grupie).
+
+    None = NIE WIADOMO (pgrep sie nie wykonal albo nie mogl odczytac tablicy
+    procesow). To nie to samo co pusta lista: "nie wiem" nie moze oznaczac
+    "grupa czysta", bo sprzatanie odpusciloby wtedy SIGKILL sierocie.
+    """
+    try:
+        p = subprocess.run(["pgrep", "-g", str(pgid)], capture_output=True, timeout=10)
+    except Exception:
+        return None
+    if p.returncode == 1:                     # pgrep: brak dopasowan
+        return []
+    if p.returncode != 0:                     # pgrep: blad, nie pusta grupa
+        return None
+    pids = []
+    for czesc in p.stdout.decode("utf-8", "replace").split():
+        try:
+            pids.append(int(czesc))
+        except ValueError:
+            pass
+    return pids
+
+
+def sprzatnij_grupe(pgid, grace):
+    """CONT + SIGTERM do calej grupy, okno laski, potem SIGKILL dla ocalalych.
+
+    CONT najpierw: SIGTERM dostarczony procesowi w stanie T (zamrozonemu przez
+    guarda) wisi jako pending do wznowienia - grupa wygladalaby na ubita, a
+    umieralaby dopiero przy nastepnym SIGCONT, nie wiadomo kiedy.
+    """
+    try:
+        os.killpg(pgid, signal.SIGCONT)
+        os.killpg(pgid, signal.SIGTERM)
+    except Exception:
+        pass
+    koniec = time.time() + grace
+    while time.time() < koniec:
+        # tylko JAWNIE pusta grupa konczy wczesniej; None (pgrep padl) czeka
+        # dalej i konczy sie SIGKILL-em - lepiej strzelic w pustke niz odpuscic
+        if zywi_w_grupie(pgid) == []:
+            return
+        time.sleep(1)
+    if zywi_w_grupie(pgid) != []:
+        try:
+            os.killpg(pgid, signal.SIGKILL)
+        except Exception:
+            pass
+
+
 def guard_zyje():
     """Czy demon NAPRAWDE zyje, a nie tylko jest wczytany do launchd.
 
@@ -606,9 +779,19 @@ def main():
     print(T("safe-run: cores=%s, CPU limit=%d%%") % (
         T("all") if opt["normal"] else T("efficiency only"), int(opt["cpu_limit"])))
     if hot and not opt["allow_hot"]:
-        print(T("safe-run: REFUSING TO START - the Mac is already hot. Let it cool down or pass --allow-hot.")
-              + ((" (%s)" % chip_powod) if chip_powod else ""))
-        return 3
+        if not opt["wait_cool"]:
+            print(T("safe-run: REFUSING TO START - the Mac is already hot. Use --wait-cool to wait, let it cool down, or pass --allow-hot.")
+                  + ((" (%s)" % chip_powod) if chip_powod else ""))
+            return 3
+        # Czekanie NIE zjada budzetu --hours: t0 (deadline zadania) startuje
+        # dopiero ponizej, po ochlodzeniu. Ctrl-C w trakcie = zwykle przerwanie
+        # reczne (rc 130, ten sam kontrakt co w retry_run.sh: nie ponawiac).
+        try:
+            minuty = czekaj_na_ochlodzenie(limit)
+        except KeyboardInterrupt:
+            return 130
+        print(T("safe-run: cooled down after %d min - starting the job") % round(minuty))
+        sys.stdout.flush()
 
     if not guard_running():
         print(T("safe-run: coffee-paladin is not running - trying to start it..."))
@@ -664,21 +847,29 @@ def main():
     rc, killed_by_time = limited_wait(proc, opt["cpu_limit"], deadline)
     if killed_by_time:
         print(T("safe-run: TIME BUDGET %.1f h reached - terminating the job (SIGTERM)") % opt["hours"])
-        try:
-            os.killpg(proc.pid, signal.SIGCONT)
-            os.killpg(proc.pid, signal.SIGTERM)
-        except Exception:
-            pass
-        for _ in range(30):
-            if proc.poll() is not None:
-                break
-            time.sleep(1)
-        if proc.poll() is None:
-            try:
-                os.killpg(proc.pid, signal.SIGKILL)
-            except Exception:
-                pass
+        # Sprzatanie patrzy na CALA grupe, nie na proc.poll(): smierc lidera przy
+        # zywych wnukach pomijala wczesniej SIGKILL i wnuki zostawaly na zawsze.
+        sprzatnij_grupe(proc.pid, opt["grace"])
         rc = proc.wait()
+
+    # Resztki grupy przy wyjsciu. Gdy lider ginie od sygnalu z zewnatrz (kill na
+    # pojedynczy pid, nie killpg), procesy potomne w grupie zyja dalej - bez
+    # budzetu czasu i bez rejestracji, bo ta znika ponizej. Sprzatamy takze przy
+    # rc >= 128: shellowy lider zlapany na SIGTERM konczy sie kodem 128+sygnal
+    # i zostawia dokladnie ta sama sierote. Po czystym wyjsciu zadanie moglo
+    # zostawic cos w tle celowo - tego nie ruszamy, ale glosno ostrzegamy.
+    # Po killed_by_time grupa juz dostala pelne okno laski i SIGKILL - drugie
+    # sprzatanie nie ubije niczego, czego nie ubil SIGKILL, wiec tylko meldujemy.
+    resztki = zywi_w_grupie(proc.pid)
+    if resztki:
+        smierc_od_sygnalu = rc is not None and (rc < 0 or rc >= 128)
+        if smierc_od_sygnalu and not killed_by_time:
+            print(T("safe-run: cleaning up %d leftover process(es) from the job's group (SIGTERM, then SIGKILL after %d s)")
+                  % (len(resztki), int(opt["grace"])))
+            sprzatnij_grupe(proc.pid, opt["grace"])
+        else:
+            print(T("safe-run: WARNING - the job left %d process(es) running in its group (pids: %s) - no time budget applies to them")
+                  % (len(resztki), ", ".join(str(p) for p in resztki)))
 
     try:
         os.unlink(reg)

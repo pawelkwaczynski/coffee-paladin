@@ -92,6 +92,15 @@ precise.
 Do not pass `--allow-hot` on your own initiative. That flag exists for a human who has
 decided to accept the risk.
 
+If the Mac is hot, prefer `--wait-cool`: the job waits for the guard's resume threshold and
+then starts, instead of exiting with code 3. A refusal is easy to miss in a long log - two
+real jobs were silently lost to it in one night before this flag existed.
+
+Do not call `nice` or `taskpolicy` inside a command that already runs under `safe-run`.
+The wrapper has lowered the job's priority itself: a nested call is redundant at best, and
+anything that tries to *raise* priority back fails with `setpriority: Operation not
+permitted`. Core placement is the wrapper's job (`--normal`, `--efficiency`, `--cpu-limit`).
+
 ## 3. Rules that are not negotiable
 
 - **Never `SIGCONT` a process the guard paused.** If a name appears in `paused`, that is a
