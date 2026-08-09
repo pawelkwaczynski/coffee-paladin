@@ -11,9 +11,10 @@ done
 for APP in "/Applications/coffee-paladin.app" "$HOME/Applications/coffee-paladin.app"; do
   rm -rf "$APP"
 done
-# Nic nie moze zostac zamrozone. Demon wznawia wszystko przy SIGTERM, ale gdy launchd
-# dobije go SIGKILL-em (petla stala na macmon/system_profiler), procesy zostaja w SIGSTOP,
-# a --purge kasuje state.json - czyli jedyny slad po nich. Wtedy nikt ich juz nie wznowi.
+# Nothing may stay frozen. The daemon resumes everything on SIGTERM, but if
+# launchd finishes it with SIGKILL (loop stuck on macmon/system_profiler),
+# processes remain in SIGSTOP and --purge deletes state.json - the only trace
+# of them. Nobody would ever resume them then.
 if [ -f "$HOME/.coffee-paladin/state.json" ]; then
   /usr/bin/python3 - "$HOME/.coffee-paladin/state.json" <<'PY' 2>/dev/null || true
 import json, os, signal, sys
@@ -30,8 +31,8 @@ for pid in (st.get("paused") or {}):
 PY
 fi
 
-# migawka tej maszyny we WSPOLDZIELONYM folderze floty zawiera numer seryjny -
-# po deinstalacji nie ma powodu, zeby zostawala tam na zawsze
+# this machine's snapshot in the SHARED fleet folder carries a serial number -
+# after uninstall there is no reason for it to stay there forever
 /usr/bin/python3 - <<'PY' 2>/dev/null || true
 import json, os, socket
 cfg = os.path.expanduser("~/.coffee-paladin/config.json")
@@ -47,10 +48,10 @@ if d:
             print("  🗑  usunieta migawka floty: %s" % nazwa)
 PY
 
-# skill dla agentow AI: install.sh go tworzy, wiec uninstall musi go zabrac -
-# inaczej Claude Code dalej kaze sobie odpalac `safe-run`, ktorego juz nie ma
+# AI-agent skill: install.sh creates it, so uninstall must take it away -
+# otherwise Claude Code keeps invoking a `safe-run` that no longer exists
 rm -rf "$HOME/.claude/skills/coffee-paladin"
-# stare nazwy z wersji <=2.1.0 (symlinki zgodnosciowe, dzis nietworzone)
+# old names from versions <=2.1.0 (compatibility symlinks, no longer created)
 rm -f "$BIN/thermal-guard" "$BIN/heatbar"
 rm -f "$BIN/coffee-paladin" "$BIN/coffee-paladin-bar" "$BIN/heat" "$BIN/safe-run" "$BIN/thermal-report" "$BIN/fleet" "$BIN/thermalstate"
 echo "binaries and LaunchAgents removed"

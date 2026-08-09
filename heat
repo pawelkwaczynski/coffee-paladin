@@ -35,17 +35,18 @@ SUPPORTED_LANGS = ("en", "pl", "ru", "zh", "es")
 
 
 def czas_abs(s):
-    """Epoch ABSOLUTNY ze stempla `ts()` - z offsetem albo bez (pliki sprzed 2.1.8).
+    """Absolute epoch from a `ts()` stamp, with or without an offset (pre-2.1.8 files).
 
-    CELOWA KOPIA `guard.czas_abs` - narzedzia w tym projekcie sa samodzielne i nie
-    importuja demona. Wszystkie kopie pilnuje `tests/test_spojnosc.py`.
-    Bez tolerancji na offset ten parser rzucalby ValueError na KAZDYM nowym wierszu
-    history.csv i po cichu pomijal wszystkie swieze pomiary.
+    Deliberate copy of `guard.czas_abs`: the CLI tools in this project are
+    self-contained and never import the daemon. All copies are kept in sync
+    by `tests/test_spojnosc.py`. Without the offset tolerance this parser
+    would raise ValueError on every new history.csv row and silently drop
+    all fresh samples.
     """
-    # Parser danych z pliku dowodowego: MA nigdy nie rzucac, bo jeden smieciowy wiersz
-    # nie moze wywalic calego dokumentu. Pierwsza wersja tej funkcji zawezila `except`
-    # do (ValueError, OverflowError) i stracila odpornosc na nie-stringi - fuzzer
-    # rundy 1 zlapal to od razu: wejscie 123 dawalo AttributeError, b"..." TypeError.
+    # Evidence-file parser: it must NEVER raise, one garbage row cannot take
+    # down the whole document. An earlier version narrowed the `except` to
+    # (ValueError, OverflowError) and lost resilience to non-strings: the
+    # fuzzer caught it immediately (123 -> AttributeError, b"..." -> TypeError).
     if not isinstance(s, str):
         return 0.0
     s = s.strip()
@@ -55,7 +56,7 @@ def czas_abs(s):
         if len(s) >= 24 and s[19] in "+-":
             return datetime.datetime.strptime(s[:24], "%Y-%m-%d %H:%M:%S%z").timestamp()
         return time.mktime(time.strptime(s[:19], "%Y-%m-%d %H:%M:%S"))
-    except Exception:      # noqa: BLE001 - kontrakt: nigdy nie rzuca
+    except Exception:      # noqa: BLE001 - contract: never raises
         return 0.0
 
 
@@ -203,12 +204,13 @@ def T(s):
 
 
 def normalize_batt_temp(raw):
-    """Temperatura ogniwa w C, niezaleznie od jednostki raportowanej przez kontroler.
+    """Cell temperature in C, whatever unit the battery controller reports.
 
-    Uklady pomiarowe roznia sie miedzy modelami: jedne podaja setne stopnia (3081 = 30,81 C),
-    inne dziesiate (444 = 44,4 C), a niektore pola cale stopnie (41 = 41 C). Sztywne dzielenie
-    przez 100 pokazywalo na czesci Makow absurdy w rodzaju 444 C, dlatego skalujemy do
-    przedzialu fizycznie mozliwego dla ogniwa litowego.
+    Measurement chips differ between models: some report hundredths of a
+    degree (3081 = 30.81 C), some tenths (444 = 44.4 C), some fields whole
+    degrees (41 = 41 C). A fixed divide-by-100 showed absurd values like
+    444 C on some Macs, so we scale into the range physically possible for
+    a lithium cell.
     """
     try:
         v = float(raw)
@@ -222,9 +224,9 @@ def normalize_batt_temp(raw):
 
 
 def sh(cmd, timeout=15):
-    # Po timeoucie trzeba dziecko ZABIC: communicate() tylko rzuca wyjatek, a proces
-    # zyje dalej. W demonie konczylo sie to czworka wiszacych macmonow i zatrzymana
-    # petla (02.08.2026) - tutaj byloby to samo, tylko ciszej.
+    # On timeout the child must be KILLED: communicate() only raises, the
+    # process lives on. In the daemon this once left four hung macmon
+    # instances and a stalled loop; here it would be the same, only quieter.
     p = None
     try:
         p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
@@ -310,9 +312,10 @@ PALADIN_MONO = r"""
 """
 
 def _kolorowy_terminal():
-    """Truecolor: nowoczesne terminale (ghostty, iTerm2, kitty, WezTerm, VS Code).
-    Bez tty, przy NO_COLOR albo przy --ascii wracamy do wersji znakowej - potok do pliku
-    ma zostac czytelny, a Terminal.app (bez truecolor) ma dostac cos, co wyglada jak rycerz."""
+    """Truecolor: modern terminals (Ghostty, iTerm2, kitty, WezTerm, VS Code).
+    Without a tty, with NO_COLOR or with --ascii we fall back to the character
+    version - a pipe to a file must stay readable, and Terminal.app (no
+    truecolor) still deserves something that looks like a knight."""
     if "--ascii" in sys.argv:
         return False
     if not sys.stdout.isatty() or os.environ.get("NO_COLOR"):
@@ -323,27 +326,28 @@ def _kolorowy_terminal():
 
 
 MOTTO = "Shield the Process, Sip the Coffee"
-# Jedno miejsce na adres repozytorium - gdyby projekt zmienil nazwe, poprawiamy tu.
+# Single place for the repo address - if the project is renamed, fix it here.
 REPO = "github.com/pawelkwaczynski/coffee-paladin"
 
-# Grafika w terminalu: wysokosc w wierszach. 26 to polowa rysunku z polblokow,
-# a mimo to jest ostra - bo to prawdziwe piksele, nie znaki.
+# Terminal artwork: height in rows. 26 is half the half-block drawing, yet
+# stays sharp - these are real pixels, not characters.
 OBRAZ_WIERSZY = 26
 
 
 def _protokol_obrazkowy():
-    """Czy terminal umie wyswietlic PRAWDZIWY obrazek (nie znaki)?
+    """Can this terminal display a REAL image (not characters)?
 
-    Zwraca "kitty" (Ghostty, kitty, WezTerm), "iterm" (iTerm2) albo None.
-    To jest jedyny sposob, zeby rysunek byl JEDNOCZESNIE maly i ostry: polbloki
-    maja rozdzielczosc siatki znakow, obrazek ma rozdzielczosc ekranu.
+    Returns "kitty" (Ghostty, kitty, WezTerm), "iterm" (iTerm2) or None.
+    This is the only way the drawing can be small AND sharp at once:
+    half-blocks have character-grid resolution, an image has screen resolution.
     """
     if not sys.stdout.isatty() or "--ascii" in sys.argv or "--bloki" in sys.argv:
         return None
     if os.environ.get("TG_NO_IMAGE"):
         return None
-    # tmux i screen nie przepuszczaja protokolu graficznego - zamiast obrazka
-    # uzytkownik dostalby na ekran kilkaset kilobajtow base64. Lepiej polbloki.
+    # tmux and screen do not pass the graphics protocol through - instead of
+    # an image the user would get hundreds of kilobytes of base64 dumped on
+    # screen. Half-blocks are the better failure mode.
     if os.environ.get("TMUX") or os.environ.get("TERM", "").startswith(("screen", "tmux")):
         return None
     term = os.environ.get("TERM", "")
@@ -370,10 +374,10 @@ def _wyslij_obraz(sciezka, protokol, wierszy=OBRAZ_WIERSZY):
         out.flush()
         return True
 
-    # Protokol kitty: dane ida porcjami po 4096 znakow base64; m=1 znaczy
-    # "bedzie ciag dalszy", ostatnia porcja ma m=0. C=1 zabrania terminalowi
-    # ruszac kursorem, wiec sami przewijamy o dokladnie tyle wierszy, ile zajal
-    # obrazek - inaczej tekst pod spodem wladowalby sie na rycerza.
+    # Kitty protocol: data goes in 4096-char base64 chunks; m=1 means "more
+    # to come", the last chunk has m=0. C=1 forbids the terminal to move the
+    # cursor, so we scroll past exactly the rows the image took - otherwise
+    # the text below would land on top of the knight.
     KROK = 4096
     porcje = [dane[i:i + KROK] for i in range(0, len(dane), KROK)] or [b""]
     for nr, porcja in enumerate(porcje):
@@ -388,11 +392,11 @@ def _wyslij_obraz(sciezka, protokol, wierszy=OBRAZ_WIERSZY):
 
 
 def paladin(ile_stopni=None, straz=None):
-    """Easter egg: `heat --paladin`. Rysunek i caly meldunek warty pod spodem.
+    """Easter egg: `heat --paladin`. The drawing plus the full watch report.
 
-    Trzy poziomy, od najlepszego: prawdziwy obrazek (Ghostty/kitty/WezTerm/iTerm2),
-    polbloki w truecolor, filizanka ASCII. `--ascii` wymusza filizanke,
-    `--bloki` - polbloki (do podgladu tego, co zobaczy ktos bez grafiki)."""
+    Three tiers, best first: a real image (Ghostty/kitty/WezTerm/iTerm2),
+    truecolor half-blocks, ASCII cup. `--ascii` forces the cup, `--bloki`
+    forces half-blocks (to preview what someone without graphics sees)."""
     protokol = _protokol_obrazkowy()
     grafika = os.path.expanduser("~/.coffee-paladin/paladin_welcome.png")
     if not (protokol and _wyslij_obraz(grafika, protokol)):
@@ -408,12 +412,13 @@ def paladin(ile_stopni=None, straz=None):
 
 
 def stuck():
-    """`heat --stuck`: procesy w stanie T (zatrzymane) i skad sie tam wziely.
+    """`heat --stuck`: processes in state T (stopped) and how they got there.
 
-    Stan T ma dwie przyczyny i tylko jedna jest w porzadku: pauza guarda (wznowi sam)
-    albo pulapka SIGTTIN/SIGTTOU - proces w tle probowal czytac/pisac na terminal,
-    dostal stop od jadra i nikt go nie wznowi. Ta druga wyglada jak zawieszenie
-    i wlasnie po to jest ta komenda: odroznic jedno od drugiego.
+    State T has two causes and only one of them is fine: a guard pause (it
+    will resume the process itself) or the SIGTTIN/SIGTTOU trap - a
+    background process tried to read/write the terminal, the kernel stopped
+    it and nobody will ever resume it. The latter looks like a hang, and
+    telling the two apart is exactly what this command is for.
     """
     out = sh(["ps", "-Ao", "pid=,stat=,etime=,comm="])
     zatrzymane = []
@@ -425,9 +430,10 @@ def stuck():
         if stat.startswith("T"):
             zatrzymane.append((pid, stat, etime, comm))
 
-    # Kto pauzowal: state.json demona jest zrodlem prawdy (status.json to migawka
-    # co N sekund - przy szybkim cyklu pauza/wznowienie proces bywa zatrzymany
-    # ZANIM trafi do migawki, i bez tego bysmy krzyczeli na wlasna pauze).
+    # Who paused it: the daemon's state.json is the source of truth
+    # (status.json is a snapshot every N seconds - in a fast pause/resume
+    # cycle a process can be stopped BEFORE it reaches the snapshot, and we
+    # would be shouting about the guard's own pause).
     znane = set()
     for plik, klucz in (("state.json", "paused"), ("status.json", "paused")):
         try:
@@ -439,7 +445,7 @@ def stuck():
                 znane.update(str(p.get("pid")) for p in dane)
         except Exception:
             pass
-    # ostatnia linia obrony: swiezy wpis w logu guarda o pauzie tego PID-u
+    # last line of defense: a fresh guard-log entry about pausing this PID
     try:
         with open(LOG) as f:
             ogon = f.read()[-4000:]
@@ -469,13 +475,14 @@ def stuck():
 
 
 def guard_zyje():
-    """Czy demon NAPRAWDE zyje, a nie tylko jest wczytany do launchd.
+    """Is the daemon REALLY alive, not merely loaded into launchd.
 
-    `launchctl list` dla martwego joba drukuje "-  1  pl.pawel.coffee-paladin", wiec
-    zwykle sprawdzenie podciagu bylo prawdziwe takze wtedy, gdy demon wpadl w petle
-    restartow. `heat` meldowal "dziala", a `safe-run` nie ostrzegal, ze zadanie
-    poleci BEZ nadzoru. Sprawdzamy kolumne PID - install.sh robi to samo (ma_pid).
-    Zapasowo szukamy procesu po realnej nazwie binarki, nie po "guard.py".
+    `launchctl list` prints "-  1  pl.pawel.coffee-paladin" for a dead job,
+    so a plain substring check was also true while the daemon was stuck in a
+    restart loop. `heat` reported "running" and `safe-run` never warned that
+    the job would run UNsupervised. We check the PID column - install.sh does
+    the same. As a fallback we look for the process by its real binary name,
+    not by "guard.py".
     """
     for linia in sh(["launchctl", "list"]).splitlines():
         czesci = linia.split()
@@ -489,8 +496,9 @@ def main():
     if "--help" in sys.argv or "-h" in sys.argv:
         print(__doc__)
         return 0
-    # EASTER EGG: jedna komenda `heat --paladin` - rysunek i pelny meldunek warty.
-    # (Wczesniej byly trzy flagi dajace niemal to samo; zostala jedna, ktora mowi wszystko.)
+    # Easter egg: one command, `heat --paladin` - the drawing and the full
+    # watch report. (There used to be three near-identical flags; one that
+    # says everything remained.)
     if "--stuck" in sys.argv:
         return stuck()
     if "--paladin" in sys.argv:
@@ -516,12 +524,12 @@ def main():
     sl = re.search(r"CPU_Speed_Limit\s*=\s*(\d+)", sh(["pmset", "-g", "therm"]))
     speed = int(sl.group(1)) if sl else 100
     try:
-        l1, _l5, l15 = os.getloadavg()   # 5-minutowa srednia nas nie interesuje
+        l1, _l5, l15 = os.getloadavg()   # the 5-minute average is not used
     except Exception:
         l1 = _l5 = l15 = 0.0
     ncpu = int(sh(["sysctl", "-n", "hw.ncpu"]).strip() or 8)
 
-    # migawka guarda (chip, wentylatory, zasilanie) — swiezsza niz cokolwiek policzone tutaj
+    # guard snapshot (chip, fans, power) - fresher than anything computed here
     snap = {}
     try:
         with open(os.path.join(BASE, "status.json")) as f:
@@ -537,9 +545,10 @@ def main():
     fans_raw = snap.get("fans")
     fans = [int(f) for f in fans_raw if _num(f) is not None] if isinstance(fans_raw, list) else []
 
-    # --json dla agentow i skryptow: pomiary WLASNE (thermalstate, ioreg, pmset, loadavg)
-    # osobno od migawki guarda - drugie, niezalezne zrodlo do weryfikacji, czy
-    # status.json nie klamie, bez sudo i bez parsowania tekstu dla ludzi (B6)
+    # --json for agents and scripts: OWN measurements (thermalstate, ioreg,
+    # pmset, loadavg) kept separate from the guard snapshot - a second,
+    # independent source to verify status.json is not lying, without sudo
+    # and without parsing human-facing text
     if "--json" in sys.argv:
         print(json.dumps({
             "measured": {"thermal_state": state,
@@ -592,7 +601,7 @@ def main():
         if len(p) == 3:
             print("   %-22s pid %-7s %5s%%" % (p[2][:22], p[0], p[1]))
 
-    # maks. z ostatnich 24 h z historii guarda
+    # 24-hour maximum from the guard's history
     try:
         cutoff = time.time() - 86400
         best, when = None, None
@@ -612,7 +621,7 @@ def main():
                     v = float(c[2])
                     if best is None or v > best:
                         best, when = v, c[0]
-        if best:  # kolumna 2 to teraz temperatura CHIPA (wczesniej byla bateria)
+        if best:  # column 2 is the CHIP temperature now (it used to be battery)
             print(T("\nPeak chip temperature in the last 24 h: %.1f °C (%s)") % (best, when))
     except Exception:
         pass

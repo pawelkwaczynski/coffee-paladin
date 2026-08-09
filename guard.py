@@ -37,187 +37,184 @@ import subprocess
 import sys
 import time
 
-GUARD_VERSION = "2.4.0"   # bump razem z: heatbar VERSION, thermal-report VERSION, README
+GUARD_VERSION = "2.4.0"   # bump together with heatbar VERSION, thermal-report VERSION, README
 
 HOME = os.path.expanduser("~")
 BASE = os.environ.get("TG_BASE") or os.path.join(HOME, ".coffee-paladin")
-BASE = os.path.expanduser(BASE)   # TG_BASE sluzy do testow w izolacji
+BASE = os.path.expanduser(BASE)   # TG_BASE supports isolated tests.
 CFG_PATH = os.path.join(BASE, "config.json")
 STATE_PATH = os.path.join(BASE, "state.json")
 LOG_PATH = os.path.join(BASE, "guard.log")
 HIST_PATH = os.path.join(BASE, "history.csv")
-STATUS_PATH = os.path.join(BASE, "status.json")   # migawka dla paska menu
-HEARTBEAT_PATH = os.path.join(BASE, "heartbeat")  # zywy puls — po twardym padzie zostaje ostatni
+STATUS_PATH = os.path.join(BASE, "status.json")   # snapshot for the menu bar
+HEARTBEAT_PATH = os.path.join(BASE, "heartbeat")  # live pulse; a hard shutdown leaves the last one
 CLEAN_STOP_PATH = os.path.join(BASE, "clean_stop")
-EVENTS_PATH = os.path.join(BASE, "events.log")    # czarna skrzynka: pady, alarmy
-COMMAND_PATH = os.path.join(BASE, "command")      # rozkazy z paska menu
-AWAKE_PATH = os.path.join(BASE, "awake.json")     # reczny keep-awake z paska (timer/app/download)
-HW_PATH = os.path.join(BASE, "hardware.json")     # wykryty sprzet (dla About my Mac i kalibracji)
-MANAGED_DIR = os.path.join(BASE, "managed")   # pliki <pid>.json od safe-run
+EVENTS_PATH = os.path.join(BASE, "events.log")    # black box: crashes, alarms
+COMMAND_PATH = os.path.join(BASE, "command")      # menu bar commands
+AWAKE_PATH = os.path.join(BASE, "awake.json")     # manual menu-bar keep-awake timer/app/download
+HW_PATH = os.path.join(BASE, "hardware.json")     # detected hardware for About my Mac and calibration
+MANAGED_DIR = os.path.join(BASE, "managed")   # <pid>.json files from safe-run
 MAX_LOG_BYTES = 5 * 1024 * 1024
-MAX_LOG_GENERACJI = 5        # ile zrotowanych pokolen trzymamy (patrz rotate())
+MAX_LOG_GENERACJI = 5        # number of rotated generations kept, see rotate()
 
-# "unknown" to NIE jest "lekko cieplo". To znaczy, ze thermalstate nie odpowiedzial.
-# Mapowanie na 1 sprawialo, ze Mac bez baterii i bez macmona (mini, Studio) siedzial
-# na poziomie 1 w nieskonczonosc: nigdy nie osiagal 2, wiec nigdy niczego nie pauzowal,
-# a w pasku i we flocie wygladal na zdrowa, lekko cieplawa maszyne.
+# "unknown" is not "slightly warm". It means thermalstate did not answer.
+# Mapping it to 1 left Macs without a battery and without macmon, such as mini or Studio,
+# stuck at level 1 forever. They never reached 2, so nothing was paused, while the menu bar
+# and fleet view showed a healthy, mildly warm machine.
 LEVELS = {"nominal": 0, "fair": 1, "serious": 2, "critical": 3, "unknown": 0}
 
 DEFAULTS = {
     "poll_seconds": 15,
-    # temperatura baterii w stopniach C (bateria = najlepszy dostepny bez sudo czujnik obudowy)
-    "batt_pause_c": 40.0,       # >= tego: pauzujemy ciezkie zadania
-    "batt_resume_c": 36.0,      # <= tego: wznawiamy (histereza)
-    "batt_kill_c": 45.0,        # >= tego: ubijamy (po grace)
+    # Battery temperature in C. The battery is the best no-sudo chassis sensor.
+    "batt_pause_c": 40.0,       # >= this: pause heavy jobs
+    "batt_resume_c": 36.0,      # <= this: resume, with hysteresis
+    "batt_kill_c": 45.0,        # >= this: terminate after the grace period
     "pause_on_thermal_state": "serious",   # serious | critical
-    "speed_limit_pause": 60,    # CPU_Speed_Limit ponizej tego % = mocny throttling
-    # temperatura CHIPA (SoC) — reaguje w sekundach, bateria dopiero po kilku minutach.
-    # Czytana przez `macmon` (IOReport, bez sudo). Gdy brak macmon, te progi sa ignorowane.
-    # Progi sa celowo ostrzejsze niz fabryczne dlawienie macOS (~100-108 C). Pauza chlodzi
-    # chip w kilkanascie sekund (zmierzone: 89 -> 60 C w 19 s), wiec do ubicia w praktyce
-    # nie dochodzi — a SIGSTOP niczego nie niszczy. NIE ustawiaj tu 45 C: bezczynny chip
-    # M-serii ma 40-55 C, wiec taki prog oznacza permanentna pauze.
-    "soc_pause_c": 85.0,        # >= tego: pauza
-    "soc_resume_c": 76.0,       # <= tego: wznowienie
-    "soc_kill_c": 90.0,         # >= tego: ubicie, ale dopiero po kill_after_polls z rzedu
-    # BRAMKA NA BATERIE — zeby dlugie obliczenia nie zjadly laptopa do zera i nie zgasly
-    # w polowie bloku. Wznowienie dopiero po podpieciu zasilania.
-    "batt_pct_pause": 10,       # <= tego % na baterii: pauza
-    "batt_pct_resume": 25,      # wznowienie gdy AC albo naladowane powyzej tego
-    # KONTROLA WENTYLATOROW — chip goracy, a wentylatory stoja = awaria chlodzenia.
-    # Tylko ostrzega (glosno), nie pauzuje: falszywy alarm nie moze zabijac obliczen.
-    # AWARYJNY WYLAPYWACZ: lista nazw nizej zawsze bedzie dziurawa (b3core, cadical...).
-    # Kazdy wlasny proces powyzej tego CPU i starszy niz tyle sekund traktujemy jak ciezkie
-    # zadanie, nawet jesli nie znamy jego nazwy. never_patterns nadal go chroni.
-    # nie pauzuj procesu, ktory trzyma klawiature swojego terminala (SIGTTIN-pulapka)
+    "speed_limit_pause": 60,    # CPU_Speed_Limit below this percent means heavy throttling
+    # Chip temperature (SoC) reacts within seconds; the battery reacts after minutes.
+    # Read through `macmon` (IOReport, no sudo). Without macmon, these thresholds are ignored.
+    # These thresholds are intentionally sharper than macOS factory throttling (~100-108 C).
+    # A pause cools the chip within seconds (measured: 89 -> 60 C in 19 s), so termination
+    # rarely happens in practice, and SIGSTOP does not damage the job. Do not set this to
+    # 45 C: an idle M-series chip sits at 40-55 C, so that would mean a permanent pause.
+    "soc_pause_c": 85.0,        # >= this: pause
+    "soc_resume_c": 76.0,       # <= this: resume
+    "soc_kill_c": 90.0,         # >= this: terminate, but only after kill_after_polls in a row
+    # Battery gate: keep long jobs from draining the laptop to zero and dying mid-block.
+    # Resume only after AC is connected.
+    "batt_pct_pause": 10,       # <= this percent on battery power: pause
+    "batt_pct_resume": 25,      # resume on AC or when charged above this
+    # Fan control: a hot chip with stopped fans means a cooling failure.
+    # Warn loudly but do not pause. A false alarm must not kill computation.
+    # Emergency catch-all: the names below will always miss something (b3core, cadical...).
+    # Treat any owned process above this CPU and older than this many seconds as a heavy job,
+    # even when its name is unknown. never_patterns still protects it.
+    # Do not pause a process that owns its terminal keyboard. That risks the SIGTTIN trap.
     "skip_foreground_tty": True,
     "manage_unknown_heavy": True,
     "unknown_cpu_percent": 50.0,
     "unknown_min_seconds": 120,
-    # czekanie na zasilacz to nie awaria — pauza z powodu baterii moze trwac duzo dluzej
+    # Waiting for AC is not a failure. A battery pause may last much longer.
     "max_pause_minutes_batt": 240,
     "fan_check": True,
-    "fan_alert_temp_c": 70.0,   # powyzej tej temperatury chipa wentylatory MUSZA sie krecic
-    "cpu_min_percent": 20.0,    # tylko procesy powyzej tego zuzycia sa ruszane
-    "max_pause_minutes": 45,    # dluzej niz to w pauzie -> lagodne ubicie (jest checkpoint)
-    "fan_alert_polls": 3,       # tyle odczytow z rzedu "goraco + 0 obr/min" -> alarm
-    "kill_after_polls": 4,      # tyle kolejnych odczytow krytycznych -> SIGTERM
-    # Progi chipu maja histereze (pauza 95 / wznowienie 87), ale drugi wyzwalacz —
-    # stan termiczny systemu (`thermalState`) — jest binarny i histerezy NIE MA.
-    # Efekt zmierzony 02.08 10:46-10:48: szesc par pauza/wznowienie w cyklach
-    # 15-sekundowych przy chipie 84-85 C, czyli DZIESIEC stopni ponizej progu pauzy.
-    # Zadanie skakalo, a nic sie nie chlodzilo. Raz wstrzymany proces zostaje
-    # wstrzymany co najmniej tyle sekund, zeby pauza mogla cokolwiek dac.
+    "fan_alert_temp_c": 70.0,   # above this chip temperature, fans MUST spin
+    "cpu_min_percent": 20.0,    # only processes above this usage can be touched
+    "max_pause_minutes": 45,    # longer than this paused: gentle termination with checkpoint time
+    "fan_alert_polls": 3,       # this many consecutive "hot + 0 rpm" readings triggers alarm
+    "kill_after_polls": 4,      # this many consecutive critical readings triggers SIGTERM
+    # Chip thresholds have hysteresis (pause 95 / resume 87), but the second trigger,
+    # system `thermalState`, is binary and has no hysteresis.
+    # Measured effect, 02.08 10:46-10:48: six pause/resume pairs in 15-second cycles at
+    # chip 84-85 C, ten degrees below the pause threshold. The job bounced while nothing
+    # cooled. Once stopped, a process stays stopped for at least this long so the pause
+    # can have an effect.
     "min_pause_seconds": 60,
-    # ...a pauza z samego stanu systemowego (bez przekroczenia progu chipu) wymaga
-    # POTWIERDZENIA w kolejnym cyklu. Pojedynczy skok `thermalState` na "serious"
-    # potrafi trwac jeden odczyt.
+    # A pause caused only by system thermal state, without crossing the chip threshold,
+    # requires confirmation in the next cycle. A single `thermalState` jump to "serious"
+    # can last for one reading.
     "state_confirm_polls": 2,
-    "demote_after_minutes": 5,  # goracy chip + proces mielacy dluzej niz to -> background QoS (E-cores)
+    "demote_after_minutes": 5,  # hot chip plus a process grinding longer than this -> E-cores
     "demote_cpu_percent": 60.0,
-    # degradacja TYLKO gdy chip >= tego progu (None = soc_resume_c + 4); powrot na
-    # rdzenie P przy chip <= soc_resume_c - para progow jak przy pauzie/wznowieniu
+    # Demote only when chip >= this threshold (None = soc_resume_c + 4). Return to
+    # P-cores when chip <= soc_resume_c, using a threshold pair like pause/resume.
     "demote_above_c": None,
-    # Systemowe demony indeksowania: nietykalne dla PAUZY i UBICIA (lista never
-    # zostaje swieta - decyzja Pawla 06.08.2026, wariant A), ale WOLNO je zepchnac
-    # na E-cores, gdy graja i maszyna jest ciepla. Powod: corespotlightd potrafil
-    # grzac do 215% CPU przez cala noc jako "untouchable" (165 wpisow, 04/05.08).
-    # Domyslnie TYLKO demony per-user (taskpolicy na cudzym procesie i tak by odbil).
+    # System indexing daemons are untouchable for PAUSE and TERMINATE; the never list
+    # remains sacred. They may be pushed to E-cores while busy on a warm machine.
+    # Reason: corespotlightd held 215% CPU all night as "untouchable" (165 entries,
+    # 04/05.08). By default this covers only per-user daemons; taskpolicy would reject
+    # processes owned by another user anyway.
     "system_demote_patterns": ["corespotlightd", "spotlightknowledged",
                                "photoanalysisd", "mediaanalysisd"],
     "notify": True,
     "notify_min_gap_s": 300,
-    # BANER przy poziomie krytycznym: zwykle powiadomienie latwo przeoczyc (Skupienie,
-    # aplikacja na pelnym ekranie) — modalny alert systemowy przebija sie zawsze.
-    # Osobny odstep, bo to najwyzszy kaliber alarmu i nie moze spamowac.
+    # Critical-level banner: a normal notification is easy to miss (Focus, fullscreen app).
+    # A modal system alert always breaks through. Use a separate gap because this is the
+    # highest-severity alarm and must not spam.
     "critical_banner": True,
     "critical_banner_gap_s": 180,
-    # PUSH NA TELEFON (ntfy.sh, darmowe, bez konta): wpisz wlasny sekretny temat, zainstaluj
-    # aplikacje ntfy i zasubskrybuj ten sam temat — pauzy, ubicia, awarie chlodzenia i twarde
-    # pady przychodza jako push. Pusty = wylaczone.
+    # Phone push (ntfy.sh, free, no account): set a private secret topic, install the ntfy
+    # app, and subscribe to the same topic. Pauses, terminations, cooling failures, and hard
+    # shutdowns arrive as push notifications. Empty means disabled.
     "ntfy_topic": "",
-    # CIEZKIE ZADANIA (safe-run): na jakich rdzeniach i z jakim limitem CPU.
-    # "efficiency" = tylko rdzenie E (chlodno, wolno), "all" = wszystkie (szybko, cieplej —
-    # temperature i tak pilnuje guard). Limit w % realizowany mikropauzami calej grupy
-    # procesow (jak cpulimit); 95 = praktycznie pelna predkosc z odrobina oddechu dla UI.
-    "job_cores_mode": "all",   # default wszystkie rdzenie (Pawel, 01.08) - temperatura i tak pod straza
+    # Heavy jobs (safe-run): which cores and CPU limit to use.
+    # "efficiency" = E-cores only (cooler, slower), "all" = every core (faster, warmer;
+    # the guard still watches temperature). The percent limit uses micro-pauses for the
+    # whole process group, like cpulimit. 95 is almost full speed with some room for UI.
+    "job_cores_mode": "all",   # default to all cores; temperature stays under guard control
     "job_cpu_percent": 95,
-    # prog aktywnosci sieci dla keep-awake "dopoki trwa pobieranie" (KB/s)
+    # Network activity threshold for "keep awake while downloading" in KB/s.
     "download_kbps": 500,
-    # dzwieki systemowe przy zdarzeniach (afplay — dziala nawet gdy powiadomienia sa
-    # wyciszone przez Skupienie). Rozne zdarzenia maja rozne dzwieki, zeby dalo sie
-    # rozpoznac bez patrzenia: pauza=nisko, wznowienie=szklo, ubicie/pad=powaznie.
-    "sound": False,   # default cisza (Pawel, 01.08) - kto chce, wlaczy w Ustawieniach
-    # NIE USYPIAJ, GDY LICZY — jak Caffeine/Amphetamine, ale z bezpiecznikiem: czuwanie
-    # trzymamy TYLKO gdy realnie dziala ciezkie zadanie i jest chlodno; przy pauzie/goracu
-    # blokade zwalniamy (sen chlodzi najszybciej), po zakonczeniu zadania Mac normalnie
-    # zasypia. Amphetamine trzymane bezwarunkowo to klasyczna droga do ugotowania laptopa
-    # w plecaku — dlatego domyslnie wylaczone, wlacza sie swiadomie w Ustawieniach.
+    # System sounds for events. afplay works even when Focus silences notifications.
+    # Different events have different sounds so they can be recognized without looking:
+    # pause=low, resume=glass, terminate/crash=serious.
+    "sound": False,   # default silent; users can enable it in Settings
+    # Do not sleep while computing, like Caffeine/Amphetamine with a fuse. Hold wake only
+    # while a heavy job is actually running and the machine is cool. On pause or heat,
+    # release the assertion because sleep cools fastest. After the job ends, the Mac sleeps
+    # normally. Unconditional Amphetamine is the classic way to cook a laptop in a bag, so
+    # this is disabled by default and enabled deliberately in Settings.
     "keep_awake_auto": False,
-    "keep_awake_display": False,   # -d: ekran tez nie gasnie (prezentacje); wiecej ciepla
-    # Wygaszanie: po zejsciu ostatniego ciezkiego zadania czuwanie trzyma jeszcze tyle
-    # sekund. Bez tego przerwa miedzy plikami kolejki (ffmpeg konczy, nastepny jeszcze
-    # nie wystartowal) zwalniala blokade snu - Mac z agresywnym usypianiem potrafilby
-    # zasnac W SRODKU kolejki, a licznik przelaczen robil 45-59 wpisow na dobe.
-    # Upal ma pierwszenstwo: przy poziomie >=2 czuwanie pada NATYCHMIAST, bez wygaszania.
+    "keep_awake_display": False,   # -d: keep the display awake too, for presentations; warmer
+    # Decay: after the last heavy job exits, keep the wake assertion for this many seconds.
+    # Without it, the gap between queued files released sleep, so an aggressively sleeping
+    # Mac could sleep in the middle of a queue. The switch counter reached 45-59 entries per
+    # day. Heat has priority: at level >=2 the assertion drops immediately, with no decay.
     "keep_awake_hold_s": 300,
-    # DOMYSLNIE TYLKO OBSERWACJA: swieza instalacja mierzy, loguje i ALARMUJE, ale nie
-    # wstrzymuje niczyich procesow. Ochrone wlacza sie swiadomie — jednym kliknieciem w menu
-    # paska albo "dry_run": false. Narzedzie, ktore od wejscia rusza cudza prace, traci
-    # zaufanie przy pierwszym falszywym alarmie; narzedzie, ktore najpierw pokazuje, CO by
-    # zrobilo, zdobywa je.
+    # Watch-only by default. A fresh install measures, logs, and alerts, but does not pause
+    # anyone's processes. Protection is enabled deliberately, either from the menu bar or
+    # with "dry_run": false. A tool that touches other people's work on first launch loses
+    # trust on its first false alarm; one that first shows what it would do can earn it.
     "dry_run": True,
-    # WLASNA NAZWA tego Maca we flocie (tabela fleet + menu). Pusta = nazwa systemowa.
-    # Przy 5 maszynach "MacBook Pro (3)" nic nie mowi — "render-01" albo "Neo" mowi wszystko.
+    # Custom name for this Mac in fleet tables and menu. Empty means system name.
+    # With 5 machines, "MacBook Pro (3)" says nothing; "render-01" or "Neo" says enough.
     "fleet_label": "",
-    # FLOTA: sciezka wspolnego folderu (iCloud/Dropbox/SMB/SharePoint). Gdy ustawiona,
-    # guard publikuje tam migawke <hostname>.json — narzedzie `fleet` sklada z nich
-    # tabele calej floty. Celowo folder, nie serwer: kazda firma jakis wspolny dysk juz ma.
+    # Fleet: shared-folder path (iCloud/Dropbox/SMB/SharePoint). When set, guard publishes
+    # a <hostname>.json snapshot there, and `fleet` builds a table from those files.
+    # This is deliberately a folder, not a server: every company already has a shared drive.
     "fleet_dir": "",
-    # co wolno pauzowac (dopasowanie po nazwie procesu, case-insensitive)
+    # What may be paused, matched by process name case-insensitively.
     "managed_patterns": [
         "ffmpeg", "ffprobe", "handbrake", "x265", "x264", "compressor",
         "python", "python3", "uv", "julia", "z3", "geng", "nauty", "lean", "lake",
         "ollama", "llama", "mlx", "whisper", "node", "java", "rustc", "cargo",
         "blender", "rclone", "7z", "zstd", "xz", "tar", "bsdtar", "make", "cc1plus", "clang",
     ],
-    # wlasne wzorce doklejane do never_patterns — tu wpisz narzedzia, ktorych u siebie
-    # nie chcesz zamrazac (np. dlugo dzialajace CLI, wlasne demony, edytory)
+    # User patterns appended to never_patterns. Add tools you do not want frozen, such as
+    # long-running CLIs, local daemons, or editors.
     "never_extra": [],
-    # jak wyzej, ale dopasowanie po PELNEJ linii polecenia, nie po nazwie procesu —
-    # przydatne, gdy ciezkie zadanie jest uruchamiane przez interpreter (python, node)
-    # i sama nazwa procesu nic nie mowi. Tedy chronimy zaplecze agentow AI i edytorow
-    # (node z claude/mcp/language-server w argumentach), NIE kazdy node - zwykly
-    # `node build.js` ma byc pauzowalny, bo to dokladnie ten przypadek, dla ktorego
-    # narzedzie powstalo (wyszlo przy recenzji skilla, 01.08.2026)
+    # Same idea, but matched against the full command line instead of process name.
+    # Useful when a heavy job runs through an interpreter (python, node) and the process
+    # name says nothing. This protects AI-agent and editor backends, such as node with
+    # claude/mcp/language-server in argv, not every node process. Plain `node build.js`
+    # must remain pausable; that is exactly the case this tool exists for.
     "never_arg_patterns": ["coffee-paladin", "guard.py", "safe-run",
                            "claude", "codex", "cursor", "mcp", "language-server", ".vscode"],
-    # czego NIE wolno ruszac nigdy (nadrzedne wobec powyzszego)
+    # What must never be touched. This overrides everything above.
     "never_patterns": [
         "kernel_task", "windowserver", "launchd", "loginwindow", "logd", "opendirectoryd",
         "backupd", "mds", "mdworker", "spotlight", "fileproviderd", "cloudd", "bird",
         "finder", "dock", "terminal", "ghostty", "iterm", "zsh", "bash", "sshd", "ssh",
         "guard.py", "coffee-paladin", "safe-run", "code helper", "electron",
-        # demony systemowe: potrafia dlugo zjadac rdzen, ale odrzucaja SIGSTOP albo psuja
-        # sie po zamrozeniu — probowanie ich tylko zasmieca log i blokuje prawdziwe cele
+        # System daemons can burn a core for a long time, but they reject SIGSTOP or break
+        # after freezing. Trying them only pollutes the log and blocks real targets.
         "duetexpertd", "suggestd", "photoanalysisd", "mediaanalysisd", "coreaudiod",
         "bluetoothd", "powerd", "syspolicyd", "xprotect", "trustd", "nsurlsessiond",
-        # INTERAKTYWNE narzedzia i ich zaplecze: SIGSTOP na sesji terminalowej odbiera jej
-        # terminal, a SIGCONT wznawia ja JUZ W TLE -> SIGTTIN -> proces stoi na zawsze,
-        # mimo ze log mowi "RESUMED". Zamrozenie takiej sesji to jej smierc (Neo, 31.07.2026).
-        # Po NAZWIE tylko to, co nigdy nie jest zadaniem obliczeniowym. node/npm/npx/bun/deno
-        # celowo TU NIE SA: ciezki build w Node ma byc pauzowalny; zaplecze agentow chronia
-        # never_arg_patterns (linia polecen) + skip_foreground_tty (cokolwiek przy klawiaturze).
+        # Interactive tools and their backends: SIGSTOP on a terminal session detaches its
+        # terminal, and SIGCONT resumes it in the background -> SIGTTIN -> the process hangs
+        # forever even though the log says "RESUMED". Freezing such a session kills it.
+        # By name, include only things that are never compute jobs. node/npm/npx/bun/deno
+        # are deliberately absent: a heavy Node build must be pausable. Agent backends are
+        # protected by never_arg_patterns (command line) plus skip_foreground_tty (keyboard).
         "claude", "codex", "cursor",
         "hermes", "hermes-secret", "mcp", "caffeinate", "tmux", "screen", "vim", "nvim",
     ],
 }
 
 
-# ---------------------------------------------------------------- narzedzia
+# ---------------------------------------------------------------- tools
 
-# Klucze configu, ktorych zmiana MUSI zostawic slad w logu. Lekcja z nocy 31.07/01.08:
-# progi zmienily sie dwa razy i przez pol nocy nie dalo sie ustalic, kto i kiedy.
+# Config keys whose changes MUST leave a log trail. In one overnight run, thresholds changed
+# twice and it was impossible to tell who changed them or when.
 LOGOWANE_KLUCZE = (
     "soc_pause_c", "soc_resume_c", "soc_kill_c",
     "batt_pause_c", "batt_resume_c", "batt_kill_c",
@@ -233,7 +230,7 @@ def migawka_logowanych(cfg):
 
 
 def loguj_zmiany_configu(poprzednie, cfg):
-    """Kazda zmiana obserwowanego klucza -> wpis stara -> nowa. Zwraca nowa migawke."""
+    """Log each observed config-key change and return the new snapshot."""
     biezace = migawka_logowanych(cfg)
     if poprzednie is not None:
         for k in LOGOWANE_KLUCZE:
@@ -243,9 +240,12 @@ def loguj_zmiany_configu(poprzednie, cfg):
 
 
 class config_lock:
-    """flock na czas czytaj-zmien-zapisz configu. Osobny plik .lock, nie sam config:
-    config podmieniamy atomowo przez os.replace, wiec lock na jego deskryptorze
-    wskazywalby stary inode. Pasek (Swift) bierze ten sam lock przed zapisem."""
+    """Lock config read-modify-write operations with flock.
+
+    The lock uses a separate .lock file, not config.json. Config writes are atomic
+    os.replace operations, so locking its descriptor would point at the old inode.
+    The Swift menu bar takes the same lock before writing.
+    """
 
     def __enter__(self):
         import fcntl
@@ -267,35 +267,32 @@ def now():
 
 
 def ts(t=None):
-    """Stempel czasu do artefaktow dowodowych - ZAWSZE z offsetem strefy.
+    """Return an evidence timestamp with a timezone offset.
 
-    Do 2.1.7 wlacznie bylo to gole `%Y-%m-%d %H:%M:%S`, czyli czas lokalny bez informacji,
-    ktory to lokalny. Zdarzenia w events.log filtrowane sa po polu `epoch`
-    (absolutnym), a historia i guard.log po TEKSCIE - wiec ten sam katalog danych
-    dawal dwa rozne dokumenty. Odtworzone 02.08.2026: pad zapisany 23:30 w Warszawie,
-    raport `--from/--to` na ten sam dzien pokazuje w Auckland ZERO zdarzen
-    krytycznych, a tuz obok drukuje oś czasu i `[KILL]` z tej samej sekundy oraz
-    chip 98,7 C. Dokument roszczeniowy sam sobie przeczy.
+    Up to 2.1.7 this was bare `%Y-%m-%d %H:%M:%S`, a local time without saying
+    which local time. events.log filters by absolute `epoch`, while history and
+    guard.log filter by timestamp text, so the same data directory could produce
+    two contradictory reports across time zones.
 
-    Format ma 24 znaki, a jego pierwsze 19 to dokladnie stary stempel - dzieki temu
-    kazdy istniejacy parser bioracy `linia[:19]` dziala dalej bez zmian, a nowy
-    moze wziac `linia[:24]` i policzyc czas absolutny.
+    The format is 24 characters, and the first 19 match the old timestamp exactly.
+    Existing parsers that use `line[:19]` keep working; new ones can use `line[:24]`
+    and compute absolute time.
     """
     return time.strftime("%Y-%m-%d %H:%M:%S%z", time.localtime(t if t else now()))
 
 
 def czas_abs(s):
-    """Epoch ABSOLUTNY ze stempla `ts()` - z offsetem albo bez (pliki sprzed 2.1.8).
+    """Parse an absolute epoch from a `ts()` timestamp.
 
-    Ze stemplem z offsetem wynik jest ten sam w kazdej strefie na swiecie. Bez
-    offsetu nie da sie zgadnac, wiec interpretujemy lokalnie (tak jak dzialalo
-    do tej pory) - i to jest dokladnie ta niejednoznacznosc, dla ktorej offset
-    zostal dopisany. Zwraca 0.0 przy smieciu, nigdy nie rzuca.
+    Accepts timestamps with offsets and legacy pre-2.1.8 timestamps without offsets.
+    Offset timestamps produce the same epoch in every timezone. Legacy no-offset
+    timestamps are interpreted as local time, preserving the old behavior and the
+    exact ambiguity the offset was added to remove. Returns 0.0 for junk and never
+    raises.
     """
-    # Parser danych z pliku dowodowego: MA nigdy nie rzucac, bo jeden smieciowy wiersz
-    # nie moze wywalic calego dokumentu. Pierwsza wersja tej funkcji zawezila `except`
-    # do (ValueError, OverflowError) i stracila odpornosc na nie-stringi - fuzzer
-    # rundy 1 zlapal to od razu: wejscie 123 dawalo AttributeError, b"..." TypeError.
+    # Evidence-file parsing must never raise: one junk row must not break the whole
+    # document. A narrower except once lost tolerance for non-strings; fuzzing caught
+    # AttributeError for input 123 and TypeError for b"...".
     if not isinstance(s, str):
         return 0.0
     s = s.strip()
@@ -305,29 +302,29 @@ def czas_abs(s):
         if len(s) >= 24 and s[19] in "+-":
             return datetime.datetime.strptime(s[:24], "%Y-%m-%d %H:%M:%S%z").timestamp()
         return time.mktime(time.strptime(s[:19], "%Y-%m-%d %H:%M:%S"))
-    except Exception:      # noqa: BLE001 - kontrakt: nigdy nie rzuca
+    except Exception:      # noqa: BLE001 - contract: never raises
         return 0.0
 
 
 def ensure_dirs():
-    """Katalog danych tylko dla wlasciciela.
+    """Create owner-only data directories.
 
-    Na Macu z kilkoma kontami 0755 znaczylo, ze kazdy lokalny uzytkownik czyta
-    `config.json` - a tam siedzi `ntfy_topic`, ktory dokumentacja sama nazywa
-    JEDYNYM zabezpieczeniem powiadomien: kto go zna, czyta cudze alerty i moze
-    wysylac falszywe. W `managed/` leza dodatkowo pelne linie polecen zadan.
+    On a multi-account Mac, 0755 meant any local user could read `config.json`,
+    including `ntfy_topic`, which is the only secret protecting notification
+    channels. Anyone who knows it can read alerts and send fake ones. `managed/`
+    also contains full job command lines.
     """
     for d in (BASE, MANAGED_DIR):
         if not os.path.isdir(d):
             try:
                 os.makedirs(d, 0o700)
             except OSError as e:
-                # Bez tego demon wywalal sie tracebackiem w pierwszej linii main(),
-                # a launchd wskrzeszal go co 30 s w nieskonczonosc. Traceback szedl do
-                # stderr.log, czyli do pliku w katalogu, do ktorego wlasnie nie da sie
-                # pisac - wiec uzytkownik nie widzial ani jednego slowa diagnostyki.
+                # Without this, the daemon crashed with a traceback in the first line of
+                # main(), and launchd restarted it every 30 s forever. The traceback went
+                # to stderr.log, a file in the directory that could not be written, so the
+                # user saw no diagnostics at all.
                 print("coffee-paladin: nie moge utworzyc %s (%s)" % (d, e), file=sys.stderr)
-    # istniejace instalacje: zaciesniamy prawa przy kazdym starcie (tanie, idempotentne)
+    # Existing installs: tighten permissions at every start. Cheap and idempotent.
     for sciezka, prawa in ((BASE, 0o700), (MANAGED_DIR, 0o700), (CFG_PATH, 0o600)):
         try:
             if os.path.exists(sciezka) and (os.stat(sciezka).st_mode & 0o077):
@@ -336,13 +333,12 @@ def ensure_dirs():
             pass
 
 
-# Nazwy, ktorymi wola sie samo narzedzie. Musza byc na liscie nietykalnych ZAWSZE,
-# nawet gdy config zostal zapisany przed zmiana nazwy - inaczej druga instancja
-# (albo instancja z innego katalogu) widzi demona jako zwykly proces "Python"
-# zzerajacy CPU i pauzuje go. Zdarzylo sie naprawde, 02.08.2026.
+# Names this tool can call itself. They must always be on the never-touch list, even if the
+# config was saved before a rename. Otherwise a second instance, or an instance from another
+# directory, sees the daemon as an ordinary CPU-hungry "Python" process and pauses it.
 WLASNE_NAZWY = ("coffee-paladin", "guard.py", "safe-run")
 
-# klucze configu, ktore mialy zly typ i zostaly zastapione defaultem (do zalogowania)
+# Config keys that had the wrong type and were replaced with defaults, for logging.
 _zle_typy = []
 _ostatnio_odrzucone = {"v": None}
 
@@ -356,10 +352,10 @@ def load_cfg():
             cfg.update(user)
     except Exception:
         pass
-    # Wartosci z configu maja typ DEFAULTU, nie ten, ktory wpisal czlowiek.
-    # Bez tego jedna literowka ("cpu_min_percent": "dwadziescia") wywala petle
-    # przy kazdym cyklu: status.json przestaje byc zapisywany, nic nie jest
-    # pauzowane, a `heat` dalej melduje "dziala". Czyli strazak zywy i slepy.
+    # Config values take the DEFAULT type, not the type the human wrote.
+    # Without this, one typo ("cpu_min_percent": "dwadziescia") crashes the loop
+    # every cycle: status.json stops being written, nothing is paused, and `heat`
+    # still reports that the daemon is running. The guard is alive but blind.
     for klucz, wzor in DEFAULTS.items():
         wart = cfg.get(klucz)
         if isinstance(wzor, bool):
@@ -367,18 +363,18 @@ def load_cfg():
                 cfg[klucz] = wzor
                 _zle_typy.append(klucz)
         elif isinstance(wzor, (int, float)):
-            # bool jest w Pythonie podklasa int, wiec `poll_seconds: true` przeszloby
-            # jako 1 sekunda - demon odpytywalby 15x czesciej, na goracym chipie.
+            # bool is a Python int subclass, so `poll_seconds: true` would pass as
+            # 1 second, making a hot-chip daemon poll 15x more often.
             if isinstance(wart, bool):
                 cfg[klucz] = wzor
                 _zle_typy.append(klucz)
             else:
                 try:
-                    # OverflowError, bo 1e400 i 400-cyfrowy int wywalaly cala funkcje,
-                    # a load_cfg leci w main() bez oslony: demon w ogole nie wstawal.
-                    # NaN i nieskonczonosc przechodzily WSZYSTKIE porownania jako falsz,
-                    # wiec prog "nan" zamienial pick_targets w maszynke lapiaca kazdy
-                    # proces powyzej zera procent CPU - bez jednego slowa w logu.
+                    # Catch OverflowError because 1e400 and 400-digit ints crashed the
+                    # whole function. load_cfg runs in main() without a wrapper, so the
+                    # daemon never started. NaN and infinity made every comparison false,
+                    # so threshold "nan" turned pick_targets into a trap for every process
+                    # above zero percent CPU, without one log line.
                     nowa = type(wzor)(wart)
                     if isinstance(nowa, float) and (nowa != nowa or nowa in (float("inf"), float("-inf"))):
                         raise ValueError("NaN albo nieskonczonosc")
@@ -393,13 +389,13 @@ def load_cfg():
             cfg[klucz] = wzor
             _zle_typy.append(klucz)
 
-    # Progi MUSZA rosnac: wznowienie < pauza < ubicie. Bez tego jedna literowka
-    # zamienia bezpiecznik w mlynek (resume >= pause: pauza i wznowienie co cykl)
-    # albo w zabojce zadan (kill <= pause: SIGTERM przy zupelnie zdrowych 82 C).
+    # Thresholds MUST increase: resume < pause < terminate. Without that, one typo turns
+    # the guard into a churner (resume >= pause: pause and resume every cycle) or a job
+    # killer (kill <= pause: SIGTERM at a completely healthy 82 C).
     PARY_PROGOW = (("soc_resume_c", "soc_pause_c"), ("soc_pause_c", "soc_kill_c"),
                    ("batt_resume_c", "batt_pause_c"), ("batt_pause_c", "batt_kill_c"))
-    # Korekta MUSI byc powtarzana: obnizenie soc_pause_c w drugiej parze potrafi
-    # zlamac relacje ustalona w pierwszej. Trzy przebiegi wystarczaja na cztery pary.
+    # Correction MUST repeat: lowering soc_pause_c in the second pair can break the
+    # relation fixed in the first. Three passes are enough for four pairs.
     for _ in range(3):
         zmienione = False
         for nizszy, wyzszy in PARY_PROGOW:
@@ -413,9 +409,9 @@ def load_cfg():
                 zmienione = True
         if not zmienione:
             break
-    # Po korekcie prog moze wyladowac poza fizycznym sensem (ktos wpisuje soc_kill_c: 0,
-    # zeby "wylaczyc ubijanie", i przeciaga za soba pauze na -2 C). Wtedy cala rodzina
-    # progow wraca do wartosci domyslnych - lepiej znane 85/76/90 niz wlasny absurd.
+    # After correction, a threshold can land outside physical sense, for example
+    # soc_kill_c: 0 intended to "disable termination" can drag pause to -2 C. Then the
+    # whole threshold family returns to defaults: known 85/76/90 beats custom nonsense.
     for rodzina, zakres in ((("soc_resume_c", "soc_pause_c", "soc_kill_c"), (40.0, 110.0)),
                             (("batt_resume_c", "batt_pause_c", "batt_kill_c"), (20.0, 60.0))):
         if any(k in cfg and not (zakres[0] <= float(cfg[k]) <= zakres[1]) for k in rodzina
@@ -426,15 +422,14 @@ def load_cfg():
             _zle_typy.append("progi %s poza zakresem %.0f-%.0f - przywrocone domyslne"
                              % (rodzina[0].split("_")[0], zakres[0], zakres[1]))
 
-    # Progi temperatur mialy zakresy, liczniki i interwaly nie mialy zadnych. A to
-    # wlasnie one potrafia zrobic najwiecej szkody, bo nie brzmia grozne:
-    #   poll_seconds: 0        -> petla bez ani jednego sleepa, jeden rdzen pod korek
-    #                             NA MACU, KTOREGO TEN PROGRAM MA PILNOWAC PRZED GRZANIEM
-    #   max_pause_minutes: -1  -> kazda pauza od razu przekracza limit, wiec swiezo
-    #                             wstrzymane zadanie dostaje SIGTERM w tej samej sekundzie
-    #   kill_after_polls: 0    -> ubicie przy pierwszym krytycznym odczycie, bez laski
-    # Zamiast odrzucac cala konfiguracje, przycinamy pojedyncza wartosc do sensownej
-    # granicy i mowimy o tym w logu.
+    # Temperature thresholds had ranges, but counters and intervals had none. Those can do
+    # the most damage because they do not look dangerous:
+    #   poll_seconds: 0        -> loop with no sleep, one core pegged on the Mac this
+    #                             program is supposed to protect from heat
+    #   max_pause_minutes: -1  -> every pause immediately exceeds the limit, so a freshly
+    #                             stopped job gets SIGTERM in the same second
+    #   kill_after_polls: 0    -> terminate on the first critical reading, with no grace
+    # Instead of rejecting the whole config, clamp one value to a sane bound and log it.
     for klucz, dolna, gorna in (("poll_seconds", 1, 300),
                                 ("min_pause_seconds", 0, 3600),
                                 ("fan_alert_polls", 1, 100),
@@ -454,38 +449,37 @@ def load_cfg():
                 _zle_typy.append("%s = %s poza zakresem %s-%s - przyciete do %s"
                                  % (klucz, v, dolna, gorna, cfg[klucz]))
 
-    # Minimalny czas pauzy dluzszy niz limit pauzy to maszynka do zabijania: wznowienie
-    # nigdy nie nastapi, a kazda pauza konczy sie SIGTERM-em. Przycinamy i mowimy o tym.
+    # A minimum pause longer than the pause limit is a killing machine: resume can never
+    # happen, and every pause ends in SIGTERM. Clamp it and say so.
     _limit_s = cfg.get("max_pause_minutes", 45) * 60
     if isinstance(cfg.get("min_pause_seconds"), (int, float)) and cfg["min_pause_seconds"] >= _limit_s:
         cfg["min_pause_seconds"] = max(0, int(_limit_s / 3))
         _zle_typy.append("min_pause_seconds >= max_pause_minutes - przyciete do %d s"
                          % cfg["min_pause_seconds"])
 
-    # listy nietykalnych sa UZUPELNIANE o wlasne nazwy, nigdy nimi nie nadpisywane:
-    # uzytkownik moze dopisac swoje wzorce, ale nie moze przypadkiem odslonic demona.
-    # Puste stringi wylatuja: "" pasuje do KAZDEJ nazwy procesu, wiec jedna pusta
-    # linia na liscie oslepia bezpiecznik i nic tego nie sygnalizuje.
-    # Lista odrzuconych wartosci jest LOGOWANA i czyszczona przy kazdym wczytaniu.
-    # Wczesniej tylko rosla (load_cfg leci co cykl petli, ~5760 wpisow na dobe),
-    # a uzytkownik nie dostawal zadnego sygnalu, ze jego prog zostal po cichu zmieniony.
+    # Never-touch lists are extended with our own names, never overwritten by them.
+    # Users may add their patterns, but cannot accidentally expose the daemon. Empty
+    # strings are dropped: "" matches EVERY process name, so one empty list item blinds
+    # the guard without signaling it. The rejected-values list is logged and cleared on
+    # every load. It used to grow forever (load_cfg runs every loop cycle, ~5760 entries
+    # per day), while the user got no signal that their threshold was silently changed.
     if _zle_typy:
         odrzucone = sorted(set(_zle_typy))
         del _zle_typy[:]
         if odrzucone != _ostatnio_odrzucone["v"]:
             _ostatnio_odrzucone["v"] = odrzucone
             log("CONFIG: odrzucone albo poprawione wartosci: %s" % ", ".join(odrzucone))
-            # Klamp naprawia wartosci W PAMIECI, plik zostaje jaki byl - i to jest
-            # pulapka: druga sesja (czlowiek albo agent AI) czyta config.json i widzi
-            # co innego, niz demon wykonuje. Dokladnie tak 05.08.2026 sesja kolejki
-            # wpisala soc_pause_c=100, guard chodzil na sklampowanym 98, a plik dalej
-            # mowil 100. Pliku celowo NIE nadpisujemy (guard nie edytuje configu
-            # czlowieka za jego plecami) - zamiast tego mowimy wprost, co poprawic.
+            # The clamp fixes values IN MEMORY while the file stays as it was. That is a
+            # trap: a second session, human or AI agent, reads config.json and sees
+            # something different from what the daemon enforces. A queue session set
+            # soc_pause_c=100 while guard ran on clamped 98 and the file still said 100.
+            # We deliberately do not overwrite the file behind the human's back. Instead,
+            # say exactly what to fix.
             notify(cfg, "coffee-paladin: config corrected in memory",
                    "config.json still holds the old values. Fix: %s" % "; ".join(odrzucone),
                    key="cfgclamp")
     else:
-        # korekty znikly (czlowiek naprawil plik) - status nie moze wiecznie straszyc
+        # Corrections disappeared because the file was fixed; status must not warn forever.
         _ostatnio_odrzucone["v"] = []
     for klucz in ("never_patterns", "never_arg_patterns", "never_extra",
                   "managed_patterns", "system_demote_patterns"):
@@ -498,13 +492,13 @@ def load_cfg():
     return cfg
 
 
-# ---------------------------------------------------------------- jezyk
+# ---------------------------------------------------------------- language
 
 SUPPORTED_LANGS = ("en", "pl", "ru", "zh", "es")
 
 
 def _lang():
-    """Jezyk komunikatow: TG_LANG, potem "lang" w config.json, domyslnie angielski."""
+    """Return the message language from TG_LANG, then config.json, defaulting to English."""
     v = (os.environ.get("TG_LANG") or "").lower()[:2]
     if v in SUPPORTED_LANGS:
         return v
@@ -520,8 +514,8 @@ def _lang():
 
 LANG = _lang()
 
-# Katalog tlumaczen. Kluczem jest angielski oryginal z kodu — dzieki temu brak wpisu
-# oznacza po prostu wyswietlenie angielskiego, a nie bledu.
+# Translation catalog. Keys are the English originals from code, so a missing entry simply
+# displays English instead of becoming an error.
 PL = {
     "PAUSED %s (pid %d, %.0f%% CPU) - %s": "PAUZA  %s (pid %d, %.0f%% CPU) - %s",
     "[DRY-RUN] would pause %s (pid %d, %.0f%% CPU) - %s": "[DRY-RUN] pauza %s (pid %d, %.0f%% CPU) - %s",
@@ -628,8 +622,9 @@ PL = {
         "miedzy ostatnim pulsem a startem systemu uplynelo %.1f h - bezpiecznik mogl zostac ubity dlugo przed tym, jak Mac naprawde zgasl",
 }
 
-# Powiadomienia i alerty w pozostalych jezykach paska (ru/zh/es). Tlumaczymy to, co widzi
-# czlowiek (powiadomienia, baner, powody) — log techniczny zostaje po angielsku/polsku.
+# Notifications and alerts for the remaining menu-bar languages (ru/zh/es). Translate what
+# the human sees, such as notifications, banners, and reasons. Technical logs stay in
+# English/Polish.
 RU = {
     "Thermal guard: hot": "Thermal guard: горячо",
     "Thermal guard: job slowed down": "Thermal guard: задача замедлена",
@@ -911,22 +906,24 @@ DICTS = {"pl": PL, "ru": RU, "zh": ZH, "es": ES}
 
 
 def T(s):
-    """Tlumaczy komunikat wg jezyka z konfiguracji. Angielski jest zrodlem prawdy —
-    brak wpisu w slowniku oznacza po prostu angielski, nigdy blad."""
+    """Translate a message using the configured language.
+
+    English is the source of truth. A missing dictionary entry means English, never an
+    error.
+    """
     return DICTS.get(LANG, {}).get(s, s)
 
 def rotate(path):
-    """Rotacja z NUMEROWANYMI pokoleniami: .1 najswiezsze, .N najstarsze.
+    """Rotate with numbered generations: .1 is newest and .N is oldest.
 
-    Wczesniej bylo jedno `os.replace(path, path + ".1")`, wiec KAZDA kolejna rotacja
-    nadpisywala .1 i kasowala dowody bezpowrotnie. Odtworzone 02.08.2026: szczyt
-    98,7 C wpadal do history.csv, po pierwszej rotacji `thermal-report --days 2`
-    pokazywal 44,0 C (bo czytal tylko plik biezacy), a po drugiej rotacji odczyt
-    98,7 C nie istnial juz nigdzie na dysku. To jest jedyny powod, dla ktorego ten
-    plik w ogole powstaje - dokument do serwisu albo do roszczenia gwarancyjnego.
+    A single `os.replace(path, path + ".1")` meant every later rotation overwrote .1 and
+    destroyed evidence permanently. A measured 98.7 C peak reached history.csv; after the
+    first rotation, `thermal-report --days 2` showed 44.0 C because it read only the current
+    file, and after the second rotation the 98.7 C reading no longer existed on disk. That
+    evidence is the reason this file exists.
 
-    Pokolen trzymamy MAX_LOG_GENERACJI; przy 5 MB na plik to ~30 MB sufitu na
-    strumien, czyli tanio za dowod, ktorego nie da sie odtworzyc.
+    Keeps MAX_LOG_GENERACJI generations. At 5 MB per file, that is about 30 MB per stream,
+    cheap for evidence that cannot be recreated.
     """
     try:
         if os.path.getsize(path) <= MAX_LOG_BYTES:
@@ -947,11 +944,10 @@ def rotate(path):
 
 
 def pokolenia(path):
-    """Plik biezacy razem ze zrotowanymi pokoleniami, OD NAJSTARSZEGO.
+    """Return the current file and rotated generations, oldest first.
 
-    Kazdy czytelnik dowodow (thermal-report, statystyki) ma isc przez te liste,
-    a nie przez sam `path` - inaczej rotacja ucina dokumentowi historie w polowie
-    bez jednego slowa ostrzezenia.
+    Every evidence reader, including thermal-report and statistics, must use this list
+    instead of `path` alone. Otherwise rotation silently cuts history out of the document.
     """
     zrotowane = []
     n = 1
@@ -961,7 +957,7 @@ def pokolenia(path):
             break
         zrotowane.append(p)
         n += 1
-    zrotowane.reverse()                    # .3, .2, .1 = chronologicznie
+    zrotowane.reverse()                    # .3, .2, .1 = chronological
     if os.path.exists(path):
         zrotowane.append(path)
     return zrotowane
@@ -971,14 +967,14 @@ _CICHE_AWARIE = {}
 
 
 def cicha_awaria(gdzie, e):
-    """Polkniety wyjatek w sciezce krytycznej PRZESTAJE byc cichy.
+    """Record a swallowed exception from a critical path.
 
-    W demonie bezpieczenstwa `except Exception: pass` w zapisie dowodu albo stanu
-    znaczy: "dowod nie powstal, a nikt sie nie dowie". Ruff naliczyl 107 takich miejsc,
-    z czego 14 w funkcjach, ktore decyduja o ochronie albo o materiale dowodowym.
-    Przeplywu NIE zmieniamy - demon ma dzialac dalej takze wtedy, gdy dysk jest pelny -
-    ale kazda taka awaria trafia do logu (raz na 10 min na miejsce) i do licznika
-    widocznego w status.json. Nadal polykamy, juz nie milczymy.
+    In a safety daemon, `except Exception: pass` while writing evidence or state means the
+    evidence did not exist and nobody found out. Ruff counted 107 such places, including
+    14 in functions that decide protection or evidence. The flow is unchanged: the daemon
+    must keep running when the disk is full. Each failure is logged once per 10 min per
+    location and counted in status.json. Exceptions are still swallowed, but no longer
+    silently.
     """
     _CICHE_AWARIE[gdzie] = _CICHE_AWARIE.get(gdzie, 0) + 1
     znacznik = "_ostatni_log_" + gdzie
@@ -993,13 +989,13 @@ def cicha_awaria(gdzie, e):
 
 
 def log(msg, tag=None):
-    """Wpis do guard.log. `tag` to STABILNY znacznik ASCII zdarzenia.
+    """Write to guard.log with an optional stable ASCII event tag.
 
-    Tresc komunikatu jest tlumaczona na piec jezykow, a raport dowodowy, statystyki
-    w pasku i `heat` parsuja ten log. Dopoki szukaly polskich i angielskich slow,
-    maszyna z jezykiem rosyjskim gubila w raporcie KAZDY wykryty twardy pad - czyli
-    jedyny powod, dla ktorego ten dokument istnieje. Znacznik [PAUSE]/[RESUME]/...
-    jest ten sam we wszystkich jezykach i to po nim maja szukac parsery.
+    Message text is translated into five languages, while evidence reports, menu-bar
+    statistics, and `heat` parse this log. Parsers that searched for Polish and English
+    words missed every hard shutdown on a Russian-language machine, losing the report's
+    primary evidence. The [PAUSE]/[RESUME]/... tag is identical in every language and is
+    the parser contract.
     """
     if tag:
         msg = "[%s] %s" % (tag, msg)
@@ -1016,10 +1012,10 @@ def log(msg, tag=None):
 
 
 def _ubij_grupe(p):
-    """Ubija CALA grupe procesow dziecka, potem zbiera zwloki.
+    """Kill the child's whole process group and then reap it.
 
-    Sam `p.kill()` zostawia wnuki przy zyciu - a to one potrafia wisiec godzinami.
-    Gdy grupy nie da sie odczytac (dziecko juz zniknelo), spadamy na zwykly kill.
+    `p.kill()` alone leaves grandchildren alive, and they can hang for hours. If the group
+    cannot be read because the child already disappeared, falls back to a normal kill.
     """
     if p is None:
         return
@@ -1031,29 +1027,28 @@ def _ubij_grupe(p):
         except Exception:
             pass
     try:
-        p.communicate(timeout=2)          # zbieramy zwloki, inaczej zostaje zombie
+        p.communicate(timeout=2)          # reap it, otherwise it stays a zombie
     except Exception:
         pass
 
 
 def run(cmd, timeout=10):
-    """Uruchamia polecenie i ZAWSZE po sobie sprzata.
+    """Run a command and always clean up after it.
 
-    `communicate(timeout=...)` rzuca TimeoutExpired, ale NIE zabija dziecka - proces
-    zostaje, a demon zbiera kolejne. Zaobserwowane na zywo 02.08.2026 przy obciazonym
-    Macu: guard mial czworke wiszacych dzieci (dwa `macmon pipe`, `pmset -g therm`),
-    petla stala 90 sekund i status.json przestal byc odswiezany. Przy 15-sekundowym
-    cyklu to znaczy, ze przez ten czas nikt nie pilnowal temperatury.
+    `communicate(timeout=...)` raises TimeoutExpired but does NOT kill the child. The
+    process remains, and the daemon accumulates more. On a loaded Mac, guard had four
+    hanging children, including two `macmon pipe` processes and `pmset -g therm`; the loop
+    stalled for 90 seconds and status.json stopped refreshing. With a 15-second cycle, that
+    meant nobody watched temperature during that window.
     """
     p = None
     try:
-        # WLASNA GRUPA PROCESOW. `p.kill()` siega tylko bezposredniego dziecka, wiec
-        # polecenie, ktore samo cos odpali (np. powloka z zadaniem w tle), zostawialo
-        # osieroconego WNUKA zyjacego dalej. Odtworzone 02.08.2026 i zglaszane przez
-        # fuzzer rundy 2: po powrocie z run() zostawal proces potomny. Przy demonie
-        # dzialajacym latami takie osierocone procesy sie kumuluja.
-        # Zadne z polecen wolanych przez run() (ps, sysctl, pmset, ioreg, macmon)
-        # nie potrzebuje terminala, wiec odlaczenie sesji nic nie kosztuje.
+        # Own process group. `p.kill()` reaches only the direct child, so a command that
+        # launches something else, such as a shell with a background job, left an orphaned
+        # grandchild alive. Fuzzing reproduced a child still running after run() returned.
+        # In a daemon that runs for years, those orphans accumulate.
+        # None of the commands called by run() (ps, sysctl, pmset, ioreg, macmon) needs a
+        # terminal, so detaching the session has no cost.
         p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
                              start_new_session=True)
         out, _ = p.communicate(timeout=timeout)
@@ -1067,22 +1062,24 @@ def run(cmd, timeout=10):
         return ""
 
 
-# Zegar monotoniczny ma sens tylko WEWNATRZ jednego procesu. Wpis o pauzie
-# przezywa restart demona (i dobrze - inaczej SIGKILL na straznika zostawialby
-# zamrozone procesy bez opiekuna), wiec trzeba wiedziec, czyj to pomiar.
+# A monotonic clock is meaningful only inside one process. A pause entry survives daemon
+# restart, which is intentional; otherwise SIGKILL on the guard would leave frozen
+# processes with no owner. The entry must therefore say whose measurement it is.
 _MONO_ID = "%d:%d" % (os.getpid(), int(time.time()))
 
 _last_notify = {}
 
-# Krotko zyjace procesy pomocnicze (osascript/afplay/curl). Trzymamy referencje
-# i zbieramy zwloki co cykl — bez tego kazdy alert zostawal zombie az do sprzatania
-# wewnatrz modulu subprocess (znalezisko z niezaleznej recenzji, 30.07.2026).
+# Short-lived helper processes (osascript/afplay/curl). Keep references and reap them every
+# cycle; otherwise every alert stays a zombie until subprocess internals clean it up.
 _bg_procs = []
 
 
 def popen_bg(cmd, stdin_data=None):
-    """Proces w tle. `stdin_data` podajemy tam, gdzie argumentu NIE WOLNO pokazac
-    w `ps` - argv widzi kazdy uzytkownik maszyny, stdin nie."""
+    """Start a background process.
+
+    Use `stdin_data` where an argument MUST NOT appear in `ps`: every local user can see
+    argv, but not stdin.
+    """
     try:
         p = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                              stdin=subprocess.PIPE if stdin_data is not None else None)
@@ -1101,23 +1098,23 @@ def reap_bg():
 
 
 SOUNDS = {
-    "pause": "Basso",      # goraco — niski, powazny
-    "resume": "Hero",      # wznowienie = triumf: przetrwalismy goraco, wracamy do roboty
-    "kill": "Sosumi",      # ubicie zadania
-    "fan": "Basso",        # awaria chlodzenia
-    "pad": "Basso",        # wykryty twardy pad
-    "freeze": "Tink",      # reczne akcje z paska
-    "demote": "Submarine", # zepchniecie na E-cores — "schodzimy nizej"
-    "promote": "Hero",     # powrot na P-cores — ta sama fanfara co wznowienie
-    "awake": "Funk",       # start keep-awake — kubek stuka o blat
-    "watchonly": "Basso",  # obserwacja: "wstrzymalbym, ale ochrona wylaczona" — powazny ton
+    "pause": "Basso",      # hot: low and serious
+    "resume": "Hero",      # resume: recovered from heat, back to work
+    "kill": "Sosumi",      # job termination
+    "fan": "Basso",        # cooling failure
+    "pad": "Basso",        # detected hard shutdown
+    "freeze": "Tink",      # manual menu-bar actions
+    "demote": "Submarine", # pushed to E-cores, going lower
+    "promote": "Hero",     # back to P-cores, same fanfare as resume
+    "awake": "Funk",       # keep-awake start
+    "watchonly": "Basso",  # watch-only: would pause, but protection is off
 }
 
 
-# rozne klucze zdarzen, wspolny plik dzwiekowy
+# Different event keys can share one sound file.
 SOUND_ALIAS = {"promote": "resume", "fan": "kill", "default": "pad"}
-# przy cyklowaniu pauza/wznowienie co ~40 s miecz cialby non stop - decyzja Pawla:
-# max raz na 10 minut (powiadomienia chodza dalej, tylko dzwiek jest przycinany)
+# If pause/resume cycles every ~40 s, the sound would fire constantly. Limit it to once
+# every 10 minutes; notifications continue, only sound is throttled.
 SOUND_MIN_GAP_S = {"pause": 600, "demote": 600, "resume": 600, "awake": 600}
 _last_sound = {}
 
@@ -1129,8 +1126,8 @@ def play_sound(cfg, key):
     if gap and now() - _last_sound.get(key, 0) < gap:
         return
     _last_sound[key] = now()
-    # najpierw wlasne pliki (wybory Pawla 01.08, CC0 - patrz sounds/LICENSES.md);
-    # fallback na dzwieki systemowe - stara instalacja bez sounds/ nic nie traci
+    # Prefer bundled files (CC0, see sounds/LICENSES.md). Fall back to system sounds so
+    # old installs without sounds/ lose nothing.
     wlasny = os.path.join(BASE, "sounds", SOUND_ALIAS.get(key, key) + ".wav")
     if os.path.exists(wlasny):
         popen_bg(["afplay", wlasny])
@@ -1142,29 +1139,32 @@ def play_sound(cfg, key):
 
 
 def push(cfg, title, text):
-    """Push na telefon przez ntfy.sh — dziala wszedzie, gdzie stoi aplikacja ntfy z tym
-    samym tematem. Popen + limit czasu: brak internetu nie moze zatrzymac petli."""
-    # `notify: false` musi wyciszyc TAKZE push. Bramka byla dotad tylko w notify(),
-    # a banner() wolal push() bezposrednio - wiec przy wylaczonych powiadomieniach
-    # telefon i tak dostawal wiadomosc co 180 s przez caly czas poziomu krytycznego.
+    """Send a phone push through ntfy.sh.
+
+    Works anywhere the ntfy app subscribes to the same topic. Uses Popen plus timeout:
+    missing internet must not stop the loop.
+    """
+    # `notify: false` must silence push too. The gate used to exist only in notify(), while
+    # banner() called push() directly, so disabled notifications still sent a phone message
+    # every 180 s during a critical level.
     if not cfg.get("notify", True):
         return
     topic = (cfg.get("ntfy_topic") or "").strip()
-    # Temat idzie do URL-a bez cytowania, wiec musi byc bezpieczny sam z siebie.
-    # Zmierzone: "sekret#tajne" publikuje na "sekret" (curl obcina fragment), a
-    # "sekret?tajne" - na "sekret" z ogonem jako parametrami sterujacymi ntfy.
-    # Czyli uzytkownik mysli, ze ma temat 12-znakowy, a ma 6-znakowy.
+    # The topic goes into a URL without quoting, so it must be safe on its own.
+    # Measured: "sekret#tajne" publishes to "sekret" because curl trims the fragment,
+    # and "sekret?tajne" publishes to "sekret" with the tail as ntfy control parameters.
+    # The user thinks they have a 12-character topic, but actually has a 6-character one.
     if not topic or not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", topic):
         if topic:
             log("ntfy: temat %r ma niedozwolone znaki albo dlugosc - push wylaczony "
                 "(dozwolone: litery, cyfry, _ i -, do 64 znakow)" % topic[:80])
         return
-    # TEMAT NIE MOZE STAC W ARGV. `ps -Ao args=` czyta kazdy uzytkownik maszyny, a temat
-    # ntfy jest JEDYNYM zabezpieczeniem tego kanalu: kto go zna, czyta cudze alerty
-    # (temperatury, nazwy zadan, twarde pady) i moze wysylac falszywe. Dotad siedzial
-    # w URL-u przy KAZDYM powiadomieniu. Dlatego publikujemy przez JSON na stdin:
-    # w argv zostaje samo "curl -s -m 10 -H Content-Type... -d @- https://ntfy.sh/".
-    # `-d @-` czyta cialo ze stdin, wiec ani temat, ani tresc nie wychodza na zewnatrz.
+    # The topic MUST NOT appear in argv. Every local user can read `ps -Ao args=`, and the
+    # ntfy topic is the only secret protecting this channel: whoever knows it can read
+    # alerts (temperatures, job names, hard shutdowns) and send fake ones. Publish through
+    # JSON on stdin so argv contains only "curl -s -m 10 -H Content-Type... -d @-
+    # https://ntfy.sh/". `-d @-` reads the body from stdin, so neither topic nor content
+    # leaks through argv.
     cialo = json.dumps({"topic": topic,
                         "title": title.replace("\n", " ").replace("\r", " "),
                         "message": text}, ensure_ascii=False)
@@ -1183,7 +1183,7 @@ def notify(cfg, title, text, key="default"):
     script = 'display notification %s with title %s' % (
         json.dumps(text), json.dumps(title))
     popen_bg(["osascript", "-e", script])
-    # ten sam odstep czasowy co powiadomienie — telefon nie moze dostawac wiecej niz ekran
+    # Same gap as the screen notification; the phone must not receive more than the screen.
     push(cfg, title, text)
 
 
@@ -1191,11 +1191,12 @@ _last_banner = {"t": 0.0}
 
 
 def banner(cfg, title, text):
-    """Modalny alert na wierzchu wszystkiego — tylko poziom krytyczny.
+    """Show a modal alert above everything, only for critical level.
 
-    Popen, nie call: osascript wisi do klikniecia OK, a petla guarda nie moze stac
-    ani sekundy. `giving up after` zdejmuje okno samo, wiec po nocy nie zastaje sie
-    stosu okien — a kazdy kolejny alert i tak jest trzymany wlasnym odstepem czasowym.
+    Uses Popen, not call: osascript waits until OK is clicked, and the guard loop cannot
+    block for even a second. `giving up after` closes the window by itself, so an overnight
+    critical state does not leave a stack of windows. Each later alert is still governed by
+    its own gap.
     """
     if not cfg.get("critical_banner", True):
         return
@@ -1204,14 +1205,14 @@ def banner(cfg, title, text):
     if t - _last_banner["t"] < gap:
         return
     _last_banner["t"] = t
-    play_sound(cfg, "critical")   # ogien: "krytycznie" ma brzmiec inaczej niz "goraco"
+    play_sound(cfg, "critical")   # fire: "critical" should sound different from "hot"
     script = 'display alert %s message %s as critical giving up after %d' % (
         json.dumps(title), json.dumps(text), int(gap))
     popen_bg(["osascript", "-e", script])
     push(cfg, title, text)
 
 
-# ---------------------------------------------------------------- czujniki
+# ---------------------------------------------------------------- sensors
 
 def thermal_state():
     for exe in (os.path.join(HOME, ".local/bin/thermalstate"), "thermalstate"):
@@ -1222,12 +1223,12 @@ def thermal_state():
 
 
 def normalize_batt_temp(raw):
-    """Temperatura ogniwa w C, niezaleznie od jednostki raportowanej przez kontroler.
+    """Return cell temperature in C, independent of controller units.
 
-    Uklady pomiarowe baterii roznia sie miedzy modelami Makow: jedne podaja setne stopnia
-    (3081 = 30,81 C), inne dziesiate (444 = 44,4 C), a niektore pola cale stopnie (41 = 41 C).
-    Sztywne dzielenie przez 100 daje na czesci maszyn absurdy w rodzaju 444 C albo 0,4 C,
-    dlatego skalujemy do przedzialu fizycznie mozliwego dla ogniwa litowego.
+    Battery measurement units differ across Mac models: some report hundredths of a degree
+    (3081 = 30.81 C), some tenths (444 = 44.4 C), and some whole degrees (41 = 41 C).
+    Dividing by 100 unconditionally produces nonsense such as 444 C or 0.4 C on some
+    machines, so the value is scaled into the physically possible range for a lithium cell.
     """
     try:
         v = float(raw)
@@ -1241,7 +1242,7 @@ def normalize_batt_temp(raw):
 
 
 def battery_temp_c():
-    """Temperatura pakietu baterii w C (None gdy brak baterii)."""
+    """Return battery-pack temperature in C, or None when there is no battery."""
     out = run(["ioreg", "-r", "-c", "AppleSmartBattery", "-d", "1", "-w", "0"], timeout=15)
     best = None
     for key in ('"Temperature"', '"VirtualTemperature"'):
@@ -1253,25 +1254,24 @@ def battery_temp_c():
     return best
 
 
-# UWAGA na wartosc startowa. Wczesniej bylo 0.0 i to sie zemscilo: Apple'owy
-# /usr/bin/python3 (tym launchd uruchamia demona) liczy time.monotonic() OD ZERA
-# w kazdym procesie, wiec przez pierwsze 10 sekund zycia demona warunek swiezosci
-# wychodzil prawdziwy i soc_sensors() oddawalo startowe None, ani razu nie pytajac
-# macmona. Straznik meldowal wtedy "brak czujnika chipa" i przez pierwszy cykl
-# pilnowal wylacznie baterii. None znaczy "jeszcze nie czytalem" niezaleznie od
-# tego, od czego dany Python zaczyna liczyc.
+# Be careful with the initial value. 0.0 was wrong: Apple's /usr/bin/python3, used by
+# launchd to start the daemon, counts time.monotonic() from zero in each process. During
+# the first 10 seconds, the freshness condition was true and soc_sensors() returned the
+# initial None without calling macmon once. The guard reported "no chip sensor" and watched
+# only the battery for the first cycle. None means "not read yet" regardless of where this
+# Python starts counting.
 _soc_cache = {"t": None, "val": None}
 
 
 def soc_sensors(max_age=10.0):
-    """Temperatura chipa, wentylatory i pobor mocy przez `macmon` (IOReport, bez sudo).
+    """Return chip temperature, fans, and power draw from `macmon`.
 
-    Zwraca dict: {"cpu": C, "gpu": C, "fans": [rpm], "watts": W} albo None gdy macmon
-    niedostepny. Wynik jest cache'owany, bo jedno probkowanie kosztuje ~1 s — a petla
-    guarda chodzi co 15 s i pyta o to w kilku miejscach.
+    Uses IOReport without sudo. Returns dict {"cpu": C, "gpu": C, "fans": [rpm],
+    "watts": W}, or None when macmon is unavailable. The result is cached because one
+    sample costs ~1 s, while the guard loop runs every 15 s and asks in several places.
 
-    UWAGA: na macOS 26 sensory przez IOHIDEventSystem sa juz zablokowane dla procesow
-    bez uprawnien (dlatego wlasny czujnik Swift zwracal zero) — IOReport nadal dziala.
+    On macOS 26, sensors through IOHIDEventSystem are blocked for unprivileged processes,
+    which made the custom Swift sensor return zero. IOReport still works.
     """
     if _soc_cache["t"] is not None and 0 <= time.monotonic() - _soc_cache["t"] < max_age:
         return _soc_cache["val"]
@@ -1289,7 +1289,7 @@ def soc_sensors(max_age=10.0):
         cpu = t.get("cpu_temp_avg")
         gpu = t.get("gpu_temp_avg")
         fans = [int(f.get("rpm") or 0) for f in (d.get("fans") or [])]
-        # bezczynne GPU potrafi zwrocic smiec (2-3 C) — ponizej 10 C traktujemy jako brak odczytu
+        # An idle GPU can return junk (2-3 C); below 10 C means no reading.
         def sane(v):
             return float(v) if isinstance(v, (int, float)) and 10.0 < v < 130.0 else None
 
@@ -1311,7 +1311,7 @@ def soc_sensors(max_age=10.0):
 
 
 def soc_temp_c():
-    """Najgoretszy punkt ukladu (CPU albo GPU) w C, albo None."""
+    """Return the hottest SoC point, CPU or GPU, in C, or None."""
     s = soc_sensors()
     if not s:
         return None
@@ -1320,7 +1320,7 @@ def soc_temp_c():
 
 
 def disk_usage():
-    """Miejsce na dysku systemowym: (zajete_GB, calosc_GB, procent_zajety)."""
+    """Return system disk usage as (used_GB, total_GB, used_percent)."""
     try:
         st = os.statvfs("/System/Volumes/Data")
     except Exception:
@@ -1330,7 +1330,7 @@ def disk_usage():
             return None
     GB = float(1024 ** 3)
     total = st.f_blocks * st.f_frsize / GB
-    # f_bavail, nie f_bfree: to miejsce realnie dostepne dla uzytkownika
+    # Use f_bavail, not f_bfree: this is space actually available to the user.
     free = st.f_bavail * st.f_frsize / GB
     if total <= 0:
         return None
@@ -1338,7 +1338,7 @@ def disk_usage():
 
 
 def power_source():
-    """(na_zasilaczu: bool, procent_baterii: int|None)."""
+    """Return (on_ac: bool, battery_percent: int|None)."""
     out = run(["pmset", "-g", "batt"], timeout=10)
     ac = "AC Power" in out
     m = re.search(r"(\d+)%", out)
@@ -1346,7 +1346,7 @@ def power_source():
 
 
 def cpu_speed_limit():
-    """Procent dostepnej mocy CPU wg macOS (100 = brak throttlingu)."""
+    """Return available CPU power percent according to macOS, where 100 means no throttling."""
     out = run(["pmset", "-g", "therm"])
     m = re.search(r"CPU_Speed_Limit\s*=\s*(\d+)", out)
     return int(m.group(1)) if m else 100
@@ -1368,7 +1368,7 @@ def ncpu():
 
 
 def list_procs():
-    """[(pid, ppid, cpu, comm, args)] procesow biezacego uzytkownika."""
+    """Return [(pid, ppid, cpu, comm, args)] for processes owned by the current user."""
     out = run(["ps", "-Ao", "pid=,ppid=,pcpu=,uid=,comm=", "-c"], timeout=15)
     uid = os.getuid()
     res = []
@@ -1387,14 +1387,13 @@ def list_procs():
 
 
 def pierwszoplanowy_na_tty(pid):
-    """Czy proces jest liderem PIERWSZOPLANOWEJ grupy swojego terminala?
+    """Return whether a process leads its terminal foreground group.
 
-    Jesli pgid == tpgid, to wlasnie ten proces ma klawiature. SIGSTOP na nim sprawia,
-    ze powloka odbiera terminal; pozniejszy SIGCONT wznawia go w TLE, wiec przy pierwszej
-    probie czytania klawiatury dostaje SIGTTIN i znow staje - petla, ktorej demon nie
-    przerwie (nie moze zrobic tcsetpgrp na cudzym tty). Jedyne wyjscie to `fg` wpisane
-    przez czlowieka. Takich procesow NIE WOLNO pauzowac (Neo, 31.07.2026: 8 zabitych
-    procesow, dwie sesje agenta AI).
+    If pgid == tpgid, this process owns the keyboard. SIGSTOP makes its shell retake the
+    terminal; a later SIGCONT resumes it in the background, so the first keyboard read gets
+    SIGTTIN and stops again. The daemon cannot break that loop because it cannot tcsetpgrp
+    someone else's tty. The only exit is a human typing `fg`. These processes MUST NOT be
+    paused.
     """
     out = run(["ps", "-o", "pgid=,tpgid=", "-p", str(pid)]).split()
     if len(out) >= 2:
@@ -1411,47 +1410,46 @@ def full_args(pid):
     return out.strip()
 
 
-# Programy, ktore SAME nic nie znacza - tozsamosc procesu niesie ich pierwszy argument
-# (skrypt albo modul). Dla nich argv[1] traktujemy jak nazwe programu.
+# Programs whose own name says nothing. Their process identity is carried by the first
+# argument, a script or module. Treat argv[1] as the program name for them.
 INTERPRETERY = frozenset((
     "node", "nodejs", "deno", "bun", "python", "ruby", "perl", "php", "java",
     "sh", "bash", "zsh", "osascript", "tsx", "ts-node", "uv", "uvx", "pipx", "npx",
 ))
 
-# Nazwy z numerem wersji (python3.14, ruby3.3, node20, perl5.34). Twarda lista wersji
-# ZAWSZE zostaje w tyle za instalacja uzytkownika: 02.08.2026 lista konczyla sie na
-# python3.13, a `python3` na tej maszynie to juz 3.14 z homebrew. Skutek byl odwrotny
-# do zamierzonego - proces `python3.14 /sciezka/mcp_server.py` NIE byl rozpoznawany
-# jako interpreter, wiec sciezka skryptu leciala do kosza razem z danymi i agent AI
-# tracil ochrone przed SIGSTOP. Regula wersjonowana nie starzeje sie z kazdym wydaniem.
+# Versioned names (python3.14, ruby3.3, node20, perl5.34). A hard-coded version list always
+# falls behind the user's install. When the list ended at python3.13 and the machine already
+# had Homebrew python3.14, `python3.14 /path/mcp_server.py` was not recognized as an
+# interpreter, so the script path was discarded with data paths and the AI agent lost
+# SIGSTOP protection. A version pattern does not age with every release.
 INTERPRETER_WERSJONOWANY = re.compile(
     r"^(python|ruby|perl|php|node|nodejs|deno|bun)[0-9]+(\.[0-9]+)*$")
 
 
 def jest_interpreterem(nazwa):
-    """`nazwa` to basename argv[0] po zdjeciu cudzyslowow, malymi literami."""
+    """Return whether `nazwa` is a lowercased, dequoted basename of an interpreter argv[0]."""
     return nazwa in INTERPRETERY or bool(INTERPRETER_WERSJONOWANY.match(nazwa))
 
 
 def args_bez_sciezek(pid):
-    """Ta czesc linii polecen, ktora mowi CZYM jest proces - bez danych, ktore przerabia.
+    """Return the command-line part that identifies the process, without data paths.
 
-    never_arg_patterns ma rozpoznawac agenta, edytor albo serwer MCP, a nie to, co
-    proces czyta. Dopasowanie do surowej linii mylilo jedno z drugim: `ffmpeg -i
-    ~/Desktop/claude_brain/wideo/rec.mkv` trafialo we wzorzec "claude" i stawalo sie
-    nietykalne, wiec Mac grzal sie dalej.
+    never_arg_patterns must recognize an agent, editor, or MCP server, not what the process
+    reads. Matching the raw command line confused those: `ffmpeg -i
+    ~/Desktop/claude_brain/wideo/rec.mkv` matched "claude", became untouchable, and kept
+    heating the Mac.
 
-    Pierwsza proba (biala lista rozszerzen danych) miala dwadziescia obejsc, ktore
-    znalazl fuzzer: .braw, .r3d, .mxf, .heif, spacja w sciezce (ps skleja argv
-    spacjami), sciezka w cudzyslowach, argument bedacy katalogiem. Kazde z nich
-    czynilo zwykly enkoder nietykalnym. Odwrotnie tez: `python3 ~/claude/agent.pt`
-    tracil ochrone, bo .pt bylo na liscie danych.
+    The first attempt, an extension allowlist for data, had many bypasses found by fuzzing:
+    .braw, .r3d, .mxf, .heif, spaces in paths because ps joins argv with spaces, quoted
+    paths, and directory arguments. Each made a normal encoder untouchable. The inverse
+    also happened: `python3 ~/claude/agent.pt` lost protection because .pt was on the data
+    list.
 
-    Dlatego regula jest teraz strukturalna, nie slownikowa:
-      argv[0]                     - zawsze tozsamosc (nazwa programu),
-      argv[1] przy interpreterze  - tozsamosc (to skrypt albo modul),
-      argumenty bez ukosnika      - tozsamosc (flagi, nazwy modulow: -m mcp.server),
-      pozostale sciezki           - DANE, nie biora udzialu w dopasowaniu.
+    The rule is therefore structural, not dictionary-based:
+      argv[0]                     - always identity, the program name
+      argv[1] with an interpreter - identity, a script or module
+      arguments without slash     - identity, flags and module names such as -m mcp.server
+      remaining paths             - data, excluded from matching
     """
     czesci = full_args(pid).split()
     if not czesci:
@@ -1461,22 +1459,22 @@ def args_bez_sciezek(pid):
     skrypt_wziety = not interpreter
     for a in czesci[1:]:
         if "/" not in a:
-            zostaw.append(a)          # flaga albo nazwa modulu (-m mcp.server)
+            zostaw.append(a)          # flag or module name (-m mcp.server)
         elif not skrypt_wziety and not a.startswith("-"):
-            # pierwszy niebedacy flaga argument interpretera to URUCHAMIANY SKRYPT,
-            # czyli tozsamosc procesu - takze wtedy, gdy przed nim byly flagi
-            # (`node --experimental-modules /sciezka/mcp-server.js`)
+            # The first non-flag interpreter argument is the SCRIPT BEING RUN, therefore
+            # process identity, even when flags came before it:
+            # `node --experimental-modules /path/mcp-server.js`.
             zostaw.append(a)
             skrypt_wziety = True
-        # reszta to sciezka do danych - pomijamy
+        # The rest is data path and is ignored.
     return " ".join(zostaw).lower()
 
 
 def top_lists(n=3):
-    """Top procesy po CPU i po RAM — do menu paska ("co grzeje / co zjada pamiec").
+    """Return top CPU and RAM processes for the menu bar.
 
-    CPU to najlepsze dostepne przyblizenie ciepla per proces (per-proces temperatury
-    nie istnieja) i tak wlasnie pasek to opisuje. RSS z ps jest w KB.
+    CPU is the best available per-process heat proxy because per-process temperatures do
+    not exist, and the menu bar labels it that way. RSS from ps is in KB.
     """
     out = run(["ps", "-Ao", "pcpu=,rss=,comm=", "-c", "-r"], timeout=15)
     rows = []
@@ -1494,13 +1492,14 @@ def top_lists(n=3):
     return cpu, ram
 
 
-# ---------------------------------------------------------------- wybor procesow
+# ---------------------------------------------------------------- process selection
 
 def managed_pids_from_saferun():
-    """PID-y zarejestrowane przez safe-run: ({pid: pgid}, {pidy z --normal}).
+    """Return PIDs registered by safe-run as ({pid: pgid}, {PIDs from --normal}).
 
-    Zbior "normal" to jawne decyzje czlowieka "ten job na wszystkich rdzeniach" -
-    degradacja na E-cores nie moze ich po cichu cofac (B1.4)."""
+    The "normal" set records explicit human decisions: this job should run on all cores.
+    Demotion to E-cores must not silently override that.
+    """
     res = {}
     normalne = set()
     try:
@@ -1509,11 +1508,11 @@ def managed_pids_from_saferun():
                 continue
             path = os.path.join(MANAGED_DIR, name)
             try:
-                # Rejestracja steruje sygnalami, wiec musi nalezec do NAS i nie moze byc
-                # zapisywalna dla nikogo innego. Na Macu z kilkoma kontami plik 0666
-                # w managed/ to gotowa dzwignia: kto go podmieni, wskazuje guardowi
-                # cel do zamrozenia. Katalog jest 0700 (ensure_dirs), ale plik moze
-                # zostac z wczesniejszej instalacji albo z recznego kopiowania.
+                # Registration controls signals, so it must belong to us and must not be
+                # writable by anyone else. On a multi-account Mac, a 0666 file in managed/
+                # is a ready lever: whoever replaces it points guard at a target to freeze.
+                # The directory is 0700 via ensure_dirs, but a file may remain from an old
+                # install or manual copy.
                 st_pliku = os.lstat(path)
                 if st_pliku.st_uid != os.getuid() or (st_pliku.st_mode & 0o022):
                     log("ignoring managed registration with unsafe ownership/permissions: %s"
@@ -1523,34 +1522,32 @@ def managed_pids_from_saferun():
                     d = json.load(f)
                 pid = int(d["pid"])
                 if alive(pid):
-                    # PID moze zostac ponownie uzyty po padzie guarda: sprawdzamy, czy
-                    # biezacy proces w ogole przypomina zarejestrowane polecenie
-                    # Tozsamosc sprawdzamy po CZASIE STARTU procesu, nie po nazwie.
-                    # Poprzednio porownywalismy `ps comm` (nazwa INTERPRETERA: bash,
-                    # Python) z basename polecenia (kompresor.sh) - dla kazdego skryptu
-                    # z shebangiem to sie nie zgadzalo, wiec guard kasowal wlasna
-                    # rejestracje zaraz po jej powstaniu. Skutek zaobserwowany na zywym
-                    # zadaniu 02.08.2026: managed/ pusty przy dzialajacej kompresji,
-                    # `jobs: []` w statusie, utracony pgid i flaga "normal".
+                    # A PID can be reused after guard crashes, so check whether the current
+                    # process still resembles the registered command.
+                    # Identity is checked by process START TIME, not name. Comparing `ps
+                    # comm` (the INTERPRETER name: bash, Python) with the command basename
+                    # (compressor.sh) failed for every shebang script, so guard deleted its
+                    # own registration right after it was created. The effect was managed/
+                    # empty during live compression, `jobs: []` in status, and lost pgid and
+                    # "normal" flag.
                     zarejestrowany_start = d.get("started")
                     if zarejestrowany_start:
                         wiek = proc_age_seconds(pid)
                         realny_start = now() - wiek
-                        # 90 s luzu: etime ma rozdzielczosc sekundy, a rejestracja
-                        # powstaje chwile po starcie procesu
+                        # 90 s slack: etime has one-second resolution, and registration is
+                        # created shortly after process start.
                         if wiek and abs(realny_start - float(zarejestrowany_start)) > 90:
-                            os.unlink(path)     # PID przejety przez inny proces
+                            os.unlink(path)     # PID was taken by another process
                             continue
-                    # PGID BIERZEMY Z JADRA, nie z pliku. Rejestracja to zwykly JSON
-                    # na dysku; `pgid` przepisany z niej doslownie kierowal SIGSTOP
-                    # i SIGKILL do DOWOLNEJ grupy procesow, ktora ktos tam wpisal.
-                    # Odtworzone 02.08.2026: plik {"pid": A, "pgid": B} - guard
-                    # sygnalizowal grupe B, czyli NIE zarejestrowane zadanie.
-                    # Jadro zna prawde i nie da sie jej podmienic edycja pliku.
+                    # Read PGID from the kernel, not the file. Registration is plain JSON
+                    # on disk; trusting its `pgid` literally sent SIGSTOP and SIGKILL to any
+                    # process group someone wrote there. A file {"pid": A, "pgid": B} made
+                    # guard signal group B, not the registered job. The kernel knows the
+                    # truth, and editing the file cannot change it.
                     try:
                         res[pid] = os.getpgid(pid)
                     except OSError:
-                        # proces zniknal miedzy alive() a tym wywolaniem
+                        # The process disappeared between alive() and this call.
                         continue
                     if d.get("normal"):
                         normalne.add(pid)
@@ -1576,36 +1573,35 @@ def alive(pid):
 
 
 def zatrzask_czujnika(st, klucz, wartosc, prog_pauzy, prog_wznowienia):
-    """Histereza JEDNEGO czujnika: czy on sam trzyma jeszcze maszyne w stanie goracym.
+    """Apply hysteresis for one sensor and return whether that sensor still holds hot.
 
-    Zatrzask zapala sie na WLASNYM progu pauzy i gasnie na WLASNYM progu wznowienia,
-    a miedzy nimi pamieta poprzednia decyzje. Dzieki temu czujnik moze blokowac
-    wznowienie tylko wtedy, gdy sam kiedys kazal pauzowac. Wczesniej bramka byla
-    niesymetryczna - pauze wywolywal dowolny czujnik, a wznowienie blokowal kazdy -
-    wiec bateria trzymajaca 37 C (trzy stopnie ponizej wlasnego progu 40 C, ktorego
-    nigdy nie przekroczyla) nie pozwalala wrocic zadaniu zapauzowanemu przez CHIP.
-    Log Pawla 04.08.2026: 15 pauz, ZERO wznowien, dwa zadania ubite po 45 minutach.
+    The latch turns on at its own pause threshold, turns off at its own resume threshold,
+    and remembers the previous decision between them. That lets a sensor block resume only
+    if it once requested pause itself. The older gate was asymmetric: any sensor could
+    trigger pause, but every sensor blocked resume. A battery holding 37 C, three degrees
+    below its own 40 C pause threshold and never having crossed it, kept a CHIP-paused job
+    from resuming: 15 pauses, zero resumes, and two jobs terminated after 45 minutes.
 
-    DLACZEGO TYLKO BATERIA. Chipowi zostaje stary, surowy prog wznowienia i tak ma byc:
-    jest OSTRZEJSZY od zatrzasku (blokuje w calym pasmie 87-95 C, niezaleznie od tego,
-    co wywolalo pauze), a patologii baterii miec nie moze, bo zamrozony chip schodzi
-    z 95 do 71 C w dwadziescia sekund. Zatrzask na chipie pozwalalby wznowic zadanie
-    przy 94 C, gdyby pauze wywolal `thermalState` - czyli kupowalibysmy migotanie
-    za nic (sluszna uwaga z recenzji, 04.08.2026).
+    This latch is for the battery only. The chip keeps the old raw resume threshold, which
+    is stricter than a latch because it blocks across the whole 87-95 C band regardless of
+    what triggered pause. The chip also cannot have the battery pathology: a frozen chip
+    drops from 95 to 71 C in twenty seconds. A chip latch would allow resume at 94 C if
+    `thermalState` caused the pause, buying flicker for no benefit.
 
-    Brak odczytu gasi zatrzask - dokladnie jak w kodzie sprzed zmiany, gdzie `temp is None`
-    znaczylo "nie blokuje". Nieobecny czujnik nie moze byc powodem, dla ktorego obliczenie
-    stoi az do SIGTERM-a; brak pomiaru widac osobno (poziom, `sensor`) i tam ma byc decyzja.
+    Missing readings clear the latch, matching the previous `temp is None` meaning of "does
+    not block". An absent sensor must not be the reason a computation waits until SIGTERM;
+    missing measurement is visible separately through level and `sensor`, where the policy
+    decision belongs.
 
-    Zmiana progu w locie kasuje zatrzask (kalibracja, suwak, edycja `config.json`):
-    zapalil sie wzgledem STAREJ pary progow, wiec wobec nowej nie znaczy juz nic.
+    A threshold change at runtime clears the latch (calibration, slider, or config.json
+    edit): it was set relative to the old threshold pair and no longer means anything under
+    the new pair.
 
-    SWIADOMY KOMPROMIS: zatrzask zyje w `st` i NIE przezywa restartu demona. Po
-    restarcie bateria w pasmie 36-40 C nie blokuje wznowienia, nawet jesli przed
-    restartem sama wywolala pauze. Cena jest niska (chwilowo liberalniejsza bramka
-    raz na restart), a alternatywa - utrwalanie zatrzasku na dysku - dawalaby
-    odwrotna patologie: zatrzask z poprzedniej epoki progow trzymajacy zadanie
-    w T bez powodu (runda przegladu 3, 05.08.2026).
+    Deliberate compromise: the latch lives in `st` and does not survive daemon restart.
+    After restart, a battery in the 36-40 C band will not block resume, even if it caused
+    pause before restart. The cost is a briefly more liberal gate once per restart. The
+    alternative, persisting the latch to disk, creates the opposite failure: a latch from an
+    old threshold era holding a job in T with no reason.
     """
     prog_klucz = klucz + "_prog"
     progi = [prog_pauzy, prog_wznowienia]
@@ -1622,30 +1618,29 @@ def zatrzask_czujnika(st, klucz, wartosc, prog_pauzy, prog_wznowienia):
 
 
 def zatrzymane_teraz():
-    """JEDEN `ps` na cykl: (zbior zatrzymanych pidow, zbior grup z zatrzymanym czlonkiem).
+    """Return stopped PIDs and groups with stopped members using one `ps` per cycle.
 
-    Wpis w `st["paused"]` mowi tylko, ze guard KIEDYS wyslal SIGSTOP - nie, ze proces
-    stoi TERAZ. Obudzic go moze czlowiek (`kill -CONT`), debugger albo duty-limiter
-    safe-run. Guard, ktory ufa wlasnej notatce zamiast systemowi, po `max_pause_minutes`
-    strzela SIGTERM-em w zadanie pracujace pelna para - i tak zginal pomiar Pawla
-    04.08.2026 o 20:27, 25 minut po tym, jak recznie je wznowil.
+    A `st["paused"]` entry means only that guard once sent SIGSTOP, not that the process is
+    stopped now. A human (`kill -CONT`), debugger, or safe-run duty limiter can wake it.
+    A guard that trusts its own note instead of the system can send SIGTERM after
+    `max_pause_minutes` to a job running at full speed.
 
-    GRUPY sa tu rownie wazne jak pidy: guard mrozi cala grupe (`killpg`), a wznowic
-    recznie mozna sam jej sygnal wejsciowy. Gdyby wpis kasowac po samym liderze,
-    zatrzymane dziecko zostaloby bez jedynej notatki, przez ktora ktokolwiek mogby
-    je wznowic - czyli w stanie T na zawsze (uwaga z recenzji, 04.08.2026).
+    Groups matter as much as PIDs here: guard freezes the whole group (`killpg`), while a
+    manual resume may signal only the entry process. If the entry were removed based only
+    on the leader, a stopped child would lose the only note anyone could use to resume it,
+    leaving it in T forever.
 
-    Jeden `ps -Ao` zamiast jednego `ps` na wpis: przy kilkudziesieciu zamrozonych
-    zadaniach petla forkowala tyle samo procesow co cykl.
+    One `ps -Ao` replaces one `ps` per entry. With dozens of frozen jobs, the loop used to
+    fork that many processes every cycle.
     """
     linie = run(["ps", "-Ao", "pid=,pgid=,stat="]).splitlines()
     if not linie:
-        # NIEUDANY POMIAR TO NIE JEST POMIAR "nic nie stoi". `run()` zwraca pusty napis
-        # przy kazdym bledzie i timeoucie, a na zywej maszynie `ps -Ao` ma zawsze
-        # kilkaset linii. Gdyby pustke czytac doslownie, guard uznalby KAZDY wpis za
-        # "obudzony poza guardem", skasowal go - i zamrozone zadanie zostaloby w stanie T
-        # bez jedynej notatki, przez ktora ktokolwiek mogby je wznowic (uwaga z recenzji,
-        # runda 2). None znaczy "nie wiem" i wstrzymuje decyzje o cudzym zyciu.
+        # A failed measurement is not a measurement of "nothing is stopped". `run()`
+        # returns an empty string for every error and timeout, while `ps -Ao` on a live
+        # machine always has hundreds of lines. Reading emptiness literally would mark
+        # EVERY entry as "resumed outside guard", delete it, and leave frozen jobs in T
+        # without the only note anyone could use to resume them. None means "unknown" and
+        # blocks decisions about another process's life.
         return None
     pidy, grupy = set(), set()
     for linia in linie:
@@ -1661,7 +1656,7 @@ def zatrzymane_teraz():
 
 
 def wpisy_nieaktualne(paused, stoja):
-    """Wpisy po zadaniach, ktore ktos wznowil poza guardem - do skasowania."""
+    """Return entries for jobs resumed outside guard, to be deleted."""
     if stoja is None:
         return []
     return [k for k, v in paused.items()
@@ -1669,7 +1664,7 @@ def wpisy_nieaktualne(paused, stoja):
 
 
 def wpisy_przeterminowane(paused, limit_s, stoja):
-    """Wpisy starsze niz limit, ktorych zadanie NAPRAWDE stoi - tylko te wolno ubic."""
+    """Return over-limit entries whose jobs are REALLY stopped; only those may be killed."""
     if stoja is None:
         return []
     return [k for k, v in paused.items()
@@ -1677,13 +1672,12 @@ def wpisy_przeterminowane(paused, limit_s, stoja):
 
 
 def bramka_wznowienia(cfg, st, temp, soc_t, state):
-    """Czy wolno wznowic zamrozone zadania: KAZDY czujnik musi zejsc z powrotem.
+    """Return whether frozen jobs may resume.
 
-    Bateria przez zatrzask (blokuje tylko gdy sama przekroczyla swoj prog pauzy),
-    chip przez surowy prog wznowienia, stan systemowy przez poziom. Cala decyzja
-    siedzi w jednej funkcji, zeby test sprawdzal TO, co wykonuje demon - a nie
-    wlasna kopie tego wyrazenia (uwaga z recenzji, runda 2: skopiowany warunek w tescie
-    przechodzi takze wtedy, gdy w produkcji ktos zepsuje oryginal).
+    Every sensor must drop back: battery through the latch, which blocks only if it crossed
+    its own pause threshold; chip through the raw resume threshold; system state through
+    level. The full decision lives in one function so tests check what the daemon executes,
+    not a copied expression that could pass after production logic is broken.
     """
     batt_trzyma = zatrzask_czujnika(st, "_batt_hot", temp,
                                     cfg["batt_pause_c"], cfg["batt_resume_c"])
@@ -1692,10 +1686,10 @@ def bramka_wznowienia(cfg, st, temp, soc_t, state):
 
 
 def wpis_stoi(key, info, pidy, grupy):
-    """Czy zadanie z tego wpisu NAPRAWDE stoi - samo albo czymkolwiek ze swojej grupy.
+    """Return whether this entry's job is REALLY stopped, directly or through its group.
 
-    Nieznany stan (proces zniknal, `ps` nie odpowiada) znaczy "nie stoi": do ubicia
-    potrzebujemy DOWODU, ze cos stoi, a nie braku dowodu, ze nie stoi.
+    Unknown state, such as a vanished process or unresponsive `ps`, means "not stopped":
+    termination requires proof that something is stopped, not a lack of proof that it is not.
     """
     try:
         if int(key) in pidy:
@@ -1710,7 +1704,7 @@ def wpis_stoi(key, info, pidy, grupy):
 
 
 def proc_age_seconds(pid):
-    """Ile sekund proces zyje (ps etime: [[dd-]hh:]mm:ss)."""
+    """Return process age in seconds from ps etime: [[dd-]hh:]mm:ss."""
     out = run(["ps", "-o", "etime=", "-p", str(pid)]).strip()
     if not out:
         return 0
@@ -1725,13 +1719,13 @@ def proc_age_seconds(pid):
 
 
 def cpu_z_dziecmi(procs):
-    """CPU procesu wraz z calym poddrzewem potomkow.
+    """Return CPU usage for each process including its whole child subtree.
 
-    Bez tego bezpiecznik jest slepy na najgrozniejszy uklad: orkiestrator (python), ktory
-    sam nie zuzywa nic, ale w petli rozsiewa krotkie, ciezkie procesy (cadical, solvery,
-    ffmpeg). Pojedyncze dziecko zyje sekunde i znika, wiec nigdy nie zlapie sie na prog,
-    a Mac grzeje sie od ich sumy. Liczac poddrzewo widzimy prawdziwego sprawce i mozemy
-    zamrozic ZRODLO — wtedy nowe dzieci przestaja powstawac.
+    Without this, the guard is blind to the worst shape: an orchestrator (python) that uses
+    no CPU itself but repeatedly spawns short, heavy children (cadical, solvers, ffmpeg).
+    Each child lives for a second and disappears before hitting a threshold, while their sum
+    heats the Mac. Counting the subtree exposes the real culprit and lets guard freeze the
+    source, so new children stop appearing.
     """
     dzieci = {}
     wlasne = {}
@@ -1743,9 +1737,9 @@ def cpu_z_dziecmi(procs):
     def licz(pid, glebokosc=0):
         if pid in suma:
             return suma[pid]
-        if glebokosc > 20:          # zabezpieczenie przed cyklem w tablicy procesow
+        if glebokosc > 20:          # guard against a cycle in the process table
             return wlasne.get(pid, 0.0)
-        suma[pid] = wlasne.get(pid, 0.0)   # wstawiamy wczesniej = ochrona przed rekurencja
+        suma[pid] = wlasne.get(pid, 0.0)   # insert early to guard against recursion
         total = wlasne.get(pid, 0.0)
         for d in dzieci.get(pid, []):
             if d != pid:
@@ -1762,11 +1756,12 @@ _NIETYKALNI_PODCIAG = {}
 
 
 def _loguj_nietykalny_podciag(comm, wzorzec, cpu):
-    """Raz na godzine na proces - log ma informowac, nie zalewac.
+    """Log at most once per hour per process.
 
-    10 minut bylo za czesto: corespotlightd potrafi mielec indeksowanie caly dzien
-    i sam zapelnial log (kilkanascie wpisow na dobe o tym samym, 05.08.2026).
-    Jeden wpis na godzine dalej odpowiada na pytanie "czemu guard tego nie rusza"."""
+    The log should inform, not flood. 10 minutes was too often: corespotlightd can grind
+    indexing all day and fill the log with repeated entries. One entry per hour still
+    answers "why did guard not touch this".
+    """
     teraz = now()
     if teraz - _NIETYKALNI_PODCIAG.get(comm, 0) < 3600:
         return
@@ -1776,16 +1771,16 @@ def _loguj_nietykalny_podciag(comm, wzorzec, cpu):
         % (comm, cpu, wzorzec))
 
 
-_DEMOTE_ONLY = []   # napelniane przy kazdym pick_targets; czyta je snapshot()
+_DEMOTE_ONLY = []   # filled on every pick_targets; read by snapshot()
 
 
 def pick_targets(cfg, procs, saferun):
-    """Procesy ktore wolno pauzowac, posortowane po CPU malejaco.
+    """Return pausable processes sorted by descending CPU.
 
-    Efekt uboczny: przeladowuje `_DEMOTE_ONLY` - systemowe demony indeksowania,
-    ktorych NIE WOLNO pauzowac ani ubijac (lista never), ale wolno je zepchnac
-    na E-cores. Ida OSOBNYM kanalem, zeby nigdy nie trafily do do_pause,
-    do_terminate ani do listy kandydatow do recznego zamrozenia w pasku.
+    Side effect: reloads `_DEMOTE_ONLY` with system indexing daemons that MUST NOT be
+    paused or killed (never list), but may be pushed to E-cores. They travel through a
+    separate channel so they never reach do_pause, do_terminate, or the menu-bar manual
+    freeze candidate list.
     """
     me = os.getpid()
     del _DEMOTE_ONLY[:]
@@ -1795,50 +1790,47 @@ def pick_targets(cfg, procs, saferun):
     drzewo = cpu_z_dziecmi(procs) if cfg.get("count_children", True) else {}
     out = []
     for pid, ppid, cpu, comm in procs:
-        cpu = max(cpu, drzewo.get(pid, 0.0))   # ocena po calym poddrzewie
+        cpu = max(cpu, drzewo.get(pid, 0.0))   # evaluate the whole subtree
         if pid in (me, os.getppid()) or pid <= 1:
             continue
         if cpu < cfg["cpu_min_percent"]:
             continue
         low = comm.lower()
         if pid in saferun:
-            # Nietykalny zostaje nietykalny NIEZALEZNIE od zrodla. Wpis w managed/
-            # omijal dotad wszystkie listy, wiec nieaktualna albo podlozona rejestracja
-            # potrafila zamrozic powloke uzytkownika albo agenta AI - czyli dokladnie
-            # to, przed czym lista `never` mial bronic.
+            # Untouchable stays untouchable REGARDLESS of source. A managed/ entry used
+            # to bypass every list, so a stale or planted registration could freeze the
+            # user's shell or AI agent, exactly what `never` is meant to prevent.
             if any(n in low for n in never):
                 continue
             out.append((pid, cpu, comm, saferun[pid]))
             continue
         trafienie = next((n for n in never if n in low), None)
         if trafienie:
-            # Wariant A (decyzja Pawla 06.08.2026): systemowy demon indeksowania jest
-            # dalej NIETYKALNY dla pauzy i ubicia, ale idzie osobnym kanalem do
-            # degradacji na E-cores. Log "untouchable" dla niego milknie, bo odpowiedz
-            # na "czemu guard tego nie rusza" brzmi teraz: ruszy, taskpolicy -b.
+            # System indexing daemons remain UNTOUCHABLE for pause and termination, but
+            # travel through a separate channel for E-core demotion. The "untouchable" log
+            # is silent for them because the answer to "why did guard not touch this" is
+            # now: it will, via taskpolicy -b.
             if any(w in low for w in system_demote):
                 _DEMOTE_ONLY.append((pid, cpu, comm, None))
                 continue
-            # DOPASOWANIE PO PODCIAGU JEST SWIADOME i ma zostac. Asymetria ryzyka jest
-            # jednoznaczna: falszywa ochrona znaczy "Mac grzeje sie dalej", a utrata
-            # ochrony znaczy "zamrozony agent AI albo powloka uzytkownika" - czyli
-            # smierc procesu i utrata pracy (Neo, 31.07.2026). AGENTS.md zakazuje
-            # oslabiania tej listy i to jest sluszne.
+            # Substring matching is deliberate and must stay. The risk asymmetry is clear:
+            # false protection means "the Mac keeps heating", while lost protection means
+            # "frozen AI agent or user shell", process death, and lost work. AGENTS.md
+            # forbids weakening this list for good reason.
             #
-            # Kosztem jest to, ze `mds_solver` czy `sshd-worker` sa nietykalne przez
-            # `mds` i `sshd`. Nie zawezamy dopasowania - ale przestajemy o tym MILCZEC:
-            # gdy naprawde goracy proces jest pomijany przez CZESCIOWE dopasowanie,
-            # mowimy o tym w logu. Uzytkownik dostaje odpowiedz na pytanie "dlaczego
-            # bezpiecznik nie rusza tego, co mi grzeje Maca", zamiast ciszy.
+            # The cost is that `mds_solver` or `sshd-worker` are untouchable through `mds`
+            # and `sshd`. Do not narrow matching; stop being silent about it. When a truly
+            # hot process is skipped by PARTIAL matching, log it so the user can see why
+            # the guard did not touch what is heating the Mac.
             if low != trafienie and cpu >= cfg.get("unknown_cpu_percent", 50.0):
                 _loguj_nietykalny_podciag(comm, trafienie, cpu)
             continue
         if not any(p in low for p in patterns):
-            # Lista nazw jest z natury dziurawa — wlasne binarki (b3core, cadical, solvery)
-            # nigdy do niej nie pasuja, wiec bezpiecznik ich nie widzial i Mac sie gotowal.
-            # Awaryjnie bierzemy KAZDY wlasny proces, ktory dlugo zjada duzo CPU i nie jest
-            # na liscie nietykalnych. Chronia nas: never_patterns, prog CPU i czas zycia
-            # (krotkie kompilacje czy `ls` nigdy sie nie zalapia).
+            # A name list is inherently incomplete. Custom binaries (b3core, cadical,
+            # solvers) never match it, so the guard could not see them while the Mac cooked.
+            # As an emergency fallback, take EVERY owned process that has eaten high CPU for
+            # long enough and is not untouchable. The guards are never_patterns, CPU
+            # threshold, and process age; short compiles or `ls` do not qualify.
             if not cfg.get("manage_unknown_heavy", True):
                 continue
             if cpu < cfg.get("unknown_cpu_percent", 50.0):
@@ -1849,7 +1841,7 @@ def pick_targets(cfg, procs, saferun):
         if any(n.lower() in args for n in (cfg.get("never_arg_patterns") or [])):
             continue
         if cfg.get("skip_foreground_tty", True) and pierwszoplanowy_na_tty(pid):
-            continue          # interaktywna sesja na pierwszym planie - patrz funkcja wyzej
+            continue          # interactive foreground session; see the function above
         out.append((pid, cpu, comm, None))
     out.sort(key=lambda x: -x[1])
 
@@ -1857,21 +1849,19 @@ def pick_targets(cfg, procs, saferun):
 
 
 def bez_potomkow(cele, procs):
-    """Lista DO POKAZANIA: bez procesow, ktorych przodek juz na niej jest.
+    """Return the DISPLAY list, excluding processes whose ancestor is already listed.
 
-    Gdy CPU potomkow jest rolowane do rodzica (`count_children`), ten sam procesor
-    trafia na liste dwa razy: raz jako rodzic z suma poddrzewa, raz jako dziecko
-    z wlasnym zuzyciem. Zmierzone: "bash 276% CPU" obok "ffmpeg 276% CPU", przy
-    `ps` dla basha 0,0%. Licznik ciezkich procesow i okno potwierdzenia klamaly
-    dwukrotnie.
+    When child CPU is rolled up to the parent (`count_children`), the same processor lands
+    in the list twice: once as the parent with subtree total, once as the child with its own
+    usage. A measured case showed "bash 276% CPU" beside "ffmpeg 276% CPU", while `ps` for
+    bash showed 0.0%. The heavy-process counter and confirmation window both lied by 2x.
 
-    UWAGA, kosztowna lekcja: ta funkcja sluzy WYLACZNIE do prezentacji. Przez dwie
-    godziny 02.08 filtrowala liste CELOW i to bylo grozne - `pgid` jest znany tylko
-    dla zadan z `safe-run`, wiec dla reszty `sig()` robi `os.kill(pid, SIGSTOP)` na
-    JEDNYM procesie. SIGSTOP na rodzicu nie zatrzymuje istniejacych dzieci, tylko
-    powstrzymuje powstawanie nowych. Orkiestrator z dziecmi byl wiec meldowany jako
-    zapauzowany, podczas gdy dzieci mielily dalej - falszywe poczucie bezpieczenstwa
-    na maszynie po przegrzaniu. Sygnal MUSI trafiac w cale poddrzewo.
+    This function is ONLY for presentation. Filtering the target list is dangerous: `pgid`
+    is known only for `safe-run` jobs, so for everything else `sig()` does
+    `os.kill(pid, SIGSTOP)` on ONE process. SIGSTOP on the parent does not stop existing
+    children; it only prevents new ones. An orchestrator with children can be reported as
+    paused while the children keep grinding, giving false safety after overheating. Signals
+    MUST still hit the whole subtree.
     """
     if not cele:
         return cele
@@ -1894,14 +1884,16 @@ def bez_potomkow(cele, procs):
 
 
 
-# ---------------------------------------------------------------- akcje
+# ---------------------------------------------------------------- actions
 
 def load_state():
-    """Wczytuje stan i NORMALIZUJE typy. Stan pisza tez starsze wersje demona i pasek;
-    `paused` jako lista (stary format) albo wpis z kluczem nie-liczba dawaly
-    `int(key)`/`.items()` w petli glownej - czyli crashloop przy kazdym starcie,
-    z ktorego demon sam nie wychodzi (KeepAlive restartuje go w ten sam mur).
-    Zly fragment wycinamy i mowimy o tym w logu; reszta stanu zostaje."""
+    """Load state and normalize types.
+
+    Older daemon versions and the menu bar also write state. `paused` as a list (old
+    format), or an entry with a non-numeric key, crashed `int(key)` or `.items()` in the
+    main loop. That created a startup crash loop because KeepAlive restarted into the same
+    wall. Bad fragments are cut out and logged; the rest of the state remains.
+    """
     try:
         with open(STATE_PATH) as f:
             d = json.load(f)
@@ -1933,17 +1925,18 @@ def save_state(st):
             json.dump(st, f, indent=1)
         os.replace(tmp, STATE_PATH)
     except Exception as e:
-        # bez zapisu stanu po restarcie nikt nie wznowi zapauzowanych procesow
+        # Without saved state, nobody can resume paused processes after restart.
         cicha_awaria("save_state", e)
 
 
 def sig(pid, pgid, s):
-    """Wysyla sygnal; zwraca 0 przy sukcesie albo errno bledu (ESRCH/EPERM/...).
+    """Send a signal and return 0 on success or errno on failure.
 
-    Gdy sygnal do GRUPY odbije sie (jeden niesygnalizowalny czlonek blokuje calosc —
-    killpg jest atomowy), probujemy jeszcze pojedynczego pid: lepiej wstrzymac czesc
-    niz nic. Zwracany errno pozwala odroznic "proces juz nie zyje" (ESRCH, normalne)
-    od "brak uprawnien" (EPERM, ochrona realnie niepelna).
+    Error values include ESRCH, EPERM, and others. If signaling the GROUP bounces because
+    one unsignalable member blocks the whole atomic killpg, try the single PID too: stopping
+    part of the job is better than stopping nothing. The returned errno distinguishes
+    "process already dead" (ESRCH, normal) from "not permitted" (EPERM, protection is
+    actually incomplete).
     """
     import errno as _e
     blad = 0
@@ -1960,22 +1953,22 @@ def sig(pid, pgid, s):
         return ex.errno or blad or _e.EPERM
 
 
-_nie_da_sie = {}          # pid -> comm: procesy, ktorych NIE DA SIE wstrzymac (EPERM)
+_nie_da_sie = {}          # pid -> comm: processes that CANNOT be paused (EPERM)
 
 
 def licznik(st, klucz, ile=1):
-    """Skumulowane liczniki pracy bezpiecznika (state.json).
+    """Increment accumulated guard action counters in state.json.
 
-    Amphetamine liczy, ile Mac NIE spal. Dla nas wartosciowa jest liczba odwrotna:
-    ile razy bezpiecznik faktycznie zadzialal. To jest dowod, ze produkt pracuje,
-    a nie tylko wisi na pasku - i jedyna statystyka, ktorej konkurencja miec nie moze.
-    Licznikow NIGDY nie zerujemy sami; od tego jest przycisk u czlowieka.
+    Amphetamine counts how long the Mac did NOT sleep. The valuable inverse here is how
+    many times the guard actually acted. That proves the product is working instead of just
+    sitting in the menu bar, and it is the one statistic competitors cannot have. Counters
+    are NEVER reset automatically; a human button does that.
     """
     try:
-        # DWA zestawy: "stats" zyje miedzy uruchomieniami (suma od zawsze), "stats_sesja"
-        # jest zerowany przy starcie demona. Okno w pasku nazywa sie "Statystyki sesji",
-        # wiec musi miec czym pokazac SESJE - inaczej nazwa by klamala, a to ten sam blad,
-        # co liczenie recznych pauz jako zaslugi bezpiecznika.
+        # Two sets: "stats" survives launches as the all-time total, while "stats_sesja"
+        # resets at daemon start. The menu-bar window says "session statistics", so it must
+        # have a session to show. Otherwise the label lies, like counting manual pauses as
+        # guard achievements.
         for gdzie in ("stats", "stats_sesja"):
             st.setdefault(gdzie, {})
             st[gdzie].setdefault("since", now())
@@ -1996,17 +1989,16 @@ def do_pause(cfg, st, targets, reason, manual=False, lvl_krytyczny=False):
             notify(cfg, T("Thermal guard (watch-only): hot"),
                    T("Would pause %s - %s. Protection is off.") % (comm, reason), "watchonly")
             continue
-        # WPIS-INTENCJA PRZED SYGNALEM, nie po nim. Zapis po SIGSTOP zostawial okno
-        # kilku milisekund: demon ubity w nim (SIGKILL, aktualizacja, kickstart -k)
-        # zostawial proces zamrozony BEZ wpisu w stanie - czyli na zawsze, bo nikt by
-        # o nim nie wiedzial. Teraz najpierw notatka na dysku, potem strzal; gdy sygnal
-        # sie nie uda, notatke kasujemy. Sierota moze powstac juz tylko w druga strone:
-        # wpis bez pauzy, ktory sprzatnie petla (wpisy_nieaktualne) albo startowy
-        # do_resume. Jeden fsync na pauze jest tanszy niz proces w stanie T na wieki.
-        # POWOD pauzy trafia do wpisu. Bez tego bramka "wznawiaj dopiero na
-        # zasilaczu" stosowala sie do KAZDEJ pauzy, takze czysto termicznej:
-        # przy baterii 11-24% zadanie zapauzowane z powodu goracego chipu nie
-        # wracalo nigdy, mimo ze bramka baterii (10%) nie zostala przekroczona.
+        # Intent entry before signal, not after it. Writing after SIGSTOP left a millisecond
+        # window where a killed daemon (SIGKILL, update, kickstart -k) left a process frozen
+        # WITHOUT state, forever, because nobody knew about it. Now the disk note comes
+        # first, then the shot; if signaling fails, the note is removed. The only remaining
+        # orphan direction is entry without pause, which the loop (wpisy_nieaktualne) or
+        # startup do_resume cleans up. One fsync per pause is cheaper than a process in T
+        # forever.
+        # Store pause reason in the entry. Without it, the "resume only on AC" gate applied
+        # to EVERY pause, including purely thermal ones: at battery 11-24%, a job paused for
+        # hot chip never returned even though the 10% battery gate was not crossed.
         st["paused"][key] = {"since": now(), "since_mono": time.monotonic(),
                              "mono_id": _MONO_ID,
                              "powod": "bateria" if "batt" in (reason or "").lower()
@@ -2017,20 +2009,20 @@ def do_pause(cfg, st, targets, reason, manual=False, lvl_krytyczny=False):
         if blad == 0:
             changed = True
             log(T("PAUSED %s (pid %d, %.0f%% CPU) - %s") % (comm, pid, cpu, reason), tag="PAUSE")
-            # Liczymy TYLKO prace bezpiecznika. Reczne zamrozenie z paska to decyzja
-            # czlowieka, nie zasluga produktu - a okno statystyk obiecuje to drugie.
+            # Count ONLY guard work. Manual menu-bar freeze is a human decision, not a
+            # product achievement, while the statistics window promises the latter.
             if not manual:
                 licznik(st, "pauses")
         elif blad == errno.ESRCH:
-            # proces zdazyl zniknac miedzy odczytem ps a sygnalem - to normalne, nie awaria;
-            # wpis-intencja schodzi z dysku, bo nie opisuje niczego zywego
+            # The process disappeared between ps and the signal. That is normal, not a
+            # failure; remove the intent entry because it describes nothing alive.
             st["paused"].pop(key, None)
             save_state(st)
             log(T("gone before pause: %s (pid %d)") % (comm, pid))
         else:
-            # EPERM i reszta: ochrona jest REALNIE NIEPELNA - nazwa idzie do zbioru
-            # pominietych (koniec ponawiania co 15 s i zasmiecania logu) i do statusu;
-            # wpis-intencja schodzi z dysku, bo pauzy faktycznie NIE BYLO
+            # EPERM and the rest mean protection is ACTUALLY INCOMPLETE. Put the name in
+            # the skipped set to stop retrying every 15 s and polluting the log, and expose
+            # it in status. Remove the intent entry because no pause actually happened.
             st["paused"].pop(key, None)
             save_state(st)
             _nie_da_sie[pid] = comm
@@ -2042,7 +2034,7 @@ def do_pause(cfg, st, targets, reason, manual=False, lvl_krytyczny=False):
         names = ", ".join(sorted(set(v["comm"] for v in st["paused"].values())))
         notify(cfg, T("Thermal guard: hot"), T("Paused: %s (%s)") % (names, reason), "pause")
     if nieudane and lvl_krytyczny:
-        # ochrona zawiodla przy poziomie krytycznym - uzytkownik MUSI o tym wiedziec
+        # Protection failed at critical level; the user MUST know.
         notify(cfg, T("Thermal guard: PROTECTION INCOMPLETE"),
                T("Could not pause: %s (%s). The Mac stays hot - intervene manually.")
                % (", ".join(sorted(set(nieudane))), reason), key="failpause")
@@ -2050,35 +2042,33 @@ def do_pause(cfg, st, targets, reason, manual=False, lvl_krytyczny=False):
 
 
 def do_resume(cfg, st, reason, only_keys=None, po_ostygnieciu=False):
-    """Wznawia zamrozone zadania; `only_keys` ogranicza to do wskazanych wpisow.
+    """Resume frozen jobs, optionally limited to `only_keys`.
 
-    KRYTYCZNE (znalezione 04.08.2026 przez runde testowa): parametru tu NIE BYLO, a petla
-    glowna wolala `do_resume(..., only_keys=gotowe)` — czyli GLOWNA sciezka wznowienia po
-    ostygnieciu rzucala TypeError, ktory ogolny `except` petli polykal. Skutek: zadanie
-    zamrozone przy przegrzaniu NIE wracalo do pracy nigdy, tylko czekalo na SIGTERM po
-    `max_pause_minutes`. W logu Pawla: trzy pauzy po wprowadzeniu bledu, ZERO wznowien.
-    Nie zauwazono tego przez dwa dni, bo tego samego dnia podniesiono progi i maszyna
-    przestala dobijac do progu pauzy. Klasyczna cicha awaria: brak wpisu wyglada tak samo
-    jak brak potrzeby.
+    This parameter is critical. The main loop calls `do_resume(..., only_keys=gotowe)`;
+    without it, the main resume-after-cooling path raised TypeError, which the loop's broad
+    `except` swallowed. A job frozen for overheating never returned to work and only waited
+    for SIGTERM after `max_pause_minutes`. Classic silent failure: no log entry looks the
+    same as no need to act.
     """
     if not st["paused"]:
         return False
     for key, info in list(st["paused"].items()):
         if only_keys is not None and key not in only_keys:
-            continue          # reszta zostaje zamrozona swiadomie (min. czas pauzy, reczne)
+            continue          # the rest stays frozen deliberately: min pause time or manual
         pid = int(key)
         if alive(pid):
             blad = sig(pid, info.get("pgid"), signal.SIGCONT)
             stan = run(["ps", "-o", "stat=", "-p", str(pid)]).strip()
             if blad == 0 and not stan.startswith("T"):
                 log(T("RESUMED %s (pid %d) - %s") % (info.get("comm", "?"), pid, reason), tag="RESUME")
-                # Okno statystyk mowi "wznowione PO OSTYGNIECIU", wiec reczne wznowienie,
-                # start i zamkniecie demona sie nie licza. Etykieta ma byc prawdziwa.
+                # The stats window says "resumed AFTER COOLING", so manual resume, startup,
+                # and daemon shutdown do not count. The label must be true.
                 if po_ostygnieciu:
                     licznik(st, "resumes")
             elif stan.startswith("T"):
-                # SIGCONT poszedl, ale proces DALEJ stoi - klasyczna petla SIGTTIN
-                # (wznowiony w tle, chce czytac klawiature). Sam z tego nie wyjdzie.
+                # SIGCONT was sent but the process is STILL stopped: classic SIGTTIN loop.
+                # It resumed in the background and tried to read the keyboard. It will not
+                # recover by itself.
                 log(T("STILL STOPPED after SIGCONT: %s (pid %d) - foreground terminal job, "
                       "type 'fg' in its window") % (info.get("comm", "?"), pid))
                 notify(cfg, T("Thermal guard: job needs your hand"),
@@ -2087,9 +2077,9 @@ def do_resume(cfg, st, reason, only_keys=None, po_ostygnieciu=False):
             else:
                 log("FAILED to resume %s (pid %d) - errno %d"
                     % (info.get("comm", "?"), pid, blad))
-                # Nieudany SIGCONT NIE moze kasowac wpisu: proces zostaje zamrozony,
-                # a guard o nim zapomina - nie wznowi go nawet po restarcie. Liczymy
-                # proby i po piatej odpuszczamy, zeby wpis nie zostal tam na wieki.
+                # A failed SIGCONT must NOT delete the entry: the process would stay frozen
+                # while guard forgot it, so even restart would not resume it. Count attempts
+                # and give up after the fifth so the entry does not remain forever.
                 info["proby_wznowienia"] = info.get("proby_wznowienia", 0) + 1
                 if info["proby_wznowienia"] < 5:
                     continue
@@ -2101,8 +2091,11 @@ def do_resume(cfg, st, reason, only_keys=None, po_ostygnieciu=False):
 
 
 def _wiek_pauzy(v):
-    """Ile sekund trwa ta pauza. Zegar monotoniczny tylko w obrebie tego procesu
-    (patrz `mono_id`), inaczej scienny — bo tylko on znaczy to samo po restarcie."""
+    """Return how many seconds this pause has lasted.
+
+    The monotonic clock is valid only inside the same process, see `mono_id`. Otherwise use
+    wall time because only it means the same thing after restart.
+    """
     m = v.get("since_mono")
     if m is not None and v.get("mono_id") == _MONO_ID:
         return max(0.0, time.monotonic() - m)
@@ -2110,19 +2103,20 @@ def _wiek_pauzy(v):
 
 
 def do_terminate(cfg, st, reason, only_keys=None):
-    """SIGCONT + SIGTERM (proces w SIGSTOP nie obsluzy TERM), po 20 s SIGKILL.
+    """Send SIGCONT plus SIGTERM, then SIGKILL after 20 s.
 
-    only_keys: ubij TYLKO te wpisy (timeout pauzy nie moze zabijac swiezo wstrzymanych).
-    Wpisy reczne (zamrozone z paska) sa pomijane ZAWSZE: zamrozony proces nie grzeje,
-    wiec jego ubicie niczego nie chlodzi — a bylby to cios w plecy uzytkownika.
+    A process in SIGSTOP cannot handle TERM. `only_keys` limits termination to those
+    entries so a pause timeout cannot kill freshly stopped jobs. Manual entries, frozen from
+    the menu bar, are ALWAYS skipped: a frozen process does not heat anything, so killing it
+    cools nothing and would betray the user.
 
-    RE-CHECK TUZ PRZED STRZALEM: migawka `ps` z poczatku cyklu ma kilkanascie sekund.
-    Reczny `kill -CONT` wydany w srodku cyklu znaczyl SIGTERM w proces chodzacy pelna
-    para (runda przegladu 3, 05.08.2026). Dlatego pytamy system jeszcze raz TUTAJ:
-    ubijamy wylacznie to, co w tej chwili naprawde stoi; wpis po procesie, ktory znow
-    pracuje, kasujemy - jesli dalej grzeje, nastepny cykl zamrozi go od nowa.
-    Nieudany pomiar (`None`) wstrzymuje egzekucje w calosci: do ubicia potrzebny jest
-    DOWOD, ze cos stoi, a pauza i tak juz chlodzi maszyne.
+    Re-check right before signaling. The `ps` snapshot from the start of the cycle is
+    several seconds old. A manual `kill -CONT` issued mid-cycle used to mean SIGTERM into a
+    process running at full speed. Ask the system again HERE: terminate only what is truly
+    stopped now. Delete the entry for a process that is running again; if it still heats the
+    Mac, the next cycle will freeze it again. A failed measurement (`None`) postpones all
+    execution: termination needs proof that something is stopped, and pause is already
+    cooling the machine.
     """
     stoja = zatrzymane_teraz()
     if stoja is None:
@@ -2158,8 +2152,8 @@ def do_terminate(cfg, st, reason, only_keys=None):
                % reason, "kill")
         time.sleep(20)
         for pid, info in victims:
-            # grupa moze zyc mimo smierci lidera (dzieci ignoruja TERM) — killpg
-            # na martwej grupie po prostu odbije sie bledem, ktory polykamy
+            # The group may live after the leader dies because children ignore TERM. killpg
+            # on a dead group simply bounces with an error that we swallow.
             if info.get("pgid") or alive(pid):
                 if sig(pid, info.get("pgid"), signal.SIGKILL) == 0:
                     log("SIGKILL %s (pid %d)" % (info.get("comm", "?"), pid))
@@ -2167,81 +2161,82 @@ def do_terminate(cfg, st, reason, only_keys=None):
 
 
 def prog_demote(cfg):
-    """Prog chipu, od ktorego degradacja w ogole ma sens termiczny.
+    """Return the chip threshold where demotion has thermal value.
 
-    Ponizej niego maszyna jest chlodna i spychanie kogokolwiek na E-cores
-    nie chlodzi niczego - tylko tnie tempo (nocna kolejka: ffmpeg przy 44 C
-    zwolnil 11x, wentylatory stały). Domyslnie soc_resume_c + 4: powrot jest
-    przy soc_resume_c, wiec miedzy degradacja a powrotem zostaje realna
-    szczelina histerezy, nie jedna kreska, na ktorej się trzepocze."""
+    Below it, the machine is cool and pushing anyone to E-cores cools nothing; it only cuts
+    throughput. An overnight queue showed ffmpeg at 44 C running 11x slower while fans were
+    stopped. Default is soc_resume_c + 4, with return at soc_resume_c, leaving a real
+    hysteresis gap between demotion and promotion instead of one flickering line.
+    """
     p = cfg.get("demote_above_c")
     if p is not None:
         return float(p)
     return float(cfg.get("soc_resume_c", 80.0)) + 4.0
 
 
-_demote_nie_da_sie = set()    # pidy, ktorych taskpolicy nie przyjal (cudzy wlasciciel)
+_demote_nie_da_sie = set()    # PIDs taskpolicy rejected, usually another owner
 
 
 def do_demote(cfg, st, targets, cpu_hist, soc_t, saferun_normal=frozenset()):
-    """Cieplo + dlugo mielacy proces -> background QoS (E-cores).
+    """Move long-running hot processes to background QoS on E-cores.
 
-    Zegar (cpu_hist) liczy SKUMULOWANE sekundy aktywnego mielenia, nie czas
-    od pierwszego zobaczenia: proces pauzowany SIGSTOP-em wypada z targets
-    i przy starym liczeniu zegar startowal od zera po kazdym wznowieniu -
-    najgoretszy job NIGDY nie zbieral 5 minut i uciekal degradacji (B3)."""
+    The cpu_hist clock counts ACCUMULATED seconds of active grinding, not time since first
+    seen. A SIGSTOP-paused process leaves targets, and the old clock reset after every
+    resume, so the hottest job never accumulated 5 minutes and escaped demotion.
+    """
     limit = cfg["demote_after_minutes"] * 60
     for pid, cpu, comm, pgid in targets:
         if cpu < cfg["demote_cpu_percent"] or pid in _demote_nie_da_sie:
             continue
-        # safe-run --normal = czlowiek jawnie kazal leciec na wszystkich rdzeniach;
-        # degradowanie go 5 minut pozniej cofaloby jego decyzje za jego plecami.
-        # Pauza przy przegrzaniu dalej obowiazuje - wyjatek dotyczy TYLKO degradacji.
+        # safe-run --normal means a human explicitly chose all cores. Demoting it 5 minutes
+        # later would undo that decision behind their back. Pause on overheating still
+        # applies; this exception covers ONLY demotion.
         if pid in saferun_normal or pgid in saferun_normal:
             continue
         zebral = cpu_hist.get(pid, 0.0) + cfg["poll_seconds"]
         cpu_hist[pid] = zebral
         if zebral < limit or pid in st["demoted"]:
             continue
-        # bez odczytu chipu nie ma jak uzasadnic degradacji termicznie - nie zgadujemy
+        # Without a chip reading, demotion has no thermal justification. Do not guess.
         if soc_t is None or soc_t < prog_demote(cfg):
             continue
         if cfg["dry_run"]:
             log(T("[DRY-RUN] would demote %s (pid %d)") % (comm, pid))
             continue
-        # TYLKO taskpolicy, bez renice: nice podniesiony raz nie da sie oddac bez roota
-        # (Unix pozwala nieuprzywilejowanym wylacznie podnosic nice), a taskpolicy -b/-B
-        # jest w pelni odwracalne i to QoS background robi tu cala robote (E-cores)
+        # taskpolicy only, no renice: once nice is raised, it cannot be returned without
+        # root because Unix lets unprivileged users only increase nice. taskpolicy -b/-B is
+        # fully reversible, and background QoS is what does the work here (E-cores).
         rc = subprocess.call(["taskpolicy", "-b", "-p", str(pid)],
                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         if rc != 0:
-            # cudzy proces (root) - taskpolicy odbil. Bez tego sprawdzenia wpisalibysmy
-            # go do demoted i powiadomili "spowolnione", a on mielilby dalej pelna para:
-            # log by klamal. Pid idzie do zbioru pominietych: bez tego prawie kazdy cykl
-            # forkowalby taskpolicy i pisal te sama linie logu co 15 sekund.
+            # Another user's process, often root: taskpolicy bounced. Without this check,
+            # it would be added to demoted and reported as "slowed down" while still running
+            # at full speed, so the log would lie. Add the PID to the skipped set; otherwise
+            # almost every cycle would fork taskpolicy and write the same log line.
             if pid not in _demote_nie_da_sie:
                 _demote_nie_da_sie.add(pid)
                 log("DEMOTE failed for %s (pid %d) - taskpolicy rc=%d (not our process?)"
                     % (comm, pid, rc))
             continue
         st["demoted"].append(pid)
-        # nazwa do stanu - degradacja tnie tempo nawet 11x, wiec czlowiek
-        # i agent MUSZA ja widziec w status.json, a pid nikomu nic nie mowi
+        # Name in state: demotion can cut throughput by 11x, so humans and agents MUST see
+        # it in status.json. A PID alone tells them nothing.
         st.setdefault("demoted_info", {})[str(pid)] = {"comm": comm}
         log(T("DEMOTED %s (pid %d) -> background QoS/E-cores (hot for >%d min)")
             % (comm, pid, cfg["demote_after_minutes"]), tag="DEMOTE")
-        # pauza ma dzwiek i push, a degradacja ma WIEKSZY trwaly wplyw na czas
-        # zadania (pauza mija, spowolnienie zostaje) - wiec tez musi byc slyszalna
+        # Pause has sound and push, and demotion has a larger lasting effect on job time.
+        # Pause passes; slowdown remains, so it must be audible too.
         notify(cfg, T("Thermal guard: job slowed down"),
                T("%s moved to E-cores (up to several times slower) - returns to full speed when the machine cools") % comm,
                "demote")
 
 
 def do_promote(cfg, st, cpu_hist, soc_t):
-    """Histereza powrotu: maszyna ostygla -> zdegradowane wracaja na rdzenie P.
+    """Promote demoted jobs back to P-cores after the machine cools.
 
-    Bez tego degradacja byla jednokierunkowa: proces raz zepchniety na E-cores
-    zostawal tam do smierci, nawet przy 44 C i stojacych wentylatorach."""
+    Without this hysteresis return, demotion was one-way: once pushed to E-cores, a process
+    stayed there until death, even at 44 C with stopped fans.
+    """
     if not st["demoted"] or cfg["dry_run"]:
         return
     if soc_t is None or soc_t > cfg.get("soc_resume_c", 80.0):
@@ -2254,8 +2249,8 @@ def do_promote(cfg, st, cpu_hist, soc_t):
                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         st["demoted"].remove(pid)
         st.get("demoted_info", {}).pop(str(pid), None)
-        # zegar od zera: powrot ma byc powrotem, a nie 15-sekundowa przerwa
-        # przed natychmiastowa ponowna degradacja
+        # Reset the clock: promotion should be a real return, not a 15-second pause before
+        # immediate demotion again.
         cpu_hist[pid] = 0.0
         log(T("PROMOTED %s (pid %d) -> back on P-cores (machine cooled down)")
             % (info.get("comm", "?"), pid), tag="PROMOTE")
@@ -2263,13 +2258,14 @@ def do_promote(cfg, st, cpu_hist, soc_t):
                T("%s is back on P-cores") % info.get("comm", "?"), "promote")
 
 
-# ---------------------------------------------------------------- ocena
+# ---------------------------------------------------------------- severity
 
 def severity(cfg, state, temp, speed, soc=None, ac=True, pct=None):
-    """0 spokoj, 1 ciepło, 2 gorąco (pauza), 3 krytycznie (ubicie).
+    """Return severity level 0 cool, 1 warm, 2 hot (pause), or 3 critical (terminate).
 
-    temp = bateria (wolna, bezwladna), soc = chip (szybka). Bierzemy ostrzejszy z dwoch:
-    chip lapie skok obciazenia w sekundy, bateria potwierdza, ze cala obudowa sie zagrzala.
+    `temp` is battery temperature, slow and inertial. `soc` is chip temperature, fast.
+    Use the stricter of the two: the chip catches load spikes within seconds, while the
+    battery confirms that the whole chassis has warmed.
     """
     lvl = 0
     why = []
@@ -2280,8 +2276,8 @@ def severity(cfg, state, temp, speed, soc=None, ac=True, pct=None):
             lvl = max(lvl, 2); why.append(T("chip %.1f C") % soc)
         elif soc >= cfg.get("soc_pause_c", 92.0) - 7:
             lvl = max(lvl, 1); why.append(T("chip %.1f C") % soc)
-    # bramka na baterie: na zasilaniu bateryjnym ponizej progu pauzujemy, zeby dlugie
-    # obliczenie nie zgaslo razem z laptopem w polowie bloku (czekamy na zasilacz)
+    # Battery gate: on battery power below the threshold, pause so a long computation does
+    # not die with the laptop mid-block. Wait for AC.
     if not ac and pct is not None and pct <= cfg.get("batt_pct_pause", 10):
         lvl = max(lvl, 2); why.append(T("battery %d%% on battery power") % pct)
     s = LEVELS.get(state, 1)
@@ -2304,24 +2300,23 @@ def severity(cfg, state, temp, speed, soc=None, ac=True, pct=None):
 
 
 def boot_time():
-    """Moment ostatniego startu systemu (epoch)."""
+    """Return the last system boot time as epoch seconds."""
     m = re.search(r"sec\s*=\s*(\d+)", run(["sysctl", "-n", "kern.boottime"]))
     return int(m.group(1)) if m else 0
 
 
 def zapisz_zdarzenie(rodzaj, opis, kontekst=None, synthetic=False, kiedy=None):
-    """Czarna skrzynka — zdarzenia, ktore maja przezyc restart i trafic do raportu.
+    """Write black-box events that must survive restart and enter the report.
 
-    synthetic=True oznacza wpis z testu/harnessu: thermal-report go POMIJA, zeby zaden
-    sztuczny pad nie trafil do dowodu na gwarancje (lekcja 30.07: test skaza dowod
-    rownie latwo jak config).
+    synthetic=True marks a test or harness entry. thermal-report skips it so a synthetic
+    crash never enters warranty evidence.
     """
     try:
         with open(EVENTS_PATH, "a") as f:
-            # `kiedy` to epoch ZDARZENIA. Bez tego do pliku szedl moment WYKRYCIA, a pad
-            # wykrywa sie dopiero przy starcie po restarcie - wiec raport za dzien padu
-            # odpowiadal "w tym okresie nie wykryto zadnego twardego wylaczenia".
-            # Najgorszy mozliwy falszywy negatyw w dokumencie dla ubezpieczyciela.
+            # `kiedy` is the EVENT epoch. Without it, the file stored detection time, and a
+            # hard shutdown is detected only at startup after reboot. A report for the crash
+            # day then said "no hard shutdown detected in this period".
+            # That is the worst possible false negative in an insurance document.
             t = kiedy if kiedy else now()
             wpis = {"time": ts(t), "epoch": round(t, 3), "detected_at": ts(),
                     "type": rodzaj, "description": opis}
@@ -2331,27 +2326,27 @@ def zapisz_zdarzenie(rodzaj, opis, kontekst=None, synthetic=False, kiedy=None):
                 wpis["context"] = kontekst
             f.write(json.dumps(wpis, ensure_ascii=False) + "\n")
     except Exception as e:
-        # dowod, ktory nie powstal, jest gorszy niz brak dowodu - musi zostac slad
+        # Evidence that silently failed to be written is worse than no evidence.
         cicha_awaria("zapisz_zdarzenie", e)
 
 
 def pad_juz_zapisany(epoch_padu, tolerancja=90.0):
-    """Czy ten sam twardy pad juz jest w czarnej skrzynce?
+    """Return whether the same hard shutdown is already in the black box.
 
-    Rozstrzyga MOMENT ZDARZENIA (`epoch`), nie moment wykrycia: ten sam pad wykryty
-    przy trzech kolejnych startach demona ma trzy rozne `detected_at`, ale jeden
-    `epoch`. Tolerancja 90 s obejmuje przypadek, w ktorym puls raz przyszedl z tresci
-    pliku, a raz z mtime (fallback) - to samo zdarzenie, minimalnie inna liczba.
+    Compare the EVENT MOMENT (`epoch`), not detection time. The same crash detected on
+    three later daemon starts has three different `detected_at` values but one `epoch`.
+    The 90 s tolerance covers the case where one heartbeat came from file contents and
+    another from mtime fallback: same event, slightly different number.
 
-    Dwa PRAWDZIWE pady o tym samym czasie ostatniego pulsu nie istnieja: miedzy nimi
-    musi byc boot i przynajmniej jeden przebieg demona, ktory tyka heartbeat.
+    Two REAL crashes with the same last-heartbeat time cannot exist: there must be a boot
+    and at least one daemon cycle ticking heartbeat between them.
     """
     try:
         with open(EVENTS_PATH, encoding="utf-8", errors="replace") as f:
             linie = f.readlines()
     except OSError:
         return False
-    # ogon wystarczy: duble powstaja przy kolejnych startach, czyli obok siebie
+    # Tail is enough: duplicates are created by consecutive starts, so they sit together.
     for linia in reversed(linie[-200:]):
         try:
             z = json.loads(linia)
@@ -2366,22 +2361,21 @@ def pad_juz_zapisany(epoch_padu, tolerancja=90.0):
 
 
 def wykryj_twardy_pad():
-    """Czy poprzednia sesja skonczyla sie twardym zgasnieciem?
+    """Detect whether the previous session ended in a hard shutdown.
 
-    Guard tyka `heartbeat` przy kazdym przebiegu, a przy czystym zamknieciu zapisuje
-    `clean_stop`. Jesli po restarcie ostatni puls jest z CZASU SPRZED tego bootu i nie ma
-    przy nim czystego zamkniecia — znaczy, ze Mac zgasl bez uprzedzenia. Wtedy zapisujemy
-    zdarzenie razem z ostatnimi pomiarami sprzed padu; to jest dokladnie ten dowod, ktorego
-    zabraklo 29.07.2026 (dziennik systemowy urwal sie i nie dalo sie nic odtworzyc).
+    Guard ticks `heartbeat` on every pass and writes `clean_stop` on clean shutdown. If,
+    after reboot, the last heartbeat is from BEFORE this boot and has no clean shutdown next
+    to it, the Mac died without warning. Store the event with the last measurements before
+    the crash; this is the evidence system logs often do not preserve.
     """
     try:
         if not os.path.exists(HEARTBEAT_PATH):
             return None
-        # AUTORYTATYWNA jest TRESC pulsu (epoch — niezalezny od strefy i DST; lot na zachod
-        # albo jesienna zmiana czasu przesuwalyby tekstowa date "w przod" i wyciszaly pad).
-        # mtime tylko jako ostatecznosc: przezywa cp -p, ale restore bez -p ustawia "teraz"
-        # i rowniez maskowalby pad. Format: "<epoch> <czytelna data>"; starszy format (sam
-        # tekst) czytamy przejsciowo po staremu.
+        # The heartbeat CONTENT is authoritative: epoch is independent of timezone and DST.
+        # A westbound flight or fall time change would move textual dates "forward" and
+        # silence a crash. mtime is only a last resort: it survives cp -p, but restore
+        # without -p sets "now" and would also mask a crash. Format: "<epoch> <human date>".
+        # The older text-only format is read the old way during transition.
         boot = boot_time()
         puls = None
         raw = ""
@@ -2395,30 +2389,29 @@ def wykryj_twardy_pad():
             try:
                 puls = time.mktime(time.strptime(raw, "%Y-%m-%d %H:%M:%S"))
                 mt = os.path.getmtime(HEARTBEAT_PATH)
-                # legacy-tekst nie niesie strefy: przeczytany po zmianie strefy moze
-                # "przeskoczyc" boot i wyciszyc pad — gdy mtime mowi, ze puls byl
-                # sprzed bootu, ufamy mtime (okno jednej detekcji po upgrade; Neo 30.07)
+                # Legacy text carries no timezone. Read after a timezone change, it can
+                # jump past boot and silence a crash. If mtime says the heartbeat was before
+                # boot, trust mtime for this one post-upgrade detection window.
                 if boot and puls >= boot > mt:
                     puls = mt
             except Exception:
                 puls = os.path.getmtime(HEARTBEAT_PATH)
         if not boot or puls >= boot:
-            return None                       # puls z biezacej sesji — nic sie nie stalo
+            return None                       # heartbeat from the current session; nothing happened
 
-        # --- poziom pewnosci zamiast milczenia ---------------------------------------
-        # Do 2.1.7 wlacznie kazdy przypadek "podejrzany" konczyl sie `return None`, czyli CISZA.
-        # To najgorsze mozliwe zachowanie czarnej skrzynki: rozladowany RTC albo skok NTP
-        # kasowal dowod bezpowrotnie, a podloga 30-dniowa WYRZUCALA go zamiast oznaczyc.
-        # W druga strone: demon ubity SIGKILL-em albo `launchctl bootout` przed normalnym
-        # restartem zostawia puls sprzed bootu bez clean_stop - i zdarzenie bylo
-        # FABRYKOWANE jako twardy pad w dniu, w ktorym Mac dzialal poprawnie.
+        # --- confidence level instead of silence -------------------------------------
+        # Up to 2.1.7, every "suspicious" case ended with `return None`, meaning silence.
+        # That is the worst behavior for a black box: a dead RTC or NTP jump permanently
+        # erased evidence, and the 30-day floor threw it away instead of labeling it.
+        # The opposite is also possible: a daemon killed by SIGKILL or `launchctl bootout`
+        # before normal reboot leaves a heartbeat before boot with no clean_stop, and that
+        # event was fabricated as a hard shutdown on a day when the Mac behaved correctly.
         #
-        # Zadnego z tych przypadkow nie da sie rozstrzygnac lokalnie i tanio. Dlatego
-        # dowod zapisujemy ZAWSZE, ale z jawna ocena wiarygodnosci - dokument dowodowy
-        # ma mowic prawde takze o tym, jak bardzo jest pewny. Rozstrzyga czlowiek
-        # w serwisie, nie heurystyka w demonie.
+        # None of these cases can be resolved locally and cheaply. Always write evidence,
+        # but include explicit confidence. The evidence document must tell the truth about
+        # how certain it is. A human service reviewer decides, not daemon heuristics.
         pewnosc, powod_pewnosci = "high", ""
-        luka = boot - puls                    # ile uplynelo miedzy ostatnim pulsem a bootem
+        luka = boot - puls                    # elapsed time between last heartbeat and boot
         if luka > 30 * 86400:
             pewnosc = "low"
             powod_pewnosci = T(
@@ -2430,12 +2423,12 @@ def wykryj_twardy_pad():
                 "%.1f h passed between the last heartbeat and boot - the guard may have been "
                 "killed long before the Mac actually went down") % (luka / 3600.0)
         czyste = os.path.getmtime(CLEAN_STOP_PATH) if os.path.exists(CLEAN_STOP_PATH) else 0
-        # znacznik czystego zamkniecia liczy sie TYLKO gdy pochodzi sprzed biezacego bootu —
-        # clean_stop z aktualnej sesji albo artefakt (backup, cp -p, zegar z przyszlosci)
-        # nie moze wyciszyc prawdziwego twardego padu (finalny przeglad 30.07)
+        # The clean-shutdown marker counts ONLY when it predates the current boot. A
+        # clean_stop from the current session or an artifact (backup, cp -p, future clock)
+        # must not silence a real hard shutdown.
         if puls - 60 <= czyste < boot:
-            return None                       # guard zostal zamkniety po ludzku
-        # ostatnie pomiary sprzed zgasniecia — to jest material dowodowy
+            return None                       # guard was shut down cleanly
+        # Last measurements before power loss; this is evidence.
         ogon = []
         try:
             with open(HIST_PATH) as f:
@@ -2446,13 +2439,11 @@ def wykryj_twardy_pad():
                     ogon.append(dict(zip(naglowek, w.strip().split(","))))
         except Exception:
             pass
-        # Ten sam pad wolno opisac DOKLADNIE RAZ. Jesli demon ginie zanim zdazy tyknac
-        # heartbeat (pad w pierwszych sekundach po starcie, launchd restartujacy w petli),
-        # to przy kazdym kolejnym starcie widzi ten sam stary puls i zapisuje to samo
-        # zdarzenie od nowa. Odtworzone 02.08.2026: trzy starty = trzy identyczne wpisy
-        # z tym samym `epoch`, ktore w dokumencie roszczeniowym wygladaja jak TRZY osobne
-        # awarie. Zawyzony licznik awarii jest w takim dokumencie gorszy niz jego brak -
-        # druga strona wykaze, ze dane sa niewiarygodne, i podwazy caly raport.
+        # Describe the same crash EXACTLY ONCE. If the daemon dies before it can tick
+        # heartbeat, such as a crash in the first seconds after start or a launchd restart
+        # loop, every later start sees the same old heartbeat and writes the same event
+        # again. Three starts then look like three separate failures in a claim document.
+        # An inflated failure count is worse than none because it undermines the report.
         if pad_juz_zapisany(puls):
             return None
         opis = (T("Mac went down without a clean shutdown. Guard's last heartbeat: %s, "
@@ -2472,7 +2463,7 @@ def wykryj_twardy_pad():
 
 
 def obsluz_rozkaz(cfg, st, targets):
-    """Rozkazy z paska menu: reczne zamrozenie i wznowienie."""
+    """Handle menu-bar commands for manual freeze and resume."""
     try:
         if not os.path.exists(COMMAND_PATH):
             return
@@ -2482,9 +2473,9 @@ def obsluz_rozkaz(cfg, st, targets):
     except Exception:
         return
     if rozkaz == "freeze" or rozkaz.startswith("freeze:"):
-        # "freeze" = wszystko co kwalifikuje; "freeze:123,456" = tylko wskazane PID-y
-        # (uzytkownik wybiera je w oknie potwierdzenia). Wybor filtruje kandydatow,
-        # NIE omija zadnej reguly: proces spoza listy targets i tak nie zostanie ruszony.
+        # "freeze" = everything eligible; "freeze:123,456" = only selected PIDs from the
+        # confirmation window. Selection filters candidates and does NOT bypass any rule:
+        # a process outside targets will still not be touched.
         if rozkaz.startswith("freeze:"):
             chciane = set()
             for kawalek in rozkaz.split(":", 1)[1].split(","):
@@ -2492,7 +2483,7 @@ def obsluz_rozkaz(cfg, st, targets):
                 if kawalek.isdigit():
                     chciane.add(int(kawalek))
             targets = [t for t in (targets or []) if t[0] in chciane]
-        # flage stawiamy TYLKO gdy naprawde cos zamrozilismy — inaczej pasek klamie
+        # Set the flag ONLY when something was really frozen; otherwise the menu bar lies.
         if targets and do_pause(cfg, st, targets, T("MANUAL FREEZE (from the menu bar)"), manual=True):
             st["reczna_pauza"] = True
         else:
@@ -2505,19 +2496,19 @@ def obsluz_rozkaz(cfg, st, targets):
 
 
 def statystyki_dnia():
-    """Ile razy dzis guard interweniowal — do pokazania w pasku."""
+    """Return how many times guard intervened today for menu-bar display."""
     dzis = time.strftime("%Y-%m-%d")
     pauzy = wznowienia = ubicia = 0
     try:
-        # errors="replace": jeden bajt spoza UTF-8 (uciety zapis, smiec po padzie) wywalal
-        # dekoder przy pierwszym readline i zerowal calą statystyke dnia - pasek pokazywal
-        # "dzis 0 pauz" po nocy pelnej pauz, bez zadnego sygnalu.
+        # errors="replace": one non-UTF-8 byte from a truncated write or crash junk used to
+        # crash the decoder on the first readline and zero the whole daily statistic. The
+        # menu bar showed "today 0 pauses" after a night full of pauses, with no signal.
         with open(LOG_PATH, encoding="utf-8", errors="replace") as f:
             for line in f:
                 if not line.startswith(dzis):
                     continue
-                # Znacznik jest jezykowo neutralny; slowa zostaja dla wpisow sprzed
-                # wprowadzenia znacznikow (log rotuje sie, wiec to przejsciowe).
+                # The tag is language-neutral. Words remain for entries written before tags
+                # were introduced; log rotation makes that temporary.
                 if "[KILL]" in line or "SIGTERM" in line or "koncze zadanie" in line:
                     ubicia += 1
                 elif "[PAUSE]" in line or "PAUZA " in line or "PAUSED " in line:
@@ -2533,9 +2524,9 @@ _trend = []
 
 
 def trend_i_prognoza(cfg, soc_t):
-    """Ile stopni na minute rosnie chip i za ile minut dobije do progu pauzy.
+    """Return chip C/min growth and minutes until it reaches the pause threshold.
 
-    Zamiast dowiadywac sie o problemie w chwili zamrozenia, widac go wczesniej.
+    This exposes the problem before freeze time instead of only when the pause happens.
     """
     if soc_t is None:
         return None, None
@@ -2547,7 +2538,7 @@ def trend_i_prognoza(cfg, soc_t):
     dt = (_trend[-1][0] - _trend[0][0]) / 60.0
     if dt <= 0:
         return None, None
-    nachylenie = (_trend[-1][1] - _trend[0][1]) / dt      # C na minute
+    nachylenie = (_trend[-1][1] - _trend[0][1]) / dt      # C per minute
     prog = cfg.get("soc_pause_c", 85.0)
     if nachylenie <= 0.5 or soc_t >= prog:
         return round(nachylenie, 1), None
@@ -2555,7 +2546,7 @@ def trend_i_prognoza(cfg, soc_t):
 
 
 def zadania_saferun():
-    """Aktywne zadania uruchomione przez safe-run — nazwa i jak dlugo chodza."""
+    """Return active jobs started by safe-run, with name and runtime."""
     out = []
     try:
         for nazwa in os.listdir(MANAGED_DIR):
@@ -2573,12 +2564,13 @@ def zadania_saferun():
     return out
 
 
-# ---------------------------------------------------------------- sprzet i kalibracja
+# ---------------------------------------------------------------- hardware and calibration
 
 def hardware_info():
-    """Wykrywa sprzet tego Maca i zapisuje do hardware.json (About my Mac + kalibracja).
+    """Detect this Mac's hardware and write hardware.json.
 
-    Wolne odczyty (system_profiler ~2 s) robimy RAZ przy starcie — plik jest cache'em.
+    Used by About my Mac and calibration. Slow reads such as system_profiler (~2 s) happen
+    ONCE at startup; the file is the cache.
     """
     def sysctl(k):
         return run(["sysctl", "-n", k]).strip()
@@ -2602,18 +2594,17 @@ def hardware_info():
     hw["battery_cycles"] = int(m.group(1)) if m else None
     m = re.search(r'"PermanentFailureStatus"\s*=\s*(\d+)', ioreg)
     hw["battery_failure"] = bool(int(m.group(1))) if m else None
-    # maks. pojemnosc = ile fabrycznej pojemnosci ogniwo jeszcze trzyma
+    # Maximum capacity: how much of factory cell capacity remains.
     m1 = re.search(r'"NominalChargeCapacity"\s*=\s*(\d+)', ioreg)
     m2 = re.search(r'"DesignCapacity"\s*=\s*(\d+)', ioreg)
     if m1 and m2 and int(m2.group(1)) > 0:
         hw["battery_max_capacity_pct"] = round(100 * int(m1.group(1)) / int(m2.group(1)))
-    # Jeden nieudany odczyt macmona NIE moze przesadzic o kalibracji. Probkowanie
-    # potrafi pasc na obciazonej maszynie (znane z kolejki kompresji), a wlasnie tak
-    # wyglada pierwszy start demona: zaraz po `install.sh`, ktory kompilowal pasek.
-    # `max_age=0` omija 10-sekundowy cache — bez tego powtorka oddawalaby to samo None.
-    # BUDZET, nie liczba prob: `run()` daje macmonowi 20 s na sciezke, a soc_sensors
-    # probuje dwoch sciezek. Same ponowienia moglyby wiec opoznic start demona
-    # o dwie minuty, czyli o czas, w ktorym nikt nie pilnuje temperatury (przeglad 03.08).
+    # One failed macmon read must NOT decide calibration. Sampling can fail on a loaded
+    # machine, and first daemon start often follows `install.sh`, which compiled the menu
+    # bar. `max_age=0` bypasses the 10-second cache; otherwise retry would return the same
+    # None. Use a BUDGET, not a retry count: `run()` gives macmon 20 s per path and
+    # soc_sensors tries two paths. Blind retries could delay daemon start by two minutes,
+    # with nobody watching temperature.
     s = soc_sensors()
     koniec_prob = time.monotonic() + 8.0
     while not s and time.monotonic() < koniec_prob:
@@ -2630,19 +2621,18 @@ def hardware_info():
 
 
 def auto_calibrate(cfg, hw):
-    """Dopasowanie progow do TEGO Maca — raz na sprzet, nigdy po recznej zmianie progow.
+    """Fit thresholds to THIS Mac, once per hardware identity.
 
-    Zasada: nie ma jednego slusznego progu. Mac z wentylatorami znosi 85-95 C bez klopotu;
-    Mac bezwentylatorowy (Air) oddaje cieplo obudowa i trzeba go ciac wczesniej, a alarm
-    "wentylatory stoja" jest na nim bez sensu. Znacznik calibrated_for pilnuje, zeby
-    kalibracja odpalila sie tylko przy pierwszym uruchomieniu na danym sprzecie —
-    swiadome, reczne progi uzytkownika sa swiete.
+    Never run after manual threshold changes. There is no single correct threshold. A Mac
+    with fans tolerates 85-95 C; a fanless Mac (Air) dumps heat through the chassis and must
+    be cut earlier, and a "fans stopped" alarm is meaningless. calibrated_for ensures
+    calibration runs only on the first launch for this hardware; deliberate user thresholds
+    are sacred.
     """
-    # Znacznik musi zawierac TAKZE informacje o czujniku. Bez macmona `fan_count`
-    # wynosi 0 tak samo jak na prawdziwym Airze - wiec kalibracja zapisywala tag
-    # "fans=0", a po doinstalowaniu macmona Air dostawal ten sam tag i progi
-    # bezwentylatorowe (78/70/88) nie byly nadawane NIGDY. Akurat na maszynie,
-    # dla ktorej prog ma najwieksze znaczenie.
+    # The tag must include sensor information too. Without macmon, `fan_count` is 0 just as
+    # on a real Air, so calibration wrote tag "fans=0". After macmon was installed, the Air
+    # had the same tag and never received fanless thresholds (78/70/88), on the machine
+    # where those thresholds matter most.
     tag = "%s|%s|fans=%s|sensor=%s" % (hw.get("model_id"), hw.get("chip"),
                                        hw.get("fan_count"), bool(hw.get("chip_sensor")))
     try:
@@ -2654,8 +2644,8 @@ def auto_calibrate(cfg, hw):
     if cfg.get("calibrated_for") == tag:
         if not dry_ukryty:
             return None
-        # sprzet znany, ale klucz dry_run niejawny (config sprzed v1.3) — dopisz go jawnie
-        # (czytaj-zmien-zapisz pod lockiem: pasek moze pisac rownolegle — B5)
+        # Hardware known, but dry_run is implicit from pre-v1.3 config. Write it explicitly.
+        # Read-modify-write under lock because the menu bar may write concurrently.
         try:
             with config_lock():
                 try:
@@ -2665,9 +2655,9 @@ def auto_calibrate(cfg, hw):
                     _na_dysku = {}
                 _na_dysku["dry_run"] = True
                 tmp = CFG_PATH + ".tmp"
-                # 0600, nie umask: w config.json siedzi temat ntfy. `ensure_dirs`
-                # zaciska prawa tylko przy starcie, wiec zapis kalibracyjny/migracyjny
-                # cofal utwardzenie az do nastepnego restartu.
+                # 0600, not umask: config.json contains the ntfy topic. `ensure_dirs`
+                # tightens permissions only at startup, so calibration/migration writes
+                # otherwise relaxed the hardening until the next restart.
                 with os.fdopen(os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC,
                                        0o600), "w") as f:
                     json.dump(_na_dysku, f, indent=2, ensure_ascii=False, sort_keys=True)
@@ -2676,35 +2666,35 @@ def auto_calibrate(cfg, hw):
             pass
         log("MIGRATION: dry_run was implicit - written explicitly as true (watch-only)")
         return "watchonly"
-    # Bez odczytu z czujnika `fan_count=0` znaczy DWIE rozne rzeczy: "Mac bezwentylatorowy"
-    # albo "macmon nie odpowiedzial". Zapisanie znacznika w tym stanie zostawia Aira
-    # na progach wentylatorowych (85/76/90) i limicie pauzy 45 min az do nastepnego
-    # restartu demona — a demon ma KeepAlive, wiec restart moze byc za tydzien.
-    # Dlatego przy slepym czujniku znacznika NIE zapisujemy: kalibracja ma sie powtorzyc.
+    # Without a sensor read, `fan_count=0` means TWO different things: "fanless Mac" or
+    # "macmon did not answer". Writing the tag in this state leaves an Air on fan-equipped
+    # thresholds (85/76/90) and a 45 min pause limit until the next daemon restart. The
+    # daemon has KeepAlive, so restart may be a week away. With a blind sensor, do NOT write
+    # the tag; calibration must retry.
     slepy = not hw.get("chip_sensor")
     changes = {} if slepy else {"calibrated_for": tag}
     if dry_ukryty:
         changes["dry_run"] = True
-    # `soc_kill_c` MUSI byc w tym warunku: kalibracja nadpisuje go razem z para
-    # pauza/wznowienie, wiec uzytkownik, ktory recznie podniosl sam prog ubicia,
-    # tracil go przy pierwszej kalibracji. Odtworzone 03.08 (95.0 -> 88.0).
+    # `soc_kill_c` MUST be in this condition: calibration overwrites it together with the
+    # pause/resume pair, so a user who manually raised only the kill threshold lost it on
+    # first calibration (95.0 -> 88.0).
     untouched = (cfg.get("soc_pause_c") == DEFAULTS["soc_pause_c"]
                  and cfg.get("soc_resume_c") == DEFAULTS["soc_resume_c"]
                  and cfg.get("soc_kill_c") == DEFAULTS["soc_kill_c"])
     if hw.get("fan_count") == 0 and hw.get("chip_sensor"):
-        changes["fan_check"] = False          # alarm wentylatorow na Airze = zawsze falszywy
+        changes["fan_check"] = False          # fan alarm on an Air is always false
         if untouched:
             changes.update({"soc_pause_c": 78.0, "soc_resume_c": 70.0, "soc_kill_c": 88.0})
             log("CALIBRATION: fanless Mac detected (%s) - chip thresholds 78/70/88"
                 % hw.get("model_name"))
-        # fanless pauzuje czesciej i dluzej (obudowa oddaje cieplo powoli) — 45 min limitu
-        # pauzy ubijaloby dlugie joby, ktore po prostu czekaja na ostygniecie
+        # Fanless Macs pause more often and longer because the chassis sheds heat slowly.
+        # A 45 min pause limit would kill long jobs that are simply waiting to cool.
         if cfg.get("max_pause_minutes") == DEFAULTS["max_pause_minutes"]:
             changes["max_pause_minutes"] = 120
     elif slepy:
-        # NIE MILCZ: bez tej linijki log mowil "thresholds defaults OK" na maszynie,
-        # ktora wlasnie NIE zostala skalibrowana. Minute pozniej `heat` pokazuje juz
-        # temperature chipa i wszystko wyglada zdrowo — nikt by tego nie zauwazyl.
+        # Do not be silent: without this line, the log said "thresholds defaults OK" on a
+        # machine that was NOT calibrated. A minute later `heat` can show chip temperature
+        # and everything looks healthy, so nobody would notice.
         log("CALIBRATION DEFERRED: no chip sensor reading (macmon missing or busy) - "
             "cannot tell a fanless Mac from a failed probe; thresholds left at %s/%s, "
             "will retry on next start"
@@ -2714,12 +2704,12 @@ def auto_calibrate(cfg, hw):
             % (hw.get("model_name"), hw.get("chip"), hw.get("p_cores", 0),
                hw.get("e_cores", 0), hw.get("ram_gb", 0), hw.get("fan_count"),
                "left as user set them" if not untouched else "defaults OK"))
-    # Przy slepym czujniku i jawnym dry_run nie ma CZEGO zapisac. Pusty zapis nie jest
-    # niewinny: ten tor uzywa golego open(), wiec co start rozluznialby prawa
-    # config.json (siedzi w nim temat ntfy) az do nastepnego `ensure_dirs`.
+    # With a blind sensor and explicit dry_run, there is NOTHING to write. An empty write is
+    # not harmless: this path uses plain open(), so every start would relax config.json
+    # permissions (it contains the ntfy topic) until the next `ensure_dirs`.
     if not changes:
         return "watchonly" if dry_ukryty else None
-    # czytaj-zmien-zapisz pod lockiem: rownolegly zapis paska nie moze zginac (B5)
+    # Read-modify-write under lock: a concurrent menu-bar write must not be lost.
     try:
         with config_lock():
             try:
@@ -2729,9 +2719,9 @@ def auto_calibrate(cfg, hw):
                 disk_cfg = {}
             disk_cfg.update(changes)
             tmp = CFG_PATH + ".tmp"
-            # 0600 przez os.open, nie gole open(): tor migracyjny wyzej robi to od
-            # dawna, ten NIE robil. Odtworzone przy umask(0): config 0600 wychodzil
-            # z kalibracji jako 0666, a siedzi w nim temat ntfy. Wyszlo w przegladzie 03.08.
+            # 0600 through os.open, not plain open(): the migration path above has done
+            # this for a long time, but this path did not. With umask(0), a 0600 config
+            # left calibration as 0666, and it contains the ntfy topic.
             with os.fdopen(os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC,
                                    0o600), "w") as f:
                 json.dump(disk_cfg, f, indent=2, ensure_ascii=False, sort_keys=True)
@@ -2741,15 +2731,16 @@ def auto_calibrate(cfg, hw):
     return "watchonly" if dry_ukryty else None
 
 
-# ---------------------------------------------------------------- reczny keep-awake
+# ---------------------------------------------------------------- manual keep-awake
 
 _net = {"t": 0.0, "bytes": 0, "last_active": 0.0}
 
 
 def network_active(threshold_kbps=500):
-    """Czy trwa transfer sieciowy (pobieranie/wysylka)? Delta bajtow z netstat -ib.
+    """Return whether network transfer is active.
 
-    Histereza 120 s: chwilowa cisza miedzy plikami nie zwalnia blokady snu.
+    Uses a byte delta from netstat -ib. The 120 s hysteresis keeps a short silence between
+    files from releasing the sleep assertion.
     """
     out = run(["netstat", "-ib"], timeout=10)
     total = 0
@@ -2771,10 +2762,11 @@ def network_active(threshold_kbps=500):
 
 
 def manual_awake(cfg):
-    """Reczny keep-awake ustawiony z paska (awake.json): timer / aplikacja / pobieranie.
+    """Return the manual keep-awake mode set from the menu bar.
 
-    Zwraca (aktywny, opis). Wygasly timer sprzata sam po sobie, zeby pasek nie pokazywal
-    martwego stanu. Bezpiecznik termiczny jest NADRZEDNY — o tym decyduje petla, nie my.
+    Reads awake.json modes timer, app, and download. Returns (active, description). An
+    expired timer cleans itself up so the menu bar does not show dead state. The thermal
+    guard is higher priority; the main loop decides that, not this helper.
     """
     try:
         with open(AWAKE_PATH) as f:
@@ -2820,12 +2812,12 @@ _caff = {"proc": None}
 
 
 def keep_awake_update(cfg, targets, lvl, st=None):
-    """Utrzymuje/zwalnia blokade snu przez systemowy caffeinate.
+    """Hold or release the sleep assertion through system caffeinate.
 
-    Warunek trzymania: (tryb automatyczny z ciezkim zadaniem LUB reczny tryb z paska —
-    timer / dopoki dziala aplikacja / dopoki trwa pobieranie) ORAZ poziom < 2 (chlodno).
-    Kazde inne polaczenie = blokada w dol. To jest cala roznica wzgledem
-    Caffeine/Amphetamine: tam czlowiek musi pamietac o wylaczeniu, tu wylacza fizyka.
+    Hold condition: (automatic mode with a heavy job OR manual menu-bar mode: timer, while
+    an app runs, or while downloading) AND level < 2 (cool). Every other combination
+    releases the assertion. This is the difference from Caffeine/Amphetamine: there, the
+    human must remember to turn it off; here, physics turns it off.
     """
     manual, adesc = manual_awake(cfg)
     if st is not None:
@@ -2835,14 +2827,13 @@ def keep_awake_update(cfg, targets, lvl, st=None):
     proc = _caff["proc"]
     zywy = proc is not None and proc.poll() is None
     auto = bool(cfg.get("keep_awake_auto")) and bool(targets)
-    # WYGASZANIE (TODO 8, 06.08.2026): miedzy plikami kolejki jest przerwa - stary
-    # enkoder zszedl, nowy jeszcze nie wystartowal. Natychmiastowy stop w tej przerwie
-    # robil 45-59 przelaczen na dobe, a na Macu z agresywnym usypianiem potrafilby
-    # oddac system snu W SRODKU nocnej kolejki. Trzymamy wiec czuwanie jeszcze przez
-    # keep_awake_hold_s po ostatnim ciezkim zadaniu. Wygaszanie tylko PRZEDLUZA zywe
-    # czuwanie (nigdy go nie wszczyna) i NIE dotyczy uwolnienia przez cieplo:
-    # caly warunek dalej stoi na `lvl < 2`, upal zwalnia blokade natychmiast.
-    # Zegar monotoniczny, w obrebie tego procesu - skok NTP nie przedluzy czuwania.
+    # Decay: queued files have gaps between old encoder exit and next encoder start.
+    # Stopping immediately in that gap caused 45-59 switches per day, and an aggressively
+    # sleeping Mac could go to sleep in the middle of an overnight queue. Keep wake for
+    # keep_awake_hold_s after the last heavy job. Decay only EXTENDS a live assertion and
+    # never starts one. It does NOT apply to heat release: the whole condition still rests
+    # on `lvl < 2`, so heat drops the assertion immediately. Monotonic time is process-local;
+    # an NTP jump must not extend wake.
     if auto:
         _caff["ostatni_job"] = time.monotonic()
     hold = max(0, cfg.get("keep_awake_hold_s", 300))
@@ -2850,16 +2841,16 @@ def keep_awake_update(cfg, targets, lvl, st=None):
                 and _caff.get("ostatni_job") is not None
                 and time.monotonic() - _caff["ostatni_job"] < hold)
     chcemy = (auto or manual or dogrzewa) and lvl < 2
-    # Ekran to OSOBNA decyzja od systemu. `-is` trzyma system, ale pozwala zgasic ekran;
-    # `-d` trzyma takze ekran (prezentacja, dashboard, podglad renderu). Ekran kosztuje
-    # prad i cieplo, wiec domyslnie WYLACZONE - i tak samo jak reszta czuwania ustepuje
-    # bezpiecznikowi, bo caly warunek stoi na `lvl < 2`.
+    # Display is a SEPARATE decision from system wake. `-is` keeps the system awake but lets
+    # the display sleep; `-d` keeps the display on too (presentation, dashboard, render
+    # preview). The display costs power and heat, so it defaults OFF and yields to the guard
+    # like the rest of wake because the whole condition rests on `lvl < 2`.
     chce_ekran = bool(cfg.get("keep_awake_display"))
-    # Wymiana procesu TYLKO wtedy, gdy czuwanie ma dalej trwac. Inaczej zmiana trybu
-    # ekranu zbiegajaca sie z przegrzaniem zabralaby galezi stopu jej proces - i licznik
-    # "czuwanie ustapilo przed cieplem" nie zauwazylby zdarzenia. Wyszlo w przegladzie 04.08.
+    # Replace the process ONLY when wake should continue. Otherwise a display-mode change
+    # coinciding with overheating would take the process away from the stop branch, and the
+    # "wake yielded to heat" counter would miss the event.
     if chcemy and zywy and _caff.get("display") != chce_ekran:
-        # Zmiana w locie: flag caffeinate nie da sie przestawic, trzeba go wymienic.
+        # Runtime change: caffeinate flags cannot be edited, so replace the process.
         try:
             proc.terminate()
             proc.wait(timeout=3)
@@ -2882,23 +2873,23 @@ def keep_awake_update(cfg, targets, lvl, st=None):
             _caff["display"] = chce_ekran
             _loguj_awake("KEEP-AWAKE start (heavy job running, machine cool)%s"
                          % (" [screen stays on]" if chce_ekran else ""))
-            play_sound(cfg, "awake")   # Funk: paladyn bierze kubek
+            play_sound(cfg, "awake")   # Funk: guard takes the cup
         except Exception:
             _caff["proc"] = None
     elif not chcemy and zywy:
         try:
             proc.terminate()
-            proc.wait(timeout=3)      # bez wait() kazdy cykl start/stop zostawialby zombie
+            proc.wait(timeout=3)      # without wait(), every start/stop cycle leaves a zombie
         except Exception:
             try:
-                proc.kill()           # oporny caffeinate (nierealne, ale za darmo)
+                proc.kill()           # stubborn caffeinate, unlikely but cheap to handle
                 proc.wait(timeout=1)
             except Exception:
                 pass
         _caff["proc"] = None
-        # Rozrozniamy DWA powody stopu. "Zadanie sie skonczylo" to normalna kolej rzeczy;
-        # "maszyna za goraca" to moment, w ktorym bezpiecznik zrobil swoja robote - i tylko
-        # to liczymy, bo tylko to jest dowodem, ze produkt dziala.
+        # Distinguish TWO stop reasons. "Job finished" is normal. "Machine too hot" is when
+        # the guard did its job, and only that counts because only that proves the product
+        # acted.
         przez_termike = (auto or manual) and lvl >= 2
         if przez_termike and st is not None:
             licznik(st, "awake_released_hot")
@@ -2911,23 +2902,23 @@ _awake_log = {"ostatni": "", "kiedy": 0.0, "pominiete": 0}
 
 
 def _loguj_awake(msg):
-    """Keep-awake wlacza sie i wylacza w rytm pauz - przy jednym enkoderze x265
-    to bylo 209 wpisow na godzine, wiecej niz samych pauz. Zdarzenie jest prawdziwe,
-    ale jako log to szum, ktory topi wpisy istotne dla czarnej skrzynki. Logujemy
-    wiec zmiane stanu nie czesciej niz co 10 minut, a przy nastepnym wpisie mowimy,
-    ile przelaczen sie w tym czasie zmiescilo.
+    """Log keep-awake state changes without flooding.
+
+    Keep-awake toggles in rhythm with pauses; one x265 encoder produced 209 entries per
+    hour, more than the pauses themselves. The event is real, but as a log stream it is
+    noise that drowns black-box entries. Log state changes no more than every 10 minutes,
+    and on the next entry report how many switches fit into that time.
     """
     t = now()
-    # Warunek na powtorzenie MUSI miec limit czasu: bez niego ten sam komunikat nie
-    # trafialby do logu juz nigdy (sprawdzone: co 24 h przez 5 dni = zero linii).
-    # Ujemna roznica (cofniety zegar) tez nie moze wyciszac na zawsze.
+    # The repeated-message condition MUST have a time limit. Without it, the same message
+    # would never reach the log again. A negative difference from a clock rollback must not
+    # silence it forever either.
     odstep = t - _awake_log["kiedy"]
     if odstep < 0:
-        # Zegar skoczyl w tyl (NTP, powrot z uspienia, zmiana strefy). Wczesniej
-        # zerowalismy tu odstep, co ZAMYKALO tlumik na kolejne 10 minut liczone od
-        # nowa - czyli zdarzenie wypadajace dokladnie na skok zegara przepadalo, a
-        # keep-awake nie zostawial sladu w logu. Skok zegara to sam w sobie powod,
-        # zeby wpis PRZEPUSCIC: to anomalia, ktora warto miec w czarnej skrzynce.
+        # The clock moved backward (NTP, wake from sleep, timezone change). Resetting the
+        # gap here closed the throttle for another fresh 10 minutes, dropping an event that
+        # landed exactly on the clock jump. A clock jump is itself a reason to let the entry
+        # through because it is worth having in the black box.
         _awake_log["kiedy"] = t
         odstep = 600
     if not isinstance(msg, str):
@@ -2945,7 +2936,7 @@ _hw_fleet = {"v": None}
 
 
 def _hw_cache_fleet():
-    """Model i serial z hardware.json — czytane raz, do migawki floty."""
+    """Return model and serial from hardware.json, read once for the fleet snapshot."""
     if _hw_fleet["v"] is None:
         d = {}
         try:
@@ -2960,7 +2951,7 @@ def _hw_cache_fleet():
 
 
 def fleet_write(cfg, status):
-    """Migawka hosta do wspolnego folderu floty (jesli skonfigurowany)."""
+    """Write this host's snapshot to the configured shared fleet folder."""
     d = os.path.expanduser(cfg.get("fleet_dir") or "")
     if not d:
         return
@@ -2973,8 +2964,8 @@ def fleet_write(cfg, status):
         out["model"] = hw.get("model")
         out["serial"] = hw.get("serial")
         out["guard_version"] = GUARD_VERSION
-        # Autorytatywny znacznik czasu migawki. mtime pliku w iCloud potrafi stac
-        # w miejscu przy swiezej tresci, a `fleet` liczy z tego wiek zgloszenia.
+        # Authoritative snapshot timestamp. File mtime in iCloud can stand still while
+        # content is fresh, and `fleet` uses this to compute report age.
         out["epoch"] = round(time.time(), 3)
         _bledy = {k: v for k, v in _CICHE_AWARIE.items() if not k.startswith("_ostatni_log_")}
         if _bledy:
@@ -2984,16 +2975,19 @@ def fleet_write(cfg, status):
             json.dump(out, f, ensure_ascii=False)
         os.replace(tmp, os.path.join(d, "%s.json" % hostname()))
     except Exception:
-        pass                      # flota jest dodatkiem — nie moze polozyc bezpiecznika
+        pass                      # fleet is an add-on; it must not take down the guard
 
 
 def status_write(state, temp, soc, soc_t, ac, pct, speed, load, lvl, why, targets, st, disk=None,
                  pokaz=None):
-    """Migawka dla paska menu (`heatbar`). Pasek nic sam nie mierzy — czyta ten plik,
-    wiec kosztuje zero CPU i zawsze pokazuje dokladnie to, co widzi guard."""
-    # Do POKAZANIA idzie lista bez potomkow (inaczej ten sam procesor liczy sie dwa
-    # razy), ale sygnaly leca do PELNEJ listy `targets` — patrz komentarz przy
-    # `bez_potomkow`, to rozroznienie kosztowalo nas dziurawa ochrone drzew procesow.
+    """Write the menu-bar (`heatbar`) snapshot.
+
+    The menu bar measures nothing by itself; it reads this file, so it costs zero CPU and
+    always shows exactly what guard sees.
+    """
+    # The DISPLAY list excludes children, otherwise the same processor is counted twice.
+    # Signals go to the FULL `targets` list; see `bez_potomkow`. This distinction exists
+    # because filtering targets created broken protection for process trees.
     do_pokazania = pokaz if pokaz is not None else (targets or [])
     top = targets[0] if targets else None
     data = {
@@ -3005,7 +2999,7 @@ def status_write(state, temp, soc, soc_t, ac, pct, speed, load, lvl, why, target
         "watts": round(soc["watts"], 1) if soc else None,
         "ram_used_gb": round(soc["ram_used"], 1) if soc and soc.get("ram_total") else None,
         "ram_total_gb": round(soc["ram_total"], 1) if soc and soc.get("ram_total") else None,
-        # swap uzywany na maszynie z duzym RAM-em to najlepszy sygnal realnej presji pamieci
+        # Swap used on a high-RAM machine is the best signal of real memory pressure.
         "swap_used_gb": round(soc["swap_used"], 2) if soc and soc.get("ram_total") else None,
         "disk_used_gb": round(disk[0]) if disk else None,
         "disk_total_gb": round(disk[1]) if disk else None,
@@ -3013,8 +3007,8 @@ def status_write(state, temp, soc, soc_t, ac, pct, speed, load, lvl, why, target
         "battery_pct": pct, "on_ac": bool(ac),
         "cpu_limit": speed, "load1": round(load, 2),
         "paused": [v.get("comm") for v in st.get("paused", {}).values()],
-        # degradacja na E-cores jest NIEWIDOCZNA w temperaturze (44 C wyglada jak sukces
-        # chlodzenia), a tnie tempo zadania nawet 11x - musi byc jawna w migawce
+        # E-core demotion is INVISIBLE in temperature (44 C looks like cooling success) but
+        # can cut job speed by 11x. It must be explicit in the snapshot.
         "demoted": [v.get("comm", "?") for v in st.get("demoted_info", {}).values()],
         "heavy_count": len(do_pokazania),
         "top_proc": top[2] if top else None,
@@ -3033,36 +3027,35 @@ def status_write(state, temp, soc, soc_t, ac, pct, speed, load, lvl, why, target
         "stats": st.get("_stat", {}),
         "unpausable": st.get("_unpausable", []),
         "top_cpu_list": st.get("_top_cpu", []),
-        # Kandydaci do RECZNEGO zamrozenia - dokladnie to, co dostanie SIGSTOP.
-        # Pasek pokazywal tu wczesniej "top_cpu_list", czyli trzy najciezsze procesy
-        # w systemie. To byla lista do CZYTANIA, nie do dzialania: siedzialy w niej
-        # WindowServer i agent AI, oba na liscie nietykalnych. Okno potwierdzenia
-        # obiecywalo wiec zatrzymac procesy, ktorych straznik nigdy by nie ruszyl,
-        # i podawalo inna liczbe niz licznik obok.
+        # Manual-freeze candidates: exactly what will receive SIGSTOP. The menu bar used
+        # to show "top_cpu_list" here, the three heaviest system processes. That is a READ
+        # list, not an ACTION list: it included WindowServer and the AI agent, both
+        # untouchable. The confirmation dialog promised to stop processes the guard would
+        # never touch, and showed a different count than the nearby counter.
         "freeze_candidates": [{"pid": t[0], "name": t[2], "cpu": round(t[1])}
                               for t in do_pokazania],
         "top_ram_list": st.get("_top_ram", []),
         "last_hard_shutdown": st.get("_ostatni_pad"),
-        # "resume" doszedl dla safe-run --wait-cool: config.json moze byc skorygowany
-        # w pamieci (sanity-clamp), wiec prog wznowienia trzeba czytac z migawki,
-        # nie z pliku - inaczej czekanie celuje w prog, wedlug ktorego nikt nie dziala.
+        # "resume" is for safe-run --wait-cool. config.json may be corrected in memory by
+        # sanity-clamp, so the resume threshold must come from the snapshot, not the file.
+        # Otherwise waiting targets a threshold nobody enforces.
         "thresholds": {"pause": st.get("_prog_pauza"), "resume": st.get("_prog_wznowienia"),
                        "kill": st.get("_prog_ubicie")},
-        # False = brak czujnika chipa (macmon). Pasek, flota i agenci maja o tym wiedziec,
-        # bo wtedy ochrona opiera sie na samej baterii, ktora reaguje minuty pozniej.
+        # False means no chip sensor (macmon). The menu bar, fleet, and agents must know,
+        # because protection then rests only on the battery, which reacts minutes later.
         "chip_sensor": soc is not None,
-        # Niepusta lista = demon chodzi na wartosciach INNYCH niz w config.json
-        # (sanity-clamp poprawil je w pamieci). Kazdy, kto czyta config.json,
-        # ma najpierw spojrzec tutaj - inaczej diagnozuje nie ten system, ktory dziala.
+        # Non-empty list means the daemon runs on values DIFFERENT from config.json because
+        # sanity-clamp corrected them in memory. Anyone reading config.json must check here
+        # first, or they diagnose a different system from the one actually running.
         "config_corrections": list(_ostatnio_odrzucone["v"]),
     }
     tmp = STATUS_PATH + ".tmp"
     try:
         with open(tmp, "w") as f:
             json.dump(data, f, ensure_ascii=False)
-        os.replace(tmp, STATUS_PATH)   # podmiana atomowa — pasek nigdy nie zlapie polowy pliku
+        os.replace(tmp, STATUS_PATH)   # atomic replace; the menu bar never sees half a file
     except Exception as e:
-        cicha_awaria("status_write", e)   # pasek pokazuje wtedy stare dane jako biezace
+        cicha_awaria("status_write", e)   # the menu bar then shows stale data as current
     return data
 
 
@@ -3072,7 +3065,7 @@ HIST_HEADER = ("time,thermal_state,chip_C,gpu_C,battery_C,fan_rpm,watts,"
 
 def hist_write(row):
     rotate(HIST_PATH)
-    # przy zmianie zestawu kolumn odkladamy stary plik zamiast mieszac formaty
+    # When columns change, set aside the old file instead of mixing formats.
     try:
         if os.path.exists(HIST_PATH):
             with open(HIST_PATH) as f:
@@ -3087,10 +3080,10 @@ def hist_write(row):
                 f.write(HIST_HEADER)
             f.write(",".join(str(x) for x in row) + "\n")
     except Exception as e:
-        cicha_awaria("hist_write", e)   # brak pomiarow = pusta os czasu w dowodzie
+        cicha_awaria("hist_write", e)   # no measurements means an empty evidence timeline
 
 
-# ---------------------------------------------------------------- petla
+# ---------------------------------------------------------------- loop
 
 def snapshot(cfg):
     state = thermal_state()
@@ -3104,9 +3097,9 @@ def snapshot(cfg):
     saferun, saferun_normal = managed_pids_from_saferun()
     targets = pick_targets(cfg, procs, saferun)
     lvl, why = severity(cfg, state, temp, speed, soc_t, ac, pct)
-    # `do_pokazania` jedzie osobno od `targets`: sygnaly leca do PELNEJ listy (inaczej
-    # dzieci nie dostaja SIGSTOP), a licznik i okno potwierdzenia pokazuja liste bez
-    # potomkow (inaczej ten sam procesor liczy sie dwa razy).
+    # `do_pokazania` is separate from `targets`: signals go to the FULL list, otherwise
+    # children do not receive SIGSTOP. The counter and confirmation window show the list
+    # without descendants, otherwise the same processor is counted twice.
     return (state, temp, speed, load, targets, lvl, why, soc, soc_t, ac, pct,
             saferun_normal, bez_potomkow(targets, procs), list(_DEMOTE_ONLY))
 
@@ -3115,12 +3108,15 @@ _fan_zero = {"n": 0}
 
 
 def fan_alarm(cfg, soc, soc_t, st):
-    """Chip goracy, a wentylatory stoja = awaria chlodzenia (zatarty wentylator,
-    odlaczona tasma, zapchany uklad). Tylko krzyczy — pauzowanie zostawiamy termice,
-    zeby blad odczytu nie zabijal obliczen."""
-    # Licznik NIE moze przezyc braku danych ani restartu demona: inaczej "trzy odczyty
-    # z rzedu" znaczy "trzy odczyty kiedykolwiek", a po restarcie z licznikiem 2 pierwszy
-    # rozbieg wentylatorow alarmuje natychmiast. Dlatego zyje w module, nie w state.json.
+    """Warn when the chip is hot and fans are stopped.
+
+    This indicates cooling failure, such as a stuck fan, disconnected cable, or clogged
+    cooling path. It only shouts; thermal logic owns pausing so a bad fan reading does not
+    kill computations.
+    """
+    # This counter MUST NOT survive missing data or daemon restart. Otherwise "three
+    # consecutive readings" means "three readings ever", and after restart with counter 2
+    # the first fan spin-up alarms immediately. It lives in the module, not state.json.
     if not cfg.get("fan_check", True) or not soc or soc_t is None:
         _fan_zero["n"] = 0
         return
@@ -3130,46 +3126,44 @@ def fan_alarm(cfg, soc, soc_t, st):
         return
     hot = soc_t >= cfg.get("fan_alert_temp_c", 75.0)
     dead = max(fans) == 0
-    # Wentylatory rozbiegaja sie z zera przez kilka sekund. Pojedynczy odczyt
-    # "goraco i 0 obr/min" to najczesciej ROZBIEG, nie awaria - alarm z 02.08 10:32:43
-    # (75,9 C, oba na zerze) okazal sie wlasnie tym: chwile pozniej kręcily 2300-2900.
-    # Prawdziwa awaria chlodzenia utrzymuje sie; przelotna nie. Liczymy z rzedu.
+    # Fans ramp up from zero over several seconds. One "hot and 0 rpm" reading is usually
+    # spin-up, not failure. A true cooling failure persists; a transient one does not. Count
+    # consecutive readings.
     _fan_zero["n"] = (_fan_zero["n"] + 1) if (hot and dead) else 0
-    st["_fan_zero_polls"] = _fan_zero["n"]          # tylko do podgladu w state.json
+    st["_fan_zero_polls"] = _fan_zero["n"]          # state.json inspection only
     if hot and dead and _fan_zero["n"] >= cfg.get("fan_alert_polls", 3):
         if now() - st.get("fan_alarm_at", 0) > 600:
             st["fan_alarm_at"] = now()
             msg = (T("COOLING FAILURE? chip %.1f C while both fans report 0 rpm") % soc_t)
             log("!!! " + msg, tag="FANFAIL")
-            # events.log to czarna skrzynka dla raportu dowodowego. Alarm wentylatorow
-            # szedl dotad WYLACZNIE do guard.log, wiec raport - ktory sekcje krytyczna
-            # buduje z events.log - twierdzil "nie wykryto alarmu chlodzenia", majac
-            # osiem takich alarmow w tym samym dokumencie. Dokument przeczyl sam sobie.
+            # events.log is the black box for evidence reports. Fan alarms used to go only
+            # to guard.log, while the report builds its critical section from events.log.
+            # The document then said "no cooling alarm detected" while showing such alarms
+            # elsewhere, contradicting itself.
             zapisz_zdarzenie("COOLING_ALARM", msg,
                              {"chip_c": round(soc_t, 1), "fans": list(fans)})
             notify(cfg, T("Fans stopped while the chip is hot"), msg, key="fan")
 
 
 def zajmij_wylacznosc():
-    """Tylko JEDEN demon na maszyne. Blokada trzymana przez caly czas zycia procesu.
+    """Acquire the one-daemon-per-machine lock for this process lifetime.
 
-    Dwie instancje to nie jest teoretyczny problem: kazda widzi te druga jako zwykly
-    proces Pythona zzerajacy CPU i potrafi ja zapauzowac (zdarzylo sie 02.08.2026,
-    gdy osierocony `python3 guard.py` z katalogu zrodel przezyl testy). Efekt: log
-    pisany na dwa glosy i strażnik zamrozony przez samego siebie.
+    Two instances are not theoretical: each sees the other as an ordinary CPU-hungry Python
+    process and can pause it. An orphaned `python3 guard.py` from a source directory
+    survived tests once. Result: two writers in the log and the guard frozen by itself.
 
-    Zwraca uchwyt pliku - trzeba go trzymac, zamkniecie zwalnia blokade.
+    Returns a file handle that must be kept open; closing it releases the lock.
     """
     import fcntl
     sciezka = os.path.join(BASE, "guard.lock")
     try:
-        # "a+", nie "w": tryb "w" OBCINA plik zanim sprobuje flock, wiec kazde nieudane
-        # uruchomienie kasowalo PID wlasciciela blokady - czyli jedyna diagnostyke
-        # "kto ja trzyma". Zapis dopiero po zdobyciu blokady.
+        # "a+", not "w": "w" truncates before flock, so every failed start erased the PID
+        # of the lock owner, the only diagnostic for "who holds it". Write only after the
+        # lock is acquired.
         f = open(sciezka, "a+")
     except OSError as e:
-        # katalog zamiast pliku, brak prawa zapisu - bez tego demon padal tracebackiem
-        # przy starcie, a launchd restartowal go w petli
+        # Directory instead of file, no write permission. Without this, the daemon crashed
+        # with a traceback at startup and launchd restarted it in a loop.
         log("nie moge otworzyc %s (%s) - demon startuje BEZ wylacznosci" % (sciezka, e))
         return False
     try:
@@ -3188,19 +3182,20 @@ def zajmij_wylacznosc():
 
 
 def main():
-    # Narzedzie aktualizowane resetem z gita bez --version zmuszalo do zgadywania,
-    # co jest zainstalowane (git describe dziala tylko w klonie repo). Przed blokada
-    # wylacznosci, zeby dzialalo takze przy chodzacym demonie.
+    # An install updated by git reset without --version forced guessing what is installed.
+    # git describe works only in a clone. Check this before the exclusivity lock so it works
+    # while the daemon is running.
     if "--version" in sys.argv:
         print("coffee-paladin %s" % GUARD_VERSION)
         return 0
     ensure_dirs()
-    # Wylacznosc obowiazuje TYLKO demona. `--once` i `status` to jednorazowe odczyty:
-    # maja dzialac zawsze, takze gdy demon chodzi (tak sprawdza je czlowiek i testy).
+    # Exclusivity applies ONLY to the daemon. `--once` and `status` are one-shot reads and
+    # must always work, including while the daemon is running. Humans and tests use them.
     jednorazowo = ("--once" in sys.argv) or ("status" in sys.argv)
     _blokada = None if jednorazowo else zajmij_wylacznosc()
-    # False = nie dalo sie otworzyc pliku blokady (katalog, brak praw). Startujemy mimo to:
-    # brak wylacznosci jest zly, ale brak OCHRONY jest gorszy. None = ktos ja trzyma.
+    # False means the lock file could not be opened (directory, no permission). Start
+    # anyway: lack of exclusivity is bad, but lack of PROTECTION is worse. None means
+    # somebody else holds it.
     if not jednorazowo and _blokada is None:
         print(T("another coffee-paladin daemon is already running - this one exits"),
               file=sys.stderr)
@@ -3208,8 +3203,8 @@ def main():
     cfg = load_cfg()
     st = load_state()
 
-    # `coffee-paladin status` bylo pulapka: konczylo sie kodem 0 bez slowa, co wyglada
-    # na sukces. Teraz jest aliasem --once, a kazdy nieznany argument mowi, co umiemy (B6).
+    # `coffee-paladin status` was a trap: exit code 0 with no output looked successful. It
+    # is now an alias for --once, and every unknown argument prints what is supported.
     znane = {"--once", "status", "--version"}
     obce = [a for a in sys.argv[1:] if a not in znane]
     if obce:
@@ -3231,28 +3226,27 @@ def main():
             print(T("  candidate: %-20s pid=%-7d %.0f%% CPU") % (comm, pid, cpu))
         return 0
 
-    # Sprzatanie po poprzednim demonie robi WYLACZNIE demon. Kiedys ten blok stal
-    # przed obsluga --once/status, wiec `coffee-paladin status` odmrazal wszystko,
-    # co pauzowal DZIALAJACY demon, i czyscil mu state.json - a demon dalej myslal,
-    # ze trzyma te procesy zamrozone (znalezione w bramce jakosci 02.08.2026).
+    # Cleanup after a previous daemon is done ONLY by the daemon. This block used to run
+    # before --once/status handling, so `coffee-paladin status` resumed everything paused by
+    # the RUNNING daemon and cleared its state.json while the daemon still believed it held
+    # those processes frozen.
     if st["paused"]:
         try:
             stan_mtime = os.path.getmtime(STATE_PATH)
         except Exception:
             stan_mtime = 0
         if stan_mtime >= boot_time():
-            # ZANIM cokolwiek wznowimy - pomiar. Restart demona (aktualizacja, kickstart)
-            # zdarza sie takze na goracej maszynie: wznowienie "na slepo" dawalo goracemu
-            # zadaniu ~15 s pelnej pary przy chipie nad progiem, zanim pierwszy cykl petli
-            # zdazyl je z powrotem zamrozic (runda przegladu 3, 05.08.2026). Ta sama bramka,
-            # ktorej uzywa petla - nie kopia warunku.
+            # Measure BEFORE resuming anything. Daemon restart (update, kickstart) can
+            # happen on a hot machine. Blind resume gave a hot job ~15 s at full speed above
+            # the chip threshold before the first loop cycle froze it again. Use the same
+            # gate as the loop, not a copy.
             if bramka_wznowienia(cfg, st, battery_temp_c(), soc_temp_c(), thermal_state()):
                 do_resume(cfg, st, T("guard startup - nothing is left frozen"))
             else:
                 log("startup: machine still hot - %d paused entr(ies) stay frozen, "
                     "the loop will resume them after cooling" % len(st["paused"]))
         else:
-            # stan sprzed rebootu: PID-y moga nalezec do zupelnie obcych procesow
+            # State from before reboot: PIDs may belong to completely unrelated processes.
             log("stale state from before boot - dropping %d paused entries without signaling"
                 % len(st["paused"]))
             st["paused"] = {}
@@ -3266,14 +3260,14 @@ def main():
     signal.signal(signal.SIGTERM, on_signal)
     signal.signal(signal.SIGINT, on_signal)
 
-    # czarna skrzynka: czy poprzednia sesja skonczyla sie twardym zgasnieciem?
+    # Black box: did the previous session end in a hard shutdown?
     pad = wykryj_twardy_pad()
     if pad:
         st["_ostatni_pad"] = pad
         notify(cfg, T("Mac shut down without warning"),
                T("Evidence from the moment of the crash was saved - menu bar > Export report"), key="pad")
     st["reczna_pauza"] = False
-    # Nowa sesja demona = nowe liczniki sesji. Suma calkowita ("stats") zostaje nietknieta.
+    # New daemon session means new session counters. The all-time total ("stats") remains.
     st["stats_sesja"] = {"since": now()}
     try:
         if os.path.exists(CLEAN_STOP_PATH):
@@ -3281,18 +3275,18 @@ def main():
     except Exception:
         pass
 
-    # sprzet + kalibracja per Mac: raz przy starcie (system_profiler jest wolny)
+    # Hardware and per-Mac calibration: once at startup because system_profiler is slow.
     hw = {}
-    kalibracja_odlozona = False   # musi istniec takze gdy kalibracja rzuci wyjatkiem
+    kalibracja_odlozona = False   # must exist even when calibration raises
     try:
         hw = hardware_info()
         wynik_kalibracji = auto_calibrate(cfg, hw)
-        # Czujnik potrafi wstac PO starcie demona (macmon zajety kompilacja paska
-        # przy `install.sh`). Kalibracja idzie raz przy starcie, wiec bez tego Mac
-        # bezwentylatorowy czekalby na swoje progi do nastepnego restartu demona,
-        # a demon ma KeepAlive. Petla dokonczy robote, gdy czujnik wroci.
+        # The sensor can come up AFTER daemon start, for example while macmon is busy after
+        # `install.sh` compiled the menu bar. Calibration runs once at startup, so without
+        # this a fanless Mac would wait for its thresholds until the next daemon restart,
+        # and the daemon has KeepAlive. The loop finishes the work when the sensor returns.
         kalibracja_odlozona = not hw.get("chip_sensor")
-        cfg = load_cfg()          # kalibracja mogla dopisac progi
+        cfg = load_cfg()          # calibration may have written thresholds
         if wynik_kalibracji == "watchonly" and cfg.get("dry_run"):
             notify(cfg, T("coffee-paladin: watch-only mode"),
                    T("Measuring and alerting only - nothing is paused. Enable protection in the menu bar (one click)."),
@@ -3307,9 +3301,9 @@ def main():
            czujnik_chipa, cfg["batt_pause_c"], cfg["batt_kill_c"],
            cfg["pause_on_thermal_state"], cfg.get("batt_pct_pause", 10)))
 
-    # Brak czujnika chipa to nie drobiazg: zostaje sama bateria, ktora reaguje
-    # z kilkuminutowym opoznieniem. Dotad jedynym sladem byla jedna linia w logu,
-    # ktorej nikt nie czyta - a `heat` i `fleet` dalej meldowaly, ze wszystko gra.
+    # Missing chip sensor is not minor: only the battery remains, and it reacts several
+    # minutes late. A single log line was not enough while `heat` and `fleet` still reported
+    # that everything was fine.
     _bez_czujnika = soc_temp_c() is None
     if _bez_czujnika:
         notify(cfg, T("Thermal guard: PROTECTION INCOMPLETE"),
@@ -3325,16 +3319,16 @@ def main():
     while not stop["flag"]:
         try:
             cfg = load_cfg()
-            # kazda zmiana progow/zachowania zostawia slad stara -> nowa (B5);
-            # pierwszy przebieg tylko zapamietuje stan, bez logowania
+            # Every threshold or behavior change leaves an old -> new trail. The first pass
+            # only remembers state, without logging.
             obserwowane_cfg = loguj_zmiany_configu(obserwowane_cfg, cfg)
             reap_bg()
             (state, temp, speed, load, targets, lvl, why,
              soc, soc_t, ac, pct, saferun_normal, do_pokazania, demote_only) = snapshot(cfg)
-            # Czujnik wrocil juz po starcie? Dokoncz odlozona kalibracje. Bez tego
-            # Mac bezwentylatorowy siedzi na progach wentylatorowych do restartu demona.
-            # Odczyt bierzemy z migawki (`soc`), zeby nie placic drugi raz za macmona;
-            # reszta `hw` jest z systemu i sie nie zmienia miedzy taktami.
+            # Sensor returned after startup? Finish deferred calibration. Without this, a
+            # fanless Mac stays on fan-equipped thresholds until daemon restart. Use the
+            # snapshot (`soc`) to avoid paying for macmon again; the rest of `hw` comes from
+            # the system and does not change between ticks.
             if kalibracja_odlozona and soc:
                 hw["fan_count"] = len(soc.get("fans") or [])
                 hw["chip_sensor"] = True
@@ -3345,30 +3339,30 @@ def main():
             fan_alarm(cfg, soc, soc_t, st)
             obsluz_rozkaz(cfg, st, targets)
 
-            # dane pomocnicze dla paska (trend, zadania, licznik dnia)
+            # Helper data for the menu bar: trend, jobs, daily counter.
             st["_trend_c_min"], st["_eta_min"] = trend_i_prognoza(cfg, soc_t)
             st["_dry"] = bool(cfg.get("dry_run"))
             st["_awake"] = keep_awake_update(cfg, targets, lvl, st)
             st["_prog_pauza"] = cfg.get("soc_pause_c")
             st["_prog_ubicie"] = cfg.get("soc_kill_c")
             st["_prog_wznowienia"] = cfg.get("soc_resume_c")
-            if tick % 4 == 0:                      # rzadziej — to czytanie z dysku
+            if tick % 4 == 0:                      # less often, this reads from disk
                 st["_zadania"] = zadania_saferun()
                 st["_stat"] = statystyki_dnia()
                 st["_top_cpu"], st["_top_ram"] = top_lists()
-            # dysk zmienia sie wolno — odczyt raz na ~5 min wystarcza
+            # Disk changes slowly; one read every ~5 min is enough.
             if tick % 20 == 0 or not st.get("_disk"):
                 st["_disk"] = disk_usage()
             snap_dict = status_write(state, temp, soc, soc_t, ac, pct, speed, load, lvl, why,
                                      targets, st, st.get("_disk"), pokaz=do_pokazania)
-            if tick % 4 == 0 and snap_dict:      # flota co ~1 min wystarczy
+            if tick % 4 == 0 and snap_dict:      # fleet every ~1 min is enough
                 fleet_write(cfg, snap_dict)
 
-            # puls czarnej skrzynki — po twardym padzie zostanie tu ostatni znak zycia
+            # Black-box pulse. After a hard shutdown, this remains the last sign of life.
             try:
                 with open(HEARTBEAT_PATH, "w") as f:
-                    # epoch przodem: strefa czasowa i DST wypadaja z rownania przy odczycie;
-                    # tekst po spacji zostaje dla czlowieka (znalezisko Neo, 30.07)
+                    # Epoch first: timezone and DST fall out of the read path. Text after
+                    # the space remains for humans.
                     f.write("%d %s" % (now(), ts()))
             except Exception:
                 pass
@@ -3386,49 +3380,44 @@ def main():
                             speed, "%.2f" % load, lvl,
                             top[2] if top else "", "%.0f" % top[1] if top else ""])
 
-            # PONOWNY SIGSTOP dla wszystkiego, co uznajemy za wstrzymane. Powod: miedzy
-            # zamrozeniem a zapisem state.json jest okno, w ktorym duty-limiter safe-run
-            # (albo reczny kill -CONT) moze obudzic zadanie — a my dalej mielibysmy je
-            # w pamieci jako "paused" i nigdy nie zamrozili ponownie. STOP na juz
-            # zatrzymanym procesie nic nie kosztuje i nic nie psuje.
+            # Repeat SIGSTOP for everything considered paused. Between freeze and
+            # state.json write, the safe-run duty limiter or a manual kill -CONT can wake a
+            # job while it remains "paused" in memory, so it would never be frozen again.
+            # STOP on an already stopped process is harmless and cheap.
             if lvl >= 2 and not cfg["dry_run"]:
                 for key, info in st["paused"].items():
                     pid = int(key)
                     if alive(pid):
                         sig(pid, info.get("pgid"), signal.SIGSTOP)
 
-            # POTWIERDZENIE STANU SYSTEMOWEGO. Gdy jedynym powodem poziomu >=2 jest
-            # `thermalState` (a prog chipu NIE jest przekroczony), wymagamy kilku
-            # odczytow z rzedu. To druga polowa leku na migotanie z 10:46: minimalny
-            # czas pauzy rozrzedzal oscylacje, ale to dopiero potwierdzanie wejscia
-            # daje realna histereze na tym wyzwalaczu.
+            # System-state confirmation. When the only reason for level >=2 is
+            # `thermalState` and the chip threshold is NOT crossed, require several
+            # consecutive readings. Minimum pause time reduced oscillation, but confirming
+            # entry gives this trigger real hysteresis.
             prog_chipu = cfg.get("soc_pause_c", 95.0)
             sam_stan = (lvl >= 2 and (soc_t is None or soc_t < prog_chipu)
                         and (temp is None or temp < cfg["batt_pause_c"]))
             st["_state_polls"] = (st.get("_state_polls", 0) + 1) if sam_stan else 0
             if sam_stan and st["_state_polls"] < cfg.get("state_confirm_polls", 2):
-                lvl = 1        # jeszcze nie ufamy pojedynczemu skokowi thermalState
+                lvl = 1        # do not trust a single thermalState spike yet
 
-            # ZATRZASK PER CZUJNIK. Czujnik moze BLOKOWAC wznowienie tylko wtedy, gdy sam
-            # przekroczyl swoj prog pauzy i jeszcze nie zszedl do swojego progu wznowienia.
-            # Wczesniej bramka byla nesymetryczna: pauze wywolywal DOWOLNY czujnik, ale
-            # wznowienie blokowal KAZDY. Bateria stygnie kilka minut i przy dlugim kodowaniu
-            # trzyma ~37 C, wiec przy progach chipa 95/87 pauza WYWOLANA CHIPEM nie konczyla
-            # sie nigdy: chip schodzil do 71 C w 20 s, a bateria - trzy stopnie ponizej
-            # WLASNEGO progu 40 C, ktorego nigdy nie przekroczyla - trzymala zadanie w stanie T
-            # az do SIGTERM-a po 45 minutach. Log Pawla 04.08.2026: 15 pauz, ZERO wznowien,
-            # dwa ubite zadania. Histereza czujnika ma chronic przed migotaniem JEGO progu,
-            # a nie brac zakladnikow za cudzy prog.
-            # Migawka realnie zatrzymanych procesow - JEDEN `ps` na cykl i tylko wtedy,
-            # gdy w ogole cos mamy zamrozone. Uzywaja jej obie sciezki, ktore podejmuja
-            # decyzje o cudzym zyciu: kasowanie nieaktualnych wpisow i SIGTERM po limicie.
+            # Per-sensor latch. A sensor can BLOCK resume only if it crossed its own pause
+            # threshold and has not dropped to its own resume threshold yet. The old gate
+            # was asymmetric: ANY sensor caused pause, but EVERY sensor blocked resume. A
+            # battery cooling over minutes at ~37 C could hold a CHIP-paused job in T until
+            # SIGTERM, even though it never crossed its own 40 C threshold. Sensor
+            # hysteresis must protect against flicker at that sensor's threshold, not take
+            # hostages for another sensor's threshold.
+            # Snapshot really stopped processes with ONE `ps` per cycle, only when anything
+            # is frozen. Both paths that decide another process's life use it: stale-entry
+            # cleanup and SIGTERM after the pause limit.
             stoja = zatrzymane_teraz() if st["paused"] else (set(), set())
             if stoja is None and not st.get("_ps_cicho"):
                 log("ps unavailable - postponing decisions about paused jobs")
             st["_ps_cicho"] = stoja is None
 
-            # Zatrzaski aktualizowane w KAZDYM cyklu, takze gdy goraco - inaczej bateria,
-            # ktora przekroczyla 40 C w trakcie pauzy, nie zapalilaby zatrzasku wcale.
+            # Update latches in EVERY cycle, even while hot. Otherwise a battery crossing
+            # 40 C during a pause would never turn on its latch.
             wolno_wznowic = bramka_wznowienia(cfg, st, temp, soc_t, state)
 
             if lvl >= 3:
@@ -3447,40 +3436,38 @@ def main():
             else:
                 crit_polls = 0
                 cool = wolno_wznowic
-                # po pauzie z powodu baterii wznawiamy dopiero na zasilaczu (albo po doladowaniu)
+                # After a battery pause, resume only on AC or after enough recharge.
                 powered = ac or pct is None or pct >= cfg.get("batt_pct_resume", 25)
-                # MARTWE WPISY sprzatamy TU, niezaleznie od do_resume. Wczesniej jedynym
-                # miejscem, ktore je usuwalo, bylo do_resume - a to ono jest zablokowane
-                # flaga recznej pauzy. Powstawal stan absorbujacy: Pawel mrozi cos recznie,
-                # ubija to z terminala, wpis zostaje na zawsze, `reczna_pauza` zostaje
-                # na zawsze, i od tej chwili guard PAUZUJE, ale NIGDY nie wznawia -
-                # kazde kolejne zadanie dostaje SIGTERM po limicie czasu.
+                # Clean dead entries HERE, independent of do_resume. Previously do_resume
+                # was the only cleanup site, but manual-pause flag blocks it. That created
+                # an absorbing state: a manual freeze, external kill, entry stays forever,
+                # `reczna_pauza` stays forever, and from then on guard PAUSES but NEVER
+                # resumes, so every later job gets SIGTERM after the time limit.
                 for _k in [k for k in list(st["paused"]) if not alive(int(k))]:
                     del st["paused"][_k]
-                # WPISY OBUDZONE POZA GUARDEM. Maszyna jest chlodna, wiec ten proces i tak
-                # ma prawo pracowac - a skoro juz pracuje (czlowiek dal `kill -CONT`, albo
-                # obudzil go duty-limiter safe-run), to wpis jest tylko wyrokiem z odroczeniem:
-                # zegar pauzy tyka dalej i po `max_pause_minutes` leci SIGTERM w zadanie
-                # chodzace pelna para. Dokladnie tak zginal pomiar Pawla 04.08.2026 o 20:27,
-                # 25 minut po recznym wznowieniu. Wpis kasujemy i mowimy o tym w logu.
+                # Entries woken outside guard. The machine is cool, so the process may run;
+                # and if it already runs because a human sent `kill -CONT` or safe-run duty
+                # limiter woke it, the entry is only a delayed sentence. The pause clock
+                # keeps ticking and `max_pause_minutes` later sends SIGTERM into a job
+                # running at full speed. Delete the entry and log it.
                 for _k in wpisy_nieaktualne(st["paused"], stoja):
                     log(T("dropping stale pause entry: %s (pid %s) is running again "
                           "- resumed outside the guard")
                         % (st["paused"][_k].get("comm", "?"), _k))
                     del st["paused"][_k]
-                # flaga liczona z danych, a nie trzymana osobno - nie da sie rozjechac
+                # Compute the flag from data instead of storing it separately; it cannot drift.
                 st["reczna_pauza"] = any(v.get("manual") for v in st["paused"].values())
 
-                # MINIMALNY CZAS PAUZY. Bez tego wyzwalacz stanu systemowego (ktory
-                # histerezy nie ma) daje oscylacje: pauza -> 15 s -> "warunki wrocily
-                # do normy" -> pauza, w kolko, przy chipie dziesiec stopni ponizej
-                # progu. Zadanie skacze, a nic sie nie chlodzi.
+                # Minimum pause time. Without this, the system-state trigger, which has no
+                # hysteresis, oscillates: pause -> 15 s -> "conditions normal" -> pause
+                # again, with the chip ten degrees below threshold. The job bounces while
+                # nothing cools.
                 min_p = max(0, cfg.get("min_pause_seconds", 60))
-                # PER WPIS, nie wszystko-albo-nic: wczesniej brano najmlodsza pauze
-                # z calej paczki, wiec swiezo zamrozony proces przytrzymywal ffmpeg
-                # stojacy od godziny. Przy migotaniu stanu nowe kandydatury pojawiaja
-                # sie cyklicznie i najstarsza pauza mogla czekac az do SIGTERM-a.
-                # Reczne zamrozenie z paska ma pierwszenstwo - tych nie ruszamy.
+                # Per entry, not all-or-nothing. The old code used the youngest pause from
+                # the whole batch, so a freshly frozen process held back ffmpeg that had
+                # already waited an hour. With state flicker, new candidates appear
+                # cyclically and the oldest pause could wait until SIGTERM. Manual menu-bar
+                # freezes have priority and are not touched.
                 gotowe = [k for k, v in st["paused"].items()
                           if _wiek_pauzy(v) >= min_p and not v.get("manual")
                           and (powered or v.get("powod") != "bateria")]
@@ -3488,33 +3475,31 @@ def main():
                     do_resume(cfg, st, T("conditions are back to normal"), only_keys=gotowe,
                               po_ostygnieciu=True)
                 do_promote(cfg, st, cpu_hist, soc_t)
-                # systemowe demony indeksowania dokladane TYLKO tutaj: degradacja tak,
-                # pauza/ubicie nigdy (wariant A, patrz system_demote_patterns)
+                # System indexing daemons are added ONLY here: demotion yes, pause/terminate
+                # never. See system_demote_patterns.
                 do_demote(cfg, st, targets + demote_only, cpu_hist, soc_t, saferun_normal)
 
-            # Nic nie moze wisiec w pauzie w nieskonczonosc — ALE czekanie na zasilacz
-            # to nie awaria. Gdy chip i bateria sa chlodne, a jedynym powodem pauzy jest
-            # niski poziom baterii, dajemy duzo wiecej czasu: obliczenie ma spokojnie
-            # doczekac do momentu, az uzytkownik podepnie kabel, zamiast zginac po 45 minutach.
+            # Nothing may stay paused forever. BUT waiting for AC is not a failure. When
+            # chip and battery are cool and low battery is the only pause reason, give much
+            # more time so computation can wait for the user to plug in instead of dying
+            # after 45 minutes.
             tylko_bateria = (not ac and lvl >= 2
                              and (soc_t is None or soc_t < cfg.get("soc_pause_c", 88) - 10)
                              and (temp is None or temp < cfg["batt_pause_c"] - 3))
             limit_min = cfg.get("max_pause_minutes_batt", 240) if tylko_bateria else cfg["max_pause_minutes"]
-            # Ile ta pauza trwa NAPRAWDE. Zegar scienny potrafi skoczyc (NTP, korekta
-            # RTC, powrot z uspienia): skok o 3 h ubijal SIGTERM-em zadanie zapauzowane
-            # minute wczesniej, a cofniecie zegara wylaczalo limit na dobre. monotonic()
-            # nie przezywa restartu demona: nowy proces zaczyna liczyc od nowa (a pod
-            # Apple'owym pythonem dokladnie od zera), wiec pomiar starego demona wyszedlby
-            # ujemny i limit pauzy nigdy by nie zadzialal - zadanie zamrozone przed
-            # restartem zostaloby w stanie T na zawsze. Dlatego wpis niesie znacznik
-            # procesu, a cudzy pomiar wraca na zegar scienny, ktory jako jedyny znaczy
-            # to samo po obu stronach restartu.
-            # ...i ubijamy WYLACZNIE to, co naprawde stoi. Wpis to notatka guarda, nie stan
-            # systemu: proces obudzony recznie albo przez limiter safe-run pracuje pelna para,
-            # a jego wpis dalej postarzal sie w tle. SIGTERM po 45 minutach dostawalo wtedy
-            # zdrowe zadanie w polowie roboty (Pawel, 04.08.2026, 20:27 - pomiar wznowiony
-            # recznie o 20:02). Zegar liczy od PIERWSZEGO zatrzymania i tak ma byc:
-            # od kary ratuje dowod, ze proces chodzi, a nie przewijanie stopera.
+            # How long this pause REALLY lasted. Wall time can jump (NTP, RTC correction,
+            # wake from sleep): a 3 h jump killed a job paused one minute earlier, and a
+            # backward jump disabled the limit forever. monotonic() does not survive daemon
+            # restart; a new process starts counting from scratch, exactly from zero under
+            # Apple's Python, so an old measurement would go negative and the pause limit
+            # would never fire. The entry carries a process marker, and a foreign
+            # measurement falls back to wall time, the only clock that means the same thing
+            # on both sides of restart.
+            # Terminate ONLY what is really stopped. The entry is a guard note, not system
+            # state: a process woken manually or by the safe-run limiter runs at full speed
+            # while its entry keeps aging. SIGTERM after 45 minutes then hits a healthy job
+            # mid-work. The clock starts at the FIRST stop, as intended; proof that the
+            # process is running saves it, not rewinding the stopwatch.
             przeterminowane = wpisy_przeterminowane(st["paused"], limit_min * 60, stoja)
             if przeterminowane:
                 for k in przeterminowane:
@@ -3527,13 +3512,13 @@ def main():
                 del _nie_da_sie[_p]
             _demote_nie_da_sie.difference_update(
                 p for p in list(_demote_nie_da_sie) if not alive(p))
-            # Lista dla paska i dla agentow odswiezana TU, nie tylko przy nowej pauzie.
-            # Wczesniej `unpausable` niosl nazwe dawno martwego procesu az do nastepnej
-            # proby pauzy, wiec agent AI w kolko meldowal niepelna ochrone.
+            # Refresh the menu-bar and agent list HERE, not only on new pause attempts.
+            # `unpausable` used to carry the name of a long-dead process until the next
+            # pause attempt, so AI agents kept reporting incomplete protection.
             st["_unpausable"] = sorted(set(_nie_da_sie.values()))
-            # Zegar degradacji przezywa pauzy: wpis znika dopiero ze SMIERCIA procesu,
-            # nie z wypadnieciem z targets (SIGSTOP zeruje pcpu w <5 s i przy starym
-            # przycinaniu najgoretszy job mial zegar kasowany co pauze - patrz B3).
+            # Demotion clock survives pauses. Entries disappear only when the process DIES,
+            # not when it falls out of targets. SIGSTOP zeros pcpu in <5 s, and with old
+            # pruning the hottest job had its clock reset on every pause.
             live = set(p[0] for p in targets)
             cpu_hist = dict((k, v) for k, v in cpu_hist.items()
                             if k in live or alive(k))
@@ -3545,9 +3530,9 @@ def main():
         except Exception as e:
             log(T("LOOP ERROR: %r") % (e,))
         tick += 1
-        # drzemka przerywalna: rozkaz z paska (command) albo zmiana keep-awake
-        # (awake.json) budzi petle NATYCHMIAST - reczne akcje reaguja w ~1 s,
-        # a pelny cykl pomiarowy dalej chodzi rzadko. Koszt: dwa stat() co 0.5 s.
+        # Interruptible nap: a menu-bar command or keep-awake change wakes the loop
+        # IMMEDIATELY. Manual actions react in ~1 s while the full measurement cycle remains
+        # sparse. Cost: two stat() calls every 0.5 s.
         def _mtime(p):
             try:
                 return os.path.getmtime(p)
@@ -3555,10 +3540,10 @@ def main():
                 return None
 
         awake_przed = _mtime(AWAKE_PATH)
-        # Zmiana configu TEZ budzi petle. Bez tego przelacznik ochrony z paska czekal
-        # caly takt: `dry_run` idzie przez config.json, a nie przez plik `command`,
-        # wiec jako jedyna reczna akcja nie mial sciezki na wybudzenie. Przy suwaku
-        # interwalu na 30 s wygladalo to jak zawieszony przelacznik (Pawel, 03.08).
+        # Config changes wake the loop too. Without this, the menu-bar protection switch
+        # waited a full tick because `dry_run` travels through config.json, not `command`,
+        # so it was the only manual action without a wake path. With a 30 s interval slider,
+        # it looked like a stuck toggle.
         cfg_przed = _mtime(CFG_PATH)
         for _ in range(int(cfg["poll_seconds"] * 2)):
             if stop["flag"]:
@@ -3572,16 +3557,16 @@ def main():
             time.sleep(0.5)
 
     do_resume(cfg, st, T("guard is shutting down"))
-    # Degradacja na rdzenie ekonomiczne przezywala zamkniecie demona: proces zostawal
-    # przypiety do E-cores do konca zycia, niewidocznie, bo w temperaturze tego nie
-    # widac - tylko w tempie pracy. Zdejmujemy ja tak samo jak pauze.
+    # E-core demotion survived daemon shutdown: the process stayed pinned to E-cores for
+    # the rest of its life, invisible in temperature and visible only in throughput. Undo it
+    # just like pause.
     for _pid in list(st.get("demoted_info") or {}):
         try:
             run(["taskpolicy", "-B", "-p", str(_pid)], timeout=5)
         except Exception:
             pass
-    # `caffeinate -is` jest DZIECKIEM demona, ale przezywa go: po smierci straznika
-    # przejmuje go launchd i Mac nigdy nie zasypia, bez zadnego sladu w interfejsie.
+    # `caffeinate -is` is a daemon CHILD but survives it. After the guard dies, launchd
+    # adopts it and the Mac never sleeps, with no visible trace in the interface.
     try:
         _c = _caff.get("proc")
         if _c is not None and _c.poll() is None:
@@ -3593,7 +3578,7 @@ def main():
     except Exception:
         pass
     save_state(st)
-    # znacznik czystego zamkniecia — bez niego nastepny start uzna to za twardy pad
+    # Clean-shutdown marker. Without it, the next start treats this as a hard shutdown.
     try:
         with open(CLEAN_STOP_PATH, "w") as f:
             f.write(ts())

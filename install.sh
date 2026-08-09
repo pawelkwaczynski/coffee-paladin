@@ -65,10 +65,10 @@ APP_MACOS="$APP_CONTENTS/MacOS"
 APP_RESOURCES="$APP_CONTENTS/Resources"
 BAR_EXEC="$APP_MACOS/coffee-paladin-bar"
 
-# Instalacje sprzed 2.0.0 trzymaly dane w ~/.thermal-guard i mialy inne etykiety uslug.
-# Automigracji juz nie ma (nikt jej nie potrzebuje), ale zostawienie WCZYTANYCH starych
-# uslug wskazujacych na nieistniejace binarki to cichy smiec w launchd - a osierocona
-# historia pomiarow to material dowodowy, ktory user moze chciec zachowac.
+# Installs older than 2.0.0 kept data in ~/.thermal-guard under different
+# service labels. Auto-migration is gone (nobody needs it), but leaving LOADED
+# old services pointing at missing binaries is silent launchd garbage - and an
+# orphaned measurement history is evidence the user may want to keep.
 for OLD in pl.pawel.thermal-guard pl.pawel.heatbar; do
   launchctl bootout "gui/$(id -u)/$OLD" 2>/dev/null || true
   rm -f "$HOME/Library/LaunchAgents/$OLD.plist"
@@ -81,11 +81,11 @@ fi
 
 echo "== coffee-paladin: instalacja na $(scutil --get ComputerName 2>/dev/null || hostname) =="
 mkdir -p "$BIN" "$BASE" "$BASE/managed" "$HOME/Library/LaunchAgents"
-# katalog danych tylko dla wlasciciela: config.json trzyma temat ntfy (jedyne
-# zabezpieczenie powiadomien), a managed/ pelne linie polecen zadan
+# data directory owner-only: config.json holds the ntfy topic (the only
+# protection for notifications) and managed/ holds full job command lines
 chmod 700 "$BASE" "$BASE/managed" 2>/dev/null || true
 
-# swieze konto / niekompletna paczka: sprawdz zrodla ZANIM cokolwiek ruszymy
+# fresh account / incomplete package: check the sources BEFORE touching anything
 for f in guard.py safe-run heat thermal-report fleet thermalstate.swift heatbar.swift \
          pl.pawel.coffee-paladin.plist pl.pawel.coffee-paladin-bar.plist \
          branding/paladin.png branding/app_icon.png tools/zrob_ikone.sh; do
@@ -96,15 +96,16 @@ for f in guard.py safe-run heat thermal-report fleet thermalstate.swift heatbar.
 done
 echo "  ℹ️  bundle aplikacji: $APP_BUNDLE"
 
-# 0. ZALEZNOSCI. Bez swiftc tracisz NARAZ czujnik chipa i pasek menu - zostaje sam
-# bezpiecznik bateryjny, czyli polowa produktu. Dlatego pytamy o to NA POCZATKU,
-# a nie ostrzegamy w polowie instalacji, gdy uzytkownik juz nie patrzy.
+# 0. DEPENDENCIES. Without swiftc you lose the chip sensor AND the menu bar
+# at once - what remains is the battery-only fuse, half the product. So we ask
+# UP FRONT instead of warning mid-install when the user is no longer watching.
 #
-# `xcode-select --install` uruchamiamy sami: to narzedzie Apple, otwiera systemowe
-# okno i nie wymaga podawania hasla obcemu skryptowi.
-# HOMEBREW INSTALUJEMY TYLKO RECZNIE - jego instalator to `curl | bash` z zewnetrznego
-# adresu, proszacy o sudo. Skrypt, ktory robi to za uzytkownika bez pytania, uczy zlego
-# nawyku; podajemy komende i zostawiamy decyzje czlowiekowi.
+# We run `xcode-select --install` ourselves: it is an Apple tool, opens a
+# system dialog and never asks a foreign script for a password.
+# HOMEBREW IS INSTALLED MANUALLY ONLY - its installer is `curl | bash` from an
+# external address asking for sudo. A script doing that for the user without
+# asking teaches a bad habit; we print the command and leave the decision to
+# the human.
 BRAKI=""
 if ! command -v swiftc >/dev/null 2>&1; then BRAKI="$BRAKI swiftc"; fi
 if ! command -v brew   >/dev/null 2>&1; then BRAKI="$BRAKI brew"; fi
@@ -153,18 +154,18 @@ if [ -n "$BRAKI" ]; then
   echo ""
 fi
 
-# 1. czujnik stanu termicznego (Swift, bez sudo)
+# 1. thermal state sensor (Swift, no sudo)
 if command -v swiftc >/dev/null 2>&1; then
   swiftc -O -o "$BIN/thermalstate" "$SRC/thermalstate.swift" && echo "  ✅ thermalstate skompilowany"
 else
   echo "  ⚠️  brak swiftc (xcode-select --install) — guard użyje samej temperatury baterii"
 fi
 
-# 1b. macmon — temperatura CHIPA bez sudo (przez IOReport).
-# Bateria grzeje sie z kilkuminutowym opoznieniem wzgledem SoC, wiec sam jej odczyt
-# reaguje za pozno. Sensory przez IOHIDEventSystem sa na macOS 26 zablokowane dla
-# procesow bez uprawnien — IOReport (macmon) nadal dziala. Bez macmona guard nie padnie,
-# tylko straci progi chipa i wentylatory.
+# 1b. macmon - CHIP temperature without sudo (via IOReport).
+# The battery heats up minutes behind the SoC, so its reading alone reacts too
+# late. IOHIDEventSystem sensors are blocked on macOS 26 for unprivileged
+# processes - IOReport (macmon) still works. Without macmon the guard does not
+# fail, it only loses chip thresholds and fan readings.
 if command -v macmon >/dev/null 2>&1; then
   echo "  ℹ️  macmon już jest"
 elif command -v brew >/dev/null 2>&1; then
@@ -174,7 +175,7 @@ else
   echo "  ⚠️  brak brew i macmon — guard użyje samej temperatury baterii"
 fi
 
-# 1c. pasek menu — blad kompilacji ma byc WIDOCZNY, nie polkniety
+# 1c. menu bar - a compile error must be VISIBLE, not swallowed
 if command -v swiftc >/dev/null 2>&1; then
   HB_VERSION="$(wersja_heatbar)"
   if [ -z "$HB_VERSION" ]; then
@@ -184,10 +185,11 @@ if command -v swiftc >/dev/null 2>&1; then
   fi
   if [ -n "${HB_VERSION:-}" ] && swiftc -O -o "$BAR_EXEC" "$SRC/heatbar.swift" 2>"$BASE/heatbar_build.err"; then
     zapisz_info_plist "$HB_VERSION" "$APP_CONTENTS/Info.plist"
-    # Ikona aplikacji to TARCZA, nie maskotka: portret postaci w 16 px zamienia sie w plame.
-    # Tarcza wypelnia caly kadr, wiec jest czytelna takze w 16 px i nie potrzebuje osobnej
-    # wersji uproszczonej (zmierzone: z plomieniami i bez - w 16 px nie do odroznienia).
-    # `zrob_ikone.sh` nadal przyjmuje opcjonalny trzeci argument, gdyby kiedys byla potrzebna.
+    # The app icon is the SHIELD, not the mascot: a character portrait turns
+    # into a blob at 16 px. The shield fills the frame, so it stays legible at
+    # 16 px and needs no simplified variant (measured: with and without the
+    # flames - indistinguishable at 16 px). `zrob_ikone.sh` still accepts an
+    # optional third argument in case one is ever needed.
     if "$SRC/tools/zrob_ikone.sh" "$SRC/branding/app_icon.png" "$APP_RESOURCES/AppIcon.icns" \
         >/dev/null 2>"$BASE/icon_build.err"; then
       echo "  ✅ AppIcon.icns zbudowany z branding/app_icon.png"
@@ -226,7 +228,7 @@ if [ -d "$SRC/sounds" ]; then
   echo "  ✅ dzwieki -> $BASE/sounds"
 fi
 
-# 3. konfiguracja (nie nadpisuje istniejącej)
+# 3. configuration (never overwrites an existing one)
 if [ ! -f "$BASE/config.json" ]; then
   cat > "$BASE/config.json" <<'JSON'
 {
@@ -257,10 +259,10 @@ else
   echo "  ℹ️  config.json już istnieje — zostawiam"
 fi
 
-# 3b. branding: logo naglowka/stopki + paladyn (okno powitalne, ikona menu).
-# Kopiujemy TYLKO to, czego uzywa aplikacja — oryginaly w pelnej rozdzielczosci
-# (branding/paladin.png, branding/paladin.gif) zostaja w repo, nie w katalogu roboczym.
-# Podmien pliki na wlasne, jesli chcesz przebrandowac swoja instalacje.
+# 3b. branding: header/footer logos + the paladin (welcome window, menu icon).
+# Copy ONLY what the app uses - full-resolution originals
+# (branding/paladin.png, branding/paladin.gif) stay in the repo, not in the
+# working directory. Swap the files for your own to rebrand your install.
 if [ -d "$SRC/branding" ]; then
   for g in logo.png logo_footer.png logo_footer_dark.png \
            paladin_welcome.gif paladin_welcome.png; do
@@ -269,18 +271,20 @@ if [ -d "$SRC/branding" ]; then
   echo "  ✅ grafika (logotypy + paladyn) skopiowana"
 fi
 
-# 3c. skill dla agentow AI (Claude Code i zgodne): uczy agenta czytac stan termiczny,
-# odpalac ciezkie zadania przez safe-run i NIE walczyc z pauza guarda. To jest realny
-# problem: agent, ktory odpala osiem rownoleglych zadan i nie patrzy na temperature,
-# jest dokladnie tym, przed czym ten program ma chronic.
+# 3c. skill for AI agents (Claude Code and compatible): teaches the agent to
+# read the thermal state, launch heavy jobs through safe-run and NOT fight a
+# guard pause. This is a real problem: an agent that launches eight parallel
+# jobs without watching the temperature is exactly what this program protects
+# against.
 if [ -f "$SRC/skills/coffee-paladin/SKILL.md" ] && [ -d "$HOME/.claude" ]; then
   mkdir -p "$HOME/.claude/skills/coffee-paladin"
   cp "$SRC/skills/coffee-paladin/SKILL.md" "$HOME/.claude/skills/coffee-paladin/SKILL.md"
   echo "  ✅ skill dla Claude Code zainstalowany (agent bedzie wspolpracowal z guardem)"
 fi
 
-# uslugu uznajemy za dzialajaca TYLKO gdy ma PID — "wczytana" to za malo
-# (znalezisko z Neo: pasek byl wyliczony bez PID, a instalator raportowal sukces)
+# a service counts as running ONLY with a PID - "loaded" is not enough
+# (found in the field: the bar was listed without a PID while the installer
+# reported success)
 ma_pid() { launchctl list | awk -v l="$1" '$3==l && $1 != "-" {found=1} END {exit !found}'; }
 
 # 4. LaunchAgent (demon)
@@ -288,7 +292,7 @@ HOME_SED="$(sed_repl "$HOME")"
 BAR_EXEC_SED="$(sed_repl "$BAR_EXEC")"
 sed "s|__HOME__|$HOME_SED|g" "$SRC/pl.pawel.coffee-paladin.plist" > "$PLIST"
 launchctl bootout "gui/$UID/$AGENT" 2>/dev/null
-sleep 3   # bootout jest asynchroniczny — bez tego bootstrap zwraca I/O error
+sleep 3   # bootout is asynchronous - without this, bootstrap returns an I/O error
 for _ in 1 2 3; do
   launchctl bootstrap "gui/$UID" "$PLIST" 2>/dev/null || launchctl load "$PLIST" 2>/dev/null
   sleep 3
@@ -300,13 +304,13 @@ else
   echo "  ❌ demon nie wstał — sprawdź $BASE/stderr.log"
 fi
 
-# 5. pasek menu (osobny agent — mozna wylaczyc nie ruszajac bezpiecznika)
+# 5. menu bar (separate agent - can be disabled without touching the fuse)
 if [ -x "$BAR_EXEC" ] && [ -f "$SRC/pl.pawel.coffee-paladin-bar.plist" ]; then
   HB="$HOME/Library/LaunchAgents/pl.pawel.coffee-paladin-bar.plist"
   sed -e "s|__HOME__|$HOME_SED|g" -e "s|__BAR_EXEC__|$BAR_EXEC_SED|g" \
     "$SRC/pl.pawel.coffee-paladin-bar.plist" > "$HB"
   launchctl bootout "gui/$UID/pl.pawel.coffee-paladin-bar" 2>/dev/null
-  sleep 3   # bootout jest asynchroniczny — jak przy demonie
+  sleep 3   # bootout is asynchronous - same as for the daemon
   for _ in 1 2 3; do
     launchctl bootstrap "gui/$UID" "$HB" 2>/dev/null || launchctl load "$HB" 2>/dev/null
     sleep 3

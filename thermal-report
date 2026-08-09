@@ -25,15 +25,16 @@ import tempfile
 import sys
 import time
 
-MAX_WIERSZY_OSI = 5000   # sufit osi czasu w raporcie, patrz komentarz przy skracaniu
+MAX_WIERSZY_OSI = 5000   # timeline row cap, see the comment at the truncation site
 
-VERSION = "2.4.0"   # PIEC miejsc, nie trzy: guard_version, heatbar VERSION, README,
-                    # .claude-plugin/plugin.json i to. Pilnuje tego `test_spojnosc`,
-                    # bo 03.08 checklista mowila "trzy" i wersja tutaj zostala w tyle.
+VERSION = "2.4.0"   # FIVE places, not three: guard_version, heatbar VERSION,
+                    # README, .claude-plugin/plugin.json and this one.
+                    # `test_spojnosc` guards it, because this copy once fell
+                    # behind when the release checklist said "three".
                     #
-                    # NUMERACJA (zasada Pawla, 04.08): trzecia cyfra NIE przekracza
-                    # dziewiatki. Po 2.2.9 idzie 2.3.0, po 2.3.9 idzie 2.4.0.
-                    # Nie ma wersji 2.2.10.
+                    # NUMBERING: the third digit never exceeds nine. After
+                    # 2.2.9 comes 2.3.0, after 2.3.9 comes 2.4.0. There is
+                    # no such version as 2.2.10.
 
 HOME = os.path.expanduser("~")
 BASE = os.environ.get("TG_BASE") or os.path.join(HOME, ".coffee-paladin")
@@ -321,9 +322,9 @@ def T(s):
 
 
 def sh(cmd, timeout=30):
-    # Po timeoucie trzeba dziecko ZABIC: communicate() tylko rzuca wyjatek, a proces
-    # zyje dalej. W demonie konczylo sie to czworka wiszacych macmonow i zatrzymana
-    # petla (02.08.2026) - tutaj byloby to samo, tylko ciszej.
+    # On timeout the child must be KILLED: communicate() only raises, the
+    # process lives on. In the daemon this once left four hung macmon
+    # instances and a stalled loop; here it would be the same, only quieter.
     p = None
     try:
         p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
@@ -340,21 +341,23 @@ def sh(cmd, timeout=30):
 
 
 def czas_z(s):
-    """Epoch ABSOLUTNY ze stempla z offsetem albo bez (pliki sprzed 2.1.8).
+    """Absolute epoch from a stamp with or without a UTC offset (pre-2.1.8 files).
 
-    CELOWA KOPIA `guard.czas_abs` - narzedzia w tym projekcie sa samodzielne i nie
-    importuja demona. Obie kopie pilnuje `tests/test_spojnosc.py`.
+    Deliberate copy of `guard.czas_abs`: the CLI tools in this project are
+    self-contained and never import the daemon. Both copies are kept in sync
+    by `tests/test_spojnosc.py`.
 
-    Bez tego zdarzenia byly filtrowane po polu `epoch` (absolutnym), a historia
-    i guard.log po TEKSCIE interpretowanym w strefie CZYTELNIKA - wiec ten sam
-    katalog danych dawal dwa rozne dokumenty dowodowe. Odtworzone 02.08.2026:
-    pad zapisany 23:30 w Warszawie znikal z sekcji krytycznej przy czytaniu
-    w Auckland, a os czasu i `[KILL]` z tej samej sekundy zostawaly.
+    Without this, events were filtered by the absolute `epoch` field while
+    history and guard.log were filtered by TEXT interpreted in the READER's
+    timezone, so the same data directory produced two different evidence
+    documents: a crash recorded at 23:30 in Warsaw vanished from the critical
+    section when read in Auckland, while the timeline and the `[KILL]` from
+    the same second stayed.
     """
-    # Parser danych z pliku dowodowego: MA nigdy nie rzucac, bo jeden smieciowy wiersz
-    # nie moze wywalic calego dokumentu. Pierwsza wersja tej funkcji zawezila `except`
-    # do (ValueError, OverflowError) i stracila odpornosc na nie-stringi - fuzzer
-    # rundy 1 zlapal to od razu: wejscie 123 dawalo AttributeError, b"..." TypeError.
+    # Evidence-file parser: it must NEVER raise, one garbage row cannot take
+    # down the whole document. An earlier version narrowed the `except` to
+    # (ValueError, OverflowError) and lost resilience to non-strings: the
+    # fuzzer caught it immediately (123 -> AttributeError, b"..." -> TypeError).
     if not isinstance(s, str):
         return 0
     s = s.strip()
@@ -364,7 +367,7 @@ def czas_z(s):
         if len(s) >= 24 and s[19] in "+-":
             return datetime.datetime.strptime(s[:24], "%Y-%m-%d %H:%M:%S%z").timestamp()
         return time.mktime(time.strptime(s[:19], "%Y-%m-%d %H:%M:%S"))
-    except Exception:      # noqa: BLE001 - kontrakt: nigdy nie rzuca
+    except Exception:      # noqa: BLE001 - contract: never raises
         return 0
 
 
@@ -372,12 +375,12 @@ ZNANE_FLAGI = ("--help", "-h", "--days", "--dni", "--pdf", "--file", "--from", "
 
 
 def wolna_nazwa(sciezka):
-    """Sciezka, ktora NA PEWNO nie nadpisze cudzego pliku.
+    """Return a path that is GUARANTEED not to overwrite someone's file.
 
-    `--pdf` sklada nazwe PDF-a z nazwy raportu, wiec `--file wyniki.txt` celowal
-    w `wyniki.pdf` - i kasowal go, jesli ktos juz taki mial. Odtworzone 02.08.2026
-    na cudzym pliku: nadpisany bez slowa. Zamiast pytac (raport bywa uruchamiany
-    z crona i z menu paska) bierzemy wolna nazwe i drukujemy ja na koncu.
+    `--pdf` derives the PDF name from the report name, so `--file results.txt`
+    targeted `results.pdf` and deleted it if the user already had one -
+    overwritten without a word. Instead of asking (the report also runs from
+    cron and from the menu bar), pick a free name and print it at the end.
     """
     if not os.path.exists(sciezka):
         return sciezka
@@ -390,11 +393,11 @@ def wolna_nazwa(sciezka):
 
 
 def pokolenia(path):
-    """Plik biezacy razem ze zrotowanymi pokoleniami, OD NAJSTARSZEGO.
+    """Return the current file plus rotated generations, OLDEST FIRST.
 
-    CELOWA KOPIA `guard.pokolenia` - narzedzia w tym projekcie sa samodzielne i nie
-    importuja demona. Obie kopie pilnuje `tests/test_spojnosc.py`; zmieniasz jedna,
-    zmien druga.
+    Deliberate copy of `guard.pokolenia`: the CLI tools in this project are
+    self-contained and never import the daemon. Both copies are kept in sync
+    by `tests/test_spojnosc.py`; change one, change the other.
     """
     zrotowane = []
     n = 1
@@ -411,13 +414,13 @@ def pokolenia(path):
 
 
 def wiersze(path, pomijaj_naglowek=False):
-    """Linie z pliku biezacego I ze wszystkich zrotowanych pokolen, chronologicznie.
+    """Lines from the current file AND all rotated generations, in order.
 
-    Guard rotuje `guard.log` i `history.csv` przy 5 MB. Ten raport czytal WYLACZNIE
-    plik biezacy, wiec rotacja po cichu ucinala dokumentowi dowodowemu historie.
-    Odtworzone 02.08.2026: przed rotacja "PEAK MEASURED CHIP TEMPERATURE: 98.7 C",
-    po rotacji ten sam `--days 2` dawal 44,0 C - a odczyt 98,7 C dalej lezal na dysku,
-    tyle ze w pliku `.1`, do ktorego nikt nie zagladal.
+    The guard rotates `guard.log` and `history.csv` at 5 MB. This report used
+    to read ONLY the current file, so rotation silently cut the evidence
+    document's history: before rotation "PEAK MEASURED CHIP TEMPERATURE:
+    98.7 C", after rotation the same `--days 2` reported 44.0 C - while the
+    98.7 C reading still sat on disk in the `.1` file nobody looked at.
     """
     for p in pokolenia(path):
         try:
@@ -431,9 +434,10 @@ def wiersze(path, pomijaj_naglowek=False):
 
 
 def _alarmy_z_logu(w_zakresie):
-    """Alarmy chlodzenia z guard.log, ktorych nie ma w events.log (instalacje sprzed 02.08).
+    """Cooling alarms from guard.log that are absent from events.log (old installs).
 
-    `w_zakresie` przekazywane z main(), bo tam jest domkniete na granicach raportu.
+    `w_zakresie` is passed in from main(), where it closes over the report
+    boundaries.
     """
     out = []
     try:
@@ -453,8 +457,9 @@ def main():
     if "--help" in sys.argv or "-h" in sys.argv:
         print(__doc__)
         return 0
-    # Nieznana flaga NIE moze po cichu wygenerowac raportu na Pulpicie. Wczesniej
-    # `thermal-report --help` robilo dokladnie to: zapisywalo plik i konczylo kodem 0.
+    # An unknown flag must NOT silently generate a report on the Desktop.
+    # `thermal-report --help` used to do exactly that: it wrote the file and
+    # exited 0.
     obce = [a for a in sys.argv[1:] if a.startswith("-") and a not in ZNANE_FLAGI]
     if obce:
         print(T("thermal-report: unknown argument: %s") % " ".join(obce), file=sys.stderr)
@@ -462,12 +467,13 @@ def main():
         return 2
 
     dni = 7
-    for flaga in ("--days", "--dni"):          # --dni zostaje dla zgodnosci
+    for flaga in ("--days", "--dni"):          # --dni stays for compatibility
         if flaga in sys.argv:
-            # Zly zakres NIE moze byc przyjety po cichu. `--days` bez liczby i
-            # `--days abc` konczyly sie kodem 0 i raportem za DOMYSLNE 7 dni - czyli
-            # dokument opisywal inny okres niz zamowiony, nie mowiac o tym ani slowa.
-            # W dokumencie dowodowym to falszywy negatyw: "w tym okresie nic nie bylo".
+            # A bad range must NOT be accepted silently. `--days` without a
+            # number and `--days abc` used to exit 0 with a report for the
+            # DEFAULT 7 days - a document describing a different period than
+            # ordered, without saying a word. In an evidence document that is
+            # a false negative: "nothing happened in this period".
             try:
                 dni = int(sys.argv[sys.argv.index(flaga) + 1])
             except (IndexError, ValueError):
@@ -489,18 +495,19 @@ def main():
     if cel is None:
         cel = os.path.join(HOME, "Desktop",
                            "thermal_report_%s.txt" % time.strftime("%Y%m%d_%H%M"))
-    # UWAGA dla nastepnego czytelnika: `cel` NIE przechodzi przez wolna_nazwa(), a PDF tak -
-    # i to jest celowe, nie przeoczenie. Nazwe pliku tekstowego uzytkownik podaje SAM
-    # (`--file`), wiec ma prawo oczekiwac dokladnie jej; podmiana na "raport-2.txt"
-    # zepsulaby kazdy skrypt i wpis w cronie. Nazwy PDF-a nikt nie wybiera - jest
-    # wyprowadzana z nazwy raportu, wiec kolizja z cudzym plikiem jest NIEZAMIERZONA
-    # i niewidoczna. Chronimy przed nazwa, ktorej uzytkownik nie wybieral.
-    # Nazwa domyslna niesie znacznik do minuty, wiec sama z siebie nie koliduje.
+    # NOTE for the next reader: `cel` does NOT go through wolna_nazwa() while
+    # the PDF does - deliberate, not an oversight. The text file name is given
+    # by the user (`--file`), so they may expect exactly that name; swapping
+    # in "report-2.txt" would break every script and cron entry. Nobody
+    # chooses the PDF name - it is derived from the report name, so a
+    # collision with someone's file is UNINTENDED and invisible. We protect
+    # against the name the user never chose. The default name carries a
+    # to-the-minute stamp, so by itself it does not collide.
 
     def _data(s):
         return time.mktime(time.strptime(s, "%Y-%m-%d"))
 
-    # zakres: --all (calosc), --from/--to YYYY-MM-DD (kalendarz), albo --days N
+    # range: --all (everything), --from/--to YYYY-MM-DD (calendar), or --days N
     granica = time.time() - dni * 86400
     gorna = None
     zakres_opis = T("range: last %d days") % dni
@@ -511,16 +518,17 @@ def main():
         try:
             granica = _data(sys.argv[sys.argv.index("--from") + 1])
         except (IndexError, ValueError, OverflowError):
-            # literowka w dacie spadala po cichu na "ostatnie 7 dni" i drukowala
-            # w naglowku zakres, o ktory nikt nie prosil
+            # a typo in the date silently fell back to "last 7 days" and the
+            # header printed a range nobody asked for
             print(T("thermal-report: --from needs a date as YYYY-MM-DD"), file=sys.stderr)
             return 2
     if "--to" in sys.argv:
         try:
-            # Doba przy zmianie czasu ma 23 albo 25 godzin. Dodanie stalych 86400 s
-            # do polnocy dawalo 23:00 tej samej doby (jesien) albo 01:00 doby
-            # nastepnej (wiosna) - w noc zmiany czasu raport gubil caly dzien
-            # RAZEM Z PADEM, a wiosna drukowal w naglowku date, o ktora nikt nie pytal.
+            # A DST-transition day has 23 or 25 hours. Adding a flat 86400 s
+            # to midnight produced 23:00 of the same day (autumn) or 01:00 of
+            # the next (spring) - on the transition night the report lost a
+            # whole day INCLUDING A CRASH, and in spring the header printed a
+            # date nobody asked about.
             _txt = sys.argv[sys.argv.index("--to") + 1]
             _d = datetime.datetime.strptime(_txt, "%Y-%m-%d").date() + datetime.timedelta(days=1)
             gorna = time.mktime(_d.timetuple())
@@ -528,8 +536,8 @@ def main():
             print(T("thermal-report: --to needs a date as YYYY-MM-DD"), file=sys.stderr)
             return 2
     if gorna is not None and granica >= gorna:
-        # odwrocony zakres dawal PUSTY raport z kodem 0 - czyta sie go jak "w tym
-        # okresie nic sie nie dzialo", a znaczy tylko tyle, ze zakres nie ma dlugosci
+        # a reversed range produced an EMPTY report with exit 0 - it reads as
+        # "nothing happened in this period" but only means the range has no length
         print(T("thermal-report: the range ends before it starts (--from is after --to)"),
               file=sys.stderr)
         return 2
@@ -539,9 +547,9 @@ def main():
             time.strftime("%Y-%m-%d", time.localtime((gorna - 1 if gorna else time.time()))))
 
     def w_zakresie(t):
-        # `t < gorna`, nie `<=`: gorna to polnoc NASTEPNEJ doby, wiec przy <= do raportu
-        # za jeden dzien wchodzil pierwszy wpis z dnia kolejnego - lacznie ze "szczytem
-        # temperatury", ktory byl przypisywany do dnia, w ktorym go nie bylo.
+        # `t < gorna`, not `<=`: gorna is midnight of the NEXT day, so with <=
+        # a one-day report included the first entry of the following day -
+        # including a "peak temperature" attributed to a day it was not on.
         return t >= granica and (gorna is None or t < gorna)
 
     W = []
@@ -555,12 +563,12 @@ def main():
         if re.search(r"Model Name|Model Identifier|Chip|Total Number of Cores|Memory|Serial", linia):
             W.append("  " + linia.strip())
 
-    # komplet danych jak w "O moim Macu" (pkt 7): macOS, data konfiguracji,
-    # wentylatory, dysk, Neural Engine, progi
+    # same data set as "About my Mac": macOS, configuration date, fans, disk,
+    # Neural Engine, thresholds
     try:
         hw = json.load(open(os.path.join(BASE, "hardware.json")))
         if not isinstance(hw, dict):
-            hw = {}          # poprawny JSON, ale lista albo tekst - hw.get() by wywalilo raport
+            hw = {}          # valid JSON but a list or text: hw.get() would kill the report
     except Exception:
         hw = {}
     W.append("  macOS: " + sh(["sw_vers", "-productVersion"]).strip())
@@ -609,9 +617,9 @@ def main():
             if not isinstance(z, dict):
                 continue
             if z.get("synthetic"):
-                continue          # wpisy testowe nie wchodza do dowodu dla serwisu
-            # `epoch` (od 02.08.2026) jest jednoznaczny; `time` to tekst bez strefy,
-            # wiec przy odczycie w innej strefie wpis potrafil wypasc z zakresu.
+                continue          # test entries do not belong in service evidence
+            # `epoch` is unambiguous; `time` is text without a timezone, so an
+            # entry read in another timezone could fall out of the range.
             t_zdarzenia = z.get("epoch")
             if not isinstance(t_zdarzenia, (int, float)):
                 t_zdarzenia = czas_z(z.get("time", ""))
@@ -636,21 +644,23 @@ def main():
             _wpisy.append((t_zdarzenia, _linie))
     except FileNotFoundError:
         pass
-    # Alarmy wentylatorow trafiaja do events.log dopiero od 02.08.2026. Dla starszych
-    # instalacji dociagamy je z guard.log, zeby sekcja krytyczna nie twierdzila
-    # "brak alarmow", majac je wypisane kilkadziesiat linii nizej w tym samym dokumencie.
-    # Od 02.08 alarm chlodzenia idzie i do guard.log, i do events.log. Czytnik logu
-    # istnieje dla instalacji SPRZED tej zmiany, wiec musi pomijac to, co juz przyszlo
-    # z events.log - inaczej kazdy alarm liczy sie DWA razy w dokumencie roszczeniowym.
+    # Fan alarms reach events.log only on newer installs. For older ones we
+    # pull them from guard.log, so the critical section cannot claim "no
+    # alarms" while listing them a few dozen lines below in the same document.
+    # On current installs a cooling alarm goes to BOTH guard.log and
+    # events.log; the log reader exists for installs predating that change,
+    # so it must skip what already came from events.log - otherwise every
+    # alarm counts TWICE in a warranty-claim document.
     for linia in _alarmy_z_logu(w_zakresie):
         _t = czas_z(linia[:24])
         if any(abs(_t - e) <= 2 for e in _juz_alarmy):
             continue
         zdarzen += 1
         _wpisy.append((_t, ["  " + linia]))
-    # events.log jest w kolejnosci WYKRYCIA, nie zajscia (pad wykrywa sie po restarcie),
-    # a alarmy z guard.log doklejaly sie zawsze na koncu. Czytelnik nie mogl odtworzyc
-    # przyczynowosci - czy najpierw stanely wentylatory, czy najpierw padl Mac.
+    # events.log is ordered by DETECTION, not occurrence (a crash is detected
+    # after the restart), and guard.log alarms used to be appended at the end.
+    # The reader could not reconstruct causality - did the fans stop first,
+    # or did the Mac crash first.
     for _, _l in sorted(_wpisy, key=lambda x: x[0]):
         W.extend(_l)
     if not zdarzen:
@@ -668,9 +678,10 @@ def main():
         for linia in wiersze(LOG):
             if not w_zakresie(czas_z(linia[:24])):
                 continue
-            # Znacznik [PAUSE]/[RESUME]/[KILL]/[DEMOTE]/[PROMOTE]/[FANFAIL] jest ten sam we
-            # wszystkich jezykach. Slowa zostaja dla wpisow sprzed jego wprowadzenia:
-            # bez nich raport z maszyny rosyjskiej gubil kazdy wykryty twardy pad.
+            # The [PAUSE]/[RESUME]/[KILL]/[DEMOTE]/[PROMOTE]/[FANFAIL] marker is
+            # the same in every language. The words stay for entries predating
+            # the marker: without them a report from a Russian machine lost
+            # every detected hard shutdown.
             if re.search(r"\[(PAUSE|RESUME|KILL|DEMOTE|PROMOTE|FANFAIL)\]"
                          r"|PAUSED|RESUMED|PAUZA|WZNOWIONE|SIGTERM|TERMINAT|koncze zadanie|DEMOTE|PROMOTE"
                          r"|AWARIA|FAILURE|HARD SHUT|TWARDY|ОБНАРУЖЕНО|检测到硬关机|APAGADO BRUSCO", linia):
@@ -694,18 +705,19 @@ def main():
                 continue
             ile += 1
             try:
-                # Zakres fizyczny: jedna ucieta linijka po padzie zasilania podmieniala
-                # kluczowa liczbe dokumentu na "999.9 C (USZKODZONY WIERSZ)".
+                # Physical range: one truncated row after a power loss used to
+                # replace the document's key number with "999.9 C (CORRUPTED ROW)".
                 #
-                # Gorna granica to 110 C, nie 150: T_j max Apple Silicon lezy przy
-                # ~105-110 C, a prog ubicia guarda przy 100 C. Odczyt 120 C znaczy
-                # zepsuty czujnik, nie gorety krzem - a w dokumencie roszczeniowym
-                # jest prezentem dla drugiej strony ("wasze dane sa bez wartosci").
+                # The upper bound is 110 C, not 150: Apple Silicon Tj max sits
+                # around 105-110 C and the guard's kill threshold at 100 C. A
+                # 120 C reading means a broken sensor, not hotter silicon -
+                # and in a warranty-claim document it is a gift to the other
+                # side ("your data is worthless").
                 #
-                # Wiersza poza pasmem NIE pomijamy po cichu: on i tak stoi nizej na osi
-                # czasu, wiec milczenie robilo z dokumentu cos, co samo sobie przeczy -
-                # "PEAK 88.8 C" tuz nad widoczna linijka 999.9 C. Dowod ma byc
-                # OZNACZONY, nie wyrzucony (ta sama lekcja co podloga 30-dniowa).
+                # An out-of-band row is NOT skipped silently: it still sits
+                # further down the timeline, so silence made the document
+                # contradict itself - "PEAK 88.8 C" right above a visible
+                # 999.9 C row. Evidence gets FLAGGED, not thrown away.
                 v = float(c[2]) if c[2] else 0.0
                 if v != v:                       # NaN
                     pass
@@ -717,8 +729,9 @@ def main():
                     odrzucony_max = max(odrzucony_max, v)
             except (ValueError, OverflowError):
                 pass
-            # zbieramy do listy zamiast dopisywac od razu: dopiero majac calosc wiemy,
-            # ktore wiersze sa GORACE, a wiec ktorych nie wolno wyrzucic przy skracaniu
+            # collect into a list instead of appending right away: only with
+            # the whole set do we know which rows are HOT and thus must
+            # survive truncation
             try:
                 poziom = int(float(c[11])) if c[11] else 0
             except (ValueError, IndexError):
@@ -727,14 +740,14 @@ def main():
     except FileNotFoundError:
         pass
 
-    # --- os czasu bywa nie do uniesienia -------------------------------------------
-    # Pelna historia to 5 MB na plik x 6 pokolen. Zmierzone: `--all` dawal raport
-    # 27 MB / 341 975 linii, czyli ~6200 stron PDF - dokumentu tej wielkosci nie da sie
-    # nikomu wyslac ani wydrukowac, a `--pdf` na nim to zaproszenie do problemow.
-    # Skracamy, ale NIE gubimy dowodu: zostaja WSZYSTKIE wiersze goretsze niz 10 C
-    # ponizej szczytu i wszystkie z niezerowym poziomem interwencji, reszta jest
-    # probkowana rownomiernie. I mowimy o tym wprost - skrocenie po cichu byloby tym
-    # samym bledem, co ciche odrzucanie wierszy z pozycji 5.
+    # --- the timeline can grow unmanageable ----------------------------------------
+    # Full history is 5 MB per file x 6 generations. Measured: `--all` produced
+    # a 27 MB / 341,975-line report, about 6200 PDF pages - a document that
+    # size cannot be sent or printed, and `--pdf` on it invites trouble.
+    # We truncate but do NOT lose evidence: ALL rows hotter than 10 C below
+    # the peak and all rows with a nonzero intervention level stay, the rest
+    # is sampled evenly. And we say so explicitly - silent truncation would be
+    # the same bug as silently dropping corrupted rows.
     prog_goracy = max(0.0, szczyt[0] - 10.0)
     skrocono = 0
     if len(osie) > MAX_WIERSZY_OSI:
@@ -747,12 +760,13 @@ def main():
         osie = [osie[i] for i in wybrane]
     for tekst_wiersza, _v, _lv in osie:
         W.append(tekst_wiersza)
-    # BRAK POMIAROW to nie to samo co BRAK ZDARZEN. Przy pustym katalogu danych dokument
-    # wypelnial sie samymi "(brak - nie wykryto...)" i pusta osia czasu, czyli wygladal
-    # jak dowod ZDROWIA maszyny - a znaczyl tylko tyle, ze nikt niczego nie mierzyl
-    # (demon nie dzialal, dane skasowano, albo zakres jest sprzed instalacji).
-    # W dokumencie roszczeniowym to roznica fundamentalna, wiec mowimy o niej NA GORZE,
-    # gdzie nie da sie jej przeoczyc, a nie na dole pusta tabelka.
+    # NO MEASUREMENTS is not the same as NO EVENTS. With an empty data
+    # directory the document filled with "(none - not detected...)" lines and
+    # an empty timeline, so it looked like proof of a HEALTHY machine - while
+    # it only meant nobody was measuring (daemon not running, data deleted,
+    # or the range predates the install). In a warranty-claim document that
+    # difference is fundamental, so we state it AT THE TOP where it cannot be
+    # missed, not as an empty table at the bottom.
     if ile == 0:
         W.insert(3, "")
         W.insert(4, T("  !! NO MEASUREMENTS IN THIS RANGE. This document does NOT show that "
@@ -773,7 +787,7 @@ def main():
         naglowek_osi.append(
             T("  DISCARDED AS IMPLAUSIBLE: %d row(s) over 110 C (highest %.1f C) - shown in "
               "the timeline below, not counted towards the peak") % (odrzucone, odrzucony_max))
-    # jedna wstawka, zeby kolejnosc nie zalezala od tego, ile linijek akurat wchodzi
+    # one insertion, so the order does not depend on how many lines happen to go in
     W[len(W) - ile - 1:len(W) - ile - 1] = naglowek_osi
 
     W.append("\n" + "=" * 78)
@@ -793,26 +807,27 @@ def main():
         with os.fdopen(os.open(cel, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w") as f:
             f.write(tekst)
     except OSError as e:
-        # To narzedzie odpala sie dokladnie wtedy, gdy dysk jest pelny albo po padzie -
-        # traceback jest wtedy najgorsza mozliwa odpowiedzia.
+        # This tool runs exactly when the disk is full or right after a crash -
+        # a traceback is the worst possible answer then.
         print(T("thermal-report: cannot write %s (%s)") % (cel, e), file=sys.stderr)
         return 1
 
-    # PDF przez systemowy cupsfilter (textutil nie umie pisac PDF — sprawdzone).
-    # Monospace zostaje z natury zrodla tekstowego; gdy sie nie uda, raport tekstowy
-    # nadal istnieje i drukujemy sciezke tego, co jest.
+    # PDF via the system cupsfilter (textutil cannot write PDF - verified).
+    # Monospace matches the text source; on failure the text report still
+    # exists and we print the path to what we have.
     if "--pdf" in sys.argv:
-        # os.path.splitext, nie rsplit(".") - rsplit lapal kropke z nazwy KATALOGU,
-        # wiec `--file kat.z.kropka/raport` zapisywalo PDF poziom wyzej, pod inna nazwa.
-        # NIGDY nie piszemy wprost do celu: `open(pdf,"wb")` obcinal cudzy plik do 0 B,
-        # zanim cokolwiek zdazylo sie wygenerowac, a `--print-to-pdf` nadpisywal go
-        # w calosci. Generujemy obok, podmieniamy dopiero po sukcesie.
+        # os.path.splitext, not rsplit("."): rsplit caught a dot in the
+        # DIRECTORY name, so `--file dir.with.dot/report` wrote the PDF one
+        # level up under a different name. NEVER write straight to the target:
+        # `open(pdf,"wb")` truncated someone's file to 0 B before anything was
+        # generated, and `--print-to-pdf` overwrote it entirely. Generate next
+        # to it, swap in only after success.
         pdf = wolna_nazwa(os.path.splitext(cel)[0] + ".pdf")
         _fd_pdf, tmp_pdf = tempfile.mkstemp(suffix=".pdf", prefix=".thermal_report_",
                                             dir=os.path.dirname(os.path.abspath(pdf)) or ".")
         os.close(_fd_pdf)
-        # PIERWSZA DROGA: HTML -> Chrome headless. Tylko tak wchodzi KOLOROWE logo
-        # FOCUS FRAME w stopce (cupsfilter potrafi wylacznie czysty tekst).
+        # FIRST CHOICE: HTML -> headless Chrome. Only this path can embed the
+        # COLOR footer logo (cupsfilter handles plain text only).
         chrome = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
         logo = os.path.join(BASE, "logo_footer.png")
         if os.path.exists(chrome):
@@ -833,10 +848,10 @@ pre { white-space: pre-wrap; word-break: break-word; margin: 0; }
 .stopka { margin-top: 10mm; text-align: center; }
 .stopka img { width: 42mm; }
 </style><pre>%s</pre>%s""" % (tresc, stopka))
-                # HTML posredni idzie do katalogu tymczasowego. Wczesniej powstawal OBOK
-                # celu i byl kasowany bez pytania: `--pdf --file raport.txt` nadpisywalo
-                # i USUWALO czyjs raport.html. Do tego rsplit(".") lapal kropke z nazwy
-                # KATALOGU, wiec PDF potrafil wyladowac poza katalogiem docelowym.
+                # The intermediate HTML goes to a temp directory. It used to be
+                # created NEXT TO the target and deleted without asking:
+                # `--pdf --file report.txt` overwrote and REMOVED someone's
+                # report.html.
                 _fd, tmp_html = tempfile.mkstemp(suffix=".html", prefix="thermal_report_")
                 os.close(_fd)
                 with open(tmp_html, "w") as f:
@@ -851,10 +866,10 @@ pre { white-space: pre-wrap; word-break: break-word; margin: 0; }
                     return 0
             except Exception:
                 try:
-                    os.remove(tmp_html)   # timeout Chrome zostawial osierocony HTML
+                    os.remove(tmp_html)   # a Chrome timeout left an orphaned HTML
                 except Exception:
                     pass
-        # ZAPAS: cupsfilter (bez logo, ale zawsze dziala)
+        # FALLBACK: cupsfilter (no logo, but always works)
         try:
             with open(tmp_pdf, "wb") as f:
                 r = subprocess.run(["cupsfilter", cel], stdout=f,
@@ -865,8 +880,8 @@ pre { white-space: pre-wrap; word-break: break-word; margin: 0; }
                 return 0
         except Exception:
             pass
-        # kasujemy WLASNY plik roboczy - nigdy celu. Wczesniej stalo tu
-        # `os.remove(pdf)`, czyli usuniecie pliku, ktory mogl nalezec do kogos innego.
+        # remove OUR OWN working file - never the target. This used to be
+        # `os.remove(pdf)`, deleting a file that could belong to someone else.
         try:
             os.remove(tmp_pdf)
         except OSError:

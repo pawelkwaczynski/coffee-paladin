@@ -251,10 +251,10 @@ def age_str(seconds):
 
 
 def _num(v):
-    """Liczba albo None. OverflowError i NaN tez znacza "brak danych".
+    """Return a number or None. OverflowError and NaN also mean "no data".
 
-    Migawka przychodzi ze wspoldzielonego folderu, wiec moze zawierac 400-cyfrowy
-    int (float() rzuca OverflowError) albo "nan" (float() to lyka, a int() juz nie).
+    Snapshots arrive from a shared folder, so one may contain a 400-digit int
+    (float() raises OverflowError) or "nan" (float() accepts it, int() does not).
     """
     try:
         f = float(v)
@@ -280,24 +280,26 @@ def _liczby(v):
 
 
 def _czysty_tekst(s, limit=60):
-    """Tekst z obcej migawki bez znakow sterujacych i bez przesady w dlugosci.
+    """Text from a foreign snapshot: no control characters, sane length.
 
-    Migawki leza we wspoldzielonym folderze (iCloud, SMB, SharePoint), wiec kazdy,
-    kto ma tam zapis, moze wstawic np. "\x1b[2J" - sekwencje czyszczaca ekran w srodku
-    tabeli, ktora skasuje juz wypisane wiersze razem z ostrzezeniem o awarii.
+    Snapshots live in a shared folder (iCloud, SMB, SharePoint), so anyone
+    with write access there can plant e.g. "\x1b[2J" - a clear-screen
+    sequence in the middle of the table that would erase rows already
+    printed, including a failure warning.
     """
     return "".join(c for c in str(s) if c.isprintable())[:limit]
 
 
 def _wiek_migawki(snap, path):
-    """Wiek zgloszenia hosta, liczony z TRESCI migawki, nie z metadanych pliku.
+    """Age of a host report, computed from snapshot CONTENT, not file metadata.
 
-    iCloud potrafi trzymac mtime sprzed wielu dni przy zupelnie swiezej tresci -
-    07.08.2026 zdrowy, raportujacy co minute Mac wisial w tabeli jako
-    "STALE - not reporting (94 h)". Prawda jest wewnatrz pliku: `epoch` (guard pisze
-    go od 2.3.4), starsze demony daja tekst `time` ze strefa. mtime zostaje wylacznie
-    ostatecznoscia dla migawek sprzed formatu ze strefa - naiwnego czasu lokalnego
-    obcej maszyny nie wolno interpretowac we wlasnej strefie (lekcja z v1.7.4)."""
+    iCloud can keep an mtime many days old on perfectly fresh content: a
+    healthy Mac reporting every minute once hung in the table as "STALE - not
+    reporting (94 h)". The truth is inside the file: `epoch` (written by the
+    guard since 2.3.4), older daemons provide a `time` string with a UTC
+    offset. mtime remains a last resort for snapshots predating the offset
+    format - a naive local time of a foreign machine must never be
+    interpreted in our own timezone."""
     e = _num(snap.get("epoch"))
     if e is not None and 0 < e < 4e9:
         return time.time() - e
@@ -315,26 +317,29 @@ def _wiek_migawki(snap, path):
 
 
 def load_hosts(d):
-    """Wczytuje migawki, NORMALIZUJAC typy: zepsuty/reczny plik jednego hosta nie moze
-    wywalic tabeli calej floty (liczby jako stringi, level spoza 0-3 itd.)."""
+    """Load snapshots, NORMALIZING types: one broken or hand-edited host file
+    must not take down the whole fleet table (numbers as strings, level
+    outside 0-3, and so on)."""
     hosts = []
     for name in sorted(os.listdir(d)):
         if name.endswith(".json.icloud"):
-            # zewinkowane przez iCloud: host istnieje, danych nie ma pod reka
+            # evicted by iCloud: the host exists, its data is not at hand
             base = _czysty_tekst(name.lstrip(".")[:-len(".json.icloud")], 18)
             hosts.append({"host": base, "_age": 1e9})
             continue
         if not name.endswith(".json") or name.startswith("."):
             continue
         path = os.path.join(d, name)
-        # Folder floty to WEJSCIE Z ZEWNATRZ: iCloud, SMB, cudze Maki. Wszystko tu
-        # moze byc w polowie zsynchronizowane, skasowane miedzy listdir a open,
-        # albo w ogole nie byc plikiem. Dlatego najpierw stat, potem odczyt, a kazdy
-        # blad konczy sie WPISEM, nie zniknieciem hosta z tabeli.
-        #   - `os.path.getmtime` w obsludze bledu sam rzucal, gdy plik juz nie istnial,
-        #     i wywalal CALA tabele razem ze zdrowymi maszynami;
-        #   - nazwany potok albo dowiazanie do /dev/zero wieszalo `fleet` na zawsze;
-        #   - JSON bedacy lista (nie obiektem) kasowal hosta po cichu przez `continue`.
+        # The fleet folder is EXTERNAL INPUT: iCloud, SMB, other people's Macs.
+        # Anything here can be half-synced, deleted between listdir and open,
+        # or not a file at all. Hence stat first, then read, and every error
+        # ends as an ENTRY, not as a host vanishing from the table.
+        #   - `os.path.getmtime` in the error path used to raise itself when
+        #     the file was already gone, taking down the WHOLE table including
+        #     healthy machines;
+        #   - a named pipe or a link to /dev/zero hung `fleet` forever;
+        #   - JSON that is a list (not an object) silently dropped the host
+        #     via `continue`.
         try:
             st = os.lstat(path)
             if not stat.S_ISREG(st.st_mode):
@@ -346,8 +351,9 @@ def load_hosts(d):
             if not isinstance(snap, dict):
                 raise ValueError("JSON nie jest obiektem")
         except Exception:
-            # Zepsuty plik NIE moze znikac po cichu: host wypadal z tabeli, a operator
-            # widzial "all machines look fine". Zostaje w tabeli, oznaczony i policzony.
+            # A broken file must NOT vanish silently: the host used to drop out
+            # of the table and the operator saw "all machines look fine". It
+            # stays in the table, flagged and counted.
             try:
                 wiek = time.time() - os.lstat(path).st_mtime
             except OSError:
@@ -355,10 +361,10 @@ def load_hosts(d):
             hosts.append({"host": _czysty_tekst(name[:-5], 18), "_age": wiek,
                           "_bad": True, "level": 0, "fans": []})
             continue
-        # Niewiarygodnosc trzeba zauwazyc PRZED normalizacja: `_num()` zamienia inf i NaN
-        # na None, wiec po niej nie da sie juz odroznic "czujnik nie odpowiedzial"
-        # od "migawka jest bez sensu". Host z samymi nieskonczonosciami pokazywal sie
-        # w tabeli jako spokojna, zdrowa maszyna.
+        # Implausibility must be noticed BEFORE normalization: `_num()` turns
+        # inf and NaN into None, after which "sensor did not answer" is
+        # indistinguishable from "snapshot is nonsense". A host full of
+        # infinities used to show up as a calm, healthy machine.
         _podejrzane = []
         for k in ("chip_c", "battery_c", "gpu_c", "level", "load1", "watts", "battery_pct"):
             v = snap.get(k)
@@ -372,7 +378,7 @@ def load_hosts(d):
         for k in ("chip_c", "watts", "ram_used_gb", "ram_total_gb"):
             snap[k] = _num(snap.get(k))
         if snap["ram_used_gb"] is None or snap["ram_total_gb"] is None:
-            snap["ram_used_gb"] = snap["ram_total_gb"] = None   # jedno bez drugiego = brak danych
+            snap["ram_used_gb"] = snap["ram_total_gb"] = None   # one without the other = no data
         for k in ("disk_used_pct", "battery_pct", "cpu_limit"):
             v = _num(snap.get(k))
             snap[k] = int(v) if v is not None else None
@@ -380,67 +386,69 @@ def load_hosts(d):
         try:
             snap["level"] = min(max(int(lv), 0), 3) if lv is not None else 0
         except (ValueError, OverflowError):
-            snap["level"] = 0              # "nan", 1e400 - _num je przepuszcza, int() nie
+            snap["level"] = 0              # "nan", 1e400: _num passes them, int() does not
         fans = snap.get("fans")
         snap["fans"] = _liczby(fans)
-        # Pola, ktore ida prosto do renderu. Migawka pochodzi ze WSPOLDZIELONEGO
-        # folderu, wiec traktujemy ja jak dane z obcej maszyny: kazdy typ moze byc inny,
-        # a znaki sterujace ANSI w nazwie hosta potrafia skasowac juz wypisane wiersze.
+        # Fields that go straight to the render. The snapshot comes from a
+        # SHARED folder, so treat it as data from a foreign machine: every type
+        # can differ, and ANSI control characters in a host name can erase
+        # rows already printed.
         for k in ("host", "model"):
             v = snap.get(k)
             if v is None or (isinstance(v, str) and not v.strip()):
-                snap.pop(k, None)          # None NIE moze zostac - blokowalo setdefault nizej
+                snap.pop(k, None)          # None must not stay: it blocked setdefault below
             else:
                 snap[k] = _czysty_tekst(v if isinstance(v, str) else str(v))
         p = snap.get("paused")
         snap["paused"] = [_czysty_tekst(str(x))[:24] for x in p][:6] if isinstance(p, list) else []
         st = snap.get("stats")
-        # Nie wystarczy sprawdzic, ze to slownik: %d na wartosci "duzo" wywala render.
-        # Warunek `v == v` odsiewal NaN, ale przepuszczal nieskonczonosc - a JSON
-        # `1e400` parsuje sie w Pythonie wlasnie do inf i `int(inf)` rzuca OverflowError,
-        # ktory zabijal CALA tabele. `_num` sprawdza jedno i drugie.
+        # Checking "is it a dict" is not enough: %d on a value like "lots"
+        # kills the render. `v == v` filtered NaN but let infinity through,
+        # and JSON `1e400` parses in Python to exactly inf; `int(inf)` raises
+        # OverflowError, which used to take down the WHOLE table. `_num`
+        # checks both.
         snap["stats"] = {k: int(_num(v)) for k, v in st.items()
                          if _num(v) is not None} if isinstance(st, dict) else {}
         crash = snap.get("last_hard_shutdown")
         if isinstance(crash, dict):
-            # to pole tez idzie na terminal operatora - musi przejsc przez czyszczenie
+            # this field also reaches the operator's terminal - it must be sanitized
             snap["last_hard_shutdown"] = {"time": _czysty_tekst(crash.get("time", ""), 30)}
         else:
             snap["last_hard_shutdown"] = None
         if not isinstance(snap.get("on_ac"), bool):
             v = snap.get("on_ac")
             snap["on_ac"] = True if v is None else str(v).strip().lower() in ("1", "true", "yes", "tak")
-        snap["_age"] = max(_wiek_migawki(snap, path), 0.0)   # zegar drugiej maszyny bywa w przyszlosci
+        snap["_age"] = max(_wiek_migawki(snap, path), 0.0)   # another machine's clock can run ahead
         snap.setdefault("host", _czysty_tekst(name[:-5], 18))
         hosts.append(snap)
     return hosts
 
 
 def issues_for(h):
-    """Problemy hosta, w kolejnosci powagi. Pusta lista = wszystko dobrze."""
+    """Host problems, most serious first. Empty list = all good."""
     out = []
-    # Migawka nieczytelna: host meldowal sie jako "spokojny i raportujacy teraz",
-    # bo flaga _bad byla USTAWIANA, ale nigdzie nie czytana. O maszynie, o ktorej
-    # nic nie wiemy, nie wolno mowic, ze wszystko z nia dobrze.
+    # Unreadable snapshot: the host used to report as "calm and reporting now"
+    # because the _bad flag was SET but never read. A machine we know nothing
+    # about must never be described as fine.
     if h.get("_bad"):
         out.append(T("unreadable snapshot"))
         return out
-    # nie raportuje > 5 min: albo padl, albo spi, albo folder sie nie synchronizuje.
-    # WCZESNIEJ byl tu `return out`, wiec "nie raportuje" UCINALO wszystkie pozostale
-    # problemy. Skutek: Mac, ktory PADL TWARDO przy chipie 98,7 C i nie wstal, pokazywal
-    # w kolumnie ISSUES wylacznie "nie raportuje" - czyli najwazniejsza informacja
-    # z calej floty znikala za najmniej wazna. Dzisiaj to samo w drugą strone: maszyna
-    # nieraportujaca to wlasnie ta, o ktorej trzeba wiedziec NAJWIECEJ.
+    # Not reporting > 5 min: crashed, asleep, or the folder is not syncing.
+    # There used to be a `return out` here, so "not reporting" CUT OFF all
+    # remaining problems. Effect: a Mac that crashed hard at 98.7 C and never
+    # came back showed only "not reporting" in ISSUES - the most important
+    # information in the whole fleet hidden behind the least important. A
+    # non-reporting machine is exactly the one you need to know MOST about.
     stale = h["_age"] > 300
     if stale:
         out.append(T("STALE - not reporting"))
-    # Poziom 2 = straznik pauzuje, 3 = krytycznie. Maszyna z chipem pod 100 C
-    # wypadala z listy "wymagajacych uwagi" i `fleet --json` konczyl sie zerem,
-    # wiec cron i Grafana milczaly dokladnie wtedy, gdy mialy krzyczec.
-    # Migawka z samymi nieskonczonosciami/NaN raportowana byla jako ZDROWA maszyna:
-    # `float("nan") >= 2` to False, `or 0` nie lapie NaN, wiec host z chip_c=inf
-    # i level=NaN pokazywal sie w tabeli jako "calm". O maszynie, ktorej odczyty sa
-    # bez sensu, nie wolno mowic, ze jest spokojna - to ten sam blad, co "unreadable".
+    # Level 2 = the guard is pausing, 3 = critical. A machine with the chip
+    # near 100 C used to fall off the "needs attention" list and
+    # `fleet --json` exited zero, so cron and Grafana stayed silent exactly
+    # when they should have screamed. A snapshot full of inf/NaN reported as
+    # a HEALTHY machine: `float("nan") >= 2` is False and `or 0` does not
+    # catch NaN, so a host with chip_c=inf and level=NaN rendered as "calm".
+    # Nonsense readings must never read as calm - same bug as "unreadable".
     if h.get("_implausible"):
         out.append(T("implausible readings: %s") % ",".join(h["_implausible"])[:40])
 
@@ -499,7 +507,7 @@ def render(d):
                                           else str(max(fans))),
             "-" if stale or h.get("watts") is None else "%.0fW" % h["watts"],
             "-" if stale or not h.get("ram_total_gb") else "%d%%" % round(
-                # iloraz tez trzeba sprawdzic: skladniki moga byc skonczone, a wynik nie
+                # the quotient needs checking too: finite operands, non-finite result
                 min(max(_num(100.0 * h.get("ram_used_gb", 0) / h["ram_total_gb"]) or 0, 0), 999)),
             "-" if stale or h.get("disk_used_pct") is None else "%d%%" % h["disk_used_pct"],
             "?" if stale else levels[h.get("level", 0)],
@@ -527,9 +535,10 @@ def render(d):
 
 
 def candidates():
-    """Foldery synchronizowane obecne na TEJ maszynie — nic nie zgadujemy, tylko pokazujemy,
-    co uzytkownik juz ma. Wybor nalezy do niego (iCloud dla jednej osoby, Dropbox/Drive dla
-    zespolu, OneDrive/SharePoint w firmie, wolumen SMB na farmie)."""
+    """Synced folders present on THIS machine - nothing is guessed, we only
+    show what the user already has. The choice is theirs (iCloud for one
+    person, Dropbox/Drive for a team, OneDrive/SharePoint in a company, an
+    SMB volume on a farm)."""
     H = os.path.expanduser("~")
     out = []
     ic = os.path.join(H, "Library/Mobile Documents/com~apple~CloudDocs")
@@ -539,8 +548,8 @@ def candidates():
     if os.path.isdir(cs):
         for name in sorted(os.listdir(cs)):
             full = os.path.join(cs, name)
-            # tylko realne foldery dostawcow (OneDrive-..., GoogleDrive-..., Dropbox),
-            # bez plikow ukrytych w rodzaju .DS_Store
+            # only real provider folders (OneDrive-..., GoogleDrive-..., Dropbox),
+            # not hidden files like .DS_Store
             if name.startswith(".") or not os.path.isdir(full):
                 continue
             out.append((name.replace("-", " "), os.path.join(full, "FleetTG")))
@@ -565,9 +574,9 @@ def set_dir(path):
         pass
     cfgp = os.path.join(BASE, "config.json")
     os.makedirs(BASE, 0o700, exist_ok=True)
-    # Config, ktorego nie umiemy sparsowac, jest NIETYKALNY. Nadpisanie go wlasnym
-    # kluczem kasowaloby progi i dry_run:false, czyli po cichu wylaczaloby ochrone -
-    # a komunikat nizej mowilby "zapisane". Lepiej odmowic i pokazac plik.
+    # A config we cannot parse is UNTOUCHABLE. Overwriting it with our own key
+    # would erase thresholds and dry_run:false, silently disarming protection,
+    # while the message below would say "saved". Refuse and show the file.
     c = {}
     if os.path.exists(cfgp):
         try:
@@ -580,12 +589,13 @@ def set_dir(path):
                   % (cfgp, e), file=sys.stderr)
             return 1
     c["fleet_dir"] = path
-    # flock na tym samym pliku, ktorego uzywaja guard i pasek menu
+    # flock on the same file the guard and the menu bar use
     import fcntl
-    # 0600, nie umask. W config.json siedzi `ntfy_topic`, ktory jest JEDYNYM
-    # zabezpieczeniem powiadomien: kto zna temat, ten czyta cudze alerty i podszywa
-    # sie pod nie. `ensure_dirs()` w demonie zaciska prawa tylko przy starcie, wiec
-    # `fleet --setup` uruchomiony pozniej odslanial plik az do nastepnego restartu.
+    # 0600, not umask. config.json holds `ntfy_topic`, which is the ONLY
+    # protection for notifications: whoever knows the topic reads other
+    # people's alerts and can impersonate them. `ensure_dirs()` in the daemon
+    # tightens permissions only at startup, so a later `fleet --setup` used to
+    # expose the file until the next restart.
     lock_fd = os.open(os.path.join(BASE, "config.lock"), os.O_WRONLY | os.O_CREAT, 0o600)
     lock = os.fdopen(lock_fd, "w")
     try:
@@ -652,15 +662,16 @@ def main():
             h["issues"] = issues_for(h)
             h["age_seconds"] = round(h.pop("_age"))
         print(json.dumps({"folder": d, "hosts": hosts}, ensure_ascii=False, indent=2))
-        # README obiecuje: "fleet --json plus the exit code plug into cron, Grafana or
-        # Slack". Bez tego --json zawsze zwracalo 0 i alarm w cronie nigdy nie strzelal.
+        # The README promises: "fleet --json plus the exit code plug into cron,
+        # Grafana or Slack". Without this, --json always returned 0 and a cron
+        # alarm never fired.
         return 2 if any(h["issues"] for h in hosts) else 0
 
     if "--watch" in sys.argv:
         while True:
-            # Sekwencja ANSI zamiast os.system("clear"): bez powloki, bez zaleznosci
-            # od $TERM (w cronie i przez ssh clear wypisywal blad co cykl) i bez
-            # spawnowania 2880 powlok na dobe.
+            # ANSI sequence instead of os.system("clear"): no shell, no $TERM
+            # dependency (in cron and over ssh, clear printed an error every
+            # cycle) and no 2880 shells spawned per day.
             sys.stdout.write("\033[H\033[2J")
             render(d)
             time.sleep(30)

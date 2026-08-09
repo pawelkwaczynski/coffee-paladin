@@ -41,7 +41,7 @@ import time
 
 HOME = os.path.expanduser("~")
 BASE = os.environ.get("TG_BASE") or os.path.join(HOME, ".coffee-paladin")
-BASE = os.path.expanduser(BASE)   # TG_BASE sluzy do testow w izolacji
+BASE = os.path.expanduser(BASE)   # TG_BASE lets tests run in isolation.
 MANAGED_DIR = os.path.join(BASE, "managed")
 HIST = os.path.join(BASE, "history.csv")
 GUARD = os.path.join(HOME, ".local/bin/coffee-paladin")
@@ -53,17 +53,16 @@ SUPPORTED_LANGS = ("en", "pl", "ru", "zh", "es")
 
 
 def czas_abs(s):
-    """Epoch ABSOLUTNY ze stempla `ts()` - z offsetem albo bez (pliki sprzed 2.1.8).
+    """Return an absolute epoch parsed from `ts()` output.
 
-    CELOWA KOPIA `guard.czas_abs` - narzedzia w tym projekcie sa samodzielne i nie
-    importuja demona. Wszystkie kopie pilnuje `tests/test_spojnosc.py`.
-    Bez tolerancji na offset ten parser rzucalby ValueError na KAZDYM nowym wierszu
-    history.csv i po cichu pomijal wszystkie swieze pomiary.
+    Accept timestamps with or without a UTC offset; rows before 2.1.8 have no
+    offset. Return 0.0 when the input is not parseable, including non-strings.
+    This is an intentional copy of `guard.czas_abs`; tests/test_spojnosc.py keeps
+    all copies aligned.
     """
-    # Parser danych z pliku dowodowego: MA nigdy nie rzucac, bo jeden smieciowy wiersz
-    # nie moze wywalic calego dokumentu. Pierwsza wersja tej funkcji zawezila `except`
-    # do (ValueError, OverflowError) i stracila odpornosc na nie-stringi - fuzzer
-    # rundy 1 zlapal to od razu: wejscie 123 dawalo AttributeError, b"..." TypeError.
+    # Evidence-file parser: it must never raise. One bad row must not abort the
+    # whole document. Narrowing `except` to (ValueError, OverflowError) loses
+    # tolerance for non-strings: 123 raises AttributeError, b"..." raises TypeError.
     if not isinstance(s, str):
         return 0.0
     s = s.strip()
@@ -73,7 +72,7 @@ def czas_abs(s):
         if len(s) >= 24 and s[19] in "+-":
             return datetime.datetime.strptime(s[:24], "%Y-%m-%d %H:%M:%S%z").timestamp()
         return time.mktime(time.strptime(s[:19], "%Y-%m-%d %H:%M:%S"))
-    except Exception:      # noqa: BLE001 - kontrakt: nigdy nie rzuca
+    except Exception:      # noqa: BLE001 - contract: never raise
         return 0.0
 
 
@@ -269,9 +268,9 @@ def cfg():
 
 
 def sh(cmd, timeout=15):
-    # Po timeoucie trzeba dziecko ZABIC: communicate() tylko rzuca wyjatek, a proces
-    # zyje dalej. W demonie konczylo sie to czworka wiszacych macmonow i zatrzymana
-    # petla (02.08.2026) - tutaj byloby to samo, tylko ciszej.
+    # After a timeout, the child must be killed: communicate() only raises, and
+    # the process keeps running. In the daemon this left hung macmon processes and
+    # stopped the loop. The same failure would be quieter here.
     p = None
     try:
         p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
@@ -298,9 +297,9 @@ def batt_temp():
     m = re.search(r'"Temperature"\s*=\s*(\d+)', out)
     if not m:
         return None
-    # Ta sama normalizacja co w guardzie: kontrolery raportuja setne, dziesiate albo
-    # cale stopnie. Sztywne /100 dawalo 4,4 stopnia zamiast 44 - i bateryjna bramka
-    # odmowy startu nie odpalala sie na takim Macu NIGDY.
+    # Same normalization as the guard: controllers report hundredths, tenths, or
+    # whole degrees. Hardcoding /100 produced 4.4 C instead of 44 C, so the
+    # battery start gate never fired on that Mac.
     v = float(m.group(1))
     for _ in range(4):
         if v <= 100.0:
@@ -326,11 +325,11 @@ def parse():
     c = cfg()
     opt = {"hours": float(os.environ.get("SAFE_RUN_HOURS", 6)), "name": None,
            "allow_hot": False, "allow_sleep": False, "wait_cool": False,
-           # defaulty z config.json — pasek menu ustawia je przelacznikami
+           # Defaults from config.json; the menu bar controls them with toggles.
            "normal": (c.get("job_cores_mode") or "efficiency") == "all",
-           # 95, nie 100: ten sam default co w DEFAULTS guarda i w dokumentacji
+           # 95, not 100: same default as guard DEFAULTS and the documentation.
            "cpu_limit": float(c.get("job_cpu_percent") or 95),
-           # 30 s = dotychczasowe sztywne okno miedzy SIGTERM a SIGKILL
+           # 30 s = previous fixed window between SIGTERM and SIGKILL.
            "grace": 30.0}
     i = 0
     while i < len(args):
@@ -368,21 +367,20 @@ def parse():
         sys.exit(2)
     opt["name"] = opt["name"] or os.path.basename(cmd[0])
     opt["cpu_limit"] = min(max(opt["cpu_limit"], 10.0), 100.0)
-    # sufit 1 h: "okno laski" dluzsze niz godzina to juz brak limitu, nie laska
+    # Cap at 1 h: a "grace window" longer than an hour is effectively no limit.
     opt["grace"] = min(max(opt["grace"], 0.0), 3600.0)
     return opt, cmd
 
 
 def migawka_swieza(nazwa, max_wiek=120):
-    """Czy plik demona jest na tyle swiezy, zeby mial cokolwiek znaczyc?
+    """Return whether a daemon snapshot is fresh enough to mean anything.
 
-    Bramka startowa sprawdzala wiek migawki, a petla limitera juz nie - i to bylo
-    grozne. Gdy demon zginal w chwili, gdy bylo goraco, `status.json` z poziomem 2
-    zostawal zamrozony w czasie NA ZAWSZE. Limiter po wlasnej mikro-pauzie pytal
-    niezyjacego demona o zgode na wznowienie, nie dostawal jej i nie budzil grupy.
-    Zadanie stalo w stanie T az do wyczerpania budzetu czasu (domyslnie 6 h), a potem
-    dostawalo SIGTERM - czyli jedynym wyjsciem byla egzekucja, nie wznowienie.
-    Nieswieza migawka znaczy "nie ma komu decydowac": limiter wraca do wlasnych regul.
+    `max_wiek` is seconds. False means the file is missing, stale, or unreadable.
+    A stale snapshot means no daemon is available to decide - never "stay
+    stopped". A daemon that died while the machine was hot leaves status.json
+    frozen at level 2 forever; a limiter that kept asking that corpse for
+    permission to resume would leave the job in state T until the time budget
+    executed it. Checking freshness here is what breaks that trap.
     """
     try:
         return (time.time() - os.path.getmtime(os.path.join(BASE, nazwa))) <= max_wiek
@@ -391,20 +389,19 @@ def migawka_swieza(nazwa, max_wiek=120):
 
 
 def guard_paused(pid):
-    """Czy guard wstrzymal TO ZADANIE - ten pid albo cokolwiek z jego grupy procesow?
+    """Return whether the guard paused this job or anything in its process group.
 
-    Limiter nie moze wyslac SIGCONT zadaniu, ktore zamrozil bezpiecznik —
-    o pauzie termicznej decyduje wylacznie guard. ALE tylko dopoki guard zyje:
-    nieswieza migawka znaczy "nie ma komu decydowac", nie "trzymaj zamrozone".
+    False also means `state.json` is missing, stale, unreadable, or has no
+    matching live entry. A stale snapshot means "no daemon can decide", not
+    "stay stopped". The caller must not SIGCONT a group while this returns true.
 
-    PYTAMY O CALA GRUPE, nie o goly pid. Guard mrozi ten proces, ktory GRZEJE -
-    a to zwykle dziecko (ffmpeg), nie nasz lider grupy. Porownanie samego `proc.pid`
-    z lista guarda dawalo wiec False, mikro-pauza limitera konczyla sie
-    `killpg(SIGCONT)` i budzila CALA grupe razem z tym, co bezpiecznik przed chwila
-    zamrozil. Blokada dzialala tylko tak dlugo, jak guard trzymal poziom >=2
-    (`guard_hot`); gdy chip spadal ponizej progu, limiter wznawial zadanie ZA guarda,
-    ktory dalej mial je u siebie jako "wstrzymane" i po `max_pause_minutes` slal
-    SIGTERM. Tak wygladal 04.08.2026 ffmpeg wznowiony "sam z siebie" o 19:42.
+    The check covers the WHOLE group, not the bare pid: the guard freezes the
+    process that generates heat, which is usually a child (ffmpeg), not our
+    group leader. Comparing only `proc.pid` returned False, so the limiter's
+    micro-pause ended with killpg(SIGCONT) and woke the very process the guard
+    had just frozen; once the chip cooled, the limiter resumed the job behind
+    the guard's back while the guard still counted it as paused and eventually
+    sent SIGTERM at the pause limit.
     """
     if not migawka_swieza("state.json"):
         return False
@@ -418,23 +415,23 @@ def guard_paused(pid):
         except OSError:
             return False
         if str(pid) in paused:
-            # Trafienie pid nie zwalnia z dowodu: numery pid sa poddawane recyklingowi,
-            # wiec wpis moze opisywac dawno zmarly proces, ktorego numer dostalismy MY.
-            # Grupa zapisana we wpisie musi byc nasza grupa dzisiaj; zepsuty pgid
-            # (nie-liczba) uniewaznia wpis, a nie cala funkcje.
+            # A PID match still needs proof. PID numbers are recycled, so the
+            # entry may describe a dead process whose number we now have. The
+            # saved pgid must match today's process group; an invalid pgid
+            # invalidates only this entry.
             wpis = paused[str(pid)]
             zapisany = wpis.get("pgid") if isinstance(wpis, dict) else None
             try:
                 if zapisany is None or int(zapisany) == moja_grupa:
                     return True
             except (TypeError, ValueError):
-                pass                              # wadliwy wpis - nie moze nas zatrzymac
+                pass                              # malformed entry cannot stop us
         for k, v in paused.items():
-            # MARTWY WPIS NIE MOZE NAS ZATRZYMAC. Numery grup sa poddawane recyklingowi:
-            # gdyby wpis po dawno zmarlym zadaniu przetrwal w state.json, nowy safe-run
-            # z tym samym pgid czekalby w nieskonczonosc na decyzje guarda, ktora
-            # jego nie dotyczy (uwaga z recenzji, 04.08.2026). Zywy pid jest tanim dowodem,
-            # ze wpis opisuje cokolwiek istniejacego.
+            # A DEAD ENTRY MUST NOT STOP US. Process group numbers are recycled.
+            # If an entry from a long-dead job survived in state.json, a new
+            # safe-run with the same pgid would wait forever for a guard decision
+            # that does not apply to it. A live PID is cheap proof that the entry
+            # still describes something real.
             try:
                 os.kill(int(k), 0)
             except ValueError:
@@ -442,28 +439,27 @@ def guard_paused(pid):
             except ProcessLookupError:
                 continue
             except PermissionError:
-                pass                              # cudzy proces, ale ZYJE
+                pass                              # another user's process, but alive
             except OSError:
                 continue
-            # GRUPA ZAPISANA WE WPISIE MUSI BYC GRUPA TEGO PROCESU DZISIAJ. Numery grup
-            # sa poddawane recyklingowi: zywy, zupelnie obcy proces z zapisanym `pgid`
-            # rownym naszemu kazalby limiterowi czekac na decyzje guarda, ktora nigdy
-            # nie padnie - i nasze wlasne zadanie zostaloby po mikro-pauzie w stanie T
-            # (uwaga z recenzji, runda 2). Pytamy system, nie notatke.
+            # THE SAVED GROUP MUST BE THIS PROCESS'S GROUP TODAY. Process group
+            # numbers are recycled: a live unrelated process whose saved `pgid`
+            # equals ours would make the limiter wait for a guard decision that
+            # will never come, leaving our job in state T after a micro-pause.
+            # Ask the system, not the note.
             try:
                 teraz = os.getpgid(int(k))
             except (OSError, ValueError):
                 continue
-            # JEDEN zepsuty wpis (pgid nie-liczba) nie moze oslepic limitera na
-            # PRAWDZIWA pauze w kolejnym wpisie: int() bez oslony lecial do
-            # zewnetrznego `except Exception` i cala funkcja mowila "nic nie stoi"
-            # (runda przegladu 3, 05.08.2026). Pomijamy wadliwy wpis, czytamy dalej.
+            # ONE malformed entry (non-numeric pgid) must not blind the limiter
+            # to a real pause in a later entry. Skip the bad entry and keep
+            # reading.
             zapisany = v.get("pgid") if isinstance(v, dict) else None
             try:
                 if zapisany is not None and int(zapisany) != teraz:
-                    continue                      # wpis opisuje juz co innego
+                    continue                      # entry now describes something else
             except (TypeError, ValueError):
-                continue                          # wadliwy wpis - pomijamy tylko jego
+                continue                          # malformed entry: skip only this one
             if teraz == moja_grupa:
                 return True
         return False
@@ -472,11 +468,13 @@ def guard_paused(pid):
 
 
 def guard_hot():
-    """Czy guard publikuje poziom >=2 (goraco)? Wtedy wznowienie nalezy do guarda.
+    """Return whether the guard publishes level >=2, meaning hot.
 
-    Domyka szczatkowy wyscig: guard mogl wyslac SIGSTOP, ale jeszcze nie zapisac
-    state.json — sam poziom w status.json wystarcza, zeby limiter nie budzil grupy.
+    When this is true, only the guard may resume the job.
     """
+    # Close the remaining race: the guard may have sent SIGSTOP before writing
+    # state.json. The level in status.json is enough to keep the limiter from
+    # waking the group.
     if not migawka_swieza("status.json"):
         return False
     try:
@@ -487,45 +485,42 @@ def guard_hot():
 
 
 def chip_juz_goracy():
-    """Czy chip jest juz przy progu pauzy — wedlug migawki guarda.
+    """Return whether the chip is already near the pause threshold.
 
-    thermal_state() (ProcessInfo.thermalState) na Apple Silicon potrafi pokazywac
-    "nominal" przy chipie na 92 C: system uznaje, ze radzi sobie wentylatorami.
-    Sprawdzone 02.08.2026 — safe-run wystartowal zadanie na maszynie, na ktorej
-    guard pauzowal ffmpeg co kilkanascie sekund. Dlatego pytamy o to, co guard
-    naprawde mierzy: jego wlasny poziom i temperature chipa wzgledem progu pauzy.
-
-    Zwraca (goraco, powod) — powod idzie do komunikatu, zeby odmowa byla zrozumiala.
+    Use the guard snapshot, not ProcessInfo.thermalState. Return (hot, reason);
+    reason is suitable for a refusal message and empty when no reason is known.
     """
+    # ProcessInfo.thermalState can report "nominal" on Apple Silicon at 92 C when
+    # macOS believes the fans are handling it. The guard's own level and chip
+    # temperature are the safety contract for starting heavy jobs.
     try:
         with open(os.path.join(BASE, "status.json")) as f:
             st = json.load(f)
         if not isinstance(st, dict):
-            return False, ""      # migawka moze byc null/lista/tekst po recznej edycji
+            return False, ""      # snapshot may be null/list/text after manual editing
     except Exception:
-        return False, ""          # brak migawki: nie blokujemy, guard i tak ostrzeze
+        return False, ""          # no snapshot: do not block; the guard will warn
     if (time.time() - os.path.getmtime(os.path.join(BASE, "status.json"))) > 120:
-        # Nieswieza migawka nie znaczy "chlodno" - znaczy, ze DEMON NAJPEWNIEJ NIE ZYJE,
-        # czyli nikt nie bedzie pilnowal temperatury tego zadania. Zadania mimo to NIE
-        # blokujemy: safe-run ma dzialac takze tam, gdzie demona nie ma wcale, a odmowa
-        # startu byloby gorsza od braku nadzoru. Ale przestajemy o tym MILCZEC - dotad
-        # uzytkownik dostawal "stan termiczny=nominal" i mysli, ze jest pilnowany.
+        # A stale snapshot does not mean "cool". It means the daemon is probably
+        # dead, so nobody will supervise this job's temperature. Still do not
+        # block: safe-run must work where the daemon is absent, but the user must
+        # be told explicitly.
         return False, "STALE"
     try:
         if float(st.get("level") or 0) >= 2:
             return True, T("the guard reports a hot machine")
     except (TypeError, ValueError, OverflowError):
-        pass                      # poziom nie-liczbowy: idziemy dalej, do temperatury
+        pass                      # non-numeric level: continue to temperature
     chip = st.get("chip_c")
-    # Guard publikuje progi jako {"pause": ..., "kill": ...} (guard.py, status_write).
-    # Wczesniej bylo tu "soc_pause_c", czyli klucz, ktorego nikt nie zapisuje - odczyt
-    # zawsze zwracal None i po cichu spadal na config. Na maszynie bezwentylatorowej,
-    # gdzie kalibracja obniza prog do 78 C, oznaczalo to decyzje wedlug 85 C.
+    # The guard publishes thresholds as {"pause": ..., "kill": ...} (guard.py, status_write).
+    # This used to read "soc_pause_c", a key nobody writes. It always returned
+    # None and silently fell back to config. On a fanless Mac where calibration
+    # lowers the pause threshold to 78 C, that made the decision use 85 C.
     progi = st.get("thresholds")
     prog = (progi.get("pause") if isinstance(progi, dict) else None) or cfg().get("soc_pause_c", 85.0)
     try:
         c, p = float(chip), float(prog)
-        if c == c and c >= p - 5.0:          # c == c odsiewa NaN
+        if c == c and c >= p - 5.0:          # c == c filters NaN
             return True, "chip %.1f C" % c
     except (TypeError, ValueError, OverflowError):
         pass
@@ -533,15 +528,17 @@ def chip_juz_goracy():
 
 
 def chip_odczyt():
-    """(chip_c, prog_wznowienia, level) wedlug swiezej migawki guarda.
+    """Return (chip_c, resume_threshold_c, level) from a fresh guard snapshot.
 
-    Prog czytamy z migawki, nie z config.json: sanity-clamp potrafi poprawic
-    progi w pamieci demona (pole config_corrections) i wtedy plik opisuje
-    system, ktory nie dziala. Migawka nieswieza albo bez chipa = chip None -
-    czekanie nie moze wisiec na liczbie, ktorej nikt nie mierzy.
-    Level jest potrzebny osobno: guard potrafi trzymac poziom "goraco" z powodu,
-    ktorego temperatura chipa nie pokazuje (dlawienie, bateria wedlug demona).
+    Temperatures are degrees C. chip_c is None when the snapshot is stale,
+    missing, unreadable, or has no usable chip reading. level is None when
+    missing or not an integer. The resume threshold falls back to 76.0 C.
     """
+    # Read thresholds from the snapshot, not config.json: sanity-clamp can
+    # correct daemon thresholds in memory (`config_corrections`), so the file may
+    # describe a system that is not running. Level is separate because the guard
+    # can stay hot for reasons chip temperature does not show, such as throttling
+    # or battery state.
     try:
         sciezka = os.path.join(BASE, "status.json")
         with open(sciezka) as f:
@@ -569,19 +566,20 @@ def chip_odczyt():
     return chip, prog, lvl
 
 
-# Interwal sprawdzania w --wait-cool. Zmienna srodowiskowa istnieje dla testow -
-# petla z prawdziwa minuta snu jest nietestowalna w rozsadnym czasie.
+# Poll interval for --wait-cool. The environment variable exists for tests:
+# a real one-minute sleep loop is not testable in reasonable time.
 WAIT_POLL_S = float(os.environ.get("SAFE_RUN_WAIT_POLL", 60))
 
 
 def czekaj_na_ochlodzenie(limit):
-    """Blokuje, az maszyna ostygnie; zwraca liczbe minut czekania.
+    """Block until the machine cools down and return waited minutes.
 
-    Celem jest prog WZNOWIENIA guarda, nie "prog pauzy minus 5": start tuz pod
-    progiem pauzy konczy sie SIGSTOP-em po kilkunastu sekundach i zadanie
-    pelznie w cyklu pauza-wznowienie. Prog wznowienia to poziom, przy ktorym
-    guard sam uznaje, ze wolno pracowac - od niego jest realny zapas.
-    Bateria i thermalState obowiazuja jak przy zwyklej bramce startowej.
+    The target is the guard's resume threshold, not "pause threshold minus 5":
+    a job started just under the pause threshold gets SIGSTOP within seconds
+    and crawls in a pause-resume cycle. The resume threshold is the level at
+    which the guard itself considers work safe, so it carries real headroom.
+    Battery temperature and thermalState use the same rules as the normal start
+    gate.
     """
     t0 = time.time()
     ostatni_komunikat = 0.0
@@ -596,15 +594,16 @@ def czekaj_na_ochlodzenie(limit):
             powody.append("batt %.1f C" % bat)
         if chip is not None and chip > prog:
             powody.append("chip %.1f C > %.0f C" % (chip, prog))
-        # Ten sam warunek co w bramce startowej: poziom "goraco" guarda liczy sie
-        # nawet przy chlodnym chipie (dlawienie, bateria). Bez tego czekanie
-        # konczylo sie natychmiast i zadanie startowalo prosto w cykl pauz.
+        # Same condition as the start gate: guard level "hot" counts even with a
+        # cool chip (throttling, battery). Without it, waiting could end
+        # immediately and start the job straight into a pause loop.
         if lvl is not None and lvl >= 2:
             powody.append("guard level %d" % lvl)
         if not powody:
             return (time.time() - t0) / 60.0
-        # Komunikat raz na start i potem co ~10 min: log z nocnej kolejki ma
-        # pokazywac, ze czekanie ZYJE, ale nie zalewac pliku identycznymi liniami.
+        # Print once at the start and then about every 10 min. Overnight queue
+        # logs must show that waiting is alive without flooding the file with
+        # identical lines.
         if not ostatni_komunikat or time.time() - ostatni_komunikat >= 600.0:
             print(T("safe-run: --wait-cool - the Mac is hot (%s), waiting until it "
                     "cools down (checking every 60 s)") % ", ".join(powody))
@@ -614,11 +613,10 @@ def czekaj_na_ochlodzenie(limit):
 
 
 def limited_wait(proc, pct, deadline):
-    """Czeka na koniec zadania, wymuszajac limit CPU mikropauzami calej grupy.
+    """Wait for the job and enforce a CPU limit with process-group micro-pauses.
 
-    Okno 2 s: przy pct=95 grupa dostaje SIGSTOP na 100 ms i SIGCONT z powrotem —
-    dziala dla kazdego programu, takze takiego, ktory ignoruje opcje watkow.
-    Przy pct>=100 zwykle czekanie. Zwraca (rc, killed_by_time).
+    The window is 2 s. At pct=95, the group gets SIGSTOP for 100 ms and then
+    SIGCONT. At pct>=100, this is a normal wait. Return (rc, killed_by_time).
     """
     window = 2.0
     run_t = window * pct / 100.0
@@ -632,7 +630,7 @@ def limited_wait(proc, pct, deadline):
         if stop_t < 0.02 or guard_paused(proc.pid):
             time.sleep(2)
             continue
-        # zaden sleep nie moze przespac budzetu czasu (max przekroczenie: 50 ms)
+        # No sleep may outlive the time budget; maximum overrun is 50 ms.
         time.sleep(min(run_t, max(deadline - time.time(), 0.05)))
         if proc.poll() is not None or guard_paused(proc.pid):
             continue
@@ -640,8 +638,8 @@ def limited_wait(proc, pct, deadline):
             os.killpg(proc.pid, signal.SIGSTOP)
             time.sleep(min(stop_t, max(deadline - time.time(), 0.05)))
         finally:
-            # nie budzimy zadania, ktore zamrozil guard ANI gdy guard publikuje "goraco"
-            # (poziom >=2) — wtedy wznowienie jest wylacznie decyzja bezpiecznika
+            # Do not wake a job frozen by the guard or while the guard publishes
+            # "hot" (level >=2). In that state, resume belongs only to the guard.
             if not guard_paused(proc.pid) and not guard_hot():
                 try:
                     os.killpg(proc.pid, signal.SIGCONT)
@@ -673,19 +671,19 @@ def max_temp_since(t0):
 
 
 def zywi_w_grupie(pgid):
-    """Pidy procesow zyjacych w grupie zadania (safe-run jest w INNEJ grupie).
+    """Return live PIDs in a job process group.
 
-    None = NIE WIADOMO (pgrep sie nie wykonal albo nie mogl odczytac tablicy
-    procesow). To nie to samo co pusta lista: "nie wiem" nie moze oznaczac
-    "grupa czysta", bo sprzatanie odpusciloby wtedy SIGKILL sierocie.
+    safe-run itself is in another group. None means unknown: pgrep failed or
+    could not read the process table. None is not the same as an empty list;
+    cleanup must not skip SIGKILL for an orphan because discovery failed.
     """
     try:
         p = subprocess.run(["pgrep", "-g", str(pgid)], capture_output=True, timeout=10)
     except Exception:
         return None
-    if p.returncode == 1:                     # pgrep: brak dopasowan
+    if p.returncode == 1:                     # pgrep: no matches
         return []
-    if p.returncode != 0:                     # pgrep: blad, nie pusta grupa
+    if p.returncode != 0:                     # pgrep: error, not an empty group
         return None
     pids = []
     for czesc in p.stdout.decode("utf-8", "replace").split():
@@ -697,11 +695,10 @@ def zywi_w_grupie(pgid):
 
 
 def sprzatnij_grupe(pgid, grace):
-    """CONT + SIGTERM do calej grupy, okno laski, potem SIGKILL dla ocalalych.
+    """Send SIGCONT and SIGTERM to the group, then SIGKILL survivors after grace.
 
-    CONT najpierw: SIGTERM dostarczony procesowi w stanie T (zamrozonemu przez
-    guarda) wisi jako pending do wznowienia - grupa wygladalaby na ubita, a
-    umieralaby dopiero przy nastepnym SIGCONT, nie wiadomo kiedy.
+    `grace` is seconds. SIGCONT is sent first because SIGTERM delivered to a
+    process stopped by the guard stays pending until resume.
     """
     try:
         os.killpg(pgid, signal.SIGCONT)
@@ -710,8 +707,8 @@ def sprzatnij_grupe(pgid, grace):
         pass
     koniec = time.time() + grace
     while time.time() < koniec:
-        # tylko JAWNIE pusta grupa konczy wczesniej; None (pgrep padl) czeka
-        # dalej i konczy sie SIGKILL-em - lepiej strzelic w pustke niz odpuscic
+        # Only an explicitly empty group exits early. None (pgrep failed) waits
+        # until SIGKILL; firing at an empty group is safer than skipping a live one.
         if zywi_w_grupie(pgid) == []:
             return
         time.sleep(1)
@@ -723,13 +720,11 @@ def sprzatnij_grupe(pgid, grace):
 
 
 def guard_zyje():
-    """Czy demon NAPRAWDE zyje, a nie tylko jest wczytany do launchd.
+    """Return whether the daemon is really alive, not only loaded in launchd.
 
-    `launchctl list` dla martwego joba drukuje "-  1  pl.pawel.coffee-paladin", wiec
-    zwykle sprawdzenie podciagu bylo prawdziwe takze wtedy, gdy demon wpadl w petle
-    restartow. `heat` meldowal "dziala", a `safe-run` nie ostrzegal, ze zadanie
-    poleci BEZ nadzoru. Sprawdzamy kolumne PID - install.sh robi to samo (ma_pid).
-    Zapasowo szukamy procesu po realnej nazwie binarki, nie po "guard.py".
+    `launchctl list` can print "-  1  pl.pawel.coffee-paladin" for a dead job.
+    Check the PID column, matching install.sh (`ma_pid`). Fall back to the real
+    binary name, not only "guard.py".
     """
     for linia in sh(["launchctl", "list"]).splitlines():
         czesci = linia.split()
@@ -742,15 +737,17 @@ def guard_zyje():
 def main():
     opt, cmd = parse()
 
-    # ZAGNIEZDZONY safe-run: skrypt uruchomiony przez safe-run sam wola safe-run.
-    # Bez tego wewnetrzny robil `setsid` po raz drugi i prawdziwa praca ladowala
-    # w TRZECIEJ grupie procesow, podczas gdy zewnetrzny mial zarejestrowana grupe
-    # zawierajaca wylacznie wewnetrznego NADZORCE. Skutek zmierzony na zywo:
-    # SIGSTOP zamrazal nadzorce, a ffmpeg grzal dalej; limit CPU nie dzialal w ogole
-    # (nadzorca stal 90% czasu, praca leciala 100%); eskalacja ubijala nadzorce
-    # zamiast zadania. Dokladnie ten uklad jest w kolejce kompresji.
-    # Rozwiazanie: drugi safe-run nie tworzy wlasnego nadzoru, tylko PODMIENIA sie
-    # na polecenie (execvp). Zostaje jedna sesja, jedna rejestracja, jeden wlasciciel.
+    # Nested safe-run: a script launched by safe-run calls safe-run itself.
+    # Without this, the inner wrapper ran `setsid` again and the real work landed
+    # in a third process group, while the outer wrapper registered a group
+    # containing only the inner supervisor. Observed effect: SIGSTOP froze the
+    # supervisor while ffmpeg kept heating; the CPU limit did not work because
+    # the supervisor was stopped 90% of the time while the work ran at 100%;
+    # escalation killed the supervisor instead of the job. This exact layout
+    # exists in the compression queue.
+    # Solution: the second safe-run does not create its own supervision. It
+    # replaces itself with the command via execvp. One session, one registration,
+    # one owner.
     if os.environ.get("TG_SAFE_RUN_PGID") and cmd:
         print(T("safe-run: already inside a supervised job - running the command directly"))
         sys.stdout.flush()
@@ -761,9 +758,10 @@ def main():
             return 127
 
     for d in (BASE, MANAGED_DIR):
-        # exist_ok: przy kilku safe-run odpalonych naraz na swiezej instalacji trzy
-        # z czterech wywalaly sie FileExistsError i zadania w ogole nie ruszaly
-        os.makedirs(d, 0o700, exist_ok=True)   # patrz guard.ensure_dirs: nie publiczne
+        # exist_ok: several safe-run instances starting at once on a fresh install
+        # made three out of four fail with FileExistsError, and those jobs never
+        # started.
+        os.makedirs(d, 0o700, exist_ok=True)   # see guard.ensure_dirs: not public
 
     state, temp = thermal_state(), batt_temp()
     limit = cfg().get("batt_pause_c", 40.0)
@@ -783,9 +781,9 @@ def main():
             print(T("safe-run: REFUSING TO START - the Mac is already hot. Use --wait-cool to wait, let it cool down, or pass --allow-hot.")
                   + ((" (%s)" % chip_powod) if chip_powod else ""))
             return 3
-        # Czekanie NIE zjada budzetu --hours: t0 (deadline zadania) startuje
-        # dopiero ponizej, po ochlodzeniu. Ctrl-C w trakcie = zwykle przerwanie
-        # reczne (rc 130, ten sam kontrakt co w retry_run.sh: nie ponawiac).
+        # Waiting DOES NOT consume the --hours budget: t0, the job deadline,
+        # starts below after cooldown. Ctrl-C while waiting is a normal manual
+        # interruption (rc 130, same contract as retry_run.sh: do not retry).
         try:
             minuty = czekaj_na_ochlodzenie(limit)
         except KeyboardInterrupt:
@@ -801,35 +799,37 @@ def main():
 
     wrapped = list(cmd)
     if not opt["normal"]:
-        # background QoS (E-cores) + nice: najtansza termicznie forma dlugiego liczenia
+        # Background QoS (E-cores) + nice: the cheapest thermal form of long compute.
         wrapped = ["nice", "-n", "10", "taskpolicy", "-b"] + wrapped
 
     t0 = time.time()
     try:
         srodowisko = dict(os.environ)
-        srodowisko["TG_SAFE_RUN_PGID"] = str(os.getpid())   # patrz uwaga w main()
+        srodowisko["TG_SAFE_RUN_PGID"] = str(os.getpid())   # see note in main()
         proc = subprocess.Popen(wrapped, preexec_fn=os.setsid, env=srodowisko)
     except Exception as e:
         print(T("safe-run: cannot start: %r") % (e,))
         return 4
 
-    # Sen w polowie zadania = zadanie stoi do rana. `caffeinate -is -w PID` konczy sie
-    # sam razem z zadaniem, wiec nie ma czego pilnowac ani sprzatac - stad brak uchwytu.
+    # Sleep in the middle of a job leaves it stuck until morning.
+    # `caffeinate -is -w PID` exits with the job, so there is nothing to track or
+    # clean up.
     if not opt["allow_sleep"]:
         try:
             subprocess.Popen(["caffeinate", "-is", "-w", str(proc.pid)],
                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except Exception:
-            pass          # bez blokady snu jest gorzej, ale zadanie ma ruszyc
+            pass          # no sleep lock is worse, but the job should start
 
     reg = os.path.join(MANAGED_DIR, "%d.json" % proc.pid)
-    # 0600: plik zawiera PELNA linie polecen zadania - sciezki projektow, nazwy plikow,
-    # czasem tokeny w argumentach. Na Macu z kilkoma kontami nie ma powodu, zeby czytal
-    # to ktokolwiek poza wlascicielem.
+    # 0600: the file contains the FULL command line: project paths, file names,
+    # and sometimes tokens in arguments. On a Mac with multiple accounts, only
+    # the owner should read it.
     _fd = os.open(reg, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     with os.fdopen(_fd, "w") as f:
-        # "normal": czlowiek jawnie kazal leciec na wszystkich rdzeniach - guard
-        # nie moze 5 minut pozniej po cichu cofnac tej decyzji degradacja na E-cores
+        # "normal": the user explicitly asked for all cores. The guard must not
+        # silently undo that decision five minutes later by demoting the job to
+        # E-cores.
         json.dump({"pid": proc.pid, "pgid": proc.pid, "name": opt["name"],
                    "cmd": cmd, "started": t0, "hours": opt["hours"],
                    "normal": bool(opt["normal"])}, f, indent=1)
@@ -847,19 +847,22 @@ def main():
     rc, killed_by_time = limited_wait(proc, opt["cpu_limit"], deadline)
     if killed_by_time:
         print(T("safe-run: TIME BUDGET %.1f h reached - terminating the job (SIGTERM)") % opt["hours"])
-        # Sprzatanie patrzy na CALA grupe, nie na proc.poll(): smierc lidera przy
-        # zywych wnukach pomijala wczesniej SIGKILL i wnuki zostawaly na zawsze.
+        # Cleanup checks the WHOLE group, not proc.poll(): if the leader died
+        # while grandchildren were alive, SIGKILL used to be skipped and the
+        # grandchildren stayed forever.
         sprzatnij_grupe(proc.pid, opt["grace"])
         rc = proc.wait()
 
-    # Resztki grupy przy wyjsciu. Gdy lider ginie od sygnalu z zewnatrz (kill na
-    # pojedynczy pid, nie killpg), procesy potomne w grupie zyja dalej - bez
-    # budzetu czasu i bez rejestracji, bo ta znika ponizej. Sprzatamy takze przy
-    # rc >= 128: shellowy lider zlapany na SIGTERM konczy sie kodem 128+sygnal
-    # i zostawia dokladnie ta sama sierote. Po czystym wyjsciu zadanie moglo
-    # zostawic cos w tle celowo - tego nie ruszamy, ale glosno ostrzegamy.
-    # Po killed_by_time grupa juz dostala pelne okno laski i SIGKILL - drugie
-    # sprzatanie nie ubije niczego, czego nie ubil SIGKILL, wiec tylko meldujemy.
+    # Leftover group members at exit. If the leader dies from an external signal
+    # (kill of one pid, not killpg), children in the group keep running without a
+    # time budget and without registration, because it is removed below. Also
+    # clean up rc >= 128: a shell leader that catches SIGTERM exits as
+    # 128+signal and leaves the same orphan. After a clean exit, the job may have
+    # intentionally left something in the background; warn loudly but do not
+    # touch it.
+    # After killed_by_time, the group already had the full grace window and
+    # SIGKILL. A second cleanup cannot kill anything SIGKILL did not kill, so
+    # only report.
     resztki = zywi_w_grupie(proc.pid)
     if resztki:
         smierc_od_sygnalu = rc is not None and (rc < 0 or rc >= 128)
@@ -884,10 +887,10 @@ def main():
         (", " + T("terminated by the time budget")) if killed_by_time else ""))
     if rc is not None and rc < 0 and -rc in (signal.SIGTERM, signal.SIGKILL):
         print(T("safe-run: the job was stopped by signal %d - check ~/.coffee-paladin/guard.log") % -rc)
-    # Zadanie ubite sygnalem daje rc ujemne (-15 SIGTERM, -9 SIGKILL). Zwracanie 0
-    # znaczylo, ze `safe-run ... && nastepny_krok` szedl dalej po zadaniu przerwanym
-    # w polowie - np. kolejka kompresji kasowala zrodlo po nieukonczonym enkodowaniu.
-    # 128+sygnal to konwencja powloki dla "zabity sygnalem".
+    # A job killed by signal returns a negative rc (-15 SIGTERM, -9 SIGKILL).
+    # Returning 0 made `safe-run ... && next_step` continue after a half-finished
+    # job, for example a compression queue deleting the source after an
+    # incomplete encode. 128+signal is the shell convention for "killed by signal".
     if rc and rc < 0:
         return 128 - rc
     return rc if rc and rc > 0 else 0

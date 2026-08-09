@@ -21,10 +21,10 @@ let APPNAME = "coffee-paladin"
 let CODENAME = "Ristretto"
 let SIGNATURE = "\(APPNAME) v\(VERSION) \u{201E}\(CODENAME)\u{201D}  ·  by panbookovsky"
 
-// Katalog roboczy. TG_BASE pozwala uruchomic pasek w izolacji (testy UI, demo)
-// bez ryzyka, ze klikniecie w oknie powitalnym przestawi konfiguracje zywej
-// instalacji. Uwaga: expandingTildeInPath NIE slucha podmienionego HOME -
-// dlatego potrzebna jest osobna zmienna, a nie sztuczka z katalogiem domowym.
+// Workspace directory. TG_BASE lets the menu bar run isolated (UI tests, demos)
+// without a welcome-window click changing the live installation config.
+// Note: expandingTildeInPath does NOT honor a substituted HOME, so this needs a
+// separate variable instead of a home-directory trick.
 let base = ProcessInfo.processInfo.environment["TG_BASE"].map {
     NSString(string: $0).expandingTildeInPath
 } ?? NSString(string: "~/.coffee-paladin").expandingTildeInPath
@@ -1076,12 +1076,12 @@ func T(_ s: String) -> String { DICTS[lang]?[s] ?? s }
 
 // MARK: - icons
 
-// Kawa = filizanka (cup.and.saucer) — swiadomy wybor Pawla po probie z "mug".
+// Coffee uses cup.and.saucer after "mug" proved less clear.
 let MUG = "cup.and.saucer"
 let MUG_FILL = "cup.and.saucer.fill"
 
-/// Male logo "app-icon style" rysowane w locie: squircle z gradientem i bialym termometrem.
-/// Zadnych plikow zasobow — pasek zostaje jednym samowystarczalnym plikiem Swift.
+/// Draw a small app-icon-style logo on demand.
+/// The logo is a gradient squircle with a white thermometer and no resource files.
 func makeLogo(_ size: CGFloat = 22) -> NSImage {
     let img = NSImage(size: NSSize(width: size, height: size))
     img.lockFocus()
@@ -1102,8 +1102,9 @@ func makeLogo(_ size: CGFloat = 22) -> NSImage {
     return img
 }
 
-/// Wlasne logo uzytkownika: ~/.coffee-paladin/logo.png (czarny znak na przezroczystym tle).
-/// isTemplate sprawia, ze macOS sam przebarwia je na kolor motywu (jasny/ciemny).
+/// Load the user's custom logo from ~/.coffee-paladin/logo.png.
+/// The image must be a black mark on a transparent background; isTemplate lets macOS
+/// recolor it for the current light or dark appearance.
 func customLogo() -> NSImage? {
     guard let img = NSImage(contentsOfFile: base + "/logo.png") else { return nil }
     img.isTemplate = true
@@ -1111,7 +1112,7 @@ func customLogo() -> NSImage? {
 }
 
 
-// MARK: - powitanie paladyna (pierwsze uruchomienie)
+// MARK: - paladin welcome (first launch)
 
 let PALADIN_FRAMES: [String] = [
     "            \u{2584}\u{2584}                \n          \u{2584}\u{2588}\u{2588}\u{2588}\u{2588}\u{2584}              \n         \u{2588}\u{2593}\u{2593}\u{2593}\u{2593}\u{2593}\u{2593}\u{2588}             \n         \u{2588}\u{2584}\u{2588}\u{2588}\u{2588}\u{2588}\u{2584}\u{2588}             \n         \u{2588}\u{2580}\u{2580}\u{2580}\u{2580}\u{2580}\u{2580}\u{2588}      \u{2591}      \n       \u{2584}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2584} \u{2591}       \n  \u{2584}\u{2584}\u{2584}\u{2584}\u{2588}\u{2593}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2593}\u{2588}          \n  \u{2588}\u{2593}\u{2593}\u{2588}\u{2588}\u{2593}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2593}\u{2588} \u{258C}\u{2584}\u{2584}\u{2590}     \n  \u{2588}\u{2593}\u{2593}\u{2588} \u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}  \u{2588}     \n  \u{2588}\u{2593}\u{2593}\u{2588}  \u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}   \u{2580}\u{2580}\u{2580}\u{2580}     \n   \u{2580}\u{2580}    \u{2588}\u{2588}\u{2588}  \u{2588}\u{2588}\u{2588}             \n         \u{2588}\u{2588}\u{2588}  \u{2588}\u{2588}\u{2588}             \n        \u{2588}\u{2588}\u{2588}\u{2588} \u{2588}\u{2588}\u{2588}\u{2588}             \n                              \n                              \n                              ",
@@ -1126,8 +1127,9 @@ let PALADIN_FRAMES: [String] = [
 
 let MOTTO = "Shield the Process, Sip the Coffee"
 
-/// Okno powitalne: raz, przy pierwszym uruchomieniu paska. Monochromatyczny paladyn
-/// (labelColor - sam gra z jasnym/ciemnym motywem), vibrancy, wybor trybu na start.
+/// Show the welcome window once, on the first menu bar launch.
+/// It uses monochrome paladin art, labelColor for light/dark appearance, vibrancy,
+/// and a startup mode choice.
 final class Welcome: NSObject {
     static let shared = Welcome()
     private var window: NSWindow?
@@ -1153,11 +1155,11 @@ final class Welcome: NSObject {
         fx.state = .active
         win.contentView = fx
 
-        // Grafika paladyna. Trzy poziomy, od najlepszego:
-        //   1. paladin_welcome.gif  - oficjalna animacja (NSImageView odtwarza GIF sam),
-        //   2. paladin_welcome.png  - ta sama postac, klatka statyczna,
-        //   3. PALADIN_FRAMES       - klatki ASCII, gdy branding w ogole nie dojechal.
-        // Dzieki trzeciemu poziomowi okno nigdy nie jest puste.
+        // Paladin art, best fallback first:
+        //   1. paladin_welcome.gif  - official animation (NSImageView plays GIFs),
+        //   2. paladin_welcome.png  - same character, static frame,
+        //   3. PALADIN_FRAMES       - ASCII frames when branding assets are missing.
+        // The third level keeps the window from ever being empty.
         let a = NSTextField(labelWithString: PALADIN_FRAMES[0])
         a.font = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
         a.maximumNumberOfLines = 0
@@ -1170,7 +1172,7 @@ final class Welcome: NSObject {
             let iv = NSImageView(frame: NSRect(x: (W - iw)/2, y: 206, width: iw, height: ih))
             iv.image = sprite
             iv.imageScaling = .scaleProportionallyUpOrDown
-            iv.animates = true          // dziala tylko dla GIF-a; dla PNG bez efektu
+            iv.animates = true          // GIF only; no effect for PNG
             fx.addSubview(iv)
             usesSprite = true
         }
@@ -1211,8 +1213,8 @@ final class Welcome: NSObject {
         watch.frame = NSRect(x: W/2 - 150, y: 36, width: 300, height: 32)
         fx.addSubview(watch)
 
-        // Link do przewodnika: otwiera okno obok, NIE zamyka powitania i NIE
-        // ustawia flagi welcomed - uzytkownik i tak musi wybrac tryb powyzej.
+        // The guide link opens a side window, but does NOT close welcome or set welcomed.
+        // The user still must choose one of the startup modes above.
         let guideBtn = NSButton(title: T("First steps…"), target: self, action: #selector(openGuideLink))
         guideBtn.isBordered = false
         guideBtn.attributedTitle = NSAttributedString(string: T("First steps…"),
@@ -1221,9 +1223,8 @@ final class Welcome: NSObject {
         guideBtn.frame = NSRect(x: W/2 - 150, y: 8, width: 300, height: 20)
         fx.addSubview(guideBtn)
 
-        // Timer chodzi WYLACZNIE w trybie ASCII. Przy sprite'cie animacje niesie sam
-        // NSImageView, a budzenie CPU 11x/s bez powodu jest ostatnim, czego chce
-        // bezwentylatorowy Mac (uwaga z przegladu Neo).
+        // The timer runs only in ASCII mode. Sprites are animated by NSImageView;
+        // waking the CPU 11x/s for no reason is exactly what a fanless Mac does not need.
         if usesSprite {
             a.isHidden = true
         } else {
@@ -1252,7 +1253,7 @@ final class Welcome: NSObject {
     }
 }
 
-// MARK: - fleet (wspolny folder, te same pliki co CLI `fleet`)
+// MARK: - fleet (shared folder, same files as CLI `fleet`)
 
 struct FleetHost {
     let name: String
@@ -1270,13 +1271,16 @@ struct FleetHost {
     var battC: Double? = nil
 }
 
-/// Migawki hostow z folderu floty. nil = folder nieskonfigurowany/nieczytelny;
-/// pusta lista = folder jest, ale nikt jeszcze nie publikuje.
-/// Liczniki pracy bezpiecznika z KAZDEJ maszyny floty. Osobno od `fleetHosts()`, bo tamten
-/// niesie pomiary chwilowe, a tu chodzi o sumy. Migawka floty jest kopia migawki lokalnej,
-/// wiec liczniki sa w niej od razu — nie trzeba niczego dokladac do protokolu.
-/// Zwraca takze WIEK pliku: liczby z maszyny, ktora nie raportuje od kwadransa, nie moga
-/// wygladac na aktualne.
+/// Read guard counters from every machine in the fleet folder.
+/// Fleet snapshots use nil for an unconfigured or unreadable folder, and an empty list
+/// when the folder exists but no host has published yet.
+///
+/// This stays separate from `fleetHosts()`: that function carries momentary readings,
+/// while this one carries totals. The fleet snapshot is a copy of the local snapshot,
+/// so counters are already in it and need no protocol change.
+///
+/// Return file age too: numbers from a machine that has not reported for fifteen minutes
+/// must not look current.
 func fleetStats() -> [(host: String, ses: [String: Int], sum: [String: Int], wiek: TimeInterval)] {
     let raw = GuardCfg.string("fleet_dir", "")
     guard !raw.isEmpty else { return [] }
@@ -1310,8 +1314,8 @@ func fleetHosts() -> [FleetHost]? {
     guard let items = try? FileManager.default.contentsOfDirectory(atPath: dir) else { return nil }
     var out: [FleetHost] = []
     for fname in items.sorted() {
-        // plik zewinkowany przez iCloud (".<host>.json.icloud") — host ISTNIEJE, ale danych
-        // nie ma pod reka: pokazujemy go jako nieraportujacego zamiast po cichu ukrywac
+        // An iCloud-evicted file (".<host>.json.icloud") means the host EXISTS, but
+        // data is not local. Show it as stale instead of silently hiding it.
         if fname.hasSuffix(".json.icloud") {
             var base = fname
             if base.hasPrefix(".") { base.removeFirst() }
@@ -1331,8 +1335,8 @@ func fleetHosts() -> [FleetHost]? {
             name: (j["host"] as? String) ?? String(fname.dropLast(5)),
             model: (j["model"] as? String) ?? "",
             serial: (j["serial"] as? String) ?? "",
-            // max(0,...): mtime z przyszlosci (rozjazd zegarow na SMB) nie moze dawac
-            // ujemnego wieku — host wygladalby na wiecznie swiezy
+            // max(0,...): future mtime from SMB clock skew must not produce a
+            // negative age, or the host would look forever fresh.
             age: mtime.map { max(0, Date().timeIntervalSince($0)) } ?? 1e9,
             chip: num(j["chip_c"]),
             fans: (j["fans"] as? [Any])?.compactMap { numInt($0) }.max(),
@@ -1348,14 +1352,15 @@ func fleetHosts() -> [FleetHost]? {
 }
 
 func fleetAge(_ s: TimeInterval) -> String {
-    // podloga, nie zaokraglenie: 95 s to "1 min temu", nie "2 min temu"
+    // Floor, do not round: 95 s is "1 min ago", not "2 min ago".
     if s < 60 { return T("now") }
     if s < 7200 { return String(format: T("%d min ago"), max(1, Int(s / 60))) }
     return String(format: T("%d h ago"), Int(s / 3600))
 }
 
-/// Stopka: kolorowe logo z ~/.coffee-paladin/logo_footer.png (w ciemnym motywie wariant
-/// logo_footer_dark.png z jasnym tekstem, jesli istnieje). Brak plikow = brak wiersza.
+/// Show the footer logo from ~/.coffee-paladin/logo_footer.png.
+/// In dark mode, prefer logo_footer_dark.png with light text when it exists.
+/// Missing files mean no row.
 final class FooterLogoRow: NSView {
     static func make() -> FooterLogoRow? {
         let dark = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
@@ -1371,7 +1376,7 @@ final class FooterLogoRow: NSView {
         let ratio = img.size.width / max(img.size.height, 1)
         let h: CGFloat = 13
         let w = min(h * ratio, 280)
-        // logo jest przyciskiem: klik otwiera strone z config.json (footer_logo_url)
+        // The logo is a button: click opens the URL from config.json (`footer_logo_url`).
         let b = NSButton(frame: NSRect(x: (400 - w) / 2, y: 6, width: w, height: h))
         b.image = img
         b.isBordered = false
@@ -1393,10 +1398,10 @@ final class FooterLogoRow: NSView {
     required init?(coder: NSCoder) { fatalError() }
 }
 
-/// Naglowek menu: logo + nazwa + wersja, wszystko WYSRODKOWANE. Gdy w ~/.coffee-paladin
-/// lezy logo.png (u Pawla: znak AIrON), pokazujemy je; bez pliku rysujemy wlasny squircle.
-/// Kazdy link WYCHODZACY z aplikacji niesie UTM (decyzja Pawla 01.08) - w statystykach
-/// widac wtedy, ze ruch przyszedl z paska, a nie z README czy z posta.
+/// Render the menu header with centered logo, name, and version.
+/// If ~/.coffee-paladin/logo.png exists, show it; otherwise draw the built-in squircle.
+/// Every external app link carries UTM so analytics can distinguish menu-bar traffic
+/// from README or post traffic.
 func zUTM(_ s: String, medium: String = "app") -> URL? {
     guard var c = URLComponents(string: s) else { return URL(string: s) }
     var q = c.queryItems ?? []
@@ -1407,15 +1412,15 @@ func zUTM(_ s: String, medium: String = "app") -> URL? {
     return c.url ?? URL(string: s)
 }
 
-/// Link do repo z UTM "share" - to wkleja sie w posty i maile z "Podaj dalej".
+/// Build the repository link with UTM "share" for share posts and emails.
 func linkPodajDalej() -> String {
     zUTM("https://github.com/pawelkwaczynski/coffee-paladin", medium: "share")?.absoluteString
         ?? "https://github.com/pawelkwaczynski/coffee-paladin"
 }
 
 
-/// Dzwiek paladyna (zbroja) przy pokazaniu paladyna - plik z wyborow Pawla (CC0),
-/// pod tym samym przelacznikiem Dzwieki co reszta; brak pliku = cisza, zero bledow.
+/// Play the optional paladin armor sound when showing paladin art.
+/// The same Sounds switch controls it; missing file means silence, not an error.
 func grajPaladyna() {
     guard GuardCfg.bool("sound", true) else { return }
     let p = base + "/sounds/paladin.wav"
@@ -1428,8 +1433,8 @@ func grajPaladyna() {
 
 
 
-/// Okno "Pierwsze kroki": tresc przewodnika w jezyku menu, dostepne z menu
-/// i z okna powitalnego. Singleton - drugie klikniecie tylko podnosi okno.
+/// Show the "First steps" guide in the menu language.
+/// It is available from the menu and welcome window; a second click only raises it.
 final class Guide {
     static let shared = Guide()
     private var win: NSWindow?
@@ -1465,9 +1470,9 @@ final class Guide {
         let sekcje = [T(GUIDE_CAN), T(GUIDE_WILL), T(GUIDE_SET), T(GUIDE_NTFY)]
         for s in sekcje {
             let linie = s.split(separator: "\n", maxSplits: 1, omittingEmptySubsequences: false)
-            // Dwukropek i pusta linijka pod naglowkiem sekcji. Robione TU, przy skladaniu
-            // tekstu, a nie w slownikach: inaczej trzeba by ruszyc te same cztery naglowki
-            // w pieciu jezykach, czyli dwadziescia wpisow, i pilnowac ich przy kazdej zmianie.
+            // Add the colon and blank line under each section header while assembling text,
+            // not in dictionaries. Otherwise every change would touch four headers in five
+            // languages, twenty entries total.
             var naglowek = String(linie[0]).trimmingCharacters(in: .whitespaces)
             if !naglowek.hasSuffix(":") { naglowek += ":" }
             tekst.append(NSAttributedString(string: naglowek + "\n\n",
@@ -1500,7 +1505,7 @@ final class Guide {
     }
 }
 
-// klucze tresci przewodnika (EN = klucz slownika tlumaczen)
+// Guide content keys (EN = translation dictionary key).
 let GUIDE_CAN = "WHAT IT CAN DO\n• The paladin watches the chip, the battery, the fans and the power source - by default a reading every 15 seconds.\n• When things get too hot, it FREEZES heavy processes instead of letting the Mac cook itself. The pause destroys nothing: the process stops mid-instruction and continues once the chip cools. Example? Measured: 89 °C → 60 °C in 19 seconds, no loss.\n• It finds the real culprit: CPU is counted across the whole process tree, so it also sees a script that spawns hundreds of short jobs while using almost nothing itself.\n• On battery below 10% it pauses long jobs - they resume when you plug in.\n• It keeps a black box: after a hard failure the last 8 readings survive. One click turns them into a report for a repair shop (should you ever need it).\n• Keep-awake - works like the well-known Caffeine or Amphetamine, but unlike them it comes with a fuse: the sleep lock is released the moment things run hot. Sleep is the fastest cooling there is."
 let GUIDE_WILL = "WHAT WILL HAPPEN\n• Your choice in the welcome window decides how you start.\n\n\"Watch only\" mode: the paladin measures, logs and alerts, but PAUSES NOTHING.\n\n\"Enable protection\" mode: it pauses at the defined thresholds.\n\nSwitching is easy - one switch at the top of the menu.\n\n• Default thresholds: pause at 85 °C, resume at 76 °C, gentle closing of processes at 90 °C - and only after 4 critical readings in a row. Above 90 °C for over a minute is an emergency: despite the pauses the chip still holds critical (something we could not pause is heating, or pausing was not enough to cool the chip). The process is then woken up and gets SIGTERM - a polite \"shut down\": it has a chance to save its state, close its files, clean up. That is why we call this termination \"gentle\".\n\nA fanless Mac (e.g. an Air or Neo) gets more careful parameters. The thresholds are always picked for YOUR machine: see menu > \"About my Mac\".\n\n• Notifications: on. Sounds: off (enable them in Settings). At the critical level a system banner breaks through everything - Focus and full-screen included.\n• The system, Finder, your terminal and your AI agent are on the never-touch list. The guard will not freeze the session working next to it."
 let GUIDE_SET = "WHAT YOU CAN SET\n• Chip pause threshold - a slider; resume and terminate recalculate themselves.\n• Measurement interval 5-30 s: more often = faster reaction, but costlier in CPU use.\n• Heavy jobs (safe-run): all cores (fast) or efficiency cores only (cool and quiet), plus a CPU limit of 50-100%.\n• Battery gate, signals, keep-awake, this Mac's name in the fleet."
@@ -1514,12 +1519,12 @@ final class HeaderRow: NSView {
     private var srodkowane: [NSTextField] = []
 
     init() {
-        // 360, nie 400: nagłówek nie moze byc tym, co rozpycha cale menu.
-        // Realna szerokosc i tak przychodzi od NSMenu - centrujemy w setFrameSize.
+        // 360, not 400: the header must not be what widens the whole menu.
+        // NSMenu still supplies the real width; center in setFrameSize.
         super.init(frame: NSRect(x: 0, y: 0, width: 400, height: 88))
         autoresizingMask = [.width]
         if let logo = customLogo() {
-            // znak poziomy (wordmark): srodek, wysokosc 22, szerokosc wg proporcji
+            // Horizontal logo (wordmark): centered, height 22, width from aspect ratio.
             let ratio = logo.size.width / max(logo.size.height, 1)
             let h: CGFloat = 24
             let w = min(h * ratio, 330)
@@ -1535,11 +1540,11 @@ final class HeaderRow: NSView {
             addSubview(iv)
             logoView = iv
         }
-        // Nazwa produktu i motto: to jest "twarz" narzedzia, musi byc na gorze menu,
-        // nie dopiero w stopce (luke wykryl wzmocniony test 6).
-        // CELOWO bez miniatury paladyna obok: w 30 px szczegolowa grafika robi sie
-        // kolorowa naklejka i kloci sie z monochromatycznym wordmarkiem nad nia.
-        // Paladyna oglada sie w panelu (klikniecie nazwy) i w oknie powitalnym.
+        // Product name and motto are the product's face and must stay at the top
+        // of the menu, not only in the footer.
+        // Deliberately no paladin thumbnail beside them: detailed art at 30 px
+        // becomes a color sticker and clashes with the monochrome wordmark above.
+        // Paladin art lives in the panel (name click) and the welcome window.
         let app = NSTextField(labelWithString: "\(APPNAME)  ·  v\(VERSION)")
         app.font = .systemFont(ofSize: 13, weight: .semibold)
         app.textColor = .labelColor
@@ -1565,8 +1570,8 @@ final class HeaderRow: NSView {
         addSubview(name)
         srodkowane.append(name)
 
-        // .inVisibleRect: obszar sledzenia podaza za KAZDA zmiana rozmiaru wiersza,
-        // wiec kursor-dlon dziala tez po tym, jak NSMenu rozciagnie widok
+        // .inVisibleRect: the tracking area follows EVERY row resize, so the
+        // pointing cursor still works after NSMenu stretches the view.
         addTrackingArea(NSTrackingArea(rect: .zero,
                                        options: [.mouseEnteredAndExited, .activeAlways,
                                                  .cursorUpdate, .inVisibleRect],
@@ -1575,8 +1580,8 @@ final class HeaderRow: NSView {
     }
     required init?(coder: NSCoder) { fatalError() }
 
-    // Nagłówek byl centrowany w sztywnych 400 pt, a menu bywa szersze - cala sekcja
-    // wygladala na zle wysrodkowana (Pawel, 01.08). Teraz srodek liczy sie z bounds.
+    // The header used to be centered in a fixed 400 pt while the menu can be wider.
+    // Center from bounds.
     override func setFrameSize(_ newSize: NSSize) {
         super.setFrameSize(newSize)
         rozmiesc()
@@ -1600,7 +1605,7 @@ final class HeaderRow: NSView {
     override func mouseUp(with event: NSEvent) {
         let p = convert(event.locationInWindow, from: nil)
         if naLogo(p) {
-            // logo AIrON prowadzi do kola naukowego: informatyka po angielsku na AHE
+            // The AIrON logo links to the student club's English CS program at AHE.
             enclosingMenuItem?.menu?.cancelTracking()
             if let u = zUTM("https://www.ahe.lodz.pl/study-in-english/eng-in-computer-science") {
                 NSWorkspace.shared.open(u)
@@ -1608,17 +1613,17 @@ final class HeaderRow: NSView {
             return
         }
         guard naNazwie(p) else { return }
-        // Najpierw zamykamy menu, dopiero potem pokazujemy panel - inaczej menu
-        // przechwytuje zdarzenia myszy i panelu nie da sie zamknac klikiem.
+        // Close the menu before showing the panel; otherwise it captures mouse events
+        // and the panel cannot be dismissed by click.
         enclosingMenuItem?.menu?.cancelTracking()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { PaladinPanel.shared.toggle() }
     }
 }
 
 
-/// Paladyn "na sztywno z paska": maly panel przyklejony pod ikona w pasku menu,
-/// z oficjalna animacja. Nie jest oknem aplikacji - nie zabiera fokusu, nie wchodzi
-/// do Dock/Cmd-Tab i znika przy pierwszym klikniecu obok albo po Esc.
+/// Show the paladin panel anchored to the menu bar icon.
+/// It uses the official animation, does not take focus or appear in Dock/Cmd-Tab,
+/// and closes on the first outside click or Esc.
 final class PaladinPanel: NSObject {
     static let shared = PaladinPanel()
     private var panel: NSPanel?
@@ -1629,7 +1634,7 @@ final class PaladinPanel: NSObject {
         if panel != nil { close(); return }
         guard let sprite = NSImage(contentsOfFile: base + "/paladin_welcome.gif")
             ?? NSImage(contentsOfFile: base + "/paladin_welcome.png") else { return }
-        grajPaladyna()   // zbroja takze przy panelu (Pawel przywrocil, 01.08 wieczorem)
+        grajPaladyna()   // Play armor sound for the panel too.
 
         let ratio = sprite.size.width / max(sprite.size.height, 1)
         let ih: CGFloat = 210
@@ -1676,7 +1681,7 @@ final class PaladinPanel: NSObject {
         p.orderFrontRegardless()
         panel = p
 
-        // Zamkniecie: klik gdziekolwiek (tez w sam panel) albo Esc.
+        // Close on any click, including inside the panel, or Esc.
         monitorGlobalny = NSEvent.addGlobalMonitorForEvents(
             matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in self?.close() }
         monitorLokalny = NSEvent.addLocalMonitorForEvents(
@@ -1686,8 +1691,9 @@ final class PaladinPanel: NSObject {
             }
     }
 
-    /// Kotwiczy panel pod ikona w pasku menu. Gdy ikony nie da sie zlokalizowac
-    /// (inny ekran, ukryta w Bartenderze), ladujemy w prawym gornym rogu ekranu.
+    /// Anchor the panel under the menu bar icon.
+    /// If the icon cannot be located (another display, hidden by Bartender), fall back
+    /// to the top-right screen corner.
     private func ustawPod(_ p: NSPanel, szerokosc W: CGFloat, wysokosc H: CGFloat) {
         if let b = Bar.shared?.item.button, let okno = b.window {
             let ekranowa = okno.convertToScreen(b.convert(b.bounds, to: nil))
@@ -1713,9 +1719,10 @@ final class PaladinPanel: NSObject {
 }
 
 
-/// Przelacznik rysowany samodzielnie. NSSwitch dziedziczy kolor akcentu systemu,
-/// a chcemy jednoznaczna informacje: zielony = pilnuje, szary = nie pilnuje.
-/// Kolory sa systemowe (systemGreen / tertiaryLabel), wiec graja z motywem jasnym i ciemnym.
+/// Draw a switch with explicit protection colors.
+/// NSSwitch inherits the system accent color; here green must mean protected and gray
+/// must mean not protected. The colors are systemGreen / tertiaryLabel, so they work
+/// in light and dark appearances.
 final class Przelacznik: NSControl {
     var wlaczony: Bool { didSet { needsDisplay = true } }
     var kolor: NSColor = .systemGreen
@@ -1755,10 +1762,10 @@ final class Przelacznik: NSControl {
         if let a = action { NSApp.sendAction(a, to: target, from: self) }
     }
 
-    // DOSTEPNOSC. Ten przelacznik decyduje o tym, czy Mac jest chroniony - a rysowal
-    // sie sam i nie mowil o sobie nic. VoiceOver czytal w tym wierszu sama etykiete,
-    // wiec osoba niewidzaca nie dowiadywala sie ani ze to przelacznik, ani w jakim
-    // jest stanie. Z klawiatury nie dalo sie go ruszyc w ogole.
+    // ACCESSIBILITY. This switch decides whether the Mac is protected, but it is drawn
+    // manually and used to announce nothing. VoiceOver only read the row label, so a
+    // blind user did not know this was a switch or what state it was in. It also was
+    // not keyboard-operable.
     override func isAccessibilityElement() -> Bool { true }
     override func accessibilityRole() -> NSAccessibility.Role? { .checkBox }
     override func accessibilityValue() -> Any? { wlaczony }
@@ -1767,19 +1774,19 @@ final class Przelacznik: NSControl {
 
     override var acceptsFirstResponder: Bool { true }
     override func keyDown(with event: NSEvent) {
-        // spacja i Enter jak w kazdej systemowej kontrolce
+        // Space and Enter behave like any system control.
         if event.keyCode == 49 || event.keyCode == 36 { przelacz() } else { super.keyDown(with: event) }
     }
 }
 
 
-/// Wiersz menu z przelacznikiem: etykieta po lewej, przelacznik po prawej.
-/// Dwie rzeczy wlaczane najczesciej - pauzowanie przy przegrzaniu i autostart -
-/// zasluguja na element, ktorego stan widac bez czytania.
+/// Render a menu row with a label on the left and a switch on the right.
+/// The two most-used toggles, thermal pausing and autostart, need visible state
+/// without reading surrounding text.
 final class SwitchRow: NSView {
-    /// Podpis pod etykieta zmienia sie NA ZYWO po przelaczeniu. Wczesniej byl budowany raz,
-    /// przy otwarciu menu - wiec klikniecie przelacznika zmienialo config, ale napis zostawal
-    /// stary az do zamkniecia i ponownego otwarcia menu. Wyglada to jak zepsuty przelacznik.
+    /// Update the subtitle live after the switch changes.
+    /// It used to be built once when the menu opened: a click changed config, but the
+    /// text stayed old until close/reopen, which makes the switch look broken.
     private var podpis: NSTextField?
     private var etykieta: NSTextField?
     private var przelacznik: Przelacznik?
@@ -1794,21 +1801,21 @@ final class SwitchRow: NSView {
         self.opisGdyWylaczone = opisGdyWylaczone
         self.celZewnetrzny = target
         self.akcjaZewnetrzna = action
-        // Wysokosc jest STALA, nawet gdy podpisu chwilowo nie ma - inaczej wiersz
-        // skakalby przy kazdym przelaczeniu i rozpychal menu.
-        // Miejsce na czerwony podpis rezerwujemy TYLKO gdy ochrona jest wylaczona
-        // przy otwarciu menu - wlaczona rezerwowala pusta linie i dwa przelaczniki
-        // wygladaly na dziwnie oddalone (Pawel, 01.08 x2). Przy przelaczeniu OFF
-        // w otwartym menu czerwonego podpisu nie ma gdzie pokazac - stan mowi
-        // wtedy sam przelacznik plus powiadomienie guarda "watch-only".
+        // Height is CONSTANT, even when the subtitle is temporarily absent; otherwise
+        // the row jumps on every toggle and widens the menu.
+        // Reserve space for the red subtitle ONLY when protection is off as the menu
+        // opens. Reserving it while protection is on left an empty line and made two
+        // switches look oddly far apart. If protection is toggled OFF in an open menu,
+        // there is no room for the red subtitle; the switch state and "watch-only"
+        // guard notification carry the state.
         let W: CGFloat = 360
         let H: CGFloat = (podpisStaly != nil || (opisGdyWylaczone != nil && !on)) ? 40 : 26
         super.init(frame: NSRect(x: 0, y: 0, width: W, height: H))
-        // przelacznik trzyma sie PRAWEJ krawedzi realnego menu, nie sztywnych 400 pt
+        // The switch hugs the RIGHT edge of the real menu, not a fixed 400 pt width.
         autoresizingMask = [.width]
 
-        // Ikona po lewej, jak w zwyklych pozycjach menu - wiersz z przelacznikiem
-        // nie moze wygladac na urwany obok wierszy, ktore ikony maja.
+        // Icon on the left, like regular menu items. A switch row must not look
+        // truncated next to rows that have icons.
         if let ikona = ikona,
            let sym = NSImage(systemSymbolName: ikona, accessibilityDescription: nil) {
             sym.isTemplate = true
@@ -1834,7 +1841,7 @@ final class SwitchRow: NSView {
             addSubview(pod)
             podpis = pod
         } else if let staly = podpisStaly {
-            // podpis informacyjny na stale (np. liczba ciezkich procesow) - neutralny kolor
+            // Permanent informational subtitle, such as heavy process count; neutral color.
             let pod = NSTextField(labelWithString: staly)
             pod.font = .systemFont(ofSize: 11)
             pod.textColor = .secondaryLabelColor
@@ -1842,9 +1849,8 @@ final class SwitchRow: NSView {
             addSubview(pod)
         }
 
-        // Przelacznik NA ROWNI z etykieta (srodek w srodek), nie ze srodkiem calego
-        // wiersza - w wierszu z podpisem (H=44) etykieta jest u gory i switch
-        // centrowany na wierszu wygladal na obsuniety (uwaga Pawla, 01.08).
+        // Align the switch with the label center, not the whole row center. In a row
+        // with a subtitle (H=44), the label sits high and a row-centered switch looked low.
         let sw = Przelacznik(on: on, target: self, action: #selector(przelaczono(_:)))
         sw.kolor = kolor
         sw.frame = NSRect(x: W - 62, y: H - 22.5, width: 38, height: 22)
@@ -1872,17 +1878,18 @@ final class SwitchRow: NSView {
 }
 
 
-/// Losowa, niezgadywalna nazwa tematu ntfy — bo nazwa jest jedynym zabezpieczeniem.
+/// Generate a random, unguessable ntfy topic name.
+/// The topic name is the only protection for ntfy alerts.
 func randomTopic() -> String {
     let chars = Array("abcdefghjkmnpqrstuvwxyz23456789")
     let suffix = String((0..<10).map { _ in chars[Int(arc4random_uniform(UInt32(chars.count)))] })
     return "mac-guard-" + suffix
 }
 
-/// Ikony na pasku to SF Symbols, nie emoji. Powody sa praktyczne: emoji maja wlasny, staly kolor
-/// (wiec w ciemnym motywie odcinaja sie jak naklejki), roznia sie szerokoscia miedzy wersjami
-/// systemu i psuja rownanie tekstu. Symbol szablonowy przyjmuje kolor paska i wyglada jak czesc
-/// systemu. Gdy symbol nie istnieje na danym macOS, wracamy do krotkiego napisu.
+/// Render bar icons as SF Symbols, not emoji.
+/// Emoji have fixed colors, vary in width across OS versions, and break text alignment.
+/// Template symbols take the bar color and look native; if a symbol is unavailable on
+/// this macOS version, fall back to a short text label.
 func icon(_ name: String, fallback: String, size: CGFloat = 12) -> NSAttributedString {
     guard let raw = NSImage(systemSymbolName: name, accessibilityDescription: nil) else {
         return NSAttributedString(string: fallback)
@@ -1919,7 +1926,7 @@ enum Item: String, CaseIterable {
         }
     }
 
-    /// Domyslnie WSZYSTKO widoczne (Pawel, 01.08) - kto chce mniej, odznaczy.
+    /// Default to showing EVERYTHING; users can uncheck what they do not want.
     var byDefault: Bool { true }
 }
 
@@ -1939,9 +1946,9 @@ final class Prefs {
     }
     func enabled(_ i: Item) -> Bool { on[i.rawValue] ?? i.byDefault }
     func toggle(_ i: Item) { on[i.rawValue] = !enabled(i); save() }
-    /// Czy wszystko jest juz pokazane - do wygaszenia pozycji "Pokaz wszystko".
+    /// Return whether everything is already shown, to disable "Show all".
     var wszystkoWlaczone: Bool { Item.allCases.allSatisfy { enabled($0) } }
-    /// Jeden zapis na cala paczke: klikanie po kolei to N zapisow pliku i N odswiezen.
+    /// Save the whole batch once; clicking item by item means N file writes and N refreshes.
     func wlaczWszystko() {
         for i in Item.allCases { on[i.rawValue] = true }
         save()
@@ -1952,13 +1959,14 @@ let prefs = Prefs()
 
 // MARK: - guard configuration (thresholds live in config.json, the daemon re-reads it every cycle)
 
-/// Odczyt i zapis config.json guarda. Zawsze scalamy z istniejaca trescia — plik nalezy do
-/// demona i zawiera znacznie wiecej niz to, co pokazuje pasek.
+/// Read and write the guard's config.json.
+/// Always merge with existing content; the daemon owns this file and keeps far more
+/// settings there than the menu bar shows.
 enum GuardCfg {
-    /// Zwraca nil, gdy configu NIE DA SIE przeczytac. To nie to samo co pusty config:
-    /// `set()` musi wtedy odmowic zapisu, inaczej jeden nieudany odczyt kasuje
-    /// wszystkie 30 kluczy - a brak `dry_run` demon czyta jako tryb obserwacji,
-    /// czyli ruszenie suwaka po cichu wylacza ochrone.
+    /// Return nil when config cannot be read.
+    /// This is not the same as an empty config: `set()` must then refuse to write,
+    /// or one failed read deletes all 30 keys. Missing `dry_run` is read by the daemon
+    /// as watch-only, so moving a slider would silently disable protection.
     static func czytaj() -> [String: Any]? {
         guard let d = FileManager.default.contents(atPath: configPath) else {
             return FileManager.default.fileExists(atPath: configPath) ? nil : [:]
@@ -1967,15 +1975,16 @@ enum GuardCfg {
         return j
     }
 
-    /// Cache na czas budowy JEDNEGO menu. Bez niego jedno otwarcie menu to ~17
-    /// pelnych odczytow i parsowan config.json, a przy otwartym podmenu floty jeszcze
-    /// wiecej. Uniewazniany jawnie w menuNeedsUpdate i po kazdym zapisie.
+    /// Cache config while building ONE menu.
+    /// Without it, one menu open performs ~17 full reads and parses of config.json,
+    /// and even more with the fleet submenu open. It is invalidated explicitly in
+    /// menuNeedsUpdate and after every write.
     private static var cache: [String: Any]?
-    /// Cache jest STATYCZNY i dotykany z DWOCH watkow: `menuNeedsUpdate` ustawia go
-    /// na watku glownym, a `refreshFleet` -> `fleetHosts()` -> `GuardCfg.string`
-    /// czyta go z watku w tle (DispatchQueue.global). Slownik Swifta nie jest
-    /// bezpieczny watkowo - rownoczesny odczyt i zapis to niezdefiniowane zachowanie,
-    /// od smieciowej wartosci po wywalenie paska. Caly dostep idzie przez ten zamek.
+    /// The cache is STATIC and touched from TWO threads: `menuNeedsUpdate` sets it on
+    /// the main thread, while `refreshFleet` -> `fleetHosts()` -> `GuardCfg.string`
+    /// reads it on a background thread (DispatchQueue.global). Swift dictionaries are
+    /// not thread-safe; concurrent read/write is undefined behavior, from garbage values
+    /// to a crashed menu bar. All access goes through this lock.
     private static let zamek = NSLock()
 
     static func zacznijCache() {
@@ -1989,12 +1998,13 @@ enum GuardCfg {
         zamek.lock()
         let biezacy = cache
         zamek.unlock()
-        // czytamy z dysku POZA zamkiem: I/O pod blokada zatrzymywaloby watek glowny
+        // Read from disk OUTSIDE the lock; I/O under lock would stall the main thread.
         return biezacy ?? (czytaj() ?? [:])
     }
 
-    /// Jeden odczyt na wywolanie zamiast dwoch. Menu pytalo o config ~25 razy przy
-    /// kazdym otwarciu; polowa z tego brala sie stad, ze `double` czytalo plik dwa razy.
+    /// Read once per call, not twice.
+    /// The menu asked for config ~25 times per open; half came from `double` reading
+    /// the file twice.
     static func double(_ key: String, _ fallback: Double) -> Double {
         let c = all()
         if let d = c[key] as? Double { return d }
@@ -2006,23 +2016,23 @@ enum GuardCfg {
     static func string(_ key: String, _ fallback: String) -> String { (all()[key] as? String) ?? fallback }
 
     static func set(_ values: [String: Any]) {
-        // Ten sam flock co demon (config.lock): czytaj-zmien-zapisz z dwoch procesow
-        // nie moze sie krzyzowac, bo przegrany zapis znika bez sladu (B5).
+        // Same flock as the daemon (`config.lock`): read-modify-write from two
+        // processes must not interleave, or the losing write disappears without a trace.
         let fd = open(base + "/config.lock", O_CREAT | O_WRONLY, 0o644)
         if fd >= 0 { flock(fd, LOCK_EX) }
         defer { if fd >= 0 { flock(fd, LOCK_UN); close(fd) } }
         guard var j = czytaj() else {
-            // Config jest, ale nieczytelny. Zapis oznaczalby skasowanie reszty kluczy,
-            // wiec nie ruszamy pliku - lepiej, zeby przelacznik nie zadzialal, niz
-            // zeby cicho wylaczyl ochrone.
+            // Config exists but is unreadable. Writing would erase the rest of its keys,
+            // so leave it untouched. A switch doing nothing is better than silently
+            // disabling protection.
             NSLog("coffee-paladin: config.json nieczytelny - zapis wstrzymany")
             return
         }
         for (k, v) in values { j[k] = v }
         if let d = try? JSONSerialization.data(withJSONObject: j, options: [.prettyPrinted, .sortedKeys]) {
-            // .atomic: plik dzieli z nami demon Pythona — uciety zapis = config na DEFAULTS
+            // .atomic: the Python daemon shares this file; truncated write = DEFAULTS config.
             try? d.write(to: URL(fileURLWithPath: configPath), options: .atomic)
-            cache = j                     // zapis jest zrodlem prawdy do konca cyklu
+            cache = j                     // The write is source of truth until cycle end.
         }
     }
 }
@@ -2044,8 +2054,9 @@ func shell(_ args: [String]) -> String {
     return String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
 }
 
-/// Reczny keep-awake: pasek tylko ZAPISUJE zyczenie do awake.json, wykonuje je demon
-/// (caffeinate) — z nadrzednym bezpiecznikiem termicznym. Jedna instancja decyduje.
+/// Record manual keep-awake requests in awake.json.
+/// The daemon executes them via caffeinate with the overriding thermal fuse; one
+/// instance decides.
 enum Awake {
     static func read() -> [String: Any] {
         guard let d = FileManager.default.contents(atPath: awakePath),
@@ -2063,21 +2074,21 @@ enum Awake {
     }
 }
 
-/// Sprzet wykryty przez guarda przy starcie (hardware.json) — zrodlo zakladki About my Mac.
+/// Read hardware detected by the guard at startup from hardware.json.
 func hardwareInfo() -> [String: Any] {
     guard let d = FileManager.default.contents(atPath: hwPath),
           let j = try? JSONSerialization.jsonObject(with: d) as? [String: Any] else { return [:] }
     return j
 }
 
-/// Autostart przy logowaniu: sterujemy stanem enable/disable obu LaunchAgentow.
-/// `launchctl disable` nie zabija dzialajacej instancji — wylacza tylko start przy logowaniu,
-/// dokladnie tak, jak obiecuje przelacznik.
+/// Control login autostart by enabling or disabling both LaunchAgents.
+/// `launchctl disable` does not kill a running instance; it only disables login startup,
+/// exactly as the switch promises.
 enum Autostart {
     static let services = ["pl.pawel.coffee-paladin", "pl.pawel.coffee-paladin-bar"]
     static func enabled() -> Bool {
         let out = shell(["/bin/launchctl", "print-disabled", "gui/\(getuid())"])
-        // brak wpisu = wlaczone; KTORAKOLWIEK usluga wylaczona = przelacznik OFF
+        // Missing entry = enabled; ANY disabled service means the switch is OFF.
         for svc in services {
             for line in out.split(separator: "\n") where line.contains(svc) {
                 if line.contains("disabled") || line.contains("true") { return false }
@@ -2092,11 +2103,11 @@ enum Autostart {
     }
 }
 
-/// Ostrzezenie dobrane do wartosci suwaka. Sens: uzytkownik ma zobaczyc konsekwencje ZANIM
-/// ustawi absurd. Najczestszy blad to przenoszenie progu baterii (45 C) na chip — przy 45 C
-/// bezpiecznik pauzowalby wszystko bez przerwy, bo bezczynny chip ma juz 40-55 C.
-/// Drugi element pary to nazwa SF Symbol — zadnych emoji: maja wlasny staly kolor
-/// i w menu wygladaja jak naklejki, symbol szablonowy przyjmuje kolor tekstu.
+/// Pick a warning for the slider value before the user commits it.
+/// The common mistake is copying the battery threshold (45 C) to the chip: at 45 C the
+/// guard would pause constantly because an idle chip already sits at 40-55 C.
+/// The second tuple element is an SF Symbol name. No emoji: they have fixed colors and
+/// look like stickers in menus, while template symbols take the text color.
 func thresholdWarning(_ v: Double) -> (String, String) {
     if v < 60 { return (T("TOO LOW - an idle M-series chip already sits at 40-55 C, the guard would pause constantly"), "nosign") }
     if v < 70 { return (T("very conservative - a quiet, cool Mac, but long jobs will crawl"), "exclamationmark.triangle") }
@@ -2105,14 +2116,14 @@ func thresholdWarning(_ v: Double) -> (String, String) {
     return (T("aggressive - close to the temperature at which macOS throttles by itself"), "exclamationmark.triangle")
 }
 
-/// Wiersz menu z suwakiem. NSMenuItem.view pozwala wstawic dowolny widok, wiec suwak
-/// z opisem siedzi wprost w menu, bez osobnego okna preferencji.
+/// Render a menu row with a slider.
+/// NSMenuItem.view accepts arbitrary views, so the slider and its description live
+/// directly in the menu, without a separate preferences window.
 ///
-/// Trzy rzeczy, ktore musialy byc poprawione po pierwszej wersji: opis nie moze byc obcinany
-/// (dlatego zawija sie na dwie linie), kolor musi byc czytelny na tle menu (dlatego tekst jest
-/// w labelColor, a nasilenie ostrzezenia nosi symbol, nie kolor), a linia z wartosciami
-/// pochodnymi musi odswiezac sie W TRAKCIE przesuwania — wczesniej pokazywala stan z chwili
-/// otwarcia menu, wiec przy suwaku na 65 C nadal twierdzila "wznowienie przy 76 C".
+/// Keep the first-version fixes: description wraps instead of clipping, text stays
+/// readable via labelColor, warning severity uses a symbol rather than color, and
+/// derived values update WHILE dragging. Otherwise a slider at 65 C could still claim
+/// "resume at 76 C" from the menu-open state.
 final class SliderRow: NSView {
     let slider = NSSlider()
     private let value = NSTextField(labelWithString: "")
@@ -2133,8 +2144,8 @@ final class SliderRow: NSView {
         self.derive = derive
         let height: CGFloat = derive == nil ? 82 : 100
         super.init(frame: NSRect(x: 0, y: 0, width: 400, height: height))
-        // jako jedyny widok w menu nie podazal za jego szerokoscia: przy szerszym
-        // podmenu suwaki wisialy przy lewej krawedzi z martwym polem po prawej
+        // This was the only menu view that did not follow menu width: in wider submenus,
+        // sliders clung to the left edge with dead space on the right.
         autoresizingMask = [.width]
 
         var y = height - 26
@@ -2210,7 +2221,7 @@ final class SliderRow: NSView {
 
 // MARK: - snapshot
 
-/// JSON z Pythona raz niesie 90, raz 90.0 — pasek musi przyjac oba (uwaga z recenzji).
+/// Accept both 90 and 90.0 from Python JSON.
 func num(_ v: Any?) -> Double? {
     if let d = v as? Double { return d }
     if let i = v as? Int { return Double(i) }
@@ -2243,15 +2254,16 @@ struct Snap {
     var trend: Double?, eta: Double?
     var jobs: [Job] = []
     var topCpuList: [TopCPU] = []
-    /// Dokladnie to, co dostanie SIGSTOP przy recznym zamrozeniu. Publikuje to demon,
-    /// bo tylko on zna listy nietykalnych. Wczesniej pasek pokazywal tu top CPU -
-    /// czyli WindowServer i agenta AI, ktorych straznik nigdy by nie ruszyl.
+    /// List exactly what will receive SIGSTOP during manual freeze.
+    /// The daemon publishes this because only it knows the never-touch lists. Previously
+    /// the menu showed top CPU here, including WindowServer and AI agents the guard
+    /// would never touch.
     var freezeCandidates: [Kandydat] = []
     var heavyCount: Int = 0
     var topRamList: [TopRAM] = []
     var pausesToday = 0, killsToday = 0
-    var statsTotal: [String: Int] = [:]   // suma od zawsze (przezywa restarty demona)
-    var statsSession: [String: Int] = [:] // od startu biezacej sesji demona
+    var statsTotal: [String: Int] = [:]   // lifetime total; survives daemon restarts
+    var statsSession: [String: Int] = [:] // since the current daemon session started
     var lastCrash: String?
     var thrPause: Double?, thrKill: Double?
     var stamp = ""
@@ -2328,11 +2340,11 @@ func readSnap() -> Snap? {
     return s
 }
 
-/// Rysowany wykres temperatury chipu z history.csv (A10, decyzje Pawla 01.08):
-/// slupki kolorowane progami (zielony/zolty/czerwony), linia progu pauzy,
-/// znaczniki pauz (poziom >= 2) i podpisy min/max przy krancach - zamiast
-/// czarnych slupkow tekstowych bez skali. Rysuje sie RAZ przy otwarciu menu,
-/// zadnych timerow - wykres nie moze grzac Maca, ktorego pilnuje.
+/// Draw the chip temperature chart from history.csv.
+/// Bars are colored by thresholds (green/yellow/red), with a pause-threshold line,
+/// pause markers (level >= 2), and min/max labels at the edges instead of unscaled
+/// black text bars. Draw once when the menu opens, with no timers; the chart must not
+/// heat the Mac it protects.
 final class WykresRow: NSView {
     private let wartosci: [Double]
     private let pauzy: [Bool]
@@ -2340,7 +2352,7 @@ final class WykresRow: NSView {
     private let procesy: [String]
     private let progPauza: Double
     private let progWznow: Double
-    /// Slupek pod kursorem. nil = mysz poza wykresem.
+    /// Bar under the cursor; nil means the mouse is outside the chart.
     private var podKursorem: Int?
     private var obszar: NSTrackingArea?
 
@@ -2355,10 +2367,10 @@ final class WykresRow: NSView {
             if c.count > 11, let v = Double(c[2]) {
                 vals.append(v)
                 pau.append((Int(c[11]) ?? 0) >= 2)
-                // "YYYY-MM-DD HH:MM:SS" -> "HH:MM" (podpisy osi czasu pod wykresem)
+                // "YYYY-MM-DD HH:MM:SS" -> "HH:MM" for time-axis labels under the chart.
                 let t = String(c[0])
                 czasy.append(t.count >= 16 ? String(t.dropFirst(11).prefix(5)) : "")
-                // kto wtedy grzal najmocniej - do podpowiedzi pod kursorem
+                // Heaviest process at that moment, for the hover callout.
                 let nazwa = c.count > 12 ? String(c[12]).trimmingCharacters(in: .whitespaces) : ""
                 let cpu = c.count > 13 ? String(c[13]).trimmingCharacters(in: .whitespaces) : ""
                 proc.append(nazwa.isEmpty ? "" : (cpu.isEmpty ? nazwa : "\(nazwa) \(cpu)%"))
@@ -2375,14 +2387,14 @@ final class WykresRow: NSView {
         procesy = pr
         progPauza = GuardCfg.double("soc_pause_c", 90)
         progWznow = GuardCfg.double("soc_resume_c", 82)
-        // +12 pt na os czasu pod slupkami
+        // +12 pt for the time axis under the bars.
         super.init(frame: NSRect(x: 0, y: 0, width: 400, height: 76))
         autoresizingMask = [.width]
     }
     required init?(coder: NSCoder) { fatalError() }
 
-    // Sledzenie myszy nad wykresem. Zadnego timera - przerysowujemy sie wylacznie
-    // wtedy, gdy kursor naprawde zmienil slupek.
+    // Track the mouse over the chart. No timer; redraw only when the cursor really
+    // changes the selected bar.
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
         if let o = obszar { removeTrackingArea(o) }
@@ -2413,8 +2425,8 @@ final class WykresRow: NSView {
         let W = bounds.width - lewy - prawy, H = bounds.height - dol - gora
         guard W > 40, H > 20, !wartosci.isEmpty else { return }
         let lo = wartosci.min()!, hi = wartosci.max()!
-        // skala obejmuje prog pauzy tylko, gdy maszyna chodzi w jego poblizu -
-        // inaczej zimne odczyty zgniata sie w plaska kreske przy dole
+        // Include the pause threshold in the scale only when the machine runs near it;
+        // otherwise cold readings compress into a flat line at the bottom.
         let top = hi >= progPauza - 15 ? Swift.max(hi, progPauza) : hi
         let span = Swift.max(top - lo, 1.0)
         func y(_ v: Double) -> CGFloat { dol + CGFloat((v - lo) / span) * H }
@@ -2431,14 +2443,14 @@ final class WykresRow: NSView {
                 NSRect(x: x, y: dol, width: szer, height: Swift.max(y(v) - dol, 1.5)),
                 xRadius: 0.5, yRadius: 0.5).fill()
             if pauzy[i] {
-                // znacznik pauzy: czerwona kropka NAD slupkiem - interwencja guarda
+                // Pause marker: red dot ABOVE the bar, a guard intervention.
                 NSColor.systemRed.setFill()
                 NSBezierPath(ovalIn: NSRect(x: x + szer / 2 - 1.5,
                                             y: bounds.height - 6, width: 3, height: 3)).fill()
             }
         }
 
-        // slupek pod kursorem: obwodka, zeby bylo widac ktory odczyt czytamy
+        // Hovered bar: outline it so the selected reading is clear.
         if let k = podKursorem, wartosci.indices.contains(k) {
             let x = lewy + CGFloat(k) * krok
             NSColor.labelColor.withAlphaComponent(0.55).setStroke()
@@ -2449,7 +2461,7 @@ final class WykresRow: NSView {
             ramka.stroke()
         }
 
-        // linia progu pauzy (przerywana), o ile miesci sie w skali
+        // Pause-threshold line (dashed), if it fits the scale.
         if progPauza >= lo && progPauza <= top {
             let yp = y(progPauza)
             let path = NSBezierPath()
@@ -2461,7 +2473,7 @@ final class WykresRow: NSView {
             path.stroke()
         }
 
-        // podpisy skali przy krancach: max u gory, min u dolu (zamiast wiersza pod spodem)
+        // Scale labels at edges: max at top, min at bottom instead of an extra row below.
         let atr: [NSAttributedString.Key: Any] = [
             .font: NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .regular),
             .foregroundColor: NSColor.secondaryLabelColor]
@@ -2469,9 +2481,9 @@ final class WykresRow: NSView {
                                           withAttributes: atr)
         String(format: "%.0f°", lo).draw(at: NSPoint(x: 14, y: dol - 1), withAttributes: atr)
 
-        // Podpowiedz pod kursorem: godzina odczytu, temperatura i kto wtedy grzal
-        // najmocniej. Rysowana w widoku, nie przez NSToolTip - w menu tooltipy
-        // pojawiaja sie z opoznieniem i gubia sie przy przesuwaniu myszy.
+        // Hover callout: reading time, temperature, and heaviest process. Draw it in
+        // the view, not NSToolTip; menu tooltips appear late and get lost during mouse
+        // movement.
         if let k = podKursorem, wartosci.indices.contains(k) {
             var opis = czasy.indices.contains(k) && !czasy[k].isEmpty ? czasy[k] + "   " : ""
             opis += String(format: "%.1f°C", wartosci[k])
@@ -2480,7 +2492,7 @@ final class WykresRow: NSView {
                 .font: NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .medium),
                 .foregroundColor: NSColor.labelColor]
             let rozmiar = (opis as NSString).size(withAttributes: atrP)
-            // trzymamy chmurke w granicach wykresu, zeby nie uciekala poza menu
+            // Keep the callout within the chart so it does not escape the menu.
             let xSrodek = lewy + CGFloat(k) * krok + szer / 2
             let x = Swift.min(Swift.max(xSrodek - rozmiar.width / 2, lewy),
                               lewy + W - rozmiar.width)
@@ -2492,7 +2504,7 @@ final class WykresRow: NSView {
             (opis as NSString).draw(at: NSPoint(x: x, y: yT), withAttributes: atrP)
         }
 
-        // os czasu: poczatek, srodek i koniec zakresu pomiarow (HH:MM z history.csv)
+        // Time axis: start, middle, and end of measurement range (HH:MM from history.csv).
         if podKursorem == nil,
            let pierwszy = czasy.first(where: { !$0.isEmpty }),
            let ostatni = czasy.last(where: { !$0.isEmpty }) {
@@ -2508,7 +2520,7 @@ final class WykresRow: NSView {
     }
 }
 
-/// "1 h 23 min" z liczby minut — do wiersza pozostalego czasu czuwania.
+/// Format minutes as "1 h 23 min" for the keep-awake time remaining row.
 func fmtDur(_ minutes: Int) -> String {
     if minutes >= 60 {
         let h = minutes / 60, m = minutes % 60
@@ -2518,9 +2530,10 @@ func fmtDur(_ minutes: Int) -> String {
     return String(format: T("%d min"), max(minutes, 1))
 }
 
-/// Wiersz wyboru jezyka na glownej karcie menu — piec przyciskow zamiast podmenu
-/// zakopanego w Ustawieniach. Klik = zapis "lang" do config.json i restart paska
-/// (launchd podnosi go z powrotem dzieki KeepAlive.SuccessfulExit=false).
+/// Render the language row on the main menu card.
+/// Five buttons replace a submenu buried in Settings. A click writes `lang` to
+/// config.json and restarts the bar; launchd brings it back because
+/// KeepAlive.SuccessfulExit=false.
 final class LangRow: NSView {
     private let codes = ["en", "pl", "ru", "zh", "es"]
     private let labels = ["EN", "PL", "RU", "中文", "ES"]
@@ -2529,9 +2542,9 @@ final class LangRow: NSView {
 
     init() {
         super.init(frame: NSRect(x: 0, y: 0, width: 400, height: 30))
-        // Menu bywa SZERSZE niz baza (najdluzszy wiersz tekstowy je rozpycha), a NSMenu
-        // rozciaga widok pozycji na cala szerokosc. Dlatego srodek liczymy z bounds
-        // w layout(), nie ze stalej 400 - inaczej rzad wisi przy lewej krawedzi.
+        // The menu can be WIDER than the base width when long text rows stretch it.
+        // NSMenu stretches item views to the full width, so compute the center from
+        // bounds in layout(), not from the fixed 400, or the row hangs on the left.
         autoresizingMask = [.width]
         for (i, code) in codes.enumerated() {
             let b = NSButton(title: labels[i], target: self, action: #selector(pick(_:)))
@@ -2551,8 +2564,8 @@ final class LangRow: NSView {
 
     required init?(coder: NSCoder) { fatalError() }
 
-    // setFrameSize, nie layout(): NSMenu rozciaga widok pozycji przez zmiane ramki,
-    // a layout() bez warstwy potrafi nie przyjsc wcale.
+    // setFrameSize, not layout(): NSMenu stretches item views by changing the frame,
+    // and layout() without a layer may not run at all.
     override func setFrameSize(_ newSize: NSSize) {
         super.setFrameSize(newSize)
         rozmiesc()
@@ -2577,72 +2590,73 @@ final class LangRow: NSView {
 }
 
 final class Bar: NSObject, NSMenuDelegate {
-    /// Jedyna instancja paska. Panel paladyna potrzebuje jej, zeby wiedziec,
-    /// pod ktora ikona sie zaczepic.
+    /// Keep the single menu bar instance.
+    /// The paladin panel needs it to know which icon to anchor under.
     static weak var shared: Bar?
     let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     let menu = NSMenu()
     var timer: Timer?
-    // cache floty: I/O po folderze wspolnym (iCloud/SMB) NIE moze biec w watku glownym
-    // przy otwieraniu menu — czkawka sieci blokowalaby cale menu (uwaga z recenzji)
+    // Fleet cache: I/O over the shared folder (iCloud/SMB) must NOT run on the main
+    // thread while opening the menu. A network hiccup would block the whole menu.
     var fleetCache: [FleetHost]?
     var fleetCacheAt = Date.distantPast
     private var tick = 0
-    /// Odswiezenia jednorazowe po akcji czlowieka. Staly timer chodzi co 5 s i tak ma
-    /// zostac (w spoczynku to nic nie kosztuje), ale po kliknieciu 5 s to wiecznosc:
-    /// demon reaguje w ~0,4 s, a pasek pokazywal jeszcze stary stan. Zglosil Pawel 03.08.
+    /// Run one-shot refreshes after human actions.
+    /// The fixed timer runs every 5 s and should stay that way; at idle it costs almost
+    /// nothing. After a click, 5 s is forever: the daemon reacts in ~0.4 s and the bar
+    /// used to show stale state.
     private var poAkcjiTimery: [Timer] = []
-    /// Optymistyczny tryb obserwacji: czego czlowiek WLASNIE zazadal, zanim demon
-    /// zdazyl to potwierdzic w migawce. `nil` = nie czekamy na nic.
+    /// Track the watch-only state the human JUST requested before the daemon confirms it.
+    /// `nil` means no pending expectation.
     private var oczekiwanyDry: Bool?
     private var oczekiwanyDryOd = Date.distantPast
-    /// Zabezpieczenie przed przewodnikiem wracajacym co 5 s, gdy pliku-sygnalu
-    /// nie da sie usunac.
+    /// Prevent the guide from returning every 5 s when the signal file cannot be removed.
     private var pokazanyGuideZSygnalu = false
-    /// Zyja tylko na czas trwania okna potwierdzenia zamrozenia.
+    /// Exist only while the manual-freeze confirmation window is open.
     private var wszystkieCheckbox: NSButton?
     private var checkboxyProcesow: [NSButton] = []
 
     override init() {
         super.init()
         Bar.shared = self
-        // macOS domyslnie wygasza pozycje menu bez akcji — a u nas wiekszosc wierszy to
-        // informacje, nie polecenia. Bez tej flagi caly odczyt byl szary i nieczytelny.
+        // macOS normally disables menu items without actions; most rows here are
+        // information, not commands. Without this flag the whole readout was gray
+        // and unreadable.
         menu.autoenablesItems = false
         menu.delegate = self
         item.menu = menu
         refresh()
         refreshFleet()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { Welcome.shared.maybeShow() }
-        // .common, nie .default: w trybie .default timer NIE tyka, gdy menu jest otwarte
-        // albo gdy stoi okno modalne (raport, ntfy, nazwa floty). Odczyt na pasku zamieral
-        // wtedy razem z animacjami i z dyspozytorem pliku-sygnalu - czyli dokladnie wtedy,
-        // gdy czlowiek patrzy na temperature.
+        // .common, not .default: in .default the timer does NOT tick while the menu is
+        // open or a modal window is shown (report, ntfy, fleet name). The bar readout
+        // froze along with animations and the signal-file dispatcher, exactly when a
+        // human is looking at the temperature.
         timer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
             guard let self = self else { return }
             self.obsluzSygnaly()
             self.refresh()
             self.tick += 1
-            if self.tick % 6 == 0 { self.refreshFleet() }   // flota co ~30 s, w tle
+            if self.tick % 6 == 0 { self.refreshFleet() }   // fleet every ~30 s, in background
         }
         if let t = timer { RunLoop.main.add(t, forMode: .common) }
     }
 
-    /// Pliki-sygnaly: `touch ~/.coffee-paladin/show_guide` albo
+    /// Handle signal files: `touch ~/.coffee-paladin/show_guide` or
     /// `echo ntfy > ~/.coffee-paladin/show_window` (guide|ntfy|fleetname|observe).
-    /// Sluza do zdalnego otwierania okien przy zrzutach ekranu i we wsparciu.
+    /// They open windows remotely for screenshots and support.
     ///
-    /// To MUSI byc osobna metoda. Wczesniej dyspozytor siedzial w srodku domkniecia
-    /// timera i jego `return` (przy pustym pliku) wychodzil z CALEGO taktu, pomijajac
-    /// refresh(). Pusty plik-sygnal zatrzymywal wiec odswiezanie paska na 30 s, a plik
-    /// z data modyfikacji w przyszlosci (rozjazd zegara, powrot z Time Machine, plik
-    /// przyniesiony przez iCloud z maszyny z zegarem do przodu) - na zawsze.
+    /// This MUST be a separate method. The dispatcher used to live inside the timer
+    /// closure, where `return` on an empty file returned from the WHOLE tick and skipped
+    /// refresh(). An empty signal file stopped bar refresh for 30 s; a file with future
+    /// mtime (clock skew, Time Machine restore, iCloud file from a machine with a fast
+    /// clock) stopped it forever.
     func obsluzSygnaly() {
         let fm = FileManager.default
         let sygnalGuide = base + "/show_guide"
         if fm.fileExists(atPath: sygnalGuide) {
-            // Gdy pliku nie da sie usunac (katalog tylko do odczytu, flaga uchg), okno
-            // wracaloby na wierzch co 5 s i nie dalo sie pracowac. Pokazujemy raz.
+            // If the file cannot be removed (read-only directory, uchg flag), the window
+            // would return every 5 s and make work impossible. Show it once.
             let usuniety = (try? fm.removeItem(atPath: sygnalGuide)) != nil
             if usuniety || !pokazanyGuideZSygnalu {
                 pokazanyGuideZSygnalu = true
@@ -2655,10 +2669,10 @@ final class Bar: NSObject, NSMenuDelegate {
         let sygnalOkno = base + "/show_window"
         guard let dane = try? String(contentsOfFile: sygnalOkno, encoding: .utf8) else { return }
         let tresc = dane.trimmingCharacters(in: .whitespacesAndNewlines)
-        // `echo ntfy > plik` najpierw OBCINA plik do zera, potem dopisuje tresc.
-        // Trafienie timerem w to okno dawalo pusty string - i zamiast okna ntfy
-        // otwieral sie Przewodnik. Pusty plik zostawiamy na nastepny cykl; jesli po
-        // 30 s dalej jest pusty, sprzatamy go. abs(), bo data z przyszlosci tez sie liczy.
+        // `echo ntfy > file` first truncates the file to zero, then writes content.
+        // If the timer hits that window it reads an empty string and used to open Guide
+        // instead of ntfy. Leave an empty file for the next cycle; if it is still empty
+        // after 30 s, clean it up. abs(), because future mtime counts too.
         if tresc.isEmpty {
             if let a = try? fm.attributesOfItem(atPath: sygnalOkno),
                let m = a[.modificationDate] as? Date,
@@ -2667,11 +2681,11 @@ final class Bar: NSObject, NSMenuDelegate {
             }
             return
         }
-        // NIE OTWIERAMY OKNA NA OKNIE. Ten dyspozytor biegnie z timera, wiec potrafil
-        // wywolac `runModal` w chwili, gdy inny modal juz trwal (np. potwierdzenie
-        // wyjscia albo dialog ntfy otwarty recznie). Zagniezdzony runModal to
-        // zablokowany pasek: uzytkownik widzi dwa okna i zadnego nie da sie zamknac.
-        // Sygnal zostawiamy na dysku - obsluzymy go, gdy pierwsze okno sie zamknie.
+        // DO NOT OPEN A WINDOW ON TOP OF A WINDOW. This dispatcher runs from the timer
+        // and could call `runModal` while another modal was already active, such as quit
+        // confirmation or a manually opened ntfy dialog. Nested runModal blocks the bar:
+        // the user sees two windows and cannot close either. Leave the signal on disk;
+        // handle it after the first window closes.
         if NSApp.modalWindow != nil {
             return
         }
@@ -2699,9 +2713,9 @@ final class Bar: NSObject, NSMenuDelegate {
     /// the safety net says.
     func tint(_ s: Snap) -> NSColor {
         if s.stale { return .secondaryLabelColor }
-        // Tryb obserwacji NIE moze wygladac jak dzialajaca ochrona. Dotad pasek robil
-        // sie czerwony przy poziomie krytycznym tak samo w obu trybach, wiec alarm
-        // sugerowal, ze paladyn zadzialal - a w tym trybie nie zatrzyma niczego.
+        // Watch-only mode must NOT look like active protection. The bar used to turn
+        // red at critical level in both modes, so the alarm implied the guard had acted;
+        // in this mode it stops nothing.
         if s.dryRun { return .secondaryLabelColor }
         switch s.level {
         case 3: return .systemRed
@@ -2711,9 +2725,9 @@ final class Bar: NSObject, NSMenuDelegate {
         }
     }
 
-    // PLONACY PASEK (A13.4, decyzja Pawla): przy poziomie krytycznym ikona pali sie
-    // ~3 sekundy i GASNIE. Celowo krotko i z 60 s przerwy: animacja to timer budzacy
-    // CPU, a nie bedziemy grzac Maca po to, zeby pokazac, ze jest goracy.
+    // FLAMING BAR: at critical level the icon burns for ~3 seconds and GOES OUT.
+    // Keep it deliberately short, with a 60 s pause: animation wakes the CPU, and we
+    // will not heat the Mac just to show that it is hot.
     private var plomienTimer: Timer?
     private var plomienKlatka = 0
     private var plomienOstatnio = Date.distantPast
@@ -2740,22 +2754,21 @@ final class Bar: NSObject, NSMenuDelegate {
                               range: NSRange(location: 0, length: out.length))
             self.item.button?.attributedTitle = out
         }
-        // Tryb .common, nie .default: przy otwartym menu (i przy kazdym oknie modalnym)
-        // runloop przechodzi w tryb sledzenia, a timer w .default przestaje tykac.
-        // Animacja stawala wtedy w polklatce i blokowala refresh() - pasek zamarzal
-        // z nieaktualna temperatura dokladnie wtedy, gdy uzytkownik na niego patrzyl.
+        // .common, not .default: with an open menu or any modal window, the runloop
+        // switches to tracking mode and a .default timer stops ticking. The animation
+        // used to stall mid-frame and block refresh(), freezing the bar on stale
+        // temperature exactly when the user was looking at it.
         if let t = plomienTimer { RunLoop.main.add(t, forMode: .common) }
     }
 
-    // WENTYLATOR (zyczenie Pawla 02.08): gdy wiatraki ruszaja z zera, ikona kreci sie
-    // na niebiesko ~3 s. Ta sama zasada oszczedzania CPU co przy plomieniu: krotko,
-    // z 60 s przerwy.
+    // FAN: when fans start from zero, the icon spins blue for ~3 s. Same CPU-saving
+    // rule as the flame: short, with a 60 s pause.
     private var wentylOstatnio = Date.distantPast
     private var ostatnieObroty = -1
-    // Ostatni dobry odczyt chipa. Pod pelnym obciazeniem pojedynczy odczyt macmona
-    // potrafi pasc (null w migawce na ~1 cykl) i pasek migal wtedy pustka, mimo ze
-    // demon chwile wczesniej mial poprawna temperature. Trzymamy ostatnia wartosc
-    // przez maks. 2 cykle demona i rysujemy ja na szaro.
+    // Last good chip reading. Under full load, a single macmon read can fail (null in
+    // the snapshot for ~1 cycle) and the bar flashed blank even though the daemon had
+    // a good temperature moments earlier. Hold the last value for max. 2 daemon cycles
+    // and draw it gray.
     private var ostatniChip: Double?
     private var ostatniChipKiedy = Date.distantPast
 
@@ -2783,14 +2796,14 @@ final class Bar: NSObject, NSMenuDelegate {
                               range: NSRange(location: 0, length: out.length))
             self.item.button?.attributedTitle = out
         }
-        // Tryb .common, nie .default: przy otwartym menu (i przy kazdym oknie modalnym)
-        // runloop przechodzi w tryb sledzenia, a timer w .default przestaje tykac.
-        // Animacja stawala wtedy w polklatce i blokowala refresh() - pasek zamarzal
-        // z nieaktualna temperatura dokladnie wtedy, gdy uzytkownik na niego patrzyl.
+        // .common, not .default: with an open menu or any modal window, the runloop
+        // switches to tracking mode and a .default timer stops ticking. The animation
+        // used to stall mid-frame and block refresh(), freezing the bar on stale
+        // temperature exactly when the user was looking at it.
         if let t = plomienTimer { RunLoop.main.add(t, forMode: .common) }
     }
 
-    // FILIZANKA (zyczenie Pawla 02.08): gdy caffeinate wstaje, kubek mruga ~3 s.
+    // CUP: when caffeinate starts, the cup blinks for ~3 s.
     private var kubekOstatnio = Date.distantPast
     private var czuwanieBylo: Bool? = nil
 
@@ -2815,15 +2828,16 @@ final class Bar: NSObject, NSMenuDelegate {
                               range: NSRange(location: 0, length: out.length))
             self.item.button?.attributedTitle = out
         }
-        // Tryb .common, nie .default: przy otwartym menu (i przy kazdym oknie modalnym)
-        // runloop przechodzi w tryb sledzenia, a timer w .default przestaje tykac.
-        // Animacja stawala wtedy w polklatce i blokowala refresh() - pasek zamarzal
-        // z nieaktualna temperatura dokladnie wtedy, gdy uzytkownik na niego patrzyl.
+        // .common, not .default: with an open menu or any modal window, the runloop
+        // switches to tracking mode and a .default timer stops ticking. The animation
+        // used to stall mid-frame and block refresh(), freezing the bar on stale
+        // temperature exactly when the user was looking at it.
         if let t = plomienTimer { RunLoop.main.add(t, forMode: .common) }
     }
 
-    /// Sekundy do konca sesji timera; `nil` gdy sesja nie ma konca albo juz minela.
-    /// Czytamy `awake.json`, bo to on niesie `until` - migawka mowi tylko, ze czuwanie trwa.
+    /// Return seconds until the timer session ends.
+    /// `nil` means the session has no end or has already passed. Read `awake.json`
+    /// because it carries `until`; the snapshot only says keep-awake is active.
     func pozostaloCzuwania() -> Double? {
         let a = Awake.read()
         guard (a["mode"] as? String) == "timer", let until = a["until"] as? Double else { return nil }
@@ -2831,25 +2845,25 @@ final class Bar: NSObject, NSMenuDelegate {
         return zostalo > 0 ? zostalo : nil
     }
 
-    /// Po akcji czlowieka dociagamy migawke kilka razy, zamiast czekac na staly takt.
-    /// Trzy strzaly, bo demon musi zdazyc: obudzic sie (~0,5 s), wykonac i przepisac
-    /// `status.json`. Timery zyja same z siebie, wiec nie ma tu zadnej petli.
+    /// Pull the snapshot a few times after a human action instead of waiting for the tick.
+    /// Three shots give the daemon time to wake (~0.5 s), execute, and rewrite
+    /// `status.json`. These are one-shot timers, so there is no loop here.
     func odswiezPoAkcji() {
         poAkcjiTimery.forEach { $0.invalidate() }
         poAkcjiTimery = [0.7, 1.6, 3.0].map { opoznienie in
             let t = Timer.scheduledTimer(withTimeInterval: opoznienie, repeats: false) { [weak self] _ in
                 self?.refresh()
             }
-            // .common jak staly timer: inaczej nie tyka przy otwartym menu i oknie modalnym,
-            // czyli dokladnie wtedy, kiedy czlowiek patrzy na skutek swojego kliknięcia.
+            // .common like the fixed timer; otherwise it does not tick with an open menu
+            // or modal window, exactly when the human watches the result of the click.
             RunLoop.main.add(t, forMode: .common)
             return t
         }
     }
 
-    /// Zapamietuje, o co czlowiek WLASNIE poprosil, zeby pasek nie pokazywal starego stanu
-    /// przez sekunde. Nie klamiemy dlugo: po 6 s wraca prawda z migawki, nawet gdyby demon
-    /// nie zyl — martwy demon ma wygladac na martwego.
+    /// Remember what the human JUST requested so the bar does not show old state briefly.
+    /// Do not lie for long: after 6 s, truth returns from the snapshot even if the
+    /// daemon died. A dead daemon must look dead.
     func zapowiedzTrybObserwacji(_ dry: Bool) {
         oczekiwanyDry = dry
         oczekiwanyDryOd = Date()
@@ -2868,10 +2882,10 @@ final class Bar: NSObject, NSMenuDelegate {
             return
         }
 
-        // Optymizm z terminem waznosci. Migawka jest zrodlem prawdy, ale przez chwile po
-        // kliknieciu jest po prostu STARSZA od decyzji czlowieka. Pokazujemy wiec jego
-        // decyzje - do momentu, w ktorym demon ja potwierdzi, albo do 6 s, cokolwiek
-        // wczesniej. Bez tego terminu martwy demon wygladalby na sprawny.
+        // Optimism with expiration. The snapshot is source of truth, but for a moment
+        // after a click it is simply OLDER than the human's decision. Show that decision
+        // until the daemon confirms it or 6 s pass, whichever comes first. Without this
+        // expiration a dead daemon would look healthy.
         if let chce = oczekiwanyDry {
             if s.dryRun == chce || Date().timeIntervalSince(oczekiwanyDryOd) > 6 {
                 oczekiwanyDry = nil
@@ -2880,15 +2894,15 @@ final class Bar: NSObject, NSMenuDelegate {
             }
         }
 
-        // Dziura odczytu macmona (chip_c == null w SWIEZEJ migawce) nie gasi paska:
-        // przez maks. 45 s (2 cykle demona po ~15 s + zapas) pokazujemy ostatnia
-        // dobra wartosc, na szaro. Nieswieza migawka to inna sytuacja - wtedy demon
-        // najpewniej nie zyje i zadna "ostatnia wartosc" nie jest prawda o TERAZ.
+        // A macmon read gap (chip_c == null in a FRESH snapshot) must not blank the bar:
+        // for max. 45 s (2 daemon cycles at ~15 s plus margin), show the last good value
+        // in gray. A stale snapshot is different: then the daemon is likely dead and no
+        // "last value" is truth about NOW.
         var chipZPamieci = false
         if !s.stale, let c = s.chip {
-            // zapamietujemy TYLKO ze swiezej migawki: wartosc z pliku po martwym
-            // demonie odswiezalaby stempel w kazdym cyklu i po restarcie demona
-            // udawalaby aktualny pomiar
+            // Remember ONLY from a fresh snapshot. A value from a dead daemon's file
+            // would refresh the timestamp on every cycle and pretend to be current
+            // after the daemon restarts.
             ostatniChip = c
             ostatniChipKiedy = Date()
         } else if !s.stale, let c = ostatniChip,
@@ -2901,9 +2915,9 @@ final class Bar: NSObject, NSMenuDelegate {
            Date().timeIntervalSince(plomienOstatnio) > 60 {
             zapalPasek(s)
         }
-        if plomienTimer != nil { return }   // klatki ognia maja pierwszenstwo przez ~3 s
+        if plomienTimer != nil { return }   // Flame frames have priority for ~3 s.
 
-        // wentylatory ruszyly z zera -> niebieskie krecenie
+        // Fans started from zero -> blue spin.
         let maxObroty = s.fans.max() ?? 0
         if prefs.enabled(.flame), !s.stale, ostatnieObroty == 0, maxObroty > 0,
            Date().timeIntervalSince(wentylOstatnio) > 60 {
@@ -2912,7 +2926,7 @@ final class Bar: NSObject, NSMenuDelegate {
         } else {
             ostatnieObroty = maxObroty
         }
-        // caffeinate wstal -> mrugajaca filizanka
+        // caffeinate started -> blinking cup.
         let czuwa = !Awake.read().isEmpty
         if plomienTimer == nil, prefs.enabled(.flame), !s.stale, czuwanieBylo == false, czuwa,
            Date().timeIntervalSince(kubekOstatnio) > 60 {
@@ -2932,7 +2946,7 @@ final class Bar: NSObject, NSMenuDelegate {
         if prefs.enabled(.battery), let b = s.batt { temps.append(String(format: "%.0f°", b)) }
         var zakresChipa: NSRange?
         if !temps.isEmpty {
-            let start = out.length + 1                       // za spacja po ikonie
+            let start = out.length + 1                       // after the space following the icon
             text(" " + temps.joined(separator: "/"))
             if chipZPamieci, prefs.enabled(.chip), let pierwszy = temps.first {
                 zakresChipa = NSRange(location: start, length: (pierwszy as NSString).length)
@@ -2950,16 +2964,16 @@ final class Bar: NSObject, NSMenuDelegate {
             }
         }
         if prefs.enabled(.watts), let w = s.watts {
-            // zaznaczone = widoczne, takze przy 0.4 W - ukrywanie ponizej 1 W wygladalo
-            // jak zepsuty checkbox (Pawel, 01.08); ponizej 10 W z jednym miejscem po kropce
+            // Checked = visible even at 0.4 W; hiding below 1 W looked like a broken
+            // checkbox. Below 10 W, show one decimal place.
             gap(); out.append(icon("bolt.fill", fallback: "W"))
             text(w < 10 ? String(format: " %.1fW", w) : String(format: " %.0fW", w))
         }
         if prefs.enabled(.ram), let u = s.ramUsed, let t = s.ramTotal, t > 0 {
             gap(); out.append(icon("memorychip", fallback: "RAM"))
             text(String(format: " %.0f%%", 100 * u / t))
-            // swap NIE dostaje ikony na pasku: macOS niemal zawsze trzyma troche swapu,
-            // wiec znaczek wygladal na przypadkowy; szczegoly sa w wierszu RAM w menu
+            // Swap gets no bar icon: macOS almost always keeps some swap, so the marker
+            // looked random. Details live in the RAM menu row.
         }
         if prefs.enabled(.disk), let p = s.diskPct {
             gap(); out.append(icon("internaldrive", fallback: "SSD")); text(" \(p)%")
@@ -2967,15 +2981,15 @@ final class Bar: NSObject, NSMenuDelegate {
         if prefs.enabled(.throttle), s.cpuLimit < 100 {
             gap(); out.append(icon("tortoise.fill", fallback: "slow"))
         }
-        // W trybie obserwacji ikona OKA jest wiodaca, nie doklejona na koncu: pasek
-        // robil sie czerwony i palil plomieniem identycznie jak w trybie chroniacym,
-        // wiec alarm wygladal tak samo, mimo ze NIC nie zostanie wstrzymane.
+        // In watch-only mode, the EYE icon is leading, not tucked at the end: the bar
+        // used to turn red and flame exactly like protected mode, so the alarm looked
+        // the same even though NOTHING will be paused.
         if s.dryRun { gap(); out.append(icon("eye", fallback: "obs")) }
         if s.keepAwake { gap(); out.append(icon(MUG_FILL, fallback: "awake")) }
-        // Ile zostalo czuwania - prosto na pasku, zeby nie trzeba bylo otwierac menu.
-        // Pokazujemy TYLKO sesje z konkretnym koncem: przy trybie bezterminowym,
-        // "dopoki apka" i "dopoki pobieranie" nie ma czego odliczac, a wymyslony
-        // licznik bylby klamstwem.
+        // Keep-awake time remaining, directly in the bar so the menu need not be opened.
+        // Show ONLY sessions with a concrete end. Indefinite mode, "while app runs",
+        // and "while downloading" have nothing to count down; inventing a timer would
+        // be a lie.
         if prefs.enabled(.awakeLeft), s.keepAwake, let doKonca = pozostaloCzuwania() {
             gap()
             out.append(icon(MUG, fallback: "awake"))
@@ -2990,8 +3004,8 @@ final class Bar: NSObject, NSMenuDelegate {
 
         out.addAttributes([.foregroundColor: tint(s), .font: bold],
                           range: NSRange(location: 0, length: out.length))
-        // szary = "wartosc z pamieci, nie z biezacego odczytu" - nakladany PO kolorze
-        // calego paska, zeby zaden tint go nie nadpisal
+        // Gray = "value from memory, not current reading"; apply AFTER whole-bar color
+        // so no tint overwrites it.
         if let z = zakresChipa {
             out.addAttribute(.foregroundColor, value: NSColor.secondaryLabelColor, range: z)
         }
@@ -3003,23 +3017,23 @@ final class Bar: NSObject, NSMenuDelegate {
     }
 
     func menuNeedsUpdate(_ m: NSMenu) {
-        GuardCfg.zacznijCache()          // jeden odczyt configu na cale menu
+        GuardCfg.zacznijCache()          // one config read for the whole menu
         defer { GuardCfg.zakonczCache() }
         m.removeAllItems()
-        // sekcja marki: logo + nazwa, nad nia nic — to jest "twarz" narzedzia
+        // Brand section: logo + name, with nothing above it. This is the product's face.
         let head = NSMenuItem()
         head.view = HeaderRow()
         m.addItem(head)
         m.addItem(.separator())
-        // jezyk zaraz pod marka — osobna, elegancko odseparowana sekcja
+        // Language directly under the brand, as its own cleanly separated section.
         let langTop = NSMenuItem()
         langTop.view = LangRow()
         m.addItem(langTop)
         m.addItem(.separator())
         guard let s = readSnap() else {
-            // To jest DOKLADNIE ta chwila, w ktorej czlowiek potrzebuje dziennika,
-            // raportu i przewodnika - a dotad wszystkie trzy znikaly, bo sa budowane
-            // ponizej. Zostawala jedna pozycja: "Wylacz coffee-paladin". Slepy zaulek.
+            // This is EXACTLY when the human needs the log, report, and guide. These
+            // three used to disappear because they are built below, leaving one item:
+            // "Quit coffee-paladin". Dead end.
             m.addItem(NSMenuItem(title: T("no data - is coffee-paladin running?"), action: nil, keyEquivalent: ""))
             let restart = m.addItem(withTitle: T("Start the guard again"),
                                     action: #selector(restartGuarda), keyEquivalent: "")
@@ -3049,12 +3063,12 @@ final class Bar: NSObject, NSMenuDelegate {
         if s.stale { row(T("!") + " " + String(format: T("data is stale (%@) - the guard may have died"), s.stamp)) }
         if let c = s.lastCrash { row(String(format: T("the Mac shut down without warning: %@"), c)) }
 
-        // Odczyty scalone parami w jedna linie (decyzja Pawla 01.08): temperatury razem,
-        // obciazenie z wentylatorami, zasilanie z poborem - karta krotsza, zero nowych
-        // kluczy tlumaczen (skladamy z istniejacych fragmentow)
-        // Ikony wiodace TE SAME co na pasku (thermometer/fan/bolt/memorychip/internaldrive),
-        // wiec odczyt z paska i odczyt z karty to wizualnie ten sam jezyk (Pawel, 01.08).
-        // Ikony w srodku linii (wentylator, piorun) ida jako NSTextAttachment przez icon().
+        // Pair readings into one line: temperatures together, load with fans, power
+        // source with draw. The card stays shorter with no new translation keys, because
+        // it is assembled from existing fragments.
+        // Leading icons match the bar exactly (thermometer/fan/bolt/memorychip/internaldrive),
+        // so the bar readout and card readout use the same visual language.
+        // Icons inside a line (fan, bolt) are NSTextAttachment values from icon().
         func rowI(_ symbol: String, _ tresc: NSAttributedString) {
             let it = NSMenuItem(title: "", action: nil, keyEquivalent: "")
             it.image = img(symbol)
@@ -3071,27 +3085,25 @@ final class Bar: NSObject, NSMenuDelegate {
                  + (s.gpu != nil ? String(format: "     GPU: %.1f °C", s.gpu!) : "")
                  + "     " + String(format: T("Battery:  %@"),
                                     s.batt.map { String(format: "%.1f °C", $0) } ?? na)))
-        // Obciazenie i wentylatory MUSZA byc w osobnych wierszach, a jednostka nie moze
-        // sie powtarzac przy kazdym wentylatorze. Razem w jednej linii ten wiersz mial
-        // 328 pt przy stojacych wentylatorach i 446 pt przy krecacych - a widoki wlasne
-        // (wykres, przelaczniki, jezyki) trzymaja 360 pt, wiec wszystko powyzej rozpycha
-        // menu. Efekt: menu robilo sie o 118 pt szersze, gdy tylko ruszyly wentylatory,
-        // i wracalo, gdy stanely. Po rosyjsku bylo jeszcze gorzej (439 pt).
-        // Rozdzielone i bez powtorzonej jednostki wszystkie wiersze mieszcza sie
-        // w 150-213 pt we wszystkich pieciu jezykach, wiec szerokosc menu jest STALA.
+        // Load and fans MUST be in separate rows, and the unit must not repeat for every
+        // fan. In one line this row measured 328 pt with stopped fans and 446 pt with
+        // spinning fans. Custom views (chart, switches, languages) hold 360 pt, so any
+        // wider text stretches the menu: it widened by 118 pt when fans started and
+        // shrank when they stopped. Russian was worse (439 pt). Split rows without the
+        // repeated unit fit in 150-213 pt across all five languages, so menu width is
+        // CONSTANT.
         rowI("gauge", txt(String(format: T("Load:  %.2f / %d cores"),
                                  s.load, ProcessInfo.processInfo.processorCount)))
         if !s.fans.isEmpty {
-            // Jednostka RAZ na koncu, ale wartosci WSZYSTKIE. Filtrowanie zer ukrywaloby
-            // wentylator, ktory stanal, podczas gdy drugi pracuje - a to jest dokladnie
-            // ten objaw, dla ktorego istnieje alarm awarii chlodzenia. Zero ma byc widoczne.
+            // Unit once at the end, but show ALL values. Filtering zeros would hide a fan
+            // that stopped while another runs, exactly the symptom the cooling-failure
+            // alarm exists for. Zero must be visible.
             let fanTxt = s.fans.allSatisfy { $0 == 0 }
                 ? T("stopped")
                 : String(format: T("%@ rpm"), s.fans.map(String.init).joined(separator: ", "))
-            // Ikona wentylatora jest teraz WIODACA. Wczesniej siedziala w srodku linii
-            // jako separator miedzy obciazeniem a wentylatorami; po rozdzieleniu wierszy
-            // zostala tam, gdzie byla, i wiersz mial dwie ikony naraz - "gauge" z przodu
-            // i wentylator w tekscie.
+            // Fan icon is now LEADING. It used to sit inside the line as a separator
+            // between load and fans; after splitting rows it stayed there, leaving two
+            // icons in one row: "gauge" in front and fan in the text.
             rowI("fan", txt(String(format: T("Fans:  %@"), fanTxt)))
         }
         if let u = s.ramUsed, let t = s.ramTotal, t > 0 {
@@ -3102,10 +3114,10 @@ final class Bar: NSObject, NSMenuDelegate {
         if let du = s.diskUsed, let dt = s.diskTotal, let dp = s.diskPct {
             rowI("internaldrive", txt(String(format: T("Disk:  %d / %d GB used (%d%%)"), du, dt, dp)))
         }
-        // Bez procentu baterii - ten widac na pasku systemowym macOS. Sam fakt
-        // zasilacz/bateria zostaje, bo zmienia zachowanie guarda (bramka baterii).
-        // Procent zostal we flocie, gdzie patrzysz na cudza maszyne bez jej paska.
-        // Ikona mowi szybciej niz slowo: wtyczka = zasilacz, bateria = bateria.
+        // No battery percentage here; macOS already shows it in the system bar. Keep
+        // AC/battery itself because it changes guard behavior (battery gate). Percentage
+        // remains in fleet, where you inspect another machine without its menu bar.
+        // The icon says it faster than text: plug = AC, battery = battery.
         let pw = NSMutableAttributedString()
         pw.append(txt(String(format: T("Power:  %@"), s.onAC ? T("AC adapter") : T("Battery"))))
         if let w = s.watts {
@@ -3114,9 +3126,9 @@ final class Bar: NSObject, NSMenuDelegate {
             pw.append(txt(" " + String(format: T("Draw:  %.1f W"), w)))
         }
         rowI(s.onAC ? "powerplug" : "battery.100", pw)
-        // "CPU available: 100%" mylilo: to CPU_Speed_Limit z pmset (dlawienie zegarow),
-        // nie wolne moce. Wiersz pokazujemy TYLKO gdy dlawienie realnie wystepuje -
-        // przy 100% to szum, a nazwa mowi teraz wprost, o co chodzi (B7).
+        // "CPU available: 100%" was misleading: this is CPU_Speed_Limit from pmset
+        // (clock throttling), not free capacity. Show the row ONLY when throttling is
+        // real; at 100% it is noise, and the label now states the meaning directly.
         if s.cpuLimit < 100 {
             row(String(format: T("Throttling: CPU capped at %d%% speed"), s.cpuLimit))
         }
@@ -3125,9 +3137,10 @@ final class Bar: NSObject, NSMenuDelegate {
             switch a["mode"] as? String {
             case "timer":
                 let left = max(0, (a["until"] as? Double ?? 0) - Date().timeIntervalSince1970)
-                // zegar + jezyk wprost: to caffeinate (wbudowane w macOS) trzyma czuwanie;
-                // licznik maleje przy kazdym odswiezeniu karty (otwarte menu nie tyka
-                // co sekunde - staly timer w menu grzalby CPU, ktorego pilnujemy)
+                // Clock + plain language: caffeinate (built into macOS) is holding
+                // keep-awake. The counter decreases on each card refresh; an open menu
+                // does not tick every second because a constant menu timer would heat
+                // the CPU we are protecting.
                 rowI("clock", txt(String(format: T("caffeinate holds for another %@"),
                                          fmtDur(Int(left / 60)))))
             case "forever":
@@ -3147,14 +3160,15 @@ final class Bar: NSObject, NSMenuDelegate {
             it.view = wykres
             m.addItem(it)
         }
-        // Prognoza "do pauzy ok. N min" usunieta z karty: ekstrapolacja liniowa klamie
-        // przy plateau 88-90 C (Apple tnie zegary). Pola trend_c_min/eta_pause_min
-        // zostaja w status.json - agent moze z nich korzystac, czlowieka nie oklamujemy.
+        // The "about N min to pause" forecast was removed from the card: linear
+        // extrapolation lies near the 88-90 C plateau where Apple cuts clocks.
+        // trend_c_min and eta_pause_min stay in status.json for agents; do not mislead
+        // the human.
 
-        // akcja zamrozenia TUZ POD odczytami i wykresem — tam, gdzie patrzysz, gdy jest goraco
+        // Freeze action directly under readings and chart, where the user looks when hot.
         m.addItem(.separator())
-        // WLACZNIK OCHRONY - najwazniejsza decyzja w calej aplikacji, wiec nie chowamy jej
-        // w Ustawieniach. Przelacznik ON = ochrona dziala (dry_run = false).
+        // PROTECTION SWITCH: the most important decision in the app, so do not hide it
+        // in Settings. Switch ON means protection is active (dry_run = false).
         let obserwuje = GuardCfg.bool("dry_run", true)
         let ochrona = NSMenuItem()
         ochrona.view = SwitchRow(T("Pause jobs when the Mac overheats"),
@@ -3163,27 +3177,27 @@ final class Bar: NSObject, NSMenuDelegate {
                                  opisGdyWylaczone: T("OFF - the Mac is only being watched"),
                                  ikona: "pause")
         m.addItem(ochrona)
-        // autostart ZARAZ POD ochrona (decyzja Pawla 01.08): dwa przelaczniki obok siebie,
-        // jedna sekcja "wlacz/wylacz"; ikona petli = "co logowanie od nowa"
+        // Autostart directly under protection: two switches together, one on/off section;
+        // loop icon means "again at every login".
         let auto = NSMenuItem()
         auto.view = SwitchRow(T("Start at login"), on: Autostart.enabled(),
                               target: self, action: #selector(toggleAutostart),
                               ikona: "arrow.triangle.2.circlepath")
         m.addItem(auto)
-        // przelacznik zamiast klikanej pozycji (Pawel, pkt 3): ON = zamrozone recznie;
-        // niebieski, zeby nie mylil sie z zielona OCHRONA; obok liczba ciezkich procesow
+        // Switch instead of a clickable item: ON = manually frozen. Blue avoids confusion
+        // with green PROTECTION; the heavy-process count sits beside it.
         let zamrozone = !s.paused.isEmpty
         let mrozek = NSMenuItem()
         let mrozView = SwitchRow(T("Freeze all heavy jobs now"),
                                  on: zamrozone,
                                  target: self, action: #selector(toggleFreeze(_:)),
-                                 // ikona opisuje FUNKCJE wiersza, stan niesie przelacznik: "play" przy
-                                 // przelaczniku w pozycji ON przeczylo samo sobie
+                                 // Icon describes the row FUNCTION; state lives in the switch.
+                                 // A "play" icon beside an ON switch contradicted itself.
                                  ikona: "pause.circle",
                                  podpisStaly: String(format: T("Heavy processes right now: %d"),
                                                     s.heavyCount),
                                  kolor: .systemBlue)
-        // tooltip mowi JAKIE procesy sa na celowniku (top 3 wg CPU)
+        // Tooltip says WHICH processes are targeted (top 3 by CPU).
         if !s.topCpuList.isEmpty {
             mrozView.toolTip = s.topCpuList.map { "\($0.name) (\($0.cpu)%)" }.joined(separator: ", ")
         }
@@ -3191,7 +3205,7 @@ final class Bar: NSObject, NSMenuDelegate {
         m.addItem(mrozek)
         m.addItem(.separator())
 
-        // eksport: uzytkownik wybiera format, nie my
+        // Export: the user chooses the format, not us.
         let rep = NSMenuItem(title: T("Export report for a repair shop"), action: nil, keyEquivalent: "")
         rep.image = img("wrench.and.screwdriver")
         rep.action = #selector(reportDialog)
@@ -3201,15 +3215,15 @@ final class Bar: NSObject, NSMenuDelegate {
         logIt.target = self
         logIt.image = img("text.alignleft")
 
-        // Tuz pod dziennikiem, bo to ta sama rodzina: dziennik mowi CO sie stalo,
-        // statystyki mowia ILE RAZY.
+        // Directly under the log: same family. The log says WHAT happened; stats say
+        // HOW MANY TIMES.
         let statsIt = m.addItem(withTitle: T("Session statistics"),
                                 action: #selector(openStats), keyEquivalent: "")
         statsIt.target = self
         statsIt.image = img("checkmark.shield")
 
-        // Przewodnik siedzi tuz pod dziennikiem, bo okno powitalne pokazuje sie raz
-        // i po jego zamknieciu nie bylo skad go otworzyc.
+        // The guide stays under the log because the welcome window appears once; after
+        // closing it, there must still be a place to reopen the guide.
         let guideIt = m.addItem(withTitle: T("First steps…"), action: #selector(openGuide), keyEquivalent: "")
         guideIt.target = self
         guideIt.image = img("book")
@@ -3217,7 +3231,7 @@ final class Bar: NSObject, NSMenuDelegate {
         addTail(m, paused: !s.paused.isEmpty)
     }
 
-    /// Ikona SF Symbol dla pozycji menu — szablonowa, wiec przyjmuje kolor systemu.
+    /// Return a template SF Symbol icon for a menu item, so it takes the system color.
     func img(_ name: String) -> NSImage? {
         let i = NSImage(systemSymbolName: name, accessibilityDescription: nil)
         i?.isTemplate = true
@@ -3226,18 +3240,18 @@ final class Bar: NSObject, NSMenuDelegate {
 
     func addTail(_ m: NSMenu, paused: Bool) {
         m.addItem(.separator())
-        // KEEP AWAKE jak w Amphetamine — tyle ze kazdy z tych trybow ma nadrzedny
-        // bezpiecznik termiczny: przy przegrzaniu demon i tak zwalnia blokade snu.
+        // KEEP AWAKE like Amphetamine, except every mode has an overriding thermal fuse:
+        // on overheating, the daemon still releases the sleep lock.
         let ka = NSMenuItem(title: T("Keep awake"), action: nil, keyEquivalent: "")
         ka.image = img(MUG)
         let km = NSMenu()
         km.autoenablesItems = false
         let cur = Awake.read()
         let curMode = cur["mode"] as? String
-        // Czy czuwanie jest trzymane NAPRAWDE. `awake.json` opisuje tylko sesje reczna,
-        // a druga droga - "trzymaj przy ciezkich zadaniach" - chodzi obok niej. Bez tego
-        // menu meldowalo "Off" w chwili, gdy glowna karta pisala "Keeping the Mac awake"
-        // (zglosil Pawel 03.08). Dowodem jest migawka demona, bo to on trzyma caffeinate.
+        // Whether keep-awake is REALLY held. `awake.json` describes only manual sessions;
+        // the separate "hold for heavy jobs" path runs beside it. Without this, the menu
+        // reported "Off" while the main card said "Keeping the Mac awake". The daemon
+        // snapshot is proof because the daemon holds caffeinate.
         let trzymaneNaprawde = readSnap()?.keepAwake ?? false
 
         let stan = NSMenuItem(title: T(trzymaneNaprawde ? "Right now: keeping the Mac awake"
@@ -3249,7 +3263,7 @@ final class Bar: NSObject, NSMenuDelegate {
 
         let off = NSMenuItem(title: T("Off"), action: #selector(awakeOff), keyEquivalent: "")
         off.target = self
-        // Ptaszek tylko wtedy, gdy NIC nie trzyma czuwania - ani sesja reczna, ani automat.
+        // Checkmark only when NOTHING holds keep-awake, neither manual session nor auto.
         off.state = (curMode == nil && !trzymaneNaprawde) ? .on : .off
         km.addItem(off)
         km.addItem(.separator())
@@ -3268,9 +3282,9 @@ final class Bar: NSObject, NSMenuDelegate {
         forever.state = curMode == "forever" ? .on : .off
         km.addItem(forever)
 
-        // "Do konkretnej godziny": gotowe pelne godziny zamiast pola do wpisania. Liczymy
-        // KALENDARZEM, nie dodawaniem sekund - inaczej zmiana czasu i przejscie przez
-        // polnoc daja godzine obok. Zapisujemy i tak epoch, wiec reszta kodu bez zmian.
+        // "Until a set hour": ready whole hours instead of a text field. Calculate by
+        // CALENDAR, not by adding seconds; otherwise DST changes and crossing midnight
+        // produce the wrong hour. Store epoch anyway, so the rest of the code is unchanged.
         let untilItem = NSMenuItem(title: T("Until a set hour"), action: nil, keyEquivalent: "")
         let um = NSMenu()
         um.autoenablesItems = false
@@ -3278,13 +3292,12 @@ final class Bar: NSObject, NSMenuDelegate {
         let teraz = Date()
         let fmt = DateFormatter()
         fmt.locale = Locale.current
-        fmt.setLocalizedDateFormatFromTemplate("j:mm")   // 17:00 albo 5:00 PM wg ustawien systemu
+        fmt.setLocalizedDateFormatFromTemplate("j:mm")   // 17:00 or 5:00 PM per system settings
         var znalezione = 0
-        // Punktem wyjscia jest BIEZACA pelna godzina zbudowana z komponentow. `date(bySetting:)`
-        // szuka NASTEPNEJ pasujacej daty, wiec o 16:20 oddawal juz 17:00 - a petla dodawala
-        // do tego kolejna godzine i najblizsza propozycja wypadala dopiero o 18:00.
-        // Najblizsza pelna godzina jest tu najbardziej przydatna, wiec nie wolno jej gubic.
-        // Wyszlo w przegladzie 04.08.
+        // Start from the CURRENT whole hour built from components. `date(bySetting:)`
+        // searches for the NEXT matching date, so at 16:20 it already returned 17:00;
+        // the loop then added another hour and the nearest option became 18:00. The
+        // nearest whole hour is the useful one here, so do not lose it.
         var skladniki = kal.dateComponents([.year, .month, .day, .hour], from: teraz)
         skladniki.minute = 0
         skladniki.second = 0
@@ -3303,8 +3316,8 @@ final class Bar: NSObject, NSMenuDelegate {
         untilItem.submenu = um
         km.addItem(untilItem)
 
-        // Przedluzenie trwajacej sesji. Gdy zadna nie trwa, dziala jak zwykly timer -
-        // inaczej pozycja byla by martwa i trzeba by ja wygaszac bez powodu.
+        // Extend a running session. When none is running, act like a normal timer;
+        // otherwise the item would be dead and need disabling for no useful reason.
         let extItem = NSMenuItem(title: T("Extend"), action: nil, keyEquivalent: "")
         let em = NSMenu()
         em.autoenablesItems = false
@@ -3319,7 +3332,7 @@ final class Bar: NSObject, NSMenuDelegate {
         km.addItem(extItem)
         km.addItem(.separator())
 
-        // "dopoki dziala aplikacja": lista realnie uruchomionych aplikacji okienkowych
+        // "While an app is running": list real running windowed applications.
         let appItem = NSMenuItem(title: T("While an app is running"), action: nil, keyEquivalent: "")
         let am = NSMenu()
         am.autoenablesItems = false
@@ -3354,8 +3367,8 @@ final class Bar: NSObject, NSMenuDelegate {
                                 on: GuardCfg.bool("keep_awake_auto", false),
                                 target: self, action: #selector(toggleAwake), kolor: .systemGray)
         km.addItem(kaAuto)
-        // Ekran to osobna decyzja od systemu: `caffeinate -is` trzyma system, ale pozwala
-        // zgasic ekran. Swiecacy panel to wiecej pradu i ciepla, wiec domyslnie off.
+        // Screen is separate from system wake: `caffeinate -is` keeps the system awake
+        // but lets the display sleep. A lit panel costs more power and heat, so default off.
         let kaScreen = NSMenuItem()
         kaScreen.view = SwitchRow(T("Keep the screen on too (uses more power)"),
                                   on: GuardCfg.bool("keep_awake_display", false),
@@ -3370,8 +3383,8 @@ final class Bar: NSObject, NSMenuDelegate {
         showItem.image = img("eye")
         let sub = NSMenu()
         sub.autoenablesItems = false
-        // Na gorze, zeby nie klikac kazdej pozycji z osobna (prosba Pawla 03.08).
-        // Wygaszone, gdy i tak wszystko juz widac - martwy klik miesza bardziej niz pomaga.
+        // At the top, so users do not click every item separately. Disabled when
+        // everything is already visible; a dead click confuses more than it helps.
         let wszystko = NSMenuItem(title: T("Show all"), action: #selector(showAllItems),
                                   keyEquivalent: "")
         wszystko.target = self
@@ -3388,8 +3401,8 @@ final class Bar: NSObject, NSMenuDelegate {
         showItem.submenu = sub
         m.addItem(showItem)
 
-        // panel ustawien: progi suwakiem + przelaczniki. Demon czyta config.json w kazdym
-        // przebiegu, wiec zmiana dziala od razu, bez restartu czegokolwiek.
+        // Settings panel: threshold sliders and switches. The daemon reads config.json
+        // on every cycle, so changes apply immediately without restarting anything.
         let setItem = NSMenuItem(title: T("Settings"), action: nil, keyEquivalent: "")
         setItem.image = img("gearshape")
         let ss = NSMenu()
@@ -3426,7 +3439,7 @@ final class Bar: NSObject, NSMenuDelegate {
             describe: thresholdWarning,
             derive: { v in String(format: T("resume at %.0f °C, terminate at %.0f C"),
                                   v - 9, Swift.min(v + 5, 100)) }) { v in
-            // pochodne trzymamy spojne: histereza 9 C w dol, ubicie 5 C w gore (nie wyzej niz 100)
+            // Keep derived values consistent: hysteresis 9 C down, kill 5 C up (max 100).
             GuardCfg.set(["soc_pause_c": v,
                           "soc_resume_c": v - 9,
                           "soc_kill_c": Swift.min(v + 5, 100)])
@@ -3443,9 +3456,9 @@ final class Bar: NSObject, NSMenuDelegate {
         ss.addItem(battRow)
         ss.addItem(.separator())
 
-        // CIEZKIE ZADANIA: typ rdzeni + limit CPU (defaulty dla safe-run; zapis do config.json)
-        // interwal pomiarow (Pawel, 01.08): rzadziej = oszczedniej, czesciej = szybsza
-        // automatyczna reakcja; reczne akcje i tak reaguja w ~1 s niezaleznie od tego
+        // HEAVY JOBS: core type + CPU limit (safe-run defaults saved to config.json).
+        // Measurement interval: slower = cheaper, faster = quicker automatic reaction;
+        // manual actions still react in ~1 s regardless.
         let pollRow = NSMenuItem()
         pollRow.view = SliderRow(
             title: T("Measurement interval"), min: 5, max: 30,
@@ -3477,8 +3490,8 @@ final class Bar: NSObject, NSMenuDelegate {
             ss.addItem(it)
         }
         infoLinia(T("Turns off banners, their sounds and phone push - one gate for all."))
-        // pomoc o trybie obserwacji zyje w popupie przy WYLACZANIU ochrony;
-        // Powiadomienia / Dzwieki / Push = jedna zwarta sekcja (Pawel, 01.08)
+        // Watch-only help lives in the popup shown when DISABLING protection.
+        // Notifications / Sounds / Push form one compact section.
 
         let snd = NSMenuItem()
         snd.view = SwitchRow(T("Sounds"), on: GuardCfg.bool("sound", true),
@@ -3486,7 +3499,7 @@ final class Bar: NSObject, NSMenuDelegate {
         ss.addItem(snd)
         infoLinia(T("Exception: the critical banner shouts regardless."))
 
-        // "Nie usypiaj przy ciezkich zadaniach" mieszka teraz w podmenu Nie usypiaj Maca
+        // "Keep awake while heavy jobs run" now lives in the Keep awake submenu.
 
         let ntfy = NSMenuItem()
         ntfy.view = SwitchRow(T("Phone push (ntfy.sh)…"),
@@ -3496,7 +3509,7 @@ final class Bar: NSObject, NSMenuDelegate {
 
         ss.addItem(.separator())
         let flabel = NSMenuItem(title: "", action: #selector(fleetNameDialog), keyEquivalent: "")
-        // po "|" aktualna nazwa (szara) - widac od razu, jak ten Mac nazywa sie we flocie
+        // After "|", show the current name in gray so fleet identity is visible at once.
         let nazwaFloty = GuardCfg.string("fleet_label", "")
         let pokazNazwe = nazwaFloty.isEmpty
             ? (Host.current().localizedName ?? "Mac")
@@ -3514,7 +3527,7 @@ final class Bar: NSObject, NSMenuDelegate {
         setItem.submenu = ss
         m.addItem(setItem)
 
-        // ABOUT MY MAC: sprzet wykryty przez guarda + zdrowie baterii + progi
+        // ABOUT MY MAC: hardware detected by the guard, battery health, and thresholds.
         let about = NSMenuItem(title: T("About my Mac"), action: nil, keyEquivalent: "")
         about.image = img("info.circle")
         let abm = NSMenu()
@@ -3527,12 +3540,12 @@ final class Bar: NSObject, NSMenuDelegate {
         if hw.isEmpty {
             arow(T("no data - is coffee-paladin running?"))
         } else {
-            // pary w liniach (Pawel, pkt 6): model+chip / rdzenie+NE / RAM+dysk /
-            // macOS+data konfiguracji / wentylatory+cykle baterii
+            // Pair fields by line: model+chip / cores+NE / RAM+disk /
+            // macOS+setup date / fans+battery cycles.
             let chipNazwa = (hw["chip"] as? String) ?? "?"
             arow(((hw["model_name"] as? String) ?? "?") + "  ·  " + chipNazwa)
-            // Neural Engine nie ma publicznego API do odczytu - liczba rdzeni ANE
-            // wynika z modelu chipa (Ultra = 2x die = 32, kazdy inny M = 16)
+            // Neural Engine has no public read API. Derive ANE cores from chip model:
+            // Ultra = 2x die = 32; every other M chip = 16.
             let ane = chipNazwa.contains("Ultra") ? 32 : 16
             arow(String(format: T("Cores:  %d performance + %d efficiency  ·  Neural Engine: %d"),
                         (hw["p_cores"] as? Int) ?? 0, (hw["e_cores"] as? Int) ?? 0, ane))
@@ -3542,7 +3555,7 @@ final class Bar: NSObject, NSMenuDelegate {
                 ramLinia += "  ·  " + String(format: T("Disk: %d GB (%d%% free)"), dt, 100 - dp)
             }
             arow(ramLinia)
-            // marketingowa nazwa systemu jak w "About This Mac" (Tahoe/Sequoia/...)
+            // Marketing system name, as in "About This Mac" (Tahoe/Sequoia/...).
             let wersjaOS = (hw["macos"] as? String) ?? "?"
             let nazwaOS: String
             switch Int(wersjaOS.split(separator: ".").first.map(String.init) ?? "") ?? 0 {
@@ -3577,8 +3590,8 @@ final class Bar: NSObject, NSMenuDelegate {
             arow(wentLinia)
             if let ser = hw["serial"] as? String, !ser.isEmpty {
                 var serLinia = String(format: T("Serial:  %@"), ser)
-                // gwarancja: macOS nie zdradza jej programowo - szacujemy rok od
-                // pierwszej konfiguracji systemu i mowimy wprost, ze to szacunek
+                // Warranty: macOS does not expose it programmatically. Estimate one year
+                // from first system setup and state clearly that it is an estimate.
                 if let ds = dataSetup {
                     let f = DateFormatter()
                     f.dateFormat = "dd.MM.yyyy"
@@ -3590,8 +3603,8 @@ final class Bar: NSObject, NSMenuDelegate {
                 }
                 arow(serLinia)
             }
-            // wszystkie zrodla pomiaru, nie tylko macmon (Pawel, 01.08): gdy jedno
-            // padnie, widac od razu, co jeszcze pilnuje maszyny
+            // Show all measurement sources, not only macmon. If one fails, users can
+            // immediately see what else is still watching the machine.
             let ok = T("yes"), nie = T("no")
             let mac = (hw["chip_sensor"] as? Bool) == true
             let stanOK = FileManager.default.isExecutableFile(atPath:
@@ -3610,8 +3623,8 @@ final class Bar: NSObject, NSMenuDelegate {
         about.submenu = abm
         m.addItem(about)
         if let sn = readSnap() {
-            // "Informacje o obciazeniu": zadania, top CPU/RAM, stan, progi, licznik dnia —
-            // wszystko w rozwijanym podmenu, zeby glowna karta zostala zwarta
+            // "Load info": jobs, top CPU/RAM, state, thresholds, and daily counter all
+            // live in a submenu so the main card stays compact.
             let loadIt = NSMenuItem(title: T("Load info"), action: nil, keyEquivalent: "")
             loadIt.image = img("chart.bar")
             let lo = NSMenu()
@@ -3621,9 +3634,9 @@ final class Bar: NSObject, NSMenuDelegate {
                 lrow(T("Supervised jobs (safe-run):"))
                 for j in sn.jobs { lrow("   - \(j.name) — \(j.minutes) min") }
             }
-            // listy "co grzeje / co zjada RAM": CPU jest przyblizeniem ciepla (per-proces
-            // temperatur nie ma) i tak to opisujemy. Gdy guard jeszcze nie opublikowal list
-            // (stara wersja demona), zostaje dawny pojedynczy wiersz Top CPU.
+            // "What heats / eats RAM" lists: CPU approximates heat because per-process
+            // temperatures do not exist, and the label says so. If an older daemon has
+            // not published the lists yet, keep the older single Top CPU row.
             if !sn.topCpuList.isEmpty {
                 lrow(T("Heating the most now (CPU ≈ heat):"))
                 for t in sn.topCpuList { lrow("   - \(t.name) — \(t.cpu)% CPU") }
@@ -3654,24 +3667,25 @@ final class Bar: NSObject, NSMenuDelegate {
         }
 
 
-        // FLOTA APPLE: wszystkie Maki publikujace do wspolnego folderu — te same pliki,
-        // ktore czyta CLI `fleet`. "Live" w rytmie ~1 min (takt agenta + sync folderu).
+        // APPLE FLEET: all Macs publishing to the shared folder, using the same files
+        // read by CLI `fleet`. "Live" updates at ~1 min cadence (agent tick + folder sync).
         let fleetIt = NSMenuItem(title: T("Apple fleet"), action: nil, keyEquivalent: "")
         fleetIt.image = img("laptopcomputer")
         let fmenu = NSMenu()
         fmenu.autoenablesItems = false
         func frow(_ t: String) { fmenu.addItem(NSMenuItem(title: t, action: nil, keyEquivalent: "")) }
-        // menu czyta MIGAWKE z cache (zero I/O w watku glownym); wiek dolicza od chwili odczytu
+        // The menu reads a SNAPSHOT from cache (zero main-thread I/O); age is adjusted
+        // from the read time.
         let cacheDrift = max(0, Date().timeIntervalSince(fleetCacheAt))
-        // Liczniki czytamy RAZ na otwarcie menu, nie raz na host.
+        // Read counters ONCE per menu open, not once per host.
         var statystykiHosta: [String: [String: Int]] = [:]
         for m in fleetStats() { statystykiHosta[m.host] = m.sum }
         if let hosts = fleetCache {
             if hosts.isEmpty {
                 frow(T("no agent snapshots yet (agents publish about once a minute)"))
             }
-            // Wlasny serial czytany RAZ, nie raz na host: hardwareInfo() to pelny odczyt
-            // pliku z dysku, a lecial w petli przy kazdym otwarciu menu.
+            // Read this Mac's serial ONCE, not once per host: hardwareInfo() is a full
+            // disk file read and used to run inside the per-host loop on every menu open.
             let mojSerial = (hardwareInfo()["serial"] as? String) ?? ""
             for h0 in hosts {
                 let h = FleetHost(name: h0.name, model: h0.model, serial: h0.serial,
@@ -3680,8 +3694,8 @@ final class Bar: NSObject, NSMenuDelegate {
                                   level: h0.level, paused: h0.paused, onAC: h0.onAC,
                                   battPct: h0.battPct, battC: h0.battC)
                 if h.age > 300 {
-                    // symbol systemowy, nie emoji: emoji ma wlasny kolor i wlasna szerokosc,
-                    // wiec w ciemnym motywie odcina sie jak naklejka i rozjezdza kolumny
+                    // System symbol, not emoji: emoji has its own color and width, so in
+                    // dark mode it looks like a sticker and shifts columns.
                     let a = NSMutableAttributedString()
                     a.append(icon("exclamationmark.triangle", fallback: "!"))
                     a.append(NSAttributedString(string: "  \(h.name) — " + T("STALE - not reporting")
@@ -3691,8 +3705,8 @@ final class Bar: NSObject, NSMenuDelegate {
                     fmenu.addItem(it)
                     continue
                 }
-                // ZWARTY wiersz (Pawel, pkt 9): znacznik + nazwa + najwyzsza temperatura
-                // + temperatura baterii; komplet szczegolow wyskakuje po KLIKNIECIU
+                // COMPACT row: marker + name + highest temperature + battery temperature.
+                // Full details appear on CLICK.
                 var bits: [String] = []
                 if let c = h.chip { bits.append(String(format: "%.0f °C", c)) }
                 if let b = h.battC { bits.append(T("Battery") + String(format: " %.0f °C", b)) }
@@ -3710,7 +3724,7 @@ final class Bar: NSObject, NSMenuDelegate {
                 let it = NSMenuItem(title: "", action: #selector(fleetDetails(_:)), keyEquivalent: "")
                 it.target = self
                 it.attributedTitle = a
-                // liczniki tego hosta - do popupu po kliknieciu
+                // Counters for this host, used by the click popup.
                 let st = statystykiHosta[h.name] ?? [:]
                 it.representedObject = [
                     "stat_pauses": String(st["pauses"] ?? 0),
@@ -3741,13 +3755,13 @@ final class Bar: NSObject, NSMenuDelegate {
         let issuesIt = m.addItem(withTitle: T("Report a problem (GitHub)…"), action: #selector(openIssues), keyEquivalent: "")
         issuesIt.target = self
         issuesIt.image = img("lightbulb")
-        // gwiazdka WYCIAGNIETA z podmenu (Pawel, pkt 14): najtansza waluta open source
-        // ma byc na wierzchu, nie schowana pod rozwijanym menu
+        // Keep the star action outside the submenu: the cheapest open-source currency
+        // should be visible, not hidden in a nested menu.
         let pg = m.addItem(withTitle: T("Star it on GitHub…"), action: #selector(shareStar), keyEquivalent: "")
         pg.target = self
         pg.image = img("star")
-        // suppi.pl dziala tylko po polsku (BLIK/przelewy, brak wersji EN - research
-        // 01.08): espresso przy polskim menu, reszta swiata -> GitHub Sponsors
+        // suppi.pl works only in Polish (BLIK/bank transfers, no English version):
+        // espresso in the Polish menu, the rest of the world goes to GitHub Sponsors.
         if lang == "pl" {
             let coffee = m.addItem(withTitle: T("Buy me a double espresso…"),
                                    action: #selector(buyCoffee), keyEquivalent: "")
@@ -3760,8 +3774,8 @@ final class Bar: NSObject, NSMenuDelegate {
             sponsor.image = img("heart")
         }
 
-        // "Podaj dalej" (A14): notka w JEZYKU WYBRANYM W MENU + link z UTM share.
-        // Bez Facebooka (decyzja Pawla: sharer ucina tekst i wymaga logowania).
+        // Share note in the LANGUAGE SELECTED IN MENU, plus the UTM share link.
+        // No Facebook: its sharer cuts text and requires login.
         let podaj = NSMenuItem(title: T("Like the paladin? Pass it on!"), action: nil, keyEquivalent: "")
         podaj.image = img("square.and.arrow.up")
         let pd = NSMenu()
@@ -3779,8 +3793,8 @@ final class Bar: NSObject, NSMenuDelegate {
 
         m.addItem(.separator())
 
-        // STOPKA: kolorowe logo firmowe, sygnatura i wysrodkowane Zamknij
-        // (autostart przeniesiony na gore, pod wlacznik ochrony - decyzja Pawla 01.08)
+        // FOOTER: color company logo, signature, and centered Quit.
+        // Autostart moved up under the protection switch.
         if let footer = FooterLogoRow.make() {
             let fi = NSMenuItem()
             fi.view = footer
@@ -3796,9 +3810,9 @@ final class Bar: NSObject, NSMenuDelegate {
         sig.isEnabled = false
         m.addItem(sig)
 
-        // kreska oddziela creditsy od akcji wyjscia (decyzja Pawla 01.08)
+        // Separator divides credits from the exit action.
         m.addItem(.separator())
-        // do lewej jak kazda inna pozycja (Pawel, pkt 15) - koniec centrowania
+        // Left-aligned like every other item; no more centering.
         let quitIt = NSMenuItem(title: T("Quit coffee-paladin (protection stops)"),
                                 action: #selector(quit), keyEquivalent: "q")
         quitIt.target = self
@@ -3806,7 +3820,7 @@ final class Bar: NSObject, NSMenuDelegate {
         m.addItem(quitIt)
     }
 
-    // --- keep awake (zapis zyczenia; wykonuje demon, bezpiecznik termiczny nadrzedny)
+    // --- keep awake (record request; daemon executes it with thermal fuse overriding)
 
     @objc func awakeOff() { Awake.set(nil); odswiezPoAkcji() }
 
@@ -3822,14 +3836,14 @@ final class Bar: NSObject, NSMenuDelegate {
     @objc func awakeUntil(_ sender: NSMenuItem) {
         guard let until = sender.representedObject as? Double else { return }
         let t = Date().timeIntervalSince1970
-        guard until > t else { return }        // godzina z przeszlosci = nic nie robimy
+        guard until > t else { return }        // past hour = no-op
         Awake.set(["mode": "timer", "until": until, "set_at": t])
         odswiezPoAkcji()
     }
 
-    /// Przedluza TRWAJACA sesje timera; gdy zadna nie trwa, zaklada nowa na tyle minut.
-    /// Liczymy od konca sesji, nie od "teraz" - inaczej przedluzenie o 15 min potrafiloby
-    /// SKROCIC sesje, ktorej zostala jeszcze godzina.
+    /// Extend a RUNNING timer session, or start a new one for that many minutes.
+    /// Count from the session end, not from "now"; otherwise adding 15 min could
+    /// SHORTEN a session with an hour still left.
     @objc func awakeExtend(_ sender: NSMenuItem) {
         guard let min = sender.representedObject as? Int else { return }
         let t = Date().timeIntervalSince1970
@@ -3850,7 +3864,7 @@ final class Bar: NSObject, NSMenuDelegate {
 
     @objc func awakeDownload() { Awake.set(["mode": "download"]); odswiezPoAkcji() }
 
-    // --- ciezkie zadania
+    // --- heavy jobs
 
     @objc func coresEfficiency() {
         GuardCfg.set(["job_cores_mode": "efficiency"])
@@ -3861,14 +3875,14 @@ final class Bar: NSObject, NSMenuDelegate {
         odswiezPoAkcji()
     }
 
-    // --- push na telefon
+    // --- phone push
 
     private var ntfyField: NSTextField?
 
     @objc func ntfyGenerate() { ntfyField?.stringValue = randomTopic() }
 
     @objc func toggleNtfy() {
-        // switch ON = trzeba wpisac temat (dialog); OFF = czyscimy temat i push milknie
+        // Switch ON means topic is required (dialog); OFF clears topic and silences push.
         if GuardCfg.string("ntfy_topic", "").isEmpty {
             pokazModalnie { self.ntfyDialog() }
         } else {
@@ -3876,20 +3890,20 @@ final class Bar: NSObject, NSMenuDelegate {
         }
     }
 
-    /// Okno modalne odpalane z pozycji menu, ktora jest custom view (SwitchRow):
-    /// menu wtedy NIE zamyka sie samo i dalej sledzi mysz, wiec runModal wchodzi
-    /// w konflikt z jego petla zdarzen. Ta sama sztuczka co w HeaderRow.mouseUp.
-    /// Okno z paladynem NA SRODKU: ikona, tytul, tresc, opcjonalny widok wlasny
-    /// (pole tekstowe, lista) i rzad przyciskow. Zwraca indeks klikanego przycisku.
+    /// Show a custom modal window from a custom-view menu item such as SwitchRow.
+    /// That menu does NOT close itself and keeps tracking the mouse, so runModal
+    /// conflicts with its event loop. This uses the same trick as HeaderRow.mouseUp.
+    /// The paladin is CENTERED, with icon, title, body, optional custom view
+    /// (text field, list), and button row. Return the clicked button index.
     ///
-    /// Dlaczego nie NSAlert: gola binarka bez pakietu .app nie ma wlasnej ikony, wiec
-    /// alert siega po systemowa, ktora wyglada jak pusta teczka - a nawet po podmianie
-    /// na paladyna NSAlert trzyma ikone przyklejona do lewej krawedzi i nie pozwala jej
-    /// wysrodkowac. Skoro paladyn ma stac posrodku wszedzie, wszystkie te okna sa wlasne.
+    /// Do not use NSAlert: a bare binary without an .app bundle has no app icon, so
+    /// the alert falls back to a system icon that looks like an empty folder. Even after
+    /// swapping in the paladin, NSAlert pins the icon to the left edge and will not center
+    /// it. Since the paladin must stand centered everywhere, these windows are custom.
     ///
-    /// Tytul i tresc sa ZAWIJANE i maja marginesy, a ich wysokosc jest mierzona
-    /// i wliczana w wysokosc okna: jednoliniowy tytul na cala szerokosc ucinal ogon
-    /// zdania (polskie "...tego Maca?" potrzebowalo 338 pt przy 300 dostepnych).
+    /// Title and body wrap with margins, and their measured heights count toward window
+    /// height. A one-line full-width title clipped sentence endings; the Polish quit
+    /// title needed 338 pt with only 300 pt available.
     func oknoPaladyna(tytul: String, tresc: String, przyciski: [String],
                       domyslny: Int = 0, dodatek: NSView? = nil,
                       szerokosc SZER: CGFloat = 380) -> Int {
@@ -3897,9 +3911,9 @@ final class Bar: NSObject, NSMenuDelegate {
 
         func zawijana(_ t: String, _ rozmiar: CGFloat, _ bold: Bool,
                       _ kolor: NSColor) -> (NSTextField, CGFloat) {
-            // Spacja nierozdzielajaca przed mysnikiem: bez tego zawijanie potrafilo
-            // zlamac wiersz DOKLADNIE przed " - " i nastepna linia zaczynala sie od
-            // samej kreski ("WYLACZONA" / "- coffee-paladin przeszedl w tryb…").
+            // Non-breaking space before the hyphen: without it, wrapping could break
+            // EXACTLY before " - " and the next line started with only the hyphen
+            // ("OFF" / "- coffee-paladin entered mode...").
             let zwiazany = t.replacingOccurrences(of: " - ", with: "\u{00A0}- ")
             let p = NSTextField(wrappingLabelWithString: zwiazany)
             p.font = bold ? .boldSystemFont(ofSize: rozmiar) : .systemFont(ofSize: rozmiar)
@@ -3950,9 +3964,9 @@ final class Bar: NSObject, NSMenuDelegate {
 
         y -= 18 + 32
         let luka: CGFloat = 10
-        // Szerokosc z TRESCI, nie ze stalej. Rosyjskie "Всё равно выключить" potrzebuje
-        // 162 pt, a sztywne 130 pt ucinalo je w polowie - na przycisku wylaczajacym
-        // ochrone termiczna, czyli przy najpowazniejszej decyzji w programie.
+        // Width from CONTENT, not a constant. The Russian localized Quit anyway label
+        // needs 162 pt; a fixed 130 pt clipped it halfway on the button that disables
+        // thermal protection, the most serious decision in the program.
         let probne = przyciski.map { t -> CGFloat in
             let b = NSButton(title: t, target: nil, action: nil)
             b.bezelStyle = .rounded
@@ -3962,18 +3976,18 @@ final class Bar: NSObject, NSMenuDelegate {
         let szerB = min(max(probne.max() ?? 90, 90), 170)
         let xB = (SZER - (szerB * CGFloat(przyciski.count)
                           + luka * CGFloat(przyciski.count - 1))) / 2
-        // KOLEJNOSC: macOS trzyma przycisk potwierdzajacy skrajnie po PRAWEJ, a czlowiek
-        // klika odruchowo w prawy dolny rog. Wywolujacy podaje liste "najwazniejszy
-        // pierwszy" (bo tak sie ja czyta w kodzie), a rysujemy ja odwrotnie.
+        // ORDER: macOS keeps the confirming button at the far RIGHT, and people
+        // instinctively click the lower-right corner. Callers pass the list as "most
+        // important first" because that reads naturally in code; draw it reversed.
         for (i, t) in przyciski.enumerated() {
             let b = NSButton(title: t, target: self, action: #selector(zamknijOknoPaladyna(_:)))
             b.bezelStyle = .rounded
             b.tag = i
-            let poz = przyciski.count - 1 - i          // 0 = skrajnie po lewej
+            let poz = przyciski.count - 1 - i          // 0 = far left
             b.frame = NSRect(x: xB + CGFloat(poz) * (szerB + luka), y: y,
                              width: szerB, height: 32)
             if i == domyslny { b.keyEquivalent = "\r" }
-            // Escape zamyka oknem tak, jak przycisk anulujacy (a przy jednym OK - jak OK).
+            // Escape closes the window like Cancel, or like OK when there is only OK.
             if przyciski.count == 1 || i == przyciski.count - 1 { b.keyEquivalent = "\u{1b}" }
             if i == domyslny { b.keyEquivalent = "\r" }
             tlo.addSubview(b)
@@ -3985,9 +3999,9 @@ final class Bar: NSObject, NSMenuDelegate {
         return wynik.rawValue
     }
 
-    /// Rzad przyciskow: szerokosc liczona z TRESCI (rosyjskie etykiety sa o polowe
-    /// dluzsze od polskich), potwierdzajacy skrajnie po PRAWEJ zgodnie z macOS,
-    /// Escape na anulujacym.
+    /// Add a button row.
+    /// Width comes from CONTENT; Russian labels are about half longer than Polish ones.
+    /// The confirming button stays far RIGHT per macOS, and Escape maps to Cancel.
     func rzadPrzyciskow(_ tlo: NSView, _ SZER: CGFloat, _ y: CGFloat,
                         _ tytuly: [String], domyslny: Int, akcja: Selector) {
         let luka: CGFloat = 10
@@ -4037,10 +4051,10 @@ final class Bar: NSObject, NSMenuDelegate {
             przyciski: ["OK", T("Cancel")], dodatek: box)
         ntfyField = nil
         if result == 0 {
-            // Temat idzie prosto do URL-a. Spacja albo nowa linia sprawiaja, ze curl
-            // w ogole nic nie wysyla (i nikt sie o tym nie dowiaduje), a "#" i "?"
-            // publikuja na KROTSZY temat, niz uzytkownik widzi w polu - czyli latwiejszy
-            // do zgadniecia. Odrzucamy od razu, zamiast milczec przez tygodnie.
+            // Topic goes straight into the URL. A space or newline makes curl send
+            // nothing at all, silently; "#" and "?" publish to a SHORTER topic than the
+            // user sees in the field, making it easier to guess. Reject immediately
+            // instead of failing silently for weeks.
             let temat = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
             let dozwolone = CharacterSet(charactersIn:
                 "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-")
@@ -4058,7 +4072,7 @@ final class Bar: NSObject, NSMenuDelegate {
         }
     }
 
-    // --- nazwa we flocie
+    // --- fleet name
 
     @objc func fleetNameDialog() {
         let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 300, height: 24))
@@ -4075,8 +4089,9 @@ final class Bar: NSObject, NSMenuDelegate {
 
     @objc func toggleAutostart() { Autostart.set(!Autostart.enabled()) }
 
-    /// Tryb "tylko obserwuj" bywa niezrozumialy, a to najwazniejsza opcja dla kogos, kto boi sie
-    /// oddac narzedziu wladze nad swoimi procesami — wiec tlumaczymy go wprost.
+    /// Explain watch-only mode plainly before someone grants process-control authority.
+    /// This is the key option for users who are cautious about letting the tool control
+    /// their processes.
     @objc func explainDry() {
         let tresc = T("""
 Protection is now OFF\n- coffee-paladin has entered watch-only mode.
@@ -4105,7 +4120,7 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
         let obserwacjaTeraz = !GuardCfg.bool("dry_run", true)
         GuardCfg.set(["dry_run": obserwacjaTeraz])
         zapowiedzTrybObserwacji(obserwacjaTeraz)
-        // wylaczenie ochrony = powazna decyzja - od razu mowimy, co to znaczy
+        // Disabling protection is a serious decision; explain what it means immediately.
         if obserwacjaTeraz { pokazModalnie { self.explainDry() } }
     }
 
@@ -4120,8 +4135,9 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
         odswiezPoAkcji()
     }
 
-    /// Zmiana jezyka wymaga restartu paska (slownik jest wybierany raz, przy starcie).
-    /// Wychodzimy z bledem — launchd (KeepAlive.SuccessfulExit=false) podnosi nas z powrotem.
+    /// Restart the bar after a language change.
+    /// The dictionary is selected once at startup. Exit with failure so launchd
+    /// (KeepAlive.SuccessfulExit=false) brings us back.
     @objc func setLang(_ sender: NSMenuItem) {
         guard let code = sender.representedObject as? String, code != lang else { return }
         GuardCfg.set(["lang": code])
@@ -4143,41 +4159,41 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
     /// Commands go through a file - the daemon executes and clears them.
     func send(_ command: String) {
         try? command.write(toFile: commandPath, atomically: true, encoding: .utf8)
-        // Demon budzi sie na plik-rozkaz w ~0,5 s, ale pasek czekalby z pokazaniem skutku
-        // do nastepnego staleg taktu (5 s). Jedno wskie gardlo dla WSZYSTKICH rozkazow,
-        // wiec kazdy z nich dostaje szybkie potwierdzenie za darmo.
+        // The daemon wakes on a command file in ~0.5 s, but the bar would wait until
+        // the next fixed tick (5 s) before showing the effect. One narrow path handles
+        // ALL commands, so every command gets quick confirmation for free.
         odswiezPoAkcji()
     }
 
     @objc func freeze() { send("freeze") }
     @objc func toggleFreeze(_ sender: Any?) {
-        // Stan bierzemy z migawki, nie z klikniecia: rozkaz wykonuje demon, wiec dopiero
-        // jego migawka jest dowodem. Demon budzi sie na plik-rozkaz w ~0,5 s (to dziala
-        // od dawna), a `send` zamawia dodatkowo szybkie odswiezenie paska - dzieki temu
-        // potwierdzenie przychodzi w okolo sekunde, nie po pelnym takcie.
+        // Take state from the snapshot, not the click: the daemon executes the command,
+        // so only its snapshot is proof. The daemon wakes on a command file in ~0.5 s,
+        // and `send` schedules an extra quick bar refresh, so confirmation arrives in
+        // about a second instead of after the full tick.
         let s = readSnap()
         if let s = s, !s.paused.isEmpty { send("resume"); return }
-        // Reczne zamrozenie to jedyne miejsce, gdzie uzytkownik zatrzymuje SWOJA prace
-        // swiadomie. Zanim to zrobi, ma zobaczyc CO konkretnie stanie i czego moze sie
-        // po tym spodziewac - bez tego przelacznik jest strzalem w ciemno.
+        // Manual freeze is the one place where users consciously stop THEIR work.
+        // Before doing that, they must see exactly WHAT will stop and what to expect;
+        // otherwise the switch is a blind shot.
         pokazModalnie { [weak self] in
             guard let self = self else { return }
-            guard let wybrane = self.potwierdzZamrozenie(s) else { return }   // anulowane
+            guard let wybrane = self.potwierdzZamrozenie(s) else { return }   // canceled
             if wybrane.isEmpty {
-                self.send("freeze")                       // nie bylo z czego wybierac
+                self.send("freeze")                       // nothing selectable
             } else {
                 self.send("freeze:" + wybrane.map(String.init).joined(separator: ","))
             }
         }
     }
 
-    /// Okno potwierdzenia przed recznym zamrozeniem: co konkretnie stanie, z mozliwoscia
-    /// odznaczenia pojedynczych procesow. Lista pochodzi z `freeze_candidates` w migawce,
-    /// czyli z tego samego zbioru, na ktorym zadziala demon - nie z listy "top CPU".
+    /// Confirm manual freeze with the exact processes that will stop.
+    /// Users can uncheck individual processes. The list comes from `freeze_candidates`
+    /// in the snapshot, the same set the daemon will act on, not from "top CPU".
     ///
-    /// WLASNE okno, nie NSAlert: alert trzyma ikone przyklejona do lewej krawedzi
-    /// i rezerwuje na nia pas naglowka. Paladyn ma stac na srodku, nad tytulem.
-    /// Zwraca nil przy anulowaniu, albo liste PID-ow (pusta = zamroz wszystko, co sie kwalifikuje).
+    /// Custom window, not NSAlert: alert pins the icon to the left edge and reserves a
+    /// header strip for it. The paladin must stand centered above the title.
+    /// Return nil on cancel, or PID list; empty list means freeze every eligible process.
     func potwierdzZamrozenie(_ s: Snap?) -> [Int]? {
         let kandydaci = s?.freezeCandidates ?? []
         let SZER: CGFloat = 360
@@ -4261,7 +4277,7 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
                 c.state = .on
                 c.tag = k.pid
                 c.font = .systemFont(ofSize: 11)
-                // szary, zeby wybor procesow nie krzyczal mocniej niz sama decyzja
+                // Gray, so process selection does not shout louder than the decision.
                 c.contentTintColor = .secondaryLabelColor
                 c.frame = NSRect(x: MARG + 16, y: y, width: SZER - 2 * MARG - 16, height: WYS_WIERSZA)
                 tlo.addSubview(c)
@@ -4301,8 +4317,8 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
     @objc func resume() { send("resume") }
 
     @objc func reportDialog() {
-        // WLASNE okno, nie NSAlert: alert rezerwuje pas na swoj naglowek nawet
-        // przy pustych tekstach - zostawal wielki pusty prostokat u gory (Pawel x3).
+        // Custom window, not NSAlert: alert reserves a header strip even with empty text,
+        // leaving a large blank rectangle at the top.
         let SZER: CGFloat = 300
         let notka = NSTextField(wrappingLabelWithString:
             T("Included: hardware, battery, sudden shutdowns, interventions, measurement timeline."))
@@ -4366,7 +4382,7 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
         doP.datePickerStyle = .textFieldAndStepper
         doP.datePickerElements = .yearMonthDay
         doP.dateValue = Date()
-        // bez tego odwrocony zakres szedl prosto do thermal-report i wracal pusty raport
+        // Without this, a reversed range went straight to thermal-report and returned empty.
         doP.maxDate = Date()
         od.maxDate = Date()
         tlo.addSubview(doP)
@@ -4403,9 +4419,9 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
         win.orderOut(nil)
         guard wynik.rawValue != 2 else { return }
         let f = DateFormatter()
-        // en_US_POSIX obowiazkowo: bez tego na regionie tajskim data wychodzi w kalendarzu
-        // buddyjskim (2569-08-02), a na saudyjskim cyframi arabskimi - raport dostaje
-        // zakres, ktorego nie rozumie, i wraca do domyslnych 7 dni albo jest pusty.
+        // en_US_POSIX is required: Thai region would output Buddhist-calendar dates
+        // (2569-08-02), while Saudi region would output Arabic digits. The report would
+        // receive an unreadable range and fall back to default 7 days or return empty.
         f.locale = Locale(identifier: "en_US_POSIX")
         f.calendar = Calendar(identifier: .gregorian)
         f.timeZone = TimeZone.current
@@ -4417,7 +4433,7 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
     }
 
     @objc func fleetDetails(_ sender: NSMenuItem) {
-        // wlasne okno zamiast NSAlert (Pawel): wszystko na osi, zero pustych rezerw
+        // Custom window instead of NSAlert: everything centered, no empty reserved strips.
         guard let d = sender.representedObject as? [String: String] else { return }
         var linie: [String] = []
         if let m = d["model"], !m.isEmpty { linie.append(m) }
@@ -4510,7 +4526,7 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
         }
     }
 
-    /// Pozycja ratunkowa z menu "brak danych": podnosi demona przez launchd.
+    /// Restart the daemon through launchd from the "no data" rescue menu item.
     @objc func restartGuarda() {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/bin/launchctl")
@@ -4521,15 +4537,15 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
 
     @objc func openLog() { NSWorkspace.shared.open(URL(fileURLWithPath: logPath)) }
 
-    // notka "Podaj dalej" w biezacym jezyku menu - jeden klucz, tlumaczenia w DICTS
+    // Share note in the current menu language; one key, translations in DICTS.
     private var notkaPodajDalej: String {
         T("Is your Mac heating up with AI and renders? coffee-paladin watches the battery (temperature and charge), the chip (CPU) and the GPU. It pauses heavy jobs when the system overheats and resumes them by itself once the temperature drops, so you can sleep peacefully (literally!). Open source, free, for you:")
     }
 
     @objc func shareX() {
-        // osobny, krotszy tekst pod X (limit 280 znakow; tresc Pawla, 01.08)
+        // Separate shorter text for X because of the 280-character limit.
         var c = URLComponents(string: "https://x.com/intent/post")!
-        // URLComponents sam robi percent-encoding - polskie znaki i emoji nie rozwala linku
+        // URLComponents handles percent-encoding; localized characters do not break links.
         c.queryItems = [URLQueryItem(name: "text",
                                      value: String(format: T("Is your Mac heating up with AI and renders? coffee-paladin watches battery, chip and GPU temperatures. It pauses heavy jobs and resumes them by itself once the temperature drops.\n\nOpen source, free, for you:\n%@\n\n#panbookovsky #macbook #protect #temperature #guard"),
                                                    linkPodajDalej()))]
@@ -4537,9 +4553,9 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
     }
 
     @objc func shareMail() {
-        // osobisty ton "do kolegi" + GIF paladyna w zalaczniku; mailto nie umie
-        // zalacznikow, wiec komponujemy wiadomosc przez Mail.app (osascript).
-        // Argumenty ida przez argv - zero pieklarni z escapowaniem cudzyslowow.
+        // Personal "to a colleague" tone with paladin GIF attached. mailto cannot attach
+        // files, so compose through Mail.app (osascript).
+        // Arguments go through argv, avoiding quote-escaping trouble.
         let temat = T("you have to see this: coffee-paladin")
         let tresc = String(format: T("Hey,\n\nI found something you need on your Mac: coffee-paladin. It watches the chip, GPU and battery temperatures, and when things get hot it pauses heavy jobs and resumes them by itself once the machine cools down.\n\nIt is damn good, because the pause is lossless (the process freezes and continues from the same spot), it sends nothing anywhere, and it is free, open source:\n%@\n\nThe knight with the coffee in the attachment is its mascot.\n\nCheers!"), linkPodajDalej())
             .replacingOccurrences(of: "\\n", with: "\n")
@@ -4577,8 +4593,9 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
         }
     }
 
-    /// Liczby ODWROTNE niz u konkurencji: nie "ile Mac nie spal", tylko ile razy
-    /// bezpiecznik zadzialal. To jedyna statystyka, ktorej apka bez bezpiecznika miec nie moze.
+    /// Show inverse stats versus keep-awake competitors.
+    /// Count not "how long the Mac stayed awake", but how many times the safety net
+    /// acted. This is the one statistic an app without a thermal fuse cannot have.
     @objc func openStats() {
         let snap = readSnap()
         let etykiety: [(String, String)] = [
@@ -4613,9 +4630,9 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
             linie.append(contentsOf: etykiety.map { "\($0.0):  \(sum[$0.1] ?? 0)" })
         }
 
-        // FLOTA: JEDNA liczba na kategorie. Rozbicie per maszyna jest w podmenu
-        // "Flota Apple" po kliknieciu w konkretnego Maca - tam, gdzie i tak sie patrzy,
-        // gdy chce sie wiedziec, ktory z nich sie gotuje.
+        // FLEET: ONE number per category. Per-machine breakdown lives in the "Apple
+        // fleet" submenu after clicking a Mac, where users already look when they want
+        // to know which machine is cooking.
         let flota = fleetStats()
         if flota.count > 1 {
             var razem: [String: Int] = [:]
@@ -4627,8 +4644,8 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
                 linie.append(String(format: T("Across the fleet (%d machines)"), flota.count))
                 linie.append("")
                 linie.append(contentsOf: etykiety.map { "\($0.0):  \(razem[$0.1] ?? 0)" })
-                // Nieaktualne migawki musza byc widoczne, inaczej suma milczy o tym,
-                // ze czesc floty od dawna nic nie mowi.
+                // Stale snapshots must be visible; otherwise the total hides that part
+                // of the fleet has been silent for a long time.
                 let stare = flota.filter { $0.wiek > 300 }
                 if !stare.isEmpty {
                     linie.append("")
@@ -4656,14 +4673,15 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
         if let u = zUTM("https://suppi.pl/panbookovsky") { NSWorkspace.shared.open(u) }
     }
 
-    /// Wyjscie znaczy KONIEC PROGRAMU, nie tylko schowanie ikony: zatrzymujemy demona
-    /// i pasek. Wczesniej "Zamknij pasek" zostawialo demona przy zyciu - to bylo mylace
-    /// w druga strone (ludzie myśleli, ze wylaczyli ochronę, a ona dzialala).
-    /// Teraz etykieta i skutek sa te same, a przed nieodwracalnym krokiem pytamy.
+    /// Quit means END THE PROGRAM, not just hide the icon.
+    /// Stop both daemon and menu bar. "Close the bar" used to leave the daemon alive,
+    /// which misled people in the opposite direction: they thought protection was off
+    /// while it still ran. Now label and effect match, and we ask before the irreversible
+    /// step.
     @objc func quit() {
-        // WLASNE okno, jak przy recznym wstrzymaniu: to najpowazniejsza decyzja
-        // w calym menu, wiec paladyn stoi na srodku, a nie doklejony do lewej
-        // krawedzi jak w NSAlert.
+        // Custom window, as with manual freeze: this is the most serious decision in
+        // the menu, so the paladin stands centered instead of pinned to the left edge
+        // like in NSAlert.
         let SZER: CGFloat = 340, MARG: CGFloat = 20
         let tresc = NSTextField(wrappingLabelWithString:
             T("The daemon and the menu bar both stop. Nothing will pause hot jobs until you start it again."))
@@ -4673,9 +4691,9 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
         tresc.preferredMaxLayoutWidth = SZER - 2 * MARG
         let hTresci = tresc.sizeThatFits(NSSize(width: SZER - 2 * MARG, height: 300)).height
 
-        // Tytul MUSI sie zawijac i miec marginesy. Jednoliniowa etykieta na cala
-        // szerokosc okna ucinala ogon zdania (po polsku gubil sie znak zapytania),
-        // a dluzsze tlumaczenia - rosyjskie i hiszpanskie - straciłyby wiecej.
+        // Title MUST wrap and have margins. A one-line label across the full window
+        // clipped sentence endings; longer Russian and Spanish translations would lose
+        // even more.
         let tytul = NSTextField(wrappingLabelWithString:
             T("Turn off thermal protection for this Mac?"))
         tytul.font = .boldSystemFont(ofSize: 13)
@@ -4712,7 +4730,7 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
         tlo.addSubview(tresc)
 
         y -= 18 + 32
-        // domyslnym klawiszem jest ANULUJ - Enter nie moze wylaczac ochrony
+        // Default key is CANCEL; Enter must not disable protection.
         rzadPrzyciskow(tlo, SZER, y, [T("Quit anyway"), T("Cancel")], domyslny: 1,
                        akcja: #selector(zamknijZamrozenie(_:)))
 
@@ -4721,8 +4739,8 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
         win.orderOut(nil)
         guard wynik.rawValue == 0 else { return }
 
-        // Demon idzie pierwszy - gdyby pasek zginal wczesniej, uzytkownik zostalby
-        // z dzialajaca ochrona i bez zadnego sposobu, zeby ja zobaczyc.
+        // Daemon goes first: if the bar died earlier, the user would be left with active
+        // protection and no way to see it.
         let uid = String(getuid())
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/bin/launchctl")
@@ -4733,14 +4751,14 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
         let b = Process()
         b.executableURL = URL(fileURLWithPath: "/bin/launchctl")
         b.arguments = ["bootout", "gui/\(uid)/pl.pawel.coffee-paladin-bar"]
-        try? b.run()          // nie czekamy: to polecenie ubija nas samych
+        try? b.run()          // Do not wait: this command kills us.
         NSApp.terminate(nil)
     }
 }
 
-// Agenci i skrypty wolaja `heatbar --once`/`--json` odruchowo — bez tej obslugi apka
-// paska wisi bez okna i blokuje automat do timeoutu (tamtej sesji: 2 minuty). Drukujemy
-// migawke guarda (to samo, co pasek czyta co 5 s) i wychodzimy natychmiast (B6).
+// Agents and scripts instinctively call `heatbar --once`/`--json`. Without this handler,
+// the menu bar app waits with no window and blocks automation until timeout. Print the
+// guard snapshot, the same data the bar reads every 5 s, and exit immediately.
 if CommandLine.arguments.contains("--once") || CommandLine.arguments.contains("--json") {
     if let d = FileManager.default.contents(atPath: statusPath),
        let s = String(data: d, encoding: .utf8) {
