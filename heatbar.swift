@@ -16,7 +16,7 @@
 
 import Cocoa
 
-let VERSION = "2.5.1"
+let VERSION = "2.5.2"
 let APPNAME = "coffee-paladin"
 let CODENAME = "Ristretto"
 let SIGNATURE = "\(APPNAME) v\(VERSION) \u{201E}\(CODENAME)\u{201D}  ·  by panbookovsky"
@@ -4770,7 +4770,27 @@ if CommandLine.arguments.contains("--once") || CommandLine.arguments.contains("-
     exit(1)
 }
 
+// The status item must be created in applicationDidFinishLaunching, not before
+// app.run(): created earlier it never appeared in the menu bar on macOS 14
+// (field report: Sonoma 14.2.1, M1 Pro - process alive, windows fine, no item),
+// while macOS 26 tolerated both orders.
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    var bar: Bar?
+    func applicationDidFinishLaunching(_ note: Notification) {
+        bar = Bar()
+        // One line of truth in heatbar.err: does the SYSTEM consider the item
+        // visible? Distinguishes "never attached" from "hidden by the notch or
+        // a menu bar manager" without another debugging round-trip with a user.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
+            guard let item = self?.bar?.item else { return }
+            let line = "statusitem: visible=\(item.isVisible) length=\(item.length) button=\(item.button != nil)\n"
+            FileHandle.standardError.write(line.data(using: .utf8)!)
+        }
+    }
+}
+
 let app = NSApplication.shared
 app.setActivationPolicy(.accessory)   // no Dock icon, no window
-let bar = Bar()
+let appDelegate = AppDelegate()
+app.delegate = appDelegate
 app.run()

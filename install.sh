@@ -172,7 +172,10 @@ fi
 # late. IOHIDEventSystem sensors are blocked on macOS 26 for unprivileged
 # processes - IOReport (macmon) still works. Without macmon the guard does not
 # fail, it only loses chip thresholds and fan readings.
-if command -v macmon >/dev/null 2>&1; then
+# PATH is not the truth here: with a fresh ARM brew the user's shell often still
+# lacks /opt/homebrew/bin, and this check used to warn about a macmon that WAS
+# installed seconds earlier as a brew dependency.
+if command -v macmon >/dev/null 2>&1 || [ -x /opt/homebrew/bin/macmon ] || [ -x /usr/local/bin/macmon ]; then
   echo "  ℹ️  macmon already installed"
 elif command -v brew >/dev/null 2>&1; then
   brew install macmon >/dev/null 2>&1 && echo "  ✅ macmon installed (chip temperature + fans)" \
@@ -326,7 +329,7 @@ if [ -x "$BAR_EXEC" ] && [ -f "$SRC/pl.pawel.coffee-paladin-bar.plist" ]; then
     has_pid "pl.pawel.coffee-paladin-bar" && break
   done
   has_pid "pl.pawel.coffee-paladin-bar" \
-    && echo "  ✅ menu bar is running (🌡 in the top-right corner)" \
+    && echo "  ✅ menu bar is running - look for the THERMOMETER with temperatures in the top-right corner (the shield is only the Finder icon)" \
     || echo "  ⚠️  menu bar did not start - check $BASE/heatbar.err and: launchctl kickstart gui/$UID/pl.pawel.coffee-paladin-bar"
 fi
 
