@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Czy config.json moze OSLEPIC strażnika, ktory dalej melduje, ze dziala.
+"""Ensure config.json cannot blind a guard that still reports itself alive.
 
-Dwa realne sposoby (znalezione 02.08.2026 przez recenzenta bezpieczenstwa):
+Two real failure modes are covered:
 
-1. ZLY TYP. Jedna literowka w liczbie ("cpu_min_percent": "dwadziescia") wywalala
-   TypeError w kazdym cyklu petli. Wyjatek byl lapany, wiec demon zyl - ale
-   status.json przestawal byc zapisywany, nic nie bylo pauzowane, a `heat`
-   pokazywal "coffee-paladin: dziala". Straznik zywy i slepy.
+1. Wrong type. A typo in a number ("cpu_min_percent": "dwadziescia") raised TypeError
+   in every loop cycle. The exception was caught, so the daemon stayed alive, but
+   status.json stopped updating, nothing was paused, and `heat` reported that
+   coffee-paladin was running. The guard was alive and blind.
 
-2. PUSTY STRING na liscie nietykalnych. "" pasuje do KAZDEJ nazwy procesu
-   (bo "" in "cokolwiek" == True), wiec jedna pusta linia w never_extra
-   sprawiala, ze zaden proces nie byl juz kandydatem do pauzy. Bez ostrzezenia.
+2. Empty string on an untouchable list. "" matches every process name because
+   "" in "cokolwiek" is True, so one blank line in never_extra made every process
+   ineligible for pause, with no warning.
 
-Uruchomienie:  python3 tests/test_config_odporny.py
-Pracuje w katalogu tymczasowym - nie dotyka prawdziwego ~/.coffee-paladin.
+Run with:  python3 tests/test_config_odporny.py
+Runs in a temporary directory and does not touch the real ~/.coffee-paladin.
 """
 import importlib.machinery
 import json
@@ -51,7 +51,7 @@ def ustaw(cfg):
 
 print("config.json nie moze oslepic bezpiecznika")
 
-# --- 1. zly typ nie wywala petli ---
+# --- 1. A bad type does not crash the loop ---
 for klucz, smiec in [("cpu_min_percent", "dwadziescia"), ("soc_pause_c", None),
                      ("poll_seconds", []), ("job_cpu_percent", {"a": 1}),
                      ("notify", "tak"), ("never_extra", "ffmpeg")]:
@@ -76,7 +76,7 @@ cfg = ustaw({"soc_pause_c": "88"})
 test("liczba podana jako tekst jest rzutowana, nie odrzucana",
      abs(float(cfg["soc_pause_c"]) - 88.0) < 0.01, "wartosc: %r" % cfg["soc_pause_c"])
 
-# --- 2. pusty string nie oslepia ---
+# --- 2. An empty string does not blind the guard ---
 for klucz in ("never_extra", "never_patterns", "never_arg_patterns"):
     cfg = ustaw({klucz: [""]})
     cele = g.pick_targets(cfg, PROCS, {})
@@ -89,18 +89,18 @@ test("smieci na liscie odfiltrowane, prawdziwy wpis DZIALA",
      len(cele) == 1 and cele[0][2] == "ffmpeg",
      "kandydaci: %s" % [c[2] for c in cele])
 
-# --- 3. wlasne nazwy zawsze chronione ---
+# --- 3. The guard's own process names are always protected ---
 cfg = ustaw({"never_patterns": ["cokolwiek"]})
 test("wlasne nazwy sa dopisywane mimo wlasnej listy uzytkownika",
      all(n in cfg["never_patterns"] for n in g.WLASNE_NAZWY),
      "lista: %s" % cfg["never_patterns"])
 
-# --- 4. nieznane klucze przezywaja (kompatybilnosc w przod) ---
+# --- 4. Unknown keys survive for forward compatibility ---
 cfg = ustaw({"klucz_z_przyszlosci": {"a": [1, 2]}})
 test("nieznany klucz nie jest kasowany", cfg.get("klucz_z_przyszlosci") == {"a": [1, 2]},
      "wartosc: %r" % cfg.get("klucz_z_przyszlosci"))
 
-# --- 5. progi musza rosnac: wznowienie < pauza < ubicie ---
+# --- 5. Thresholds must increase: resume < pause < kill ---
 cfg = ustaw({"soc_resume_c": 95, "soc_pause_c": 85})
 test("wznowienie >= pauzy jest obnizane (inaczej mlynek co cykl)",
      cfg["soc_resume_c"] < cfg["soc_pause_c"],
@@ -116,16 +116,16 @@ test("poprawne progi zostaja nietkniete",
      (cfg["soc_resume_c"], cfg["soc_pause_c"], cfg["soc_kill_c"]) == (70.0, 85.0, 92.0),
      "%s" % [cfg["soc_resume_c"], cfg["soc_pause_c"], cfg["soc_kill_c"]])
 
-# --- 6. wzorce nietykalnych dopasowuja TOZSAMOSC procesu, nie sciezke do danych ---
+# --- 6. Untouchable patterns match process identity, not data paths ---
 wzorce = [w.lower() for w in g.load_cfg()["never_arg_patterns"]]
 
 
 def chroniony(cmd):
-    """Wolamy PRAWDZIWA guard.args_bez_sciezek, nie wlasna kopie jej logiki.
+    """Call the real guard.args_bez_sciezek, not a local copy.
 
-    Kopia stala tu wczesniej i zdazyla sie rozjechac z oryginalem (brala argv[1]
-    zawsze, a produkcja bierze pierwszy argument NIEBEDACY flaga). Test na kopii
-    przechodzi takze wtedy, gdy produkcja jest zepsuta - czyli nie testuje niczego.
+    A previous local copy drifted from production: it always used argv[1], while
+    production uses the first non-flag argument. A test against the copy can pass
+    while production is broken, so it tests nothing.
     """
     stary = g.full_args
     g.full_args = lambda pid, _w=cmd: _w
@@ -155,8 +155,8 @@ for opis, cmd, oczekiwane in [
      "node /usr/lib/node_modules/typescript-language-server/lib/cli.js", True),
     ("rozszerzenie VS Code pozostaje nietykalne",
      "python3 /Users/x/.vscode/extensions/foo/run.py", True),
-    # Twarda lista wersji interpreterow konczyla sie na python3.13, a `python3` na tej
-    # maszynie to juz 3.14 - agent uruchomiony pod pelna nazwa tracil ochrone.
+    # A hard-coded interpreter version list ended at python3.13. With python3.14,
+    # an agent launched under the full name lost protection.
     ("agent pod python3.14 (wersja spoza twardej listy) ZACHOWUJE ochrone",
      "python3.14 /Users/x/claude/agent.py", True),
     ("agent pod /opt/homebrew/bin/python3.14 ZACHOWUJE ochrone",
@@ -164,8 +164,8 @@ for opis, cmd, oczekiwane in [
     ("agent pod przyszla wersja (python3.20) ZACHOWUJE ochrone",
      "python3.20 -m mcp.server", True),
     ("agent pod node20 ZACHOWUJE ochrone", "node20 /opt/claude/mcp-server.js", True),
-    # przypadek PRZECIWNY: rozluznienie listy interpreterow nie moze uczynic
-    # zwyklego enkodera nietykalnym
+    # Countercase: broadening the interpreter list must not make a plain encoder
+    # untouchable.
     ("wideo mielone przez python3.14 nadal jest pauzowalne",
      "python3.14 /Users/x/skrypty/kompresor.py /Users/x/Desktop/claude_brain/rec.mkv", False),
 ]:

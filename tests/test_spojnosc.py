@@ -1,17 +1,17 @@
-"""Spojnosc miedzy plikami - rzeczy, ktore rozjezdzaja sie po kazdej przerobce.
+"""Check cross-file contracts that tend to drift during changes.
 
-Osiem kategorii, kazda z realnej wpadki:
-  1. string wolany przez T() bez wpisu w slowniku -> komunikat po angielsku w polskim UI;
-  2. wersja w czterech miejscach naraz (guard, thermal-report, heatbar, plugin.json);
-  3. narzedzie bez --help: `thermal-report --help` generowal RAPORT na Pulpicie (02.08.2026);
-  4. install.sh tworzy cos, czego uninstall.sh nie usuwa (skill, symlinki, migawka floty);
-  5. guard loguje znacznik, ktorego parser nie zna -> raport dowodowy gubi zdarzenia.
-  6. kopia pokolenia() w guard.py i thermal-report nie moze sie rozjechac;
-  7. parser czasu w czterech narzedziach musi dawac ten sam wynik;
-  8. bundle .app ma byc tworzony i usuwany symetrycznie, bez dotykania /Applications w tescie.
+Eight categories, each from a real failure:
+  1. string passed to T() without a dictionary entry -> English text in non-English UI;
+  2. version must match in four places: guard, thermal-report, heatbar, plugin.json;
+  3. tool without --help: `thermal-report --help` generated a report on Desktop;
+  4. install.sh creates something uninstall.sh does not remove: skill, symlinks, fleet snapshot;
+  5. guard logs a tag unknown to parsers -> evidence report loses events;
+  6. guard.py and thermal-report copies of pokolenia() must not drift;
+  7. timestamp parsers in four tools must return the same result;
+  8. .app bundle must be created and removed symmetrically without touching /Applications.
 
-Uruchomienie:  python3 tests/test_spojnosc.py
-Nie dotyka prawdziwego ~/.coffee-paladin.
+Run with:  python3 tests/test_spojnosc.py
+Does not touch the real ~/.coffee-paladin.
 """
 import ast
 import importlib.machinery
@@ -25,15 +25,13 @@ SRC = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 os.environ["TG_BASE"] = tempfile.mkdtemp()
 bledy = []
 
-# 1. Kazdy string wolany przez T() MA wpis we wszystkich 4 slownikach - w KAZDYM
-#    pliku z wlasnym slownikiem, nie tylko w guard.py. Sprawdzanie samego guarda bylo
-#    dziura: brakujace tlumaczenia w thermal-report i fleet przechodzily bez slowa
-#    (lista otwartych, pozycja 19), a AGENTS.md wymaga piatki EN/PL/RU/ZH/ES wszedzie.
-#    Czytamy AST, nie regex: regex zwracal SUROWY tekst zrodla, wiec "\n## BATTERY\n"
-#    wychodzilo jako backslash+n i nie pasowalo do klucza slownika, ktory ma prawdziwy
-#    znak nowej linii. Pierwsza wersja tej kontroli zglosila z tego powodu 6 nieistniejacych
-#    brakow. AST daje wartosc taka, jaka naprawde zobaczy T() - razem ze sklejaniem
-#    sasiadujacych literalow i escape'ami.
+# 1. Every string passed to T() must have entries in all 4 dictionaries in every
+#    file that owns dictionaries, not only guard.py. Checking only guard.py missed
+#    translations in thermal-report and fleet, while AGENTS.md requires EN/PL/RU/ZH/ES
+#    everywhere. Read AST, not regex: regex returned raw source text, so "\n## BATTERY\n"
+#    appeared as backslash+n and did not match the dictionary key containing a real
+#    newline. AST yields the value T() actually sees, including adjacent literal
+#    concatenation and escapes.
 def wolane_T(tekst):
     wynik = set()
     for w in ast.walk(ast.parse(tekst)):
@@ -52,7 +50,7 @@ for plik in ("guard.py", "thermal-report", "fleet", "heat", "safe-run"):
     mod = importlib.machinery.SourceFileLoader(
         're_' + re.sub(r'\W', '_', plik), sciezka).load_module()
     if not all(hasattr(mod, n) for n in ("PL", "RU", "ZH", "ES")):
-        continue                      # plik bez wlasnych slownikow
+        continue                      # File without its own dictionaries.
     wolane = wolane_T(tresc)
     for nazwa in ("PL", "RU", "ZH", "ES"):
         d = getattr(mod, nazwa)
@@ -62,7 +60,7 @@ for plik in ("guard.py", "thermal-report", "fleet", "heat", "safe-run"):
                          % (plik, nazwa, len(brak), brak[0][:60]))
 zrodlo = io.open(os.path.join(SRC, 'guard.py'), encoding='utf-8').read()
 
-# 2. Wersja jest ta sama we wszystkich czterech miejscach
+# 2. Version is the same in all four places.
 wersje = {}
 wersje['guard.py'] = re.search(r'^GUARD_VERSION = "([^"]+)"', zrodlo, re.M).group(1)
 wersje['thermal-report'] = re.search(r'^VERSION = "([^"]+)"', io.open(os.path.join(SRC,'thermal-report')).read(), re.M).group(1)
@@ -71,23 +69,23 @@ wersje['plugin.json'] = json.load(open(os.path.join(SRC,'.claude-plugin/plugin.j
 if len(set(wersje.values())) != 1:
     bledy.append("wersje sie roznia: %s" % wersje)
 
-# 3. Kazde narzedzie odpowiada na --help
+# 3. Every tool responds to --help.
 for narz in ("heat","safe-run","fleet","thermal-report"):
     s = io.open(os.path.join(SRC,narz)).read()
     if '"--help"' not in s:
         bledy.append("%s nie obsluguje --help" % narz)
 
-# 4. install.sh instaluje to, co uninstall.sh usuwa
+# 4. install.sh installs what uninstall.sh removes.
 inst = io.open(os.path.join(SRC,'install.sh')).read()
 uninst = io.open(os.path.join(SRC,'uninstall.sh')).read()
 for binarka in ("coffee-paladin", "coffee-paladin-bar", "heat", "safe-run", "thermal-report", "fleet", "thermalstate"):
     if '"$BIN/%s"' % binarka not in uninst:
         bledy.append("uninstall.sh nie usuwa %s" % binarka)
 
-# 4b. Bundle .app jest takim samym artefaktem instalacji jak binarki: jesli instalator
-#     stworzy go w dwoch mozliwych lokalizacjach, deinstalator ma zabrac obie. Test jest
-#     statyczny celowo - poprzednie kontrole instalatora odpalane na zywo zostawialy smieci
-#     w prawdziwym HOME i wymagaly recznego sprzatania po nieudanym tescie.
+# 4b. The .app bundle is an installation artifact like binaries. If the installer
+#     can create it in two possible locations, the uninstaller must remove both.
+#     This test is intentionally static: earlier live installer checks left junk in
+#     the real HOME and required manual cleanup after failed tests.
 if ('coffee-paladin.app' not in inst or 'APP_CONTENTS="$APP_BUNDLE/Contents"' not in inst
         or 'APP_MACOS="$APP_CONTENTS/MacOS"' not in inst
         or 'APP_RESOURCES="$APP_CONTENTS/Resources"' not in inst):
@@ -108,11 +106,10 @@ for app in ('"/Applications/coffee-paladin.app"', '"$HOME/Applications/coffee-pa
     if app not in uninst:
         bledy.append("uninstall.sh nie usuwa bundle %s" % app)
 
-# 5. Znaczniki logu uzywane przez guard sa znane wszystkim parserom.
-#    ASERCJA BYLA "GREPEM PO ZRODLE": sprawdzala, czy napis "[PAUSE]" WYSTEPUJE w pliku -
-#    a wiec przechodzila takze wtedy, gdy napis siedzial w komentarzu albo w martwym
-#    kodzie, i wtedy, gdy parser byl zepsuty. Teraz karmimy parsery PRAWDZIWA linia
-#    logu z kazdym znacznikiem i sprawdzamy, czy naprawde ja policzyly (przeglad, poz. 20).
+# 5. Log tags used by guard are known to every parser.
+#    The old assertion was "grep the source": it checked whether "[PAUSE]" appeared
+#    in a file, so it passed when the text was in a comment, dead code, or a broken
+#    parser. Feed parsers a real log line with each tag and verify they counted it.
 tagi = sorted(set(re.findall(r'tag="([A-Z]+)"', zrodlo)))
 try:
     import shutil as _sh5
@@ -128,11 +125,10 @@ try:
     if _stat is not None and not any(v for v in _stat.values()):
         bledy.append("statystyki_dnia nie rozpoznaly ZADNEGO ze znacznikow %s "
                      "- parser logu jest zepsuty albo znaczniki sie rozjechaly" % tagi)
-    # thermal-report: KARMIMY go logiem i sprawdzamy, czy naprawde policzyl kazda linie.
-    # Poprzednia wersja szukala literalu "[PAUSE]" w zrodle - i zglosila falszywy alarm,
-    # bo parser uzywa alternatywy w regexie (\[(PAUSE|RESUME|...)\]), gdzie takiego
-    # ciagu po prostu nie ma. Grep po zrodle myli OBECNOSC NAPISU z DZIALANIEM kodu;
-    # dokladnie o to chodzilo w pozycji 20.
+    # thermal-report: feed it a log and verify it really counted every line.
+    # The previous check searched source for literal "[PAUSE]" and reported a false
+    # alarm because the parser uses a regex alternative (\[(PAUSE|RESUME|...)\]).
+    # Grepping source confuses text presence with code behavior.
     import subprocess as _sp5
     _cel5 = os.path.join(_t5, "raport.txt")
     _sp5.run([sys.executable, os.path.join(SRC, "thermal-report"), "--file", _cel5, "--days", "2"],
@@ -147,9 +143,9 @@ try:
 except Exception as _e5:
     bledy.append("nie moge sprawdzic znacznikow logu: %s: %s" % (type(_e5).__name__, _e5))
 
-# 6. `pokolenia()` istnieje w guard.py i w thermal-report jako CELOWA kopia (narzedzia sa
-#    samodzielne, nie importuja demona) - obie musza dawac ten sam wynik. Kopia logiki to dlug,
-#    ktory zawsze wraca; tu jest przynajmniej pilnowany.
+# 6. `pokolenia()` exists in guard.py and thermal-report as an intentional copy because
+#    tools are standalone and do not import the daemon. Both must return the same result.
+#    Copied logic is debt that returns; at least this keeps it watched.
 try:
     import shutil as _sh
     import tempfile as _tf
@@ -169,10 +165,10 @@ try:
 except Exception as _e:
     bledy.append("nie moge porownac pokolenia(): %s: %s" % (type(_e).__name__, _e))
 
-# 7. parser stempla czasu zyje w CZTERECH plikach jako celowa kopia (guard.czas_abs,
-#    thermal-report.czas_z, heat.czas_abs, safe-run.czas_abs). Wszystkie musza dawac ten
-#    sam wynik, w tym na stemplu z offsetem, legacy i na smieciu - inaczej jedno narzedzie
-#    po cichu pominie kazdy swiezy wiersz history.csv.
+# 7. Timestamp parser lives in four files as an intentional copy: guard.czas_abs,
+#    thermal-report.czas_z, heat.czas_abs, safe-run.czas_abs. All must return the same
+#    result for offset, legacy, and junk timestamps, or one tool silently skips every
+#    fresh history.csv row.
 try:
     _probki = ["2026-08-02 23:30:00+0200", "2026-08-02 23:30:00", "2026-08-02 23:30:00-0800",
                "xyzzy", "", "2026-13-45 99:99:99"]

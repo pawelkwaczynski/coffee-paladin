@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Czy safe-run naprawde odmawia startu na goracej maszynie.
+"""Verify that safe-run refuses to start on a hot machine.
 
-Powod powstania (02.08.2026): safe-run pytal wylacznie o ProcessInfo.thermalState
-i o temperature baterii. Na Apple Silicon thermalState potrafi pokazywac "nominal",
-gdy chip ma 92 C — system uznaje, ze radzi sobie wentylatorami. Efekt: safe-run
-wystartowal zadanie na maszynie, na ktorej guard pauzowal ffmpeg co kilkanascie
-sekund. Test pilnuje, zeby decyzja opierala sie na tym, co guard NAPRAWDE mierzy.
+safe-run used to check only ProcessInfo.thermalState and battery temperature. On
+Apple Silicon, thermalState can report "nominal" while the chip is 92 C because the
+system considers fans sufficient. That let safe-run start a job on a Mac where the
+guard paused ffmpeg every several seconds. This test keeps the decision based on
+what the guard actually measures.
 
-Uruchomienie:  python3 tests/test_safe_run_hot.py
-Nie dotyka prawdziwego ~/.coffee-paladin — pracuje w katalogu tymczasowym.
+Run with:  python3 tests/test_safe_run_hot.py
+Does not touch the real ~/.coffee-paladin; it works in a temporary directory.
 """
 import importlib.machinery
 import json

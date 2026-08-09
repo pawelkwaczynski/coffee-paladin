@@ -1,35 +1,31 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Trzy defekty wznowienia, znalezione na ZYWYM Macu Pawla 04.08.2026.
+"""Verify three resume defects found on a live Mac.
 
-Dzien wygladal tak: 15 pauz, ZERO wznowien, cztery zadania ubite SIGTERM-em.
-Zaden test tego nie lapal, bo kazdy z trzech mechanizmow z osobna wygladal poprawnie.
+A bad day had 15 pauses, zero resumes, and four jobs killed by SIGTERM. Existing tests
+missed it because each mechanism looked correct in isolation.
 
-1. BRAMKA WZNOWIENIA BRALA ZAKLADNIKA. Pauze wywolywal DOWOLNY czujnik, ale wznowienie
-   blokowal KAZDY. Bateria stygnie kilka minut i przy dlugim kodowaniu trzyma ~37 C,
-   wiec przy progach chipa 95/87 pauza WYWOLANA CHIPEM nie konczyla sie nigdy: chip
-   schodzil do 71 C w 20 sekund, a bateria - trzy stopnie ponizej wlasnego progu 40 C,
-   ktorego nigdy nie przekroczyla - trzymala zadanie w stanie T az do egzekucji.
-   Lek: zatrzask per czujnik (zapala sie na wlasnym progu pauzy, gasnie na wlasnym
-   progu wznowienia).
+1. Resume gate took a hostage. Any sensor could trigger pause, but every sensor could
+   block resume. Battery cools over minutes and can sit around ~37 C during long encodes,
+   so with chip thresholds 95/87 a chip-triggered pause never ended: chip dropped to 71 C
+   in 20 seconds, while battery, three degrees below its own 40 C pause threshold that it
+   never crossed, kept the job in state T until termination. Fix: latch per sensor, set at
+   its own pause threshold and clear at its own resume threshold.
 
-2. GUARD UFAL WLASNEJ NOTATCE, NIE SYSTEMOWI. Wpis w `paused` mowi tylko, ze kiedys
-   poszedl SIGSTOP. Proces obudzony recznie (`kill -CONT`) albo przez duty-limiter
-   safe-run pracowal pelna para, a jego wpis dalej sie postarzal - i po 45 minutach
-   dostawal SIGTERM w polowie roboty. Tak zginal pomiar o 20:27, dwadziescia piec minut
-   po tym, jak Pawel wznowil go recznie o 20:02.
-   Lek: ubijamy tylko to, co `ps` pokazuje jako zatrzymane; reszte wpisow kasujemy.
+2. Guard trusted its note, not the system. A `paused` entry only says SIGSTOP was sent
+   at some point. A process manually resumed with `kill -CONT` or resumed by safe-run's
+   duty limiter could run at full power while its entry kept aging, then receive SIGTERM
+   mid-job after 45 minutes. Fix: terminate only what `ps` shows as stopped, and delete
+   the other entries.
 
-3. BLOKADA LIMITERA PATRZYLA NA ZLY PID. `guard_paused(proc.pid)` pytalo o lidera grupy,
-   a guard mrozi ten proces, ktory GRZEJE - czyli dziecko (ffmpeg). Odpowiedz brzmiala
-   "nie, guard tego nie pauzowal", wiec mikro-pauza limitera konczyla sie
-   `killpg(SIGCONT)` i budzila cala grupe razem z tym, co bezpiecznik przed chwila
-   zamrozil. To dlatego ffmpeg "wznowil sie sam" o 19:42, a Python i 7zz puszczone
-   nohupem zostaly w stanie T.
-   Lek: pytanie o CALA GRUPE procesow, nie o goly pid.
+3. Limiter lock checked the wrong pid. `guard_paused(proc.pid)` asked about the group
+   leader, while the guard freezes the process producing heat, often child ffmpeg. The
+   answer was "no, guard did not pause this", so the limiter's micro-pause ended with
+   `killpg(SIGCONT)` and woke the whole group, including what the guard had just frozen.
+   Fix: ask about the whole process group, not a bare pid.
 
-Uruchomienie:  python3 tests/test_wznowienie.py
-Nie dotyka prawdziwego ~/.coffee-paladin - pracuje w katalogu tymczasowym.
+Run with:  python3 tests/test_wznowienie.py
+Does not touch the real ~/.coffee-paladin; it works in a temporary directory.
 """
 import importlib.machinery
 import json
@@ -63,11 +59,11 @@ def test(nazwa, warunek, szczegol=""):
 
 
 def grupa_z_dzieckiem():
-    """Lider + dziecko w JEDNEJ grupie procesow - tak wyglada zadanie pod safe-run.
+    """Start a leader plus child in one process group, matching safe-run jobs.
 
-    Nie da sie tego zlozyc dwoma Popenami: proces moze dolaczyc tylko do grupy
-    z WLASNEJ sesji, a `start_new_session` daje kazdemu osobna. Robi to powloka:
-    jest liderem sesji i grupy, a jej dzieci dziedzicza grupe.
+    Two Popen calls cannot assemble this: a process can only join a group from its own
+    session, while `start_new_session` gives each one a separate session. The shell is
+    the session and group leader, and its children inherit the group.
     """
     lider = subprocess.Popen(["bash", "-c", "sleep 600 & sleep 600"],
                              start_new_session=True)
@@ -84,11 +80,11 @@ def grupa_z_dzieckiem():
 
 
 def sprzatnij():
-    """Po tescie nie zostaje ANI JEDEN proces - takze dzieci powloki-lidera.
+    """Leave no process after the test, including children of the shell leader.
 
-    Zabicie samego lidera zostawialo osierocone `sleep`, bo dzieci maja wlasne pidy.
-    Sygnal idzie do CALEJ grupy, a przed nim SIGCONT: zatrzymany proces nie obsluzy
-    SIGTERM-a, wiec bez wznowienia zostalby w pamieci na zawsze.
+    Killing only the leader leaves orphaned `sleep` processes because children have
+    their own pids. Signal the whole group, preceded by SIGCONT: a stopped process will
+    not handle SIGTERM, so without resume it could remain forever.
     """
     moja_grupa = os.getpgid(0)
     for p in sprzataj:
@@ -96,10 +92,10 @@ def sprzatnij():
             pgid = os.getpgid(p.pid)
         except OSError:
             pgid = None
-        # NIGDY do wlasnej grupy. Procesy startowane bez `start_new_session` siedza
-        # w grupie testu, wiec `killpg` zabijalby takze sam test - i zabijal:
-        # bateria zwracala rc=137 (SIGKILL) zamiast wyniku. Dokladnie ten gatunek
-        # bledu, ktory ten plik testuje: sygnal grupowy trafia szerzej, niz sie wydaje.
+        # Never signal our own group. Processes started without `start_new_session`
+        # sit in the test group, so killpg would also kill the test itself. That is
+        # exactly the class of bug this file tests: group signals reach wider than
+        # they seem.
         if pgid is not None and pgid != moja_grupa:
             for sygnal in (signal.SIGCONT, signal.SIGKILL):
                 try:
@@ -118,10 +114,10 @@ def sprzatnij():
     shutil.rmtree(BASE, ignore_errors=True)
 
 
-# ---------------------------------------------------------------- 1. zatrzask czujnika
+# ---------------------------------------------------------------- 1. sensor latch
 print("1. czujnik blokuje wznowienie tylko wtedy, gdy sam kazal pauzowac")
-PAUZA_B, WZNOW_B = 40.0, 36.0          # bateria: progi Pawla
-PAUZA_C, WZNOW_C = 95.0, 87.0          # chip: progi Pawla pod kolejke kompresji
+PAUZA_B, WZNOW_B = 40.0, 36.0          # Battery thresholds.
+PAUZA_C, WZNOW_C = 95.0, 87.0          # Chip thresholds for compression queue.
 
 st = {}
 test("bateria 36,7 C (ponizej wlasnego progu 40) NIE blokuje - to jest ten defekt",
@@ -132,7 +128,7 @@ test("bateria 37,9 C (dzisiejszy szczyt) tez nie blokuje",
 test("bateria 39,9 C - dalej ponizej progu, dalej nie blokuje",
      g.zatrzask_czujnika(st, "_batt_hot", 39.9, PAUZA_B, WZNOW_B) is False)
 
-# ...ale gdy bateria NAPRAWDE przekroczy swoj prog, histereza ma dzialac po staremu
+# But when battery really crosses its threshold, hysteresis must work as before.
 st = {}
 test("bateria 41 C zapala zatrzask",
      g.zatrzask_czujnika(st, "_batt_hot", 41.0, PAUZA_B, WZNOW_B) is True)
@@ -154,9 +150,8 @@ test("brak odczytu baterii gasi zatrzask (jak w kodzie sprzed zmiany: None = nie
      g.zatrzask_czujnika(st, "_batt_hot", None, PAUZA_B, WZNOW_B) is False)
 
 
-# CALA BRAMKA - przez `bramka_wznowienia()`, czyli DOKLADNIE ta funkcje, ktora wykonuje
-# demon. Wczesniej test mial wlasna kopie tego warunku i przechodzilby takze wtedy, gdyby
-# ktos zepsul oryginal w petli (uwaga z recenzji, runda 2).
+# The whole gate goes through `bramka_wznowienia()`, exactly the function the daemon
+# executes. A local copy of this condition would pass even if the loop's original broke.
 CFG = {"batt_pause_c": PAUZA_B, "batt_resume_c": WZNOW_B,
        "soc_pause_c": PAUZA_C, "soc_resume_c": WZNOW_C}
 
@@ -173,13 +168,13 @@ test("brak czujnika chipa nie blokuje wznowienia",
 test("stan systemowy 'serious' blokuje niezaleznie od temperatur",
      g.bramka_wznowienia(CFG, st, 30.0, 50.0, "serious") is False)
 
-# dokladnie sytuacja z 19:42:38 -> 19:43
+# Exact 19:42:38 -> 19:43 situation.
 st = {}
 test("w chwili pauzy (chip 95,2 / bateria 36,7) NIE wznawiamy",
      g.bramka_wznowienia(CFG, st, 36.7, 95.2, "nominal") is False)
 test("20 sekund pozniej (chip 71,2 / bateria 36,6) WZNAWIAMY - przed poprawka NIE",
      g.bramka_wznowienia(CFG, st, 36.6, 71.2, "nominal") is True)
-# a gdy bateria NAPRAWDE sie zagotuje, bramka ma trzymac tak jak dawniej
+# When battery really overheats, the gate must hold as before.
 test("bateria 41 C przy zimnym chipie WSTRZYMUJE wznowienie (ochrona ogniw zostaje)",
      g.bramka_wznowienia(CFG, st, 41.0, 60.0, "nominal") is False)
 test("bateria 37 C po zagotowaniu DALEJ trzyma (zatrzask, prog wznowienia to 36)",
@@ -187,7 +182,7 @@ test("bateria 37 C po zagotowaniu DALEJ trzyma (zatrzask, prog wznowienia to 36)
 test("bateria 35,5 C gasi zatrzask i wznawiamy",
      g.bramka_wznowienia(CFG, st, 35.5, 60.0, "nominal") is True)
 
-# ------------------------------------------------------- 2. ubijamy tylko to, co stoi
+# ------------------------------------------------------- 2. terminate only stopped processes
 print("\n2. SIGTERM po limicie czasu leci tylko w proces, ktory naprawde stoi")
 p = subprocess.Popen(["sleep", "600"])
 sprzataj.append(p)
@@ -209,8 +204,8 @@ test("po SIGCONT (reczne wznowienie Pawla o 20:02): wpis_stoi() = False",
      stoi(p.pid) is False)
 test("martwy pid nie liczy sie jako zatrzymany", stoi(999999) is False)
 
-# GRUPA: lider chodzi, ale dziecko z jego grupy stoi - wpisu kasowac NIE WOLNO,
-# bo to jedyna notatka, przez ktora ktokolwiek moze to dziecko wznowic (uwaga z recenzji).
+# Group case: leader runs, but a child in its group is stopped. Do not delete the
+# entry, because it is the only note anyone can use to resume that child.
 lider2, pgid2, dzieci2 = grupa_z_dzieckiem()
 test("grupa testowa ma dziecko (inaczej ten scenariusz nic nie sprawdza)",
      len(dzieci2) >= 1, "dzieci: %s" % dzieci2)
@@ -226,7 +221,7 @@ if dzieci2:
     test("cala grupa chodzi -> wpis do skasowania",
          stoi(lider2.pid, wpis_grupowy) is False)
 
-# filtr przeterminowanych - ta sama arytmetyka co w petli
+# Expired filter: same arithmetic as the loop.
 stary = {"since": g.now() - 60 * 60, "since_mono": time.monotonic() - 60 * 60,
          "mono_id": g._MONO_ID, "comm": "Python", "manual": False}
 paused = {str(p.pid): stary}
@@ -249,9 +244,9 @@ test("...i wtedy NIE kasujemy go jako nieaktualnego",
      g.wpisy_nieaktualne(paused, g.zatrzymane_teraz()) == [])
 os.kill(p.pid, signal.SIGCONT)
 
-# NIEUDANY POMIAR `ps` (None) nie moze uruchamiac zadnej z tych dwoch egzekucji.
-# Przed poprawka pusty wynik znaczyl "nic nie stoi": guard skasowalby wpis zamrozonego
-# zadania i zostawil je w stanie T bez notatki (uwaga z recenzji, runda 2).
+# A failed `ps` measurement (None) must not trigger either execution path. Empty output
+# used to mean "nothing is stopped", so the guard would delete a frozen job's entry and
+# leave it in state T without a note.
 os.kill(p.pid, signal.SIGSTOP)
 time.sleep(0.3)
 test("ps niedostepny -> nie kasujemy zadnego wpisu", g.wpisy_nieaktualne(paused, None) == [])
@@ -265,7 +260,7 @@ finally:
     g.run = _stary_run
 os.kill(p.pid, signal.SIGCONT)
 
-# ------------------------------------------------- 3. blokada limitera zna cala grupe
+# ------------------------------------------------- 3. limiter lock knows the whole group
 print("\n3. limiter nie budzi grupy, w ktorej guard cos zamrozil")
 lider, grupa, dzieci = grupa_z_dzieckiem()
 test("grupa testowa ma dziecko (tak wyglada ffmpeg pod safe-run)", len(dzieci) >= 1,
@@ -287,9 +282,9 @@ json.dump({"paused": {str(lider.pid): {"pgid": grupa, "comm": "sleep"}}}, open(s
 test("guard zamrozil lidera wprost - dalej dziala jak przedtem",
      sr.guard_paused(lider.pid) is True)
 
-# ZYWY, CUDZY proces z zapisanym pgid rownym naszemu: notatka klamie, system mowi prawde.
-# Bez sprawdzenia `os.getpgid(wpis)` limiter czekalby w nieskonczonosc na decyzje guarda,
-# ktora jego nie dotyczy - i zostawil WLASNE zadanie w stanie T (uwaga z recenzji, runda 2).
+# Live foreign process with a recorded pgid equal to ours: the note lies, the system
+# tells the truth. Without checking `os.getpgid(entry)`, the limiter would wait forever
+# for an unrelated guard decision and leave its own job in state T.
 obcy = subprocess.Popen(["sleep", "600"], start_new_session=True)
 sprzataj.append(obcy)
 time.sleep(0.3)
@@ -301,12 +296,12 @@ json.dump({"paused": {}}, open(stan, "w"))
 test("nic nie zamrozone - limiter pracuje normalnie",
      sr.guard_paused(lider.pid) is False)
 
-# MARTWY WPIS + recykling numeru grupy nie moze zawiesic limitera na zawsze
+# Dead entry plus recycled group number cannot hang the limiter forever.
 json.dump({"paused": {"999999": {"pgid": grupa, "comm": "ffmpeg"}}}, open(stan, "w"))
 test("wpis po nieistniejacym procesie nie blokuje limitera (recykling pgid)",
      sr.guard_paused(lider.pid) is False)
 
-# nieswieza migawka znaczy "nie ma komu decydowac" - ta zasada ma zostac nietknieta
+# Stale snapshot means "nobody can decide"; keep that rule intact.
 json.dump({"paused": {str(DZIECKO): {"pgid": grupa}}}, open(stan, "w"))
 os.utime(stan, (time.time() - 600, time.time() - 600))
 test("martwy demon (migawka sprzed 10 min) nie trzyma zadania zamrozonego",

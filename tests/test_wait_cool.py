@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""safe-run --wait-cool: czekanie na ochlodzenie zamiast cichej odmowy startu.
+"""Verify safe-run --wait-cool waits for cooling instead of silently refusing start.
 
-Powod powstania (08.08.2026): safe-run dwa razy jednej nocy odmowil startu na
-goracym chipie (91,8 C i 90,8 C) i nikt tego nie zauwazyl - zadanie po prostu
-sie nie odbylo, a odmowa utonela w dlugim logu. Flaga --wait-cool zamienia
-odmowe na czekanie do progu WZNOWIENIA guarda.
+safe-run refused to start twice on a hot chip (91.8 C and 90.8 C), and nobody
+noticed; the job simply did not happen because the refusal was buried in a long log.
+The --wait-cool flag turns refusal into waiting for the guard's resume threshold.
 
-Uruchomienie:  python3 tests/test_wait_cool.py
-Nie dotyka prawdziwego ~/.coffee-paladin - pracuje w katalogu tymczasowym.
+Run with:  python3 tests/test_wait_cool.py
+Does not touch the real ~/.coffee-paladin; it works in a temporary directory.
 """
 import contextlib
 import importlib.machinery
@@ -92,13 +91,13 @@ chip, prog, lvl = sr.chip_odczyt()
 test("brak migawki: chip nieznany, prog z configu",
      chip is None and prog == 87.0, "chip=%s prog=%s" % (chip, prog))
 
-# --- petla czekania (podmieniamy zrodla pomiarow, liczymy drzemki) ---
+# --- wait loop; replace measurement sources and count sleeps ---
 prawdziwe = (sr.thermal_state, sr.batt_temp, sr.chip_odczyt, sr.time.sleep)
 drzemki = []
 
 
 def czekaj(sekwencja_chip, stan="nominal", bateria=30.0, sekwencja_lvl=None):
-    """Uruchamia czekanie na sekwencji odczytow chipa; zwraca (wynik, ile_drzemek)."""
+    """Run the wait loop over chip readings and return (result, sleep_count)."""
     drzemki.clear()
     licznik = {"i": 0}
 
@@ -138,7 +137,7 @@ test("level>=2 guarda trzyma czekanie mimo chlodnego chipa (dlawienie/bateria)",
      ile == 2 and "guard level 2" in tekst,
      "drzemki=%d %s" % (ile, tekst.strip()[:80]))
 
-# goraca bateria trzyma czekanie mimo chlodnego chipa, stygnaca je konczy
+# Hot battery keeps waiting despite a cool chip; cooling battery ends it.
 licznik_bat = {"i": 0}
 
 
@@ -161,7 +160,7 @@ test("goraca bateria trzyma czekanie mimo chlodnego chipa, stygnaca konczy",
      len(drzemki) == 2 and "batt 41.0" in out_bat.getvalue(),
      "drzemki=%d %s" % (len(drzemki), out_bat.getvalue().strip()[:80]))
 
-# --- routing w main(): bez flagi = odmowa rc 3, zanim cokolwiek wystartuje ---
+# --- main() routing: without flag, refusal rc 3 before anything starts ---
 migawka(92.0)
 sys.argv = ["safe-run", "--", "true"]
 with contextlib.redirect_stdout(io.StringIO()) as out:

@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""fleet: nie ucinaj problemow, nie udawaj zdrowia, nie wywalaj sie (pozycje 16, 17, 18).
+"""Ensure fleet does not truncate issues, fake health, or traceback on bad CLI input.
 
-  * poz. 16 - "STALE - not reporting" konczylo sie `return out`, wiec UCINALO wszystkie
-    pozostale problemy hosta. Mac, ktory PADL TWARDO przy chipie 98,7 C i nie wstal,
-    pokazywal w kolumnie ISSUES wylacznie "nie raportuje". Najwazniejsza informacja
-    z calej floty znikala za najmniej wazna.
-  * poz. 17 - migawka z samymi nieskonczonosciami raportowana byla jako ZDROWA maszyna:
-    `float("nan") >= 2` to False, wiec host z chip_c=inf i level=NaN pokazywal "calm".
-  * poz. 18 - `--dir` i `--set-dir` bez argumentu dawaly surowy traceback.
+  * item 16 - "STALE - not reporting" used to end with `return out`, truncating all
+    other host issues. A Mac that hard-shutdown at chip 98.7 C and did not come back
+    showed only "not reporting" in ISSUES. The most important fleet fact disappeared
+    behind the least important one.
+  * item 17 - a snapshot full of infinities was reported as healthy: `float("nan") >= 2`
+    is False, so a host with chip_c=inf and level=NaN showed "calm".
+  * item 18 - `--dir` and `--set-dir` without an argument produced a raw traceback.
 
-Uruchomienie:  python3 tests/test_fleet_problemy.py
-Nie dotyka prawdziwego ~/.coffee-paladin.
+Run with:  python3 tests/test_fleet_problemy.py
+Does not touch the real ~/.coffee-paladin.
 """
 import io
 import json
@@ -38,8 +38,8 @@ def test(nazwa, warunek, detal=""):
 
 
 def migawka(nazwa, wiek_s=0, **pola):
-    # wiek_s starzeje TRESC migawki (pola time/epoch), nie tylko mtime: od poprawki
-    # "wiek z tresci" fleet ufa wnetrzu pliku, bo mtime w iCloud klamie (07.08.2026).
+    # wiek_s ages the snapshot content (time/epoch), not just mtime. Fleet trusts
+    # the file content because iCloud mtime lies.
     t0 = time.time() - wiek_s
     d = {"host": nazwa, "time": time.strftime("%Y-%m-%d %H:%M:%S%z", time.localtime(t0)),
          "epoch": round(t0, 3),
@@ -64,7 +64,7 @@ def czysc():
         os.remove(os.path.join(FLOTA, n))
 
 
-# ---------------------------------------------------------------- poz. 16
+# ---------------------------------------------------------------- item 16
 print("=== poz. 16: 'nie raportuje' nie moze ucinac reszty problemow ===")
 czysc()
 migawka("Neo", wiek_s=3600, chip_c=98.7, level=3, thermal_state="critical",
@@ -76,7 +76,7 @@ test("2. ...ale twardy pad NIE znika za tym oznaczeniem", "hard shutdown" in out
 test("3. ...ani goraco", "HOT" in out, "brak informacji o 99 C")
 test("4. ...ani martwe wentylatory", "fans dead" in out)
 
-# ---------------------------------------------------------------- poz. 17
+# ---------------------------------------------------------------- item 17
 print("\n=== poz. 17: migawka bez sensu to nie zdrowa maszyna ===")
 czysc()
 migawka("TylkoChip", chip_c=float("inf"), battery_c=30.0)
@@ -97,7 +97,7 @@ test("7. liczba maszyn wymagajacych uwagi to 3, nie 4",
      "3 machine(s) need attention" in out,
      [l for l in out.splitlines() if "need attention" in l])
 
-# ---------------------------------------------------------------- poz. 18
+# ---------------------------------------------------------------- item 18
 print("\n=== poz. 18: flagi bez argumentu ===")
 for flaga in ("--dir", "--set-dir"):
     rc, out, err = uruchom(flaga)
@@ -105,7 +105,7 @@ for flaga in ("--dir", "--set-dir"):
          rc != 0 and "Traceback" not in err and err.strip(),
          "rc=%d err=%r" % (rc, err[:80]))
 
-# przypadek przeciwny: z argumentem dziala
+# Countercase: it works with an argument.
 czysc()
 migawka("OK", chip_c=45.0)
 rc, out, err = uruchom("--dir", FLOTA)

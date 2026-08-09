@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Dane paladyna nie moga byc czytelne dla innych kont na tym Macu.
+"""Ensure paladin data is not readable by other accounts on this Mac.
 
-Powod (02.08.2026): katalog danych powstawal z prawami 0755, a `config.json` 0644.
-Na Macu z kilkoma kontami kazdy lokalny uzytkownik mogl przeczytac `ntfy_topic` -
-czyli, jak mowi wlasna dokumentacja narzedzia, JEDYNE zabezpieczenie powiadomien:
-kto zna temat, czyta cudze alerty i moze wysylac falszywe. W `managed/` leza
-dodatkowo pelne linie polecen zadan (sciezki projektow, nazwy plikow).
+The data directory used to be created as 0755 and `config.json` as 0644. On a Mac
+with multiple accounts, any local user could read `ntfy_topic`, the only protection
+for notifications: anyone who knows the topic can read alerts and send fake ones.
+`managed/` also contains full job command lines, including project paths and file names.
 
-Uruchomienie:  python3 tests/test_uprawnienia.py
-Pracuje w katalogu tymczasowym - nie dotyka prawdziwego ~/.coffee-paladin.
+Run with:  python3 tests/test_uprawnienia.py
+Works in a temporary directory and does not touch the real ~/.coffee-paladin.
 """
 import importlib.machinery
 import json
@@ -49,7 +48,7 @@ g.ensure_dirs()
 test("swiezy katalog danych: 0700", prawa(BASE) == 0o700, oct(prawa(BASE)))
 test("swiezy managed/: 0700", prawa(g.MANAGED_DIR) == 0o700, oct(prawa(g.MANAGED_DIR)))
 
-# istniejaca instalacja ze zlymi prawami musi zostac zaciesniona przy starcie
+# Existing installs with bad permissions must be tightened on startup.
 os.chmod(BASE, 0o755)
 os.chmod(g.MANAGED_DIR, 0o755)
 json.dump({"ntfy_topic": "sekret-123"}, open(g.CFG_PATH, "w"))

@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-"""Regresja B2 (01.08.2026): node chroniony po LINII POLECEN, nie po nazwie.
+"""Verify that node is protected by command line, not by process name.
 
-Po incydencie SIGTTIN (Neo, 31.07) node/npm/npx/bun/deno trafily do never_patterns
-po nazwie - skutek uboczny: ciezki build w Node byl nietykalny, czyli dokladnie
-ten przypadek, dla ktorego narzedzie powstalo (wyszlo w przegladzie). Teraz:
-  - zwykly `node build.js` JEST pauzowalny,
-  - proces z claude/codex/mcp/language-server/.vscode w argumentach jest nietykalny,
-  - interaktywne sesje chroni skip_foreground_tty niezaleznie od nazwy.
+After a SIGTTIN incident, node/npm/npx/bun/deno were added to never_patterns by
+name. That also made heavy Node builds untouchable, exactly the workload the guard
+must be able to pause. The intended contract is:
+  - plain `node build.js` is pausable,
+  - a process with claude/codex/mcp/language-server/.vscode in argv is untouchable,
+  - skip_foreground_tty protects interactive sessions regardless of name.
 
-Testy wolaja PRAWDZIWE pick_targets na zywych procesach (ps widzi ich argumenty).
+These tests call the real pick_targets on live processes so `ps` sees their argv.
 
-Uruchomienie:  python3 testy/test_b2_node.py
+Run with:  python3 testy/test_b2_node.py
 """
 import os
 import subprocess
@@ -35,21 +35,24 @@ CFG = dict(
     guard.DEFAULTS,
     cpu_min_percent=20.0,
     count_children=False,
-    # w tescie procesy sa mlode - wylaczamy prog wieku, testujemy WZORCE, nie wiek
+    # Test processes are young; disable the age gate so this checks patterns only.
     unknown_min_seconds=0,
     skip_foreground_tty=True,
 )
 
 
 def spawn(*args):
-    """Zywy proces w tle (wlasna grupa - nie jest pierwszoplanowy na zadnym tty)."""
+    """Start a live background process in its own non-foreground process group."""
     return subprocess.Popen(["python3", "-c", "import time; time.sleep(120)", *args],
                             stdout=subprocess.DEVNULL, start_new_session=True)
 
 
 def spawn_skrypt(podkatalog):
-    """Interpreter uruchamiajacy SKRYPT z podanej sciezki - realna postac serwera MCP
-    czy language servera (`node /Users/x/.claude/mcp/server.js`). Zwraca (proces, katalog)."""
+    """Start an interpreter running a script path and return (process, directory).
+
+    This matches a real MCP server or language server command such as
+    `node /Users/x/.claude/mcp/server.js`.
+    """
     import tempfile
     kat = tempfile.mkdtemp()
     sciezka = os.path.join(kat, podkatalog)
@@ -64,11 +67,10 @@ def main():
     procesy = []
     kat_agenta = None
     try:
-        build = spawn("build.js")          # udaje: node build.js
-        # realna postac serwera MCP: interpreter + SCIEZKA DO SKRYPTU. (Wczesniej sciezka
-        # stala na koncu, za kodem `-c`; taka linia polecen nie wystepuje w naturze,
-        # a od 02.08 argumenty-dane nie daja juz nietykalnosci - tozsamosc niesie
-        # nazwa programu i uruchamiany skrypt, nie to, co proces przetwarza.)
+        build = spawn("build.js")          # Pretend to be: node build.js.
+        # A real MCP server is an interpreter plus a script path. Putting the path
+        # after `-c` does not occur in normal commands. Identity comes from the
+        # program name and executed script, not from data the process handles.
         agent, kat_agenta = spawn_skrypt(".claude/mcp/server.py")
         procesy = [build, agent]
         import time
@@ -106,7 +108,7 @@ def main():
             p.wait()
         import shutil
         if kat_agenta:
-            shutil.rmtree(kat_agenta, ignore_errors=True)   # katalog z atrapa serwera MCP
+            shutil.rmtree(kat_agenta, ignore_errors=True)   # Fake MCP server directory.
 
     padniete = [n for n, ok in WYNIKI if not ok]
     print("\nWYNIK: %d/%d" % (len(WYNIKI) - len(padniete), len(WYNIKI)))

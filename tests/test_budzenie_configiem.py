@@ -1,23 +1,21 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Przelacznik ochrony musi dzialac od razu, a nie po pelnym takcie petli.
+"""Ensure the protection switch reacts immediately, not after a full loop tick.
 
-Zglosil Pawel 03.08.2026: "switch pause job / watch only dziala strasznie wolno".
-Przyczyna znaleziona w kodzie: przerywalna drzemka demona budzila sie na flage stopu,
-na plik-rozkaz `command` i na zmiane `awake.json` — ale NIE na zmiane `config.json`.
-A przelacznik ochrony (`dry_run`) idzie wlasnie configiem, bo pasek pisze go przez
-`GuardCfg.set`. Jako jedyna reczna akcja nie mial wiec sciezki na wybudzenie petli
-i czekal caly takt: przy suwaku interwalu ustawionym na 30 s wygladalo to jak
-zawieszony przelacznik.
+The daemon's interruptible sleep woke on the stop flag, a `command` file, and changes
+to `awake.json`, but not on changes to `config.json`. The protection switch (`dry_run`)
+is stored in config because the menu bar writes it through `GuardCfg.set`. As the only
+manual action without a wake path, it waited for the whole tick; at a 30 s interval that
+looked like a stuck switch.
 
-Ten test NIE czyta kodu ani logu w poszukiwaniu napisow — mierzy CZAS reakcji
-prawdziwego demona z interwalem ustawionym na 20 s. Przed poprawka reakcja przychodzi
-po ~20 s, po poprawce ponizej sekundy.
+This test measures reaction time in a real daemon with a 20 s interval. It does not grep
+code or logs for strings. Before the fix the reaction took ~20 s; after it is below one
+second.
 
-Demon dziala w izolacji (TG_BASE) i w trybie obserwacji, wiec nie dotyka procesow
-uzytkownika. Nie dotyka prawdziwego ~/.coffee-paladin.
+The daemon runs isolated under TG_BASE and in watch-only mode, so it does not touch user
+processes or the real ~/.coffee-paladin.
 
-Uruchomienie:  python3 tests/test_budzenie_configiem.py
+Run with:  python3 tests/test_budzenie_configiem.py
 """
 import io
 import json
@@ -34,8 +32,8 @@ BASE = tempfile.mkdtemp(prefix="tg-budzenie-")
 os.environ["TG_BASE"] = BASE
 os.environ["TG_LANG"] = "en"
 
-INTERWAL = 20.0          # duzy, zeby roznica miedzy "od razu" a "po takcie" byla jednoznaczna
-PROG_SZYBKO = 5.0        # z ogromnym zapasem ponizej INTERWAL, a i tak 4x powyzej realnej reakcji
+INTERWAL = 20.0          # Large enough to distinguish "now" from "after one tick".
+PROG_SZYBKO = 5.0        # Well below INTERWAL, still 4x above the real reaction.
 
 wyniki = []
 DZIECI = []
@@ -86,8 +84,8 @@ DZIECI.append(demon)
 test("1. demon wystartowal", czekaj_na(lambda: os.path.exists(plik("status.json"))),
      "brak status.json po 40 s")
 
-# Czekamy, az petla wejdzie w drzemke po pierwszym pelnym takcie — inaczej mierzylibysmy
-# resztke pierwszego przebiegu zamiast reakcji na zmiane configu.
+# Wait until the loop sleeps after its first full tick; otherwise this measures the
+# remainder of the first pass instead of the reaction to the config change.
 time.sleep(3.0)
 
 print("\n=== przelacznik ochrony: dry_run true -> false ===")
@@ -107,9 +105,9 @@ test("4. ...i faktycznie przelaczyl sie w tryb ochrony",
      "status.json dalej melduje tryb obserwacji")
 
 print("\n=== przypadek przeciwny: BEZ zmiany configu petla nie krecci sie w kolko ===")
-# Gdyby wybudzanie bylo zepsute w druga strone (np. porownanie zawsze rozne), demon
-# przelatywalby takty non stop i palil CPU. Mierzymy, ile taktow robi w 6 sekund:
-# przy interwale 20 s powinien nie zrobic ANI JEDNEGO nowego.
+# If wake-up were broken the other way, for example comparison always differed, the
+# daemon would spin through ticks and burn CPU. With a 20 s interval, it should not
+# complete a single new tick in 6 seconds.
 mtime_przed = os.path.getmtime(plik("status.json"))
 time.sleep(6.0)
 mtime_po = os.path.getmtime(plik("status.json"))

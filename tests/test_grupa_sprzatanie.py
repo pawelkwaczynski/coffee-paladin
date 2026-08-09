@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""safe-run: sprzatanie grupy procesow przy wyjsciu + okno laski --grace.
+"""Verify safe-run process-group cleanup on exit and the --grace window.
 
-Powod powstania (08.08.2026): lider zadania pod safe-run dostal SIGTERM
-z zewnatrz (pojedynczy pid, nie killpg). safe-run zakonczyl sie i wyrejestrowal
-zadanie - a proces potomny (solver SAT) zostal w grupie i mielil dalej ~8 godzin
-bez budzetu czasu i bez rejestracji, az do recznego ubicia. Test odtwarza
-dokladnie ten uklad na zywych procesach i pilnuje, ze sprzatanie grupy go lapie.
+If a safe-run leader receives SIGTERM from outside as a single pid, not killpg,
+safe-run can exit and unregister the job while a child process remains in the group.
+That child then runs without a time budget and without registration until manually
+killed. This test recreates that layout with live processes and verifies group
+cleanup catches it.
 
-Uruchomienie:  python3 tests/test_grupa_sprzatanie.py
-Nie dotyka prawdziwego ~/.coffee-paladin - pracuje w katalogu tymczasowym.
+Run with:  python3 tests/test_grupa_sprzatanie.py
+Does not touch the real ~/.coffee-paladin; it works in a temporary directory.
 """
 import importlib.machinery
 import json
@@ -43,10 +43,10 @@ def test(nazwa, warunek, szczegol=""):
 
 
 def grupa_z_wnukiem():
-    """Lider we wlasnej grupie + dziecko w tle w tej samej grupie."""
+    """Start a leader in its own group with a background child in the same group."""
     p = subprocess.Popen(["/bin/sh", "-c", "sleep 300 & exec sleep 300"],
                          preexec_fn=os.setsid)
-    time.sleep(0.3)                       # niech sh zdazy odpalic dziecko w tle
+    time.sleep(0.3)                       # Let sh start the background child.
     return p
 
 
@@ -65,13 +65,13 @@ opt, _ = sr.parse()
 test("grace ma sufit 1 h", opt["grace"] == 3600.0, str(opt))
 sys.argv = argv0
 
-# --- zywi_w_grupie ---
+# --- live processes in group ---
 p = grupa_z_wnukiem()
 pids = sr.zywi_w_grupie(p.pid)
 test("widzi lidera i wnuka w grupie (>= 2 pidy)", len(pids) >= 2, str(pids))
 test("nie widzi w grupie NAS", os.getpid() not in pids, str(pids))
 
-# --- odtworzenie incydentu: lider ubity POJEDYNCZO, wnuk zostaje ---
+# --- Reproduce single-pid leader termination while the grandchild remains ---
 os.kill(p.pid, signal.SIGTERM)
 p.wait()
 time.sleep(0.3)
@@ -87,7 +87,7 @@ test("sprzatnij_grupe klade sierote", sr.zywi_w_grupie(p.pid) == [],
 test("sleep umiera na SIGTERM - bez czekania calego okna laski", czas < 4.0,
      "%.1f s" % czas)
 
-# --- sierota ZAMROZONA (stan T): CONT przed TERM, inaczej sygnal wisi jako pending ---
+# --- Frozen orphan (state T): CONT before TERM, or the signal stays pending ---
 p = grupa_z_wnukiem()
 os.kill(p.pid, signal.SIGTERM)
 p.wait()
@@ -99,7 +99,7 @@ sr.sprzatnij_grupe(p.pid, grace=5.0)
 test("zamrozona sierota tez ginie (CONT przed TERM)",
      sr.zywi_w_grupie(p.pid) == [], str(sr.zywi_w_grupie(p.pid)))
 
-# --- uparty proces (ignoruje SIGTERM) dostaje SIGKILL po oknie laski ---
+# --- Stubborn process that ignores SIGTERM receives SIGKILL after the grace window ---
 p = subprocess.Popen(["/bin/sh", "-c", "trap '' TERM; sleep 300"],
                      preexec_fn=os.setsid)
 time.sleep(0.3)

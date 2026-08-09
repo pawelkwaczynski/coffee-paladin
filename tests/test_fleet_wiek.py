@@ -1,21 +1,21 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""fleet: wiek zgloszenia liczony z TRESCI migawki, nie z mtime pliku.
+"""Compute fleet report age from snapshot content, not file mtime.
 
-Incydent 07.08.2026: iCloud trzymal mtime sprzed dni przy swiezej tresci, wiec
-zdrowy, raportujacy co minute Mac wisial w tabeli jako "STALE - not reporting
-(94 h)". Prawda o wieku jest w polach `epoch`/`time` wewnatrz pliku.
+iCloud can preserve an old mtime while the snapshot content is fresh, making a
+healthy Mac that reports every minute appear as "STALE - not reporting (94 h)".
+The true age is in the `epoch`/`time` fields inside the file.
 
-Przypadki (w tym PRZECIWNE - falszywe STALE i falszywe zdrowie sa rownie zle):
-  1. stary mtime + swieza tresc  -> NIE STALE   (artefakt iCloud)
-  2. swiezy mtime + stara tresc  -> STALE       (martwy demon, plik dopiero dosynchronizowany)
-  3. bez `epoch`, stary `time` ze strefa -> STALE  (demon sprzed 2.3.4)
-  4. bez `epoch`, `time`-smieci  -> wiek z mtime (ostatecznosc, jak przed poprawka)
-  5. `epoch` z przyszlosci       -> nie STALE i nie ujemny wiek (zegar obcej maszyny)
-  6. `time` w INNEJ strefie niz nasza -> liczy sie absolutnie, nie lokalnie
+Cases, including countercases where false stale and false health are equally bad:
+  1. old mtime + fresh content -> not STALE (iCloud artifact)
+  2. fresh mtime + old content -> STALE (dead daemon, file just synced)
+  3. no `epoch`, old zoned `time` -> STALE (daemon before 2.3.4)
+  4. no `epoch`, junk `time` -> age from mtime (last resort, as before the fix)
+  5. future `epoch` -> not STALE and not negative age (remote clock skew)
+  6. `time` in a different zone -> absolute time, not local time
 
-Uruchomienie:  python3 tests/test_fleet_wiek.py
-Nie dotyka prawdziwego ~/.coffee-paladin.
+Run with:  python3 tests/test_fleet_wiek.py
+Does not touch the real ~/.coffee-paladin.
 """
 import io
 import json
@@ -79,10 +79,10 @@ teraz = time.time()
 
 print("=== 1+2: tresc wygrywa z mtime w OBIE strony ===")
 czysc()
-# artefakt iCloud: raport sprzed chwili, mtime sprzed 94 h
+# iCloud artifact: report from moments ago, mtime from 94 h ago.
 zapisz("SwiezyStaryMtime", dict(BAZOWA, host="SwiezyStaryMtime",
        epoch=round(teraz - 30, 3), time=czas_txt(teraz - 30)), mtime=teraz - 94 * 3600)
-# odwrotnie: demon umarl godzine temu, iCloud wlasnie dosynchronizowal plik
+# Opposite case: the daemon died an hour ago and iCloud just synced the file.
 zapisz("StaraTresc", dict(BAZOWA, host="StaraTresc",
        epoch=round(teraz - 3600, 3), time=czas_txt(teraz - 3600)), mtime=teraz)
 rc, out, err = uruchom()
@@ -95,13 +95,13 @@ print("\n=== 3+4: demony sprzed formatu `epoch` ===")
 czysc()
 d = dict(BAZOWA, host="TylkoTime", time=czas_txt(teraz - 3600))
 d.pop("epoch", None)
-zapisz("TylkoTime", d, mtime=teraz)                       # bez epoch: liczy sie time
+zapisz("TylkoTime", d, mtime=teraz)                       # Without epoch, time counts.
 d = dict(BAZOWA, host="SmieciTime", time="wczoraj kolo poludnia")
 d.pop("epoch", None)
-zapisz("SmieciTime", d, mtime=teraz - 3600)               # smieci: zostaje mtime
+zapisz("SmieciTime", d, mtime=teraz - 3600)               # Junk time: fallback to mtime.
 d = dict(BAZOWA, host="SmieciSwiezy", time=12345)
 d.pop("epoch", None)
-zapisz("SmieciSwiezy", d, mtime=teraz)                    # smieci + swiezy mtime: zdrowy
+zapisz("SmieciSwiezy", d, mtime=teraz)                    # Junk time + fresh mtime: healthy.
 rc, out, err = uruchom()
 test("3. stary `time` ze strefa, bez epoch: STALE mimo swiezego mtime",
      "STALE" in linia(out, "TylkoTime"), linia(out, "TylkoTime")[:90])
@@ -118,7 +118,7 @@ d = dict(BAZOWA, host="InnaStrefa",
          time=czas_txt(teraz - 30, timezone(timedelta(hours=-7))))
 d.pop("epoch", None)
 zapisz("InnaStrefa", d, mtime=teraz - 94 * 3600)
-# epoch-smieci (inf/tekst) nie moze wywalic tabeli ani dac przewagi nad time
+# Junk epoch (inf/text) cannot crash the table or outrank time.
 zapisz("EpochSmieci", dict(BAZOWA, host="EpochSmieci",
        epoch="duzo", time=czas_txt(teraz - 30)), mtime=teraz - 94 * 3600)
 rc, out, err = uruchom()

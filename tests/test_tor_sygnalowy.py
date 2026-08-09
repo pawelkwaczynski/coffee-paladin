@@ -1,22 +1,21 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Tor sygnalowy na ZYWYCH procesach: sig / do_pause / do_resume / do_terminate.
+"""Verify the signal path on live processes: sig / do_pause / do_resume / do_terminate.
 
-Najwieksza luka pokrycia znaleziona przez mutacje testow (runda przegladu 11):
-zadna z tych czterech funkcji nie wystepowala nawet Z NAZWY w zadnym tescie, mimo ze
-to one wykonuja cala prace bezpiecznika. Niesprawdzone byly miedzy innymi:
-  * czy `dry_run` naprawde blokuje SIGSTOP (a nie tylko pisze do logu),
-  * czy recznie zamrozone zadanie NIE dostaje SIGTERM przy przekroczeniu progu,
-  * czy po odbitym `killpg` idzie `kill` na sam pid,
-  * czy SIGKILL ma 20 s laski po SIGTERM,
-  * czy nieudany SIGCONT NIE kasuje wpisu ze stanu.
+Coverage mutation found that none of these four functions appeared by name in tests,
+even though they do the guard's actual work. Untested contracts included:
+  * whether `dry_run` really blocks SIGSTOP, not just logs,
+  * whether a manually frozen job avoids SIGTERM after a threshold breach,
+  * whether failed `killpg` falls back to `kill` on the pid,
+  * whether SIGKILL has 20 s grace after SIGTERM,
+  * whether failed SIGCONT does not remove the state entry.
 
-Sprawdzamy REALNY SKUTEK w `ps` (stan T/R), nie tresc logu - "PAUZA" w logu nic nie
-znaczy, dopoki proces naprawde nie stoi (lekcja z 02.08.2026).
+Check the real effect in `ps` (state T/R), not log text. "PAUZA" in the log means
+nothing until the process is actually stopped.
 
-Wzorowane na test_demote_promote.py, najlepszym tescie w projekcie.
-Uruchomienie:  python3 tests/test_tor_sygnalowy.py
-Nie dotyka prawdziwego ~/.coffee-paladin. Wszystkie procesy testowe sa sprzatane.
+Modeled after test_demote_promote.py.
+Run with:  python3 tests/test_tor_sygnalowy.py
+Does not touch the real ~/.coffee-paladin. All test processes are cleaned up.
 """
 import importlib.machinery
 import os
@@ -33,7 +32,7 @@ os.environ["TG_BASE"] = BASE
 os.environ.setdefault("TG_LANG", "en")
 
 g = importlib.machinery.SourceFileLoader("sg_guard", os.path.join(SRC, "guard.py")).load_module()
-g.notify = lambda *a, **k: None          # bez powiadomien systemowych w tescie
+g.notify = lambda *a, **k: None          # No system notifications in the test.
 
 wyniki = []
 DZIECI = []
@@ -46,7 +45,7 @@ def test(nazwa, warunek, detal=""):
 
 
 def odpal(wlasna_grupa=True):
-    """Zywy, tani proces. `yes` mieli CPU, wiec widac tez skutek dla obciazenia."""
+    """Start a live cheap process; `yes` burns CPU so load effects are visible."""
     p = subprocess.Popen(["yes"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                          start_new_session=wlasna_grupa)
     DZIECI.append(p)
@@ -55,7 +54,7 @@ def odpal(wlasna_grupa=True):
 
 
 def stan(pid):
-    """Stan procesu wg jadra: T/TN = zatrzymany, R/S = biegnie, '' = nie zyje."""
+    """Return kernel process state: T/TN = stopped, R/S = running, '' = dead."""
     out = subprocess.run(["ps", "-o", "stat=", "-p", str(pid)],
                          capture_output=True, text=True).stdout.strip()
     return out
@@ -66,8 +65,10 @@ def stoi(pid):
 
 
 def zyje(pid):
-    """Zombie ('Z') to proces MARTWY - tylko jeszcze niezebrany przez rodzica.
-    Bez tego rozroznienia test uznawal ubity proces za zywy i sam siebie oszukiwal."""
+    """Return whether pid is live, treating zombies ('Z') as dead.
+
+    Without this distinction, the test treated a killed process as live and fooled itself.
+    """
     s_ = stan(pid)
     return bool(s_) and not s_.startswith("Z")
 
@@ -93,7 +94,7 @@ g.sig(p.pid, os.getpgid(p.pid), signal.SIGCONT)
 time.sleep(0.25)
 test("4. sig(SIGCONT) naprawde go wznawia", not stoi(p.pid), "stat=%r" % stan(p.pid))
 
-# odbity killpg -> fallback na sam pid
+# Failed killpg falls back to the pid itself.
 test("5. przy nieistniejacej grupie sig() spada na kill(pid) i dziala",
      g.sig(p.pid, 999999, signal.SIGSTOP) == 0 and (time.sleep(0.25) or stoi(p.pid)),
      "stat=%r" % stan(p.pid))

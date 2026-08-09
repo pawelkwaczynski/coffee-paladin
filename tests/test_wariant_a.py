@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Wariant A (decyzja Pawla 06.08.2026) + wygaszanie keep-awake (TODO 8).
+"""Verify variant A and keep-awake hold behavior.
 
-WARIANT A: systemowe demony indeksowania (corespotlightd i spol.) zostaja NIETYKALNE
-dla pauzy i ubicia (lista never jest swieta), ale ida OSOBNYM kanalem do degradacji
-na E-cores. Powod: corespotlightd grzal do 215% CPU cala noc jako "untouchable"
-(165 wpisow logu, 04/05.08.2026), a AGENTS.md slusznie zakazuje oslabiania never.
+Variant A: system indexing daemons such as corespotlightd remain untouchable for
+pause and kill because the never list is sacred, but they use a separate demote-only
+channel to E-cores. corespotlightd can heat at 215% CPU while "untouchable", and
+AGENTS.md correctly forbids weakening never.
 
-WYGASZANIE: po zejsciu ostatniego ciezkiego zadania czuwanie (caffeinate) trzyma
-jeszcze keep_awake_hold_s sekund. Bez tego przerwa miedzy plikami kolejki zwalniala
-blokade snu (45-59 przelaczen na dobe), a Mac z agresywnym usypianiem moglby zasnac
-w srodku nocnej kolejki. Upal ma pierwszenstwo: poziom >=2 zwalnia NATYCHMIAST.
+Hold behavior: after the last heavy job exits, keep-awake (caffeinate) stays for
+keep_awake_hold_s seconds. Without this, gaps between queue files release the sleep
+lock, and a Mac with aggressive sleep could sleep in the middle of an overnight queue.
+Heat wins: level >=2 releases immediately.
 
-Uruchomienie:  python3 tests/test_wariant_a.py
-Na kodzie sprzed zmiany test pada juz na imporcie (_DEMOTE_ONLY nie istnieje).
-Nie dotyka prawdziwego ~/.coffee-paladin - pracuje w katalogu tymczasowym.
+Run with:  python3 tests/test_wariant_a.py
+On code before the change, this test fails at import because _DEMOTE_ONLY does not exist.
+Does not touch the real ~/.coffee-paladin; it works in a temporary directory.
 """
 import importlib.machinery
 import os
@@ -58,14 +58,14 @@ g.notify = lambda *a, **k: None
 g.play_sound = lambda *a, **k: None
 
 try:
-    # ------------------------------------------------ 1. kanal demote-only w pick_targets
+    # ------------------------------------------------ 1. demote-only channel in pick_targets
     print("1. pick_targets: systemowy demon NIE jest celem pauzy, JEST kandydatem do demote")
     cfg = g.load_cfg()
     cfg["dry_run"] = False
     cfg["cpu_min_percent"] = 10.0
-    # (pid, ppid, cpu, comm) - pidy zmyslone, pick_targets nie sygnalizuje
+    # (pid, ppid, cpu, comm) - fake pids; pick_targets does not signal.
     procs = [(11111, 1, 200.0, "corespotlightd"),
-             (22222, 1, 150.0, "bluetoothd"),          # never, ale NIE system_demote
+             (22222, 1, 150.0, "bluetoothd"),          # never, but not system_demote.
              (33333, 1, 120.0, "spotlightknowledged.updater")]
     cele = g.pick_targets(cfg, procs, {})
     pidy_celow = {c[0] for c in cele}
@@ -76,12 +76,12 @@ try:
     test("bluetoothd nietykalny CALKOWICIE (ani pauza, ani demote)",
          22222 not in pidy_celow and 22222 not in demote_pidy)
 
-    # snapshot niesie kanal jako 14. element (integracja na zywym systemie)
+    # snapshot carries the channel as element 14, the live-system integration point.
     mig = g.snapshot(cfg)
     test("snapshot zwraca 14 elementow, ostatni to lista", len(mig) == 14
          and isinstance(mig[13], list), repr(len(mig)))
 
-    # ------------------------------------------------ 2. do_demote na kanale demote-only
+    # ------------------------------------------------ 2. do_demote on the demote-only channel
     print("2. do_demote: wlasny proces schodzi na E-cores i wraca; cudzy pid nie klamie")
     cfg["demote_cpu_percent"] = 10.0
     cfg["demote_after_minutes"] = 0
@@ -96,7 +96,7 @@ try:
     g.do_promote(cfg, st, hist, soc_t=20.0)
     test("po ostygnieciu powrot na P-cores", p.pid not in st["demoted"])
 
-    # pid, ktorego taskpolicy nie przyjmie (pid 1 = launchd, cudzy wlasciciel)
+    # pid taskpolicy will not accept: pid 1 = launchd, foreign owner.
     st2 = {"paused": {}, "demoted": [], "demoted_info": {}}
     logi[:] = []
     g.do_demote(cfg, st2, [(1, 100.0, "launchd", None)], {}, soc_t=50.0)
@@ -109,7 +109,7 @@ try:
          not any("DEMOTE failed" in str(m) for m in logi))
     g._demote_nie_da_sie.clear()
 
-    # ------------------------------------------------ 3. wygaszanie keep-awake
+    # ------------------------------------------------ 3. keep-awake hold
     print("3. keep-awake: przerwa miedzy plikami NIE zwalnia snu; upal zwalnia NATYCHMIAST")
     cfg["keep_awake_auto"] = True
     cfg["keep_awake_display"] = False
@@ -124,19 +124,19 @@ try:
     trzyma = g.keep_awake_update(cfg, [], lvl=2)
     test("upal w trakcie holdu = czuwanie pada NATYCHMIAST", trzyma is False)
 
-    # hold=0 przywraca stare zachowanie: stop od razu po zejsciu zadania
+    # hold=0 restores old behavior: stop immediately after the job exits.
     cfg["keep_awake_hold_s"] = 0
     g.keep_awake_update(cfg, zadanie, lvl=0)
     trzyma = g.keep_awake_update(cfg, [], lvl=0)
     test("hold=0: stop od razu (stare zachowanie)", trzyma is False)
 
-    # hold nigdy nie WSZCZYNA czuwania - tylko przedluza zywe
+    # hold never starts keep-awake; it only extends a live one.
     cfg["keep_awake_hold_s"] = 3600
     trzyma = g.keep_awake_update(cfg, [], lvl=0)
     test("hold nie wszczyna czuwania z niczego", trzyma is False)
 
 finally:
-    # czuwanie nie moze przezyc testu
+    # keep-awake must not survive the test.
     try:
         g.keep_awake_update({"keep_awake_auto": False, "keep_awake_hold_s": 0,
                              "sound": False}, [], lvl=3)

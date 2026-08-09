@@ -1,21 +1,22 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Slepy czujnik nie moze zamrozic kalibracji na maszynie, ktora jej najbardziej potrzebuje.
+"""Ensure a blind chip sensor does not freeze calibration on the Mac that needs it most.
 
-Defekt zlapany na Neo 03.08.2026 przy pierwszej instalacji 2.2.2 (MacBook Air, bezwentylatorowy):
-demon wystartowal zaraz po `install.sh`, ktory kompilowal pasek, wiec macmon nie wyrobil sie
-z probkowaniem. `chip_sensor` wyszlo False, `fan_count` 0 — a warunek kalibracji wymaga OBU.
-Skutek: Air dostal progi wentylatorowe 85/76/90 zamiast 78/70/88 i limit pauzy 45 min zamiast 120.
-Minute pozniej `heat` pokazywal juz temperature chipa, wiec maszyna wygladala zdrowo.
+On first install for a fanless MacBook Air, the daemon can start right after `install.sh`
+while the menu bar is still compiling. macmon may not return a chip sample yet, so
+`chip_sensor` becomes False and `fan_count` is 0, while calibration requires both. The
+result was fan-cooled thresholds 85/76/90 instead of fanless 78/70/88, and a 45 min pause
+limit instead of 120. A minute later `heat` could show chip temperature, making the Mac
+look healthy.
 
-Czego ten test pilnuje:
-1. slepy czujnik NIE zapisuje `calibrated_for` (kalibracja ma sie powtorzyc przy nastepnym starcie),
-2. po odzyskaniu czujnika Air DOSTAJE progi bezwentylatorowe,
-3. slepy przebieg mowi o tym w logu (poprzednio pisal "thresholds defaults OK"),
-4. przypadki PRZECIWNE: Mac z wentylatorami nietkniety, reczne progi uzytkownika swiete,
-   maszyna raz skalibrowana nie kalibruje sie drugi raz.
+This test verifies:
+1. a blind sensor does not write `calibrated_for`, so calibration retries on next start,
+2. once the sensor returns, Air receives fanless thresholds,
+3. the blind pass logs the deferral instead of "thresholds defaults OK",
+4. countercases: fan-cooled Macs stay untouched, manual user thresholds are sacred, and
+   an already calibrated machine does not calibrate a second time.
 
-Uruchomienie:  python3 tests/test_kalibracja_slepa.py
+Run with:  python3 tests/test_kalibracja_slepa.py
 """
 import importlib.machinery
 import json
@@ -52,7 +53,7 @@ def test(nazwa, warunek, szczegol=""):
 
 
 def swiezy_config(**klucze):
-    """Config jak po swiezej instalacji; `dry_run` jawny, zeby nie mieszac sie z migracja."""
+    """Write a fresh-install config with explicit `dry_run` to avoid migration noise."""
     d = {"dry_run": False}
     d.update(klucze)
     with open(g.CFG_PATH, "w") as f:
@@ -65,7 +66,7 @@ def z_dysku():
 
 
 def kalibruj(hw):
-    """Tak, jak robi to demon przy starcie: DEFAULTS + to, co na dysku."""
+    """Run calibration as the daemon does on startup: DEFAULTS plus disk config."""
     cfg = dict(g.DEFAULTS)
     cfg.update(z_dysku())
     wynik = g.auto_calibrate(cfg, hw)
@@ -105,7 +106,7 @@ test("znacznik zapisany dopiero teraz, z sensor=True",
 
 print("\n3. przypadek przeciwny: raz skalibrowany Mac nie kalibruje sie drugi raz")
 c_przed = z_dysku()
-swiezy_config(**c_przed)                      # ten sam stan, kolejny start demona
+swiezy_config(**c_przed)                      # same state, next daemon start
 _, c_po = kalibruj(AIR_WIDZI)
 test("drugi przebieg nic nie zmienia", c_po == c_przed,
      "roznica: %s" % {k: (c_przed.get(k), c_po.get(k))
@@ -137,7 +138,7 @@ test("prawa 0600 zachowane (w configu siedzi temat ntfy)",
      oct(os.stat(g.CFG_PATH).st_mode & 0o777))
 
 print("\n7. migracja dry_run dziala TAKZE przy slepym czujniku")
-with open(g.CFG_PATH, "w") as f:                       # config sprzed v1.3: bez dry_run
+with open(g.CFG_PATH, "w") as f:                       # Pre-v1.3 config, no dry_run.
     json.dump({"lang": "pl"}, f)
 wynik, c = kalibruj(AIR_SLEPY)
 test("dry_run dopisany jawnie", c.get("dry_run") is True, c.get("dry_run"))
@@ -146,12 +147,12 @@ test("ale znacznika nadal nie ma", "calibrated_for" not in c, c.get("calibrated_
 
 print("\n8. RECZNY prog ubicia przezywa kalibracje (uwaga z przegladu 03.08)")
 swiezy_config()
-kalibruj(AIR_SLEPY)                       # slepy start, znacznika brak
+kalibruj(AIR_SLEPY)                       # Blind start, no marker.
 c = z_dysku()
-c["soc_kill_c"] = 95.0                    # uzytkownik podnosi SAM prog ubicia
+c["soc_kill_c"] = 95.0                    # User raises only the kill threshold.
 with open(g.CFG_PATH, "w") as f:
     json.dump(c, f)
-_, c = kalibruj(AIR_WIDZI)                # czujnik wraca
+_, c = kalibruj(AIR_WIDZI)                # Sensor returns.
 test("soc_kill_c=95 nie zostal nadpisany przez 88", c.get("soc_kill_c") == 95.0,
      c.get("soc_kill_c"))
 test("progi pauzy tez nietkniete, skoro user ruszyl komplet",
@@ -159,10 +160,10 @@ test("progi pauzy tez nietkniete, skoro user ruszyl komplet",
 test("fan_check i tak wylaczony (to nie prog)", c.get("fan_check") is False, c.get("fan_check"))
 
 print("\n9. migracja starego configu nie rozluznia praw (uwaga z przegladu 03.08)")
-stara_umask = os.umask(0)                 # najgorszy przypadek: umask nic nie obcina
+stara_umask = os.umask(0)                 # Worst case: umask does not trim anything.
 try:
     with open(g.CFG_PATH, "w") as f:
-        json.dump({"lang": "pl"}, f)      # config sprzed v1.3: bez dry_run -> ZAPIS idzie
+        json.dump({"lang": "pl"}, f)      # Pre-v1.3 config: no dry_run means write path runs.
     os.chmod(g.CFG_PATH, 0o600)
     kalibruj(AIR_SLEPY)
     prawa = oct(os.stat(g.CFG_PATH).st_mode & 0o777)
@@ -171,9 +172,8 @@ finally:
     os.umask(stara_umask)
 
 print("\n10. hardware_info: nieudany pierwszy odczyt macmona NIE przesadza")
-# Uwaga z recenzji: sekcje 1-9 wolaja `auto_calibrate` z gotowym `hw`, wiec ponowienie
-# odczytu w `hardware_info` nie bylo testowane WCALE. Mutacja `max_age=0` -> `max_age`
-# domyslny przechodzila 22/22. Tu podstawiamy `run` i liczymy realne proby.
+# Sections 1-9 call `auto_calibrate` with prepared `hw`, so retrying reads inside
+# `hardware_info` was not tested at all. Stub `run` here and count real attempts.
 PROBA = {"n": 0}
 PRAWDZIWY_RUN = g.run
 MACMON_JSON = ('{"temp":{"cpu_temp_avg":55.0,"gpu_temp_avg":50.0},"fans":[],'
@@ -181,7 +181,7 @@ MACMON_JSON = ('{"temp":{"cpu_temp_avg":55.0,"gpu_temp_avg":50.0},"fans":[],'
 
 
 def run_atrapa(cmd, timeout=10):
-    """macmon milczy przy pierwszych dwoch probach, potem odpowiada."""
+    """Return empty macmon output for two attempts, then return a sample."""
     if cmd and "macmon" in str(cmd[0]):
         PROBA["n"] += 1
         return MACMON_JSON if PROBA["n"] >= 3 else ""
@@ -208,7 +208,7 @@ try:
     test("fan_count=0 przy pustej liscie wentylatorow", hw.get("fan_count") == 0,
          hw.get("fan_count"))
 
-    # przypadek przeciwny: macmon milczy ZAWSZE - nie wolno kreccic w nieskonczonosc
+    # Countercase: if macmon is always silent, do not spin forever.
     PROBA["n"] = 0
     g.run = lambda cmd, timeout=10: ("" if (cmd and "macmon" in str(cmd[0]))
                                      else run_atrapa(cmd, timeout))

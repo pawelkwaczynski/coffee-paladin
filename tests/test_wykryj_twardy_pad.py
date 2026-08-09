@@ -1,10 +1,10 @@
 import importlib.util, os, shutil, sys, tempfile, time
 
-# --- BRAMKA IZOLACJI -------------------------------------------------------------
-# Ten test KASUJE heartbeat, clean_stop i events.log w <HOME>/.coffee-paladin, czyli
-# czarna skrzynke do raportu gwarancyjnego. Wczesniej HOME szedl prosto z sys.argv[1]
-# bez sprawdzenia, wiec `python3 tests/test_wykryj_twardy_pad.py ~` niszczyl prawdziwe
-# dowody. Argument jest teraz opcjonalny - bez niego test robi wlasna piaskownice.
+# --- ISOLATION GATE --------------------------------------------------------------
+# This test deletes heartbeat, clean_stop, and events.log under <HOME>/.coffee-paladin,
+# the black box used for warranty reports. HOME used to come straight from sys.argv[1]
+# without validation, so `python3 tests/test_wykryj_twardy_pad.py ~` destroyed real
+# evidence. The argument is now optional; without it the test creates its own sandbox.
 MARKER = ".piaskownica-testu"
 
 
@@ -25,7 +25,7 @@ if prawdziwy_home.startswith(os.path.realpath(home).rstrip("/") + "/"):
     odmow("prawdziwy katalog domowy lezy wewnatrz %s" % home)
 
 base = os.path.join(home, ".coffee-paladin")
-# marker odroznia wlasna piaskownice od cudzych danych i pozwala powtorzyc przebieg
+# Marker distinguishes this sandbox from foreign data and allows repeated runs.
 if os.path.exists(base) and not os.path.exists(os.path.join(base, MARKER)):
     odmow("%s juz istnieje i nie jest piaskownica tego testu" % base)
 os.makedirs(base, exist_ok=True)
@@ -43,7 +43,7 @@ def setup(puls, czyste=None, tresc=None, mtime=None):
     for p in (g.HEARTBEAT_PATH, g.CLEAN_STOP_PATH, g.EVENTS_PATH):
         if os.path.exists(p): os.remove(p)
     with open(g.HEARTBEAT_PATH, "w") as f:
-        f.write(tresc if tresc is not None else "%d %s" % (puls, g.ts(puls)))   # NOWY format
+        f.write(tresc if tresc is not None else "%d %s" % (puls, g.ts(puls)))   # New format.
     m = mtime if mtime is not None else puls
     os.utime(g.HEARTBEAT_PATH, (m, m))
     with open(g.HIST_PATH, "w") as f:
@@ -65,11 +65,10 @@ A = [run("1. twardy pad, brak clean_stop", "PAD", puls=boot-600),
      run("4. clean_stop z przyszłości nie wycisza", "PAD", puls=boot-600, czyste=time.time()+86400),
      run("5. stary clean_stop (3 dni) nie wycisza", "PAD", puls=boot-600, czyste=boot-3*86400),
      run("6. puls z bieżącej sesji", "cicho", puls=boot+60),
-     # ZMIANA DECYZJI 02.08.2026 (pozycja 3): podłoga 30-dniowa WYRZUCAŁA dowód zamiast
-     # go oznaczyć — czyli czarna skrzynka milczała dokładnie wtedy, gdy zegar był zepsuty
-     # (rozładowany RTC, skok NTP). Teraz zdarzenie jest ZAPISYWANE z `confidence: low`
-     # i podanym powodem; ocenę zostawiamy człowiekowi w serwisie.
-     # Szczegóły i przypadki przeciwne: tests/test_pewnosc_padu.py.
+     # Decision change: the 30-day floor used to discard evidence instead of marking it,
+     # making the black box silent exactly when the clock was broken: drained RTC or NTP
+     # jump. The event is now written with `confidence: low` and a reason; service staff
+     # make the final assessment. Details and countercases: tests/test_pewnosc_padu.py.
      run("7. fantom 1970: zapisany, ale z niską wiarygodnością", "PAD", puls=833377),
      run("8. restore bez -p: mtime=teraz, epoch prawdziwy", "PAD", puls=boot-600, mtime=time.time())]
 
@@ -100,6 +99,6 @@ if sprzatac:
 zaliczone, wszystkie = sum(A) + sum(B) + sum(C), len(A) + len(B) + len(C)
 print(f"\nWYNIK: A {sum(A)}/{len(A)}   B {sum(B)}/{len(B)}   C {sum(C)}/{len(C)}"
       f"   RAZEM {zaliczone}/{wszystkie}")
-# Bez tego plik nigdy nie konczyl sie kodem bledu - byl "zielony" wylacznie dlatego,
-# ze nikt nie patrzyl na kod wyjscia, a jest pierwsza komenda w AGENTS.md.
+# Without this, the file never exited with an error code; it was "green" only because
+# nobody checked the exit code, even though it is the first command in AGENTS.md.
 sys.exit(0 if zaliczone == wszystkie else 1)

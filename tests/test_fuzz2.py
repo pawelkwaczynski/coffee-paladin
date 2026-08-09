@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Testy losowe RUNDA 2 - kod napisany w nocy 02.08.2026 (najmniej sprawdzony).
+"""Fuzz the second round of less-covered coffee-paladin code.
 
-Uruchomienie:   python3 tests/test_fuzz2.py
+Run with:       python3 tests/test_fuzz2.py
                 python3 tests/test_fuzz2.py --seed 7 --n 400
 
-Czym to sie rozni od tests/test_fuzz.py (runda 1):
-  * runda 1 pytala "czy funkcja rzuci wyjatkiem",
-  * runda 2 pyta rowniez "czy funkcja podejmuje WLASCIWA decyzje" - czyli czy da sie
-    tak nazwac plik, zeby agent AI stracil ochrone (albo zeby zwykly enkoder ja zyskal),
-    czy tlumik logu naprawde tlumi, czy po `run()` nie zostaje proces potomny.
+Compared with tests/test_fuzz.py:
+  * round 1 asked whether a function raises an exception,
+  * round 2 also asks whether a function makes the right decision, for example
+    whether a file name can make an AI agent lose protection, make a plain encoder
+    gain protection, bypass log throttling, or leave a child process after `run()`.
 
-Zasady: wszystko w katalogu tymczasowym (TG_BASE), ~/.coffee-paladin nietkniete,
-zaden ciezki proces nie jest uruchamiany (tylko /usr/bin/true, /bin/sleep i krotki
-python3 -c), a na koncu sprawdzamy `pgrep`, czy nic po nas nie zostalo.
+Rules: everything runs in a temporary directory (TG_BASE), ~/.coffee-paladin stays
+untouched, no heavy process is started (only /usr/bin/true, /bin/sleep, and short
+python3 -c commands), and the end checks `pgrep` for leftovers.
 """
 
 import argparse
@@ -32,8 +32,8 @@ from contextlib import redirect_stdout
 from importlib.machinery import SourceFileLoader
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-LIMIT_SESJI = 9.0            # twardy limit na jedna funkcje
-LIMIT_CALOSCI = 90.0         # twardy limit na caly plik
+LIMIT_SESJI = 9.0            # Hard limit per function.
+LIMIT_CALOSCI = 90.0         # Hard limit for the whole file.
 START = time.time()
 
 TMP = tempfile.mkdtemp(prefix="tg-fuzz2-")
@@ -41,7 +41,7 @@ os.environ["TG_BASE"] = TMP
 os.environ.setdefault("TG_LANG", "en")
 os.makedirs(os.path.join(TMP, "managed"), exist_ok=True)
 
-MARKER = "tgfuzz2-%d" % os.getpid()      # po tym znajdujemy wlasne procesy w pgrep
+MARKER = "tgfuzz2-%d" % os.getpid()      # Used to find our own processes in pgrep.
 
 
 def zaladuj(nazwa, plik):
@@ -54,7 +54,7 @@ saferun = zaladuj("tgf2_saferun", "safe-run")
 treport = zaladuj("tgf2_treport", "thermal-report")
 heat = zaladuj("tgf2_heat", "heat")
 
-PRAWDZIWY_RUN = guard.run          # potrzebny TYLKO w sesji run()
+PRAWDZIWY_RUN = guard.run          # Needed only in the run() session.
 guard.run = lambda cmd, timeout=10: ""
 saferun.sh = lambda cmd, timeout=15: ""
 treport.sh = lambda cmd, timeout=30: ""
@@ -66,7 +66,7 @@ STATUS_PATH = os.path.join(TMP, "status.json")
 HIST_PATH = os.path.join(TMP, "history.csv")
 EVENTS_PATH = os.path.join(TMP, "events.log")
 
-# ---------------------------------------------------------------- raport
+# ---------------------------------------------------------------- report
 
 ZNALEZISKA = {}
 PRZEBIEGI = {}
@@ -119,12 +119,12 @@ class Sesja(object):
 
 # ================================================================ 1. args_bez_sciezek
 #
-# Pytanie nie brzmi "czy sie wywroci", tylko: da sie tak NAZWAC PLIK, zeby proces
-# bedacy agentem stracil ochrone - albo zeby zwykly enkoder ja zyskal (i grzal Maca
-# dalej, bo guard nie ma prawa go dotknac)?
+# The question is not just whether it crashes. It is whether a file can be named so
+# an agent process loses protection, or a plain encoder gains it and keeps heating
+# the Mac because the guard must not touch it.
 
 ROZSZ_ZNANE = sorted(getattr(guard, "ROZSZERZENIA_DANYCH", (".json", ".csv", ".log", ".txt")))
-# realne formaty medialne i robocze, ktorych NIE MA na liscie ROZSZERZENIA_DANYCH
+# Real media and working formats that are not in ROZSZERZENIA_DANYCH.
 ROZSZ_NIEZNANE = [".mxf", ".ts", ".m2ts", ".braw", ".r3d", ".exr", ".heif", ".bmp",
                   ".ogv", ".opus", ".wma", ".vob", ".mts", ".jxl", ".dpx", ".cr3",
                   ".mkv.bak", ".mp4.part", ".mov.tmp", ".mp4.crdownload"]
@@ -133,7 +133,7 @@ KATALOGI_Z_AGENTEM = ["claude_brain", "codex_out", "mcp_dane", "cursor_projekt",
 KATALOGI_NEUTRALNE = ["wideo", "Movies", "archiwum", "Z_FTP"]
 NARZEDZIA = ["ffmpeg", "/opt/homebrew/bin/ffmpeg", "x265", "python3", "HandBrakeCLI"]
 
-# tak samo, jak robi to pick_targets (guard.py: any(n.lower() in args ...))
+# Same check pick_targets performs: guard.py has any(n.lower() in args ...).
 NEVER_ARG = list(guard.DEFAULTS["never_arg_patterns"]) + list(guard.WLASNE_NAZWY)
 
 
@@ -142,10 +142,10 @@ def chroniony(args):
 
 
 def zadanie_z_danymi(rng):
-    """Enkoder mielacy plik lezacy w katalogu z nazwa agenta. MA byc pauzowalny.
+    """Generate an encoder command for data inside an agent-named directory.
 
-    Kazdy wariant to inny MECHANIZM potencjalnego obejscia - i to on jest kluczem
-    znaleziska, zeby raport mowil "spacja w sciezce", a nie 40 razy to samo.
+    The command must be pausable. Each variant represents a distinct bypass
+    mechanism so the report names the mechanism instead of repeating one finding.
     """
     kat = rng.choice(KATALOGI_Z_AGENTEM)
     nieznane = rng.random() < 0.5
@@ -156,16 +156,14 @@ def zadanie_z_danymi(rng):
     cudzyslow = styl < 0.2
     katalog_jako_arg = 0.2 <= styl < 0.35
     if cudzyslow:
-        wej, wyj = '"%s"' % wej, '"%s"' % wyj            # sciezki w cudzyslowach
+        wej, wyj = '"%s"' % wej, '"%s"' % wyj            # Quoted paths.
     elif katalog_jako_arg:
-        wyj = os.path.dirname(wyj) + "/"                 # katalog docelowy, nie plik
+        wyj = os.path.dirname(wyj) + "/"                 # Target directory, not a file.
     narz = rng.choice(NARZEDZIA)
     if guard.jest_interpreterem(os.path.basename(narz).lower()):
-        # Dla interpretera tozsamoscia procesu jest URUCHAMIANY SKRYPT, a nie plik
-        # wideo. `python3 -y -i rec.mkv` nie istnieje w przyrodzie - a wlasnie taka
-        # linie generowal ten kod i zglaszal jako defekt. Efekt: 18 "znalezisk
-        # WYSOKICH" (02.08.2026), ktore mowily tylko tyle, ze python3 jest
-        # interpreterem. Realny job pythonowy ma skrypt na pierwszym miejscu.
+        # For an interpreter, process identity is the executed script, not the
+        # video file. `python3 -y -i rec.mkv` is not a real command shape; it only
+        # proves python3 is an interpreter. A real Python job has the script first.
         cmd = "%s /Users/x/skrypty/kompresor.py -y -i %s -c:v libx265 -preset slow %s" % (
             narz, wej, wyj)
     else:
@@ -180,7 +178,7 @@ def zadanie_z_danymi(rng):
         powod = "argumentem jest KATALOG, nie plik"
     else:
         powod = "typowe rozszerzenie pliku danych (wariant kontrolny)"
-    return cmd, False, powod        # False = NIE powinien byc chroniony
+    return cmd, False, powod        # False = should not be protected.
 
 
 AGENCI = [
@@ -196,12 +194,12 @@ AGENCI = [
 
 
 def agent(rng):
-    """Proces, ktory MUSI zostac chroniony (SIGSTOP na agencie = zabity agent)."""
+    """Generate a process that must be protected from SIGSTOP."""
     baza = rng.choice(AGENCI)
     styl = rng.random()
     powod = "wzorzec"
     if styl < 0.2:
-        # tozsamosc agenta zapisana w pliku o rozszerzeniu z listy danych
+        # Agent identity stored in a file whose extension is on the data list.
         baza = rng.choice([
             "node /Users/x/agents/mcp/server.bin",
             "python3 /Users/x/claude/agent.pt",
@@ -230,7 +228,7 @@ def fuzz_args_ochrona(seed, n):
         "\n".join(["ffmpeg", "-i", "/Users/x/claude_brain/a.mkv"]),
         "ffmpeg -i //Users//x//claude_brain//rec.mkv",
         "ffmpeg -i ../claude_brain/rec.mkv",
-        "ffmpeg -i /Users/x/claude_brain/rec.mkv/",       # sciezka zakonczona ukosnikiem
+        "ffmpeg -i /Users/x/claude_brain/rec.mkv/",       # Path ending with a slash.
     ]
     try:
         for i in range(n):
@@ -289,8 +287,8 @@ def fuzz_loguj_awake(seed, n):
         del zebrane[:]
 
     try:
-        # a) 10 000 przelaczen w tej samej sekundzie - czy tlumik trzyma i czy licznik
-        #    pominietych trafia do komunikatu (a nie np. przepelnia go megabajtem)
+        # a) 10,000 switches in the same second: verify throttling holds and the
+        #    skipped counter reaches the message without growing it by a megabyte.
         reset()
         s.n += 1
         for i in range(10000):
@@ -305,7 +303,7 @@ def fuzz_loguj_awake(seed, n):
         if guard._awake_log["pominiete"] < 0:
             s.bzdura("10 000 przelaczen", "licznik pominietych jest ujemny", "SREDNIA")
 
-        # b) czy po uplywie 10 minut licznik pominietych naprawde trafia do logu
+        # b) Verify the skipped counter really reaches the log after 10 minutes.
         reset()
         s.n += 1
         guard._loguj_awake("A")
@@ -318,7 +316,7 @@ def fuzz_loguj_awake(seed, n):
                      "po tlumieniu 500 zdarzen kolejny wpis nie mowi, ile ich pominieto "
                      "(czarna skrzynka gubi skale zjawiska)", "NISKA", klucz="brak-licznika")
 
-        # c) TEN SAM komunikat po dowolnie dlugim czasie
+        # c) The same message after any amount of time.
         reset()
         s.n += 1
         guard._loguj_awake("KEEP-AWAKE start")
@@ -334,7 +332,7 @@ def fuzz_loguj_awake(seed, n):
                      "pominietych (%d) rosnie bez konca." % guard._awake_log["pominiete"],
                      "SREDNIA", klucz="ten-sam-msg-na-zawsze")
 
-        # d) zegar cofniety (NTP albo powrot z uspienia) - now() to time.time(), nie monotonic
+        # d) Clock moved backward by NTP or wake from sleep. now() is time.time(), not monotonic.
         reset()
         s.n += 1
         guard._loguj_awake("X")
@@ -349,7 +347,7 @@ def fuzz_loguj_awake(seed, n):
                      "az czas realny nadgoni - keep-awake nie zostawia sladu w logu",
                      "NISKA", klucz="zegar-w-tyl")
 
-        # e) losowe typy i dlugosci
+        # e) Random types and lengths.
         warianty = [None, 0, 1, -1, True, 3.5, [], {}, b"bajty", "\x00", "\x1b[2J",
                     "A" * 100000, "%s %d", "‮ rtl", object()]
         for i in range(max(0, n - 5)):
@@ -373,7 +371,7 @@ def fuzz_loguj_awake(seed, n):
 # ================================================================ 3. run()
 
 def zywe_dzieci():
-    """Nasze procesy potomne wedlug pgrep (po unikalnym markerze w linii polecen)."""
+    """Return our child processes from pgrep using the unique command-line marker."""
     try:
         out = subprocess.run(["pgrep", "-f", MARKER], stdout=subprocess.PIPE,
                              stderr=subprocess.DEVNULL, timeout=5).stdout.decode()
@@ -407,7 +405,7 @@ def fuzz_run(seed, n):
                     "sys.stderr.write('%s');time.sleep(30)" % MARKER], 0.15, \
                    "ignoruje SIGTERM, timeout"
         if r < 0.94:
-            # wnuk MUSI miec marker we wlasnej linii polecen, inaczej pgrep go nie widzi
+            # The grandchild must carry the marker in its own command line, or pgrep misses it.
             return ["/bin/sh", "-c",
                     "%s -c 'import time;time.sleep(27)' %s & wait" % (PY, MARKER)], 0.15, \
                    "wnuk przezywajacy zabicie dziecka"
@@ -430,7 +428,7 @@ def fuzz_run(seed, n):
                 s.bzdura(opis, "zwrocono %s zamiast str" % type(out).__name__, "WYSOKA",
                          klucz="zly-typ")
             if "nie istnieje" in opis or "string" in opis:
-                continue        # nic sie nie uruchomilo - pgrep bylby strata czasu
+                continue        # Nothing started, so pgrep would be wasted work.
             time.sleep(0.005)
             zywe = zywe_dzieci()
             if zywe:
@@ -440,7 +438,7 @@ def fuzz_run(seed, n):
                          "przypadek: %s" % (len(zywe), ",".join(zywe[:4]), opis),
                          "WYSOKA" if "wnuk" not in opis else "SREDNIA",
                          klucz="osierocony-proces:" + opis[:20])
-                # sprzatamy po sobie NATYCHMIAST, zeby test nie hodowal procesow
+                # Clean up immediately so the test does not grow process leftovers.
                 subprocess.run(["pkill", "-9", "-f", MARKER], stdout=subprocess.DEVNULL,
                                stderr=subprocess.DEVNULL)
     finally:
@@ -453,14 +451,13 @@ def fuzz_run(seed, n):
 # ================================================================ 4. zajmij_wylacznosc
 
 def uchwyt(r):
-    """Czy zajmij_wylacznosc() zwrocila UCHWYT (czyli blokade), czy odmowe.
+    """Return whether zajmij_wylacznosc() returned a lock handle.
 
-    Funkcja ma trzy udokumentowane wyniki (guard.main): plik = mam wylacznosc,
-    None = trzyma ja ktos inny, False = nie dalo sie otworzyc pliku blokady i demon
-    startuje BEZ wylacznosci. Ten fuzzer sprawdzal tylko `is not None`, wiec wkladal
-    `False` na liste uchwytow i potem wolal na nim .close() - stad 264 "wyjatki
-    guard.zajmij_wylacznosc: AttributeError: 'bool' object has no attribute 'close'"
-    i rozjechany stan, ktory raz zglosil nieistniejaca "podwojna blokade" (02.08.2026).
+    guard.main documents three outcomes: file means this process owns the lock, None
+    means someone else owns it, and False means the lock file could not be opened and
+    the daemon starts without exclusivity. This fuzzer used to check only `is not None`,
+    putting `False` into the handle list and then calling .close() on it. That caused
+    AttributeError noise and state drift that once reported a nonexistent double lock.
     """
     return hasattr(r, "close")
 
@@ -493,7 +490,7 @@ def fuzz_wylacznosc(seed, n):
                 elif wariant == 1:
                     opis = "druga instancja przy trzymanej blokadzie"
                     if not uchwyty:
-                        continue      # nikt nie trzyma blokady - nie ma czego sprawdzac
+                        continue      # Nobody holds the lock, so there is nothing to check.
                     f2 = guard.zajmij_wylacznosc()
                     if uchwyt(f2):
                         uchwyty.append(f2)
@@ -570,7 +567,7 @@ def fuzz_wylacznosc(seed, n):
     s.koniec()
 
 
-# ================================================================ 5. load_cfg: progi
+# ================================================================ 5. load_cfg: thresholds
 
 RODZINY = (("soc_resume_c", "soc_pause_c", "soc_kill_c", 40.0, 110.0),
            ("batt_resume_c", "batt_pause_c", "batt_kill_c", 20.0, 60.0))
@@ -590,7 +587,7 @@ def fuzz_load_cfg_progi(seed, n):
             d = {}
             for r, p, k, lo, hi in RODZINY:
                 if s.rng.random() < 0.85:
-                    if s.rng.random() < 0.5:      # trojka blisko granic zakresu
+                    if s.rng.random() < 0.5:      # Three values near range boundaries.
                         baza = s.rng.choice([lo, hi, (lo + hi) / 2.0])
                         d[r] = baza + s.rng.choice([-2, -0.001, 0, 0.001, 2])
                         d[p] = baza + s.rng.choice([-4, 0, 0.002, 4])
@@ -628,8 +625,8 @@ def fuzz_load_cfg_progi(seed, n):
                                         "%.0f-%.0f - kontrola zakresu nie zadzialala"
                                  % (nazwa, v, lo, hi), "WYSOKA",
                                  klucz="poza-zakresem:" + nazwa)
-            # idempotencja: zapis poprawionego configu i ponowne wczytanie nie moze
-            # przesuwac progow dalej (inaczej kazdy restart obniza je o 2 C)
+            # Idempotence: writing corrected config and reading it again must not
+            # shift thresholds further, or every restart lowers them by 2 C.
             with open(CFG_PATH, "w") as f:
                 json.dump({kk: cfg[kk] for r, p, k, lo, hi in RODZINY for kk in (r, p, k)}, f)
             try:
@@ -655,24 +652,24 @@ def fuzz_load_cfg_progi(seed, n):
 
 FLEET_DIR = os.path.join(TMP, "flota")
 
-# znaki pisane WYLACZNIE escape'ami - w zrodle nie ma niewidzialnych bajtow
+# Characters are written only as escapes; the source has no invisible bytes.
 NIEWIDZIALNE = [
-    "\u202e",          # RTL override - odwraca kolejnosc wyswietlania reszty wiersza
+    "\u202e",          # RTL override, reverses display order for the rest of the line.
     "\u200b",          # zero-width space
-    "\u2028",          # separator linii (Unicode)
-    "\u2029",          # separator akapitu
-    "\ufeff",          # BOM w srodku tekstu
-    "\u0301" * 20,     # zalgo: 20 znakow lacznych
-    "\u3164",          # HANGUL FILLER - "pusty", ale drukowalny
+    "\u2028",          # Unicode line separator.
+    "\u2029",          # Unicode paragraph separator.
+    "\ufeff",          # BOM inside text.
+    "\u0301" * 20,     # Zalgo: 20 combining marks.
+    "\u3164",          # HANGUL FILLER, "empty" but printable.
     "\u2066", "\u202d",
     "\x1b[2J", "\x1b[1;1H", "\r", "\x07", "\n",
 ]
 
-# czego szukamy w GOTOWYM wydruku tabeli (nigdy pusty string!)
+# What to look for in the rendered table. Never use an empty string here.
 ZAKAZANE_W_WYDRUKU = [("\x1b", "ESC (sekwencja ANSI)"), ("\r", "CR (kasuje wiersz)"),
                       ("\x07", "BEL"), ("\u202e", "RTL override"),
                       ("\u200b", "zero-width space"), ("\u2028", "separator linii"),
-                      ("\ufeff", "BOM")]   # UWAGA: bez "\n" - tabela sama ma nowe linie
+                      ("\ufeff", "BOM")]   # Note: no "\n"; the table has its own newlines.
 
 WROGIE_MIGAWKI = [
     "{}", "null", "[]", '"tekst"', "5", "{", "\x00\xff",
@@ -771,11 +768,11 @@ def fuzz_fleet(seed, n):
             for h in hosts:
                 lv = h.get("level")
                 if not isinstance(lv, int) or isinstance(lv, bool) or not (0 <= lv <= 3):
-                    if "_age" in h and h.get("_age") != 1e9:      # wpis .icloud nie ma level
+                    if "_age" in h and h.get("_age") != 1e9:      # .icloud entry has no level.
                         s.bzdura(wejscia, "level po normalizacji = %r (render indeksuje nim "
                                           "liste 4-elementowa)" % (lv,), "WYSOKA",
                                  klucz="level-nieznormalizowany")
-            # to jest WLASCIWY test: jedna zepsuta migawka nie moze wywalic tabeli floty
+            # This is the real test: one broken snapshot cannot crash the fleet table.
             bufor = io.StringIO()
             try:
                 with redirect_stdout(bufor):
@@ -835,7 +832,7 @@ def fuzz_chip_swiezosc(seed, n):
                          klucz="zly-typ")
                 continue
             goraco = r[0]
-            # oracle 1: swieza migawka z goracym chipem MUSI zatrzymac start zadania
+            # Oracle 1: a fresh snapshot with a hot chip must stop job start.
             prog = 85.0
             if isinstance(progi, dict) and isinstance(progi.get("pause"), (int, float)):
                 prog = float(progi["pause"])
@@ -845,13 +842,13 @@ def fuzz_chip_swiezosc(seed, n):
                          "swieza migawka mowi chip %.1f C przy progu %.1f, a safe-run i tak "
                          "PUSZCZA ciezkie zadanie" % (chip, prog), "WYSOKA",
                          klucz="przepuszcza-goraco")
-            # oracle 2: migawka starsza niz 120 s = guard nie zyje (pisze co 15 s).
-            # DECYZJA PRODUKTOWA z 02.08.2026: zadania NIE blokujemy - safe-run ma dzialac
-            # takze tam, gdzie demona nie ma wcale, a odmowa startu byloby gorsza od braku
-            # nadzoru. Wymagamy natomiast, zeby funkcja to ZASYGNALIZOWALA: drugi element
-            # krotki to "STALE", na podstawie ktorego safe-run wypisuje ostrzezenie
-            # "zadanie wystartuje, ale NIKT nie bedzie pilnowal jego temperatury".
-            # Cisza byla defektem; przepuszczenie zadania nie jest.
+            # Oracle 2: a snapshot older than 120 s means the guard is not alive
+            # because it writes every 15 s. Product decision: do not block the job,
+            # because safe-run must also work where the daemon is absent and refusal
+            # would be worse than no supervision. The function must signal this via
+            # "STALE" as the second tuple element so safe-run can warn that nobody
+            # will watch the job temperature. Silence was the defect; allowing the
+            # job is not.
             if wiek > 130 and goraco is False and r[1] != "STALE":
                 s.bzdura({"wiek_s": wiek, "status": tresc},
                          "migawka sprzed %.0f s (demon najpewniej nie zyje), a funkcja nie "
@@ -886,7 +883,7 @@ def fuzz_report(seed, n):
                 break
             s.n += 1
 
-            # --- a) sciezka PDF: musi zostac W TYM SAMYM katalogu co raport tekstowy
+            # --- a) PDF path must stay in the same directory as the text report.
             cel = cele[i % len(cele)]
             pelny = os.path.join(TMP, cel)
             pdf = os.path.splitext(pelny)[0] + ".pdf"
@@ -897,10 +894,10 @@ def fuzz_report(seed, n):
                 s.bzdura(cel, "sciezka PDF wyszla dziwna: %r" % pdf, "SREDNIA",
                          klucz="pdf-zla-nazwa")
 
-            # --- b) szczyt temperatury z history.csv (pasmo wiarygodnosci 0 < v <= 110;
-            #        gorna granica zeszla ze 150 na 110 - T_j max Apple Silicon, patrz
-            #        komentarz w thermal-report. Wiersze powyzej maja byc POLICZONE
-            #        i opisane osobna linijka, a nie po cichu pominiete.)
+            # --- b) Peak temperature from history.csv, confidence band 0 < v <= 110.
+            #        The upper bound moved from 150 to 110, the Apple Silicon T_j max
+            #        described in thermal-report. Rows above it must be counted and
+            #        described on a separate line, not silently skipped.
             wiersze = []
             oczekiwany = 0.0
             for _ in range(s.rng.randint(0, 12)):
@@ -913,7 +910,7 @@ def fuzz_report(seed, n):
                     v = s.rng.choice(["999.9", "1e400", "nan", "-5", "0", "120.1", "110.5", ""])
                     wiersze.append("%s 10:00:00,nominal,%s,,,0,10,90,1,100,2.0,0" % (dzis, v))
                 elif r < 0.8:
-                    wiersze.append("%s 10:00:00,nominal,88.8" % dzis)        # ucieta linia
+                    wiersze.append("%s 10:00:00,nominal,88.8" % dzis)        # Truncated line.
                 elif r < 0.9:
                     wiersze.append("2000-01-01 10:00:00,nominal,108.0,,,0,10,90,1,100,2.0,0")
                 else:
@@ -925,7 +922,7 @@ def fuzz_report(seed, n):
                 f.write("%s 10:00:00  [PAUSE] PAUSED ffmpeg (pid 1, 90%% CPU) - hot\n" % dzis)
             with open(EVENTS_PATH, "w") as f:
                 f.write('{"time": "%s 10:00:00", "type": "HARD", "description": "x"}\n' % dzis)
-            if i % 7 == 0:      # hardware.json po recznej edycji: poprawny JSON, nie-obiekt
+            if i % 7 == 0:      # hardware.json after manual edit: valid JSON, not an object.
                 with open(os.path.join(TMP, "hardware.json"), "w") as f:
                     f.write(s.rng.choice(["[]", '"x"', "5", "null"]))
             else:
@@ -954,15 +951,12 @@ def fuzz_report(seed, n):
                 s.bzdura(wej, "szczyt w raporcie %.1f C, a najwyzszy poprawny pomiar %.1f C"
                          % (float(m.group(1)), oczekiwany), "WYSOKA", klucz="zly-szczyt")
             if m and "MEASUREMENT TIMELINE" in tekst:
-                # Szczyt ma stac POD naglowkiem sekcji, ale NAD wierszami pomiarow.
-                # Oracle porownywal go z pozycja NAGLOWKA, wiec kazde poprawne
-                # umieszczenie zglaszal jako "wewnatrz osi" - 229 falszywych trafien.
-                # Wlasciwa granica to pierwszy WIERSZ DANYCH.
-                # Granice liczymy OD NAGLOWKA SEKCJI. Wiersze zaczynajace sie od daty
-                # sa takze w sekcjach ZDARZENIA i INTERWENCJE, ktore stoja WYZEJ -
-                # szukanie w calym dokumencie trafialo w nie i dawalo granice mniejsza
-                # niz pozycja naglowka. Stad 229 falszywych trafien takze po pierwszej
-                # poprawce oracle'a.
+                # The peak must sit below the section header but above measurement
+                # rows. The oracle used to compare it to the header position, flagging
+                # every correct placement as "inside the axis". The right boundary is
+                # the first data row. Compute boundaries from the section header because
+                # date-prefixed rows also appear in EVENTS and INTERVENTIONS above this
+                # section; a whole-document search found those and produced false hits.
                 _od = tekst.index("MEASUREMENT TIMELINE")
                 _wiersze = re.search(r"^  \d{4}-\d{2}-\d{2} ", tekst[_od:], re.M)
                 _granica = (_od + _wiersze.start()) if _wiersze else len(tekst)
@@ -983,7 +977,7 @@ def fuzz_stat_znaczniki(seed, n):
     s = Sesja("guard.statystyki_dnia [znaczniki]", seed)
     dzis = time.strftime("%Y-%m-%d")
     jutro = time.strftime("%Y-%m-%d", time.localtime(time.time() + 86400))
-    # nazwy procesow, ktore SAME zawieraja slowo-klucz parsera
+    # Process names that themselves contain a parser keyword.
     zatrute_nazwy = ["sigterm_bench", "PAUSED_render", "resumed-worker", "koncze zadanie.sh"]
     try:
         for i in range(n):
@@ -1014,20 +1008,20 @@ def fuzz_stat_znaczniki(seed, n):
                 else:
                     linie.append(s.rng.choice([
                         "%s 10:00:00  KEEP-AWAKE start" % dzis,
-                        "%s 10:00:00  [PAUSE] PAUSED x (pid 1)" % jutro,   # data z przyszlosci
+                        "%s 10:00:00  [PAUSE] PAUSED x (pid 1)" % jutro,   # Future date.
                         "linia bez daty w ogole",
                         "%s 10:00:00  %s" % (dzis, "A" * (1000000 if i < 8 else 20000)),
                         "%s 10:00:00  CONFIG: odrzucone: never_extra" % dzis,
                         "%s 10:00:00  ОБНАРУЖЕНО "
                         "приостановка"
-                        % dzis,                                             # stary wpis po rosyjsku
-                        "%s 10:00:00  暂停任务" % dzis,     # stary wpis po chinsku
-                        "%s 10:00:00  PAUSA de la tarea" % dzis,            # stary wpis po hiszpansku
+                        % dzis,                                             # Old Russian entry.
+                        "%s 10:00:00  暂停任务" % dzis,     # Old Chinese entry.
+                        "%s 10:00:00  PAUSA de la tarea" % dzis,            # Old Spanish entry.
                     ]))
             tresc = "\n".join(linie) + "\n"
             bajty = tresc.encode("utf-8")
             zepsute = s.rng.random() < 0.15
-            if zepsute:      # jeden nie-UTF-8 bajt na koncu logu
+            if zepsute:      # One non-UTF-8 byte at the end of the log.
                 bajty = bajty + b"\xff\xfe niepoprawne utf-8\n"
             with open(LOG_PATH, "wb") as f:
                 f.write(bajty)
@@ -1065,7 +1059,7 @@ def fuzz_stat_znaczniki(seed, n):
     s.koniec()
 
 
-# ================================================================ raport
+# ================================================================ report
 
 def wypisz_raport(seed, n):
     print("=" * 78)

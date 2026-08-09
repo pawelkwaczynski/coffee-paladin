@@ -1,23 +1,22 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Zamykanie demona i PETLA GLOWNA na prawdziwym procesie (dwie ostatnie luki pokrycia).
+"""Verify daemon shutdown and the main loop on a real process.
 
-Mutacje testow (runda przegladu 11) pokazaly dwie dziury, ktorych nie zamykal zaden test:
+Coverage mutation showed two gaps no test closed:
 
-  * ZAMYKANIE DEMONA - `do_resume` na wyjsciu, zdejmowanie degradacji, ubicie
-    `caffeinate` i zapis `clean_stop`. Cztery mutacje, zero reakcji. Skutki kazdej
-    z nich sa ciche i grozne: proces zostaje ZAMROZONY NA ZAWSZE, Mac nigdy nie
-    zasypia, albo czyste zamkniecie jest przy nastepnym starcie meldowane jako
-    TWARDY PAD - czyli do dokumentu dowodowego trafia awaria, ktorej nie bylo.
-  * PETLA GLOWNA nigdy nie byla uruchamiana przez zaden test. Tutaj demon startuje
-    naprawde, przez `main()`, i przechodzi kilka pelnych taktow.
+  * Daemon shutdown: `do_resume` on exit, removing demotion, killing `caffeinate`,
+    and writing `clean_stop`. Each failure is quiet and dangerous: a process stays
+    frozen forever, the Mac never sleeps, or a clean shutdown is reported on next start
+    as a hard shutdown, putting a nonexistent failure into the evidence document.
+  * Main loop had never been run by a test. Here the daemon really starts through
+    `main()` and completes several full ticks.
 
-Demon dziala w IZOLACJI (TG_BASE) i w trybie obserwacji (`dry_run`), wiec nie dotyka
-zadnego procesu uzytkownika. Reczne zamrozenie testujemy tym samym kanalem, ktorego
-uzywa pasek: plikiem-rozkazem.
+The daemon runs isolated under TG_BASE and in watch-only mode (`dry_run`), so it does
+not touch any user process. Manual freeze is tested through the same command-file
+channel the menu bar uses.
 
-Uruchomienie:  python3 tests/test_zamkniecie_demona.py
-Nie dotyka prawdziwego ~/.coffee-paladin.
+Run with:  python3 tests/test_zamkniecie_demona.py
+Does not touch the real ~/.coffee-paladin.
 """
 import importlib.machinery
 import io
@@ -77,7 +76,7 @@ def log_tekst():
         return ""
 
 
-# ---------------------------------------------------------------- petla glowna
+# ---------------------------------------------------------------- main loop
 print("=== petla glowna naprawde biegnie ===")
 demon = start_demona()
 test("1. demon wystartowal i zapisal status", czekaj_na(lambda: os.path.exists(plik("status.json"))),
@@ -99,7 +98,7 @@ test("5. migawka niesie realne pomiary, nie pusty szkielet",
      "status.json: %s" % sorted(dane)[:8])
 test("6. historia pomiarow jest zapisywana", os.path.exists(plik("history.csv")))
 
-# ---------------------------------------------------------------- zamkniecie
+# ---------------------------------------------------------------- shutdown
 print("\n=== zamkniecie: SIGTERM na zywym demonie ===")
 demon.send_signal(signal.SIGTERM)
 try:
@@ -112,7 +111,7 @@ test("8. zapisal znacznik czystego zamkniecia", os.path.exists(plik("clean_stop"
      "brak clean_stop - nastepny start uzna to za TWARDY PAD")
 test("9. ...i wpis koncowy w logu", "coffee-paladin stop" in log_tekst())
 
-# ---------------------------------------------------------------- to jest sedno
+# ---------------------------------------------------------------- core invariant
 print("\n=== czyste zamkniecie NIE MOZE byc meldowane jako twardy pad ===")
 g = importlib.machinery.SourceFileLoader("zd_guard", os.path.join(SRC, "guard.py")).load_module()
 try:
@@ -124,7 +123,7 @@ pady = [z for z in zdarzenia if z.get("type") == "HARD_SHUTDOWN"]
 test("10. po czystym zamknieciu w czarnej skrzynce NIE MA twardego padu", not pady,
      "sfabrykowane pady: %s" % [z.get("time") for z in pady])
 
-# a teraz to samo od strony wykrywacza: puls sprzed "bootu" + clean_stop = cisza
+# The same from the detector side: heartbeat before "boot" plus clean_stop means silence.
 boot = g.boot_time()
 with io.open(g.HEARTBEAT_PATH, "w", encoding="utf-8") as f:
     f.write("%d %s" % (boot - 600, g.ts(boot - 600)))
@@ -152,7 +151,7 @@ czekaj_na(lambda: os.path.exists(plik("status.json")), ile=25)
 
 
 def moje_caffeinate():
-    """caffeinate, ktorego rodzicem jest NASZ demon - cudzych nie liczymy."""
+    """Return caffeinate processes whose parent is our daemon, ignoring foreign ones."""
     out = subprocess.run(["ps", "-Ao", "pid=,ppid=,comm="], capture_output=True, text=True).stdout
     zn = []
     for l in out.splitlines():

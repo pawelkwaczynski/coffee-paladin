@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-"""Regresja B1/B3 (01.08.2026): degradacja na E-cores z histereza powrotu.
+"""Verify E-core demotion and promotion hysteresis.
 
-Nocna kolejka wideo pokazala trzy defekty jednego mechanizmu:
-  - zegar degradacji resetowal sie przy kazdej pauzie SIGSTOP (B3),
-  - degradacja byla jednokierunkowa - proces nigdy nie wracal na rdzenie P,
-  - degradowala takze CHLODNA maszyne (ffmpeg przy 44 C zwolnil 11x).
+An overnight video queue exposed three defects in one mechanism:
+  - the demotion timer reset after each SIGSTOP pause,
+  - demotion was one-way and the process never returned to P-cores,
+  - it demoted even on a cool Mac, making ffmpeg at 44 C run 11x slower.
 
-Testy wolaja PRAWDZIWE do_demote/do_promote na zywym procesie `yes`
-i sprawdzaja skutki w systemie (ps -o pri), nie tylko w pamieci guarda.
+These tests call the real do_demote/do_promote on a live `yes` process and verify
+the system effect with `ps -o pri`, not just the guard's memory.
 
-Uruchomienie:  python3 testy/test_demote_promote.py
+Run with:  python3 testy/test_demote_promote.py
 """
 import os
 import subprocess
@@ -19,7 +19,7 @@ import tempfile
 KATALOG = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 os.environ["TG_BASE"] = tempfile.mkdtemp(prefix="tg_test_demote_")
 sys.path.insert(0, KATALOG)
-import guard  # noqa: E402  (TG_BASE musi byc w srodowisku PRZED importem)
+import guard  # noqa: E402  (TG_BASE must be in the environment before import.)
 
 WYNIKI = []
 
@@ -31,9 +31,12 @@ def check(nazwa, warunek, szczegol=""):
 
 
 def pri_z_ps(pid):
-    """Priorytet szeregowania z ps. taskpolicy -b sciaga go z ~31 na ~4;
-    -B przywraca. Celowo NIE nice: nice raz podniesiony nie wraca bez roota,
-    dlatego degradacja w ogole go nie dotyka."""
+    """Return scheduling priority from ps.
+
+    taskpolicy -b lowers it from ~31 to ~4; -B restores it. This intentionally does
+    not use nice: once nice is raised, it cannot return without root, so demotion
+    never touches nice.
+    """
     out = subprocess.run(["ps", "-o", "pri=", "-p", str(pid)],
                          capture_output=True, text=True).stdout.strip()
     return int(out) if out else None
@@ -45,12 +48,12 @@ def swiezy_stan():
 
 CFG = {
     "poll_seconds": 15,
-    "demote_after_minutes": 1,      # limit = 60 s -> 4 "cykle" po 15 s
+    "demote_after_minutes": 1,      # limit = 60 s -> four 15 s cycles
     "demote_cpu_percent": 60.0,
-    "demote_above_c": None,          # pochodna: soc_resume_c + 4 = 86
+    "demote_above_c": None,          # Derived value: soc_resume_c + 4 = 86.
     "soc_resume_c": 82.0,
     "dry_run": False,
-    "notify": False,   # testy maja byc nieme - nie strzelamy powiadomieniami w ekran
+    "notify": False,   # Keep tests silent; do not fire notifications on screen.
     "sound": False,
 }
 
@@ -110,12 +113,12 @@ def main():
         check("brak odczytu chipu: zero degradacji", not st2["demoted"])
 
         print("5) sedno B3: wpis zegara przezywa pauze (kumulacja, nie czas od startu)")
-        # symulacja pauzy: proces wypada z targets na dowolnie dlugo -> hist bez zmian,
-        # po "wznowieniu" kumulacja idzie dalej od tego samego miejsca
+        # Simulate pause: the process drops out of targets for any duration, leaving
+        # hist unchanged. After "resume", accumulation continues from the same point.
         st3, hist3 = swiezy_stan(), {}
         guard.do_demote(CFG, st3, targets, hist3, soc_t=90.0)   # 15 s
         zebrane_przed_pauza = hist3[pid]
-        guard.do_demote(CFG, st3, [], hist3, soc_t=90.0)         # pauza: brak w targets
+        guard.do_demote(CFG, st3, [], hist3, soc_t=90.0)         # Pause: absent from targets.
         check("pauza nie kasuje ani nie dolicza", hist3[pid] == zebrane_przed_pauza)
         for _ in range(3):
             guard.do_demote(CFG, st3, targets, hist3, soc_t=90.0)

@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Rotacja logow NIE MOZE gubic dowodow (pozycja 1 z listy otwartych).
+"""Ensure log rotation cannot lose evidence.
 
-Guard rotuje `guard.log` i `history.csv` przy 5 MB. Do 02.08.2026 robil to jednym
-`os.replace(path, path + ".1")`, a `thermal-report` czytal WYLACZNIE plik biezacy.
-Skutki, oba odtworzone:
-  * zaraz po rotacji ten sam `--days 2` pokazywal 44,0 C zamiast szczytu 98,7 C,
-  * druga rotacja nadpisywala `.1`, czyli kasowala dowod bezpowrotnie.
+The guard rotates `guard.log` and `history.csv` at 5 MB. It used to do this with one
+`os.replace(path, path + ".1")`, while `thermal-report` read only the current file.
+Reproduced effects:
+  * just after rotation, the same `--days 2` showed 44.0 C instead of peak 98.7 C,
+  * a second rotation overwrote `.1`, permanently deleting evidence.
 
-To jest dokument do serwisu albo do roszczenia gwarancyjnego - utrata jednego odczytu
-jest utrata calej sprawy.
+This is a document for service or a warranty claim. Losing one reading can lose the
+whole case.
 
-Uruchomienie:  python3 tests/test_rotacja_dowodow.py
-Nie dotyka prawdziwego ~/.coffee-paladin - wszystko w katalogu tymczasowym.
+Run with:  python3 tests/test_rotacja_dowodow.py
+Does not touch the real ~/.coffee-paladin; everything is in a temporary directory.
 """
 import importlib.machinery
 import io
@@ -77,19 +77,19 @@ def szczyt_z(tekst):
 
 print("=== rotacja dowodow ===")
 
-# 1. stan wyjsciowy: szczyt widoczny
+# 1. Initial state: peak is visible.
 napisz_historie(("98.7", "09:00:00"), ("55.0", "09:01:00"))
 test("1. przed rotacja raport podaje szczyt 98,7 C", szczyt_z(raport()) == 98.7,
      "dostalem %s" % szczyt_z(raport()))
 
-# 2. po rotacji szczyt NIE MOZE zniknac
+# 2. After rotation, the peak must not disappear.
 przepelnij_i_zrotuj(g.HIST_PATH)
 napisz_historie(("44.0", "10:00:00"))
 po = szczyt_z(raport())
 test("2. po rotacji raport NADAL podaje 98,7 C (nie 44,0 z nowego pliku)", po == 98.7,
      "dostalem %s - raport czyta tylko plik biezacy" % po)
 
-# 3. druga rotacja nie kasuje pierwszego pokolenia
+# 3. A second rotation does not delete the first generation.
 przepelnij_i_zrotuj(g.HIST_PATH)
 napisz_historie(("40.0", "11:00:00"))
 zrodla = g.pokolenia(g.HIST_PATH)
@@ -99,14 +99,14 @@ test("3. po DRUGIEJ rotacji odczyt 98,7 C dalej istnieje na dysku", bool(gdzie),
      "przepadl; pliki: %s" % sorted(os.listdir(BASE)))
 test("4. i raport go widzi", szczyt_z(raport()) == 98.7, "dostalem %s" % szczyt_z(raport()))
 
-# 5. pokolenia ida CHRONOLOGICZNIE (najstarsze pierwsze) - inaczej os czasu klamie
+# 5. Generations are chronological, oldest first, or the timeline lies.
 nazwy = [os.path.basename(p) for p in g.pokolenia(g.HIST_PATH)]
 test("5. pokolenia w kolejnosci chronologicznej, plik biezacy na koncu",
      nazwy == sorted(nazwy, key=lambda n: -int(n.split(".")[-1]) if n[-1].isdigit() else 0)
      and nazwy[-1] == "history.csv",
      "kolejnosc: %s" % nazwy)
 
-# 6. sufit pokolen dziala - stare wypadaja, nie rosnie w nieskonczonosc
+# 6. Generation cap works: old entries fall out instead of growing forever.
 for _ in range(g.MAX_LOG_GENERACJI + 3):
     przepelnij_i_zrotuj(g.HIST_PATH)
     napisz_historie(("41.0", "12:00:00"))
@@ -114,7 +114,7 @@ ile = len([n for n in os.listdir(BASE) if n.startswith("history.csv.")])
 test("6. liczba pokolen nie przekracza MAX_LOG_GENERACJI", ile <= g.MAX_LOG_GENERACJI,
      "jest %d pokolen przy limicie %d" % (ile, g.MAX_LOG_GENERACJI))
 
-# --- PRZYPADEK PRZECIWNY: bez rotacji nic sie nie zmienia ---
+# --- Countercase: without rotation, nothing changes ---
 print("\n=== przypadek przeciwny (zadnej rotacji) ===")
 for n in list(os.listdir(BASE)):
     if n.startswith("history.csv."):
@@ -124,7 +124,7 @@ test("7. bez rotacji: jedno zrodlo i szczyt z niego",
      g.pokolenia(g.HIST_PATH) == [g.HIST_PATH] and szczyt_z(raport()) == 77.0,
      "zrodla=%s szczyt=%s" % (g.pokolenia(g.HIST_PATH), szczyt_z(raport())))
 
-# 8. brak pliku w ogole = pusta lista, bez wyjatku
+# 8. No file at all means an empty list, not an exception.
 os.remove(g.HIST_PATH)
 test("8. brak pliku: pokolenia() zwraca pusta liste bez wyjatku", g.pokolenia(g.HIST_PATH) == [])
 

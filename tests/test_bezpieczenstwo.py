@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Bezpieczenstwo: pgid, listy nietykalnych, wyciek tematu ntfy (pozycje 10, 11, 12).
+"""Verify security contracts for pgid, untouchable matching, and ntfy topic handling.
 
-  * poz. 10 - `pgid` z managed/ byl przepisywany z pliku DOSLOWNIE. Rejestracja to
-    zwykly JSON na dysku, wiec plik {"pid": A, "pgid": B} kierowal SIGSTOP/SIGKILL
-    do grupy B - czyli NIE do zarejestrowanego zadania. Do tego nikt nie sprawdzal,
-    kto ten plik napisal.
-  * poz. 11 - listy nietykalnych dopasowuja po PODCIAGU, wiec `mds_solver` jest
-    nietykalny przez `mds`. Dopasowania NIE zawezamy (asymetria ryzyka: falszywa
-    ochrona = goracy Mac, utrata ochrony = zamrozony agent AI), ale przestaje ono
-    byc CICHE.
-  * poz. 12 - temat ntfy siedzial w URL-u w argv `curl`, czyli byl widoczny w `ps`
-    dla kazdego uzytkownika maszyny. Temat jest JEDYNYM zabezpieczeniem tego kanalu.
+  * item 10 - `pgid` from managed/ used to be copied from the file literally.
+    Registration is ordinary JSON on disk, so {"pid": A, "pgid": B} sent
+    SIGSTOP/SIGKILL to group B, not to the registered job. The writer was not
+    checked either.
+  * item 11 - untouchable lists match by substring, so `mds_solver` is untouchable
+    because of `mds`. Do not narrow the match: the risk is asymmetric. False
+    protection means a hot Mac; lost protection means a frozen AI agent. The match
+    must no longer be silent.
+  * item 12 - the ntfy topic used to sit in the `curl` URL argv, visible in `ps`
+    to every user on the machine. The topic is the only protection on that channel.
 
-Uruchomienie:  python3 tests/test_bezpieczenstwo.py
-Nie dotyka prawdziwego ~/.coffee-paladin.
+Run with:  python3 tests/test_bezpieczenstwo.py
+Does not touch the real ~/.coffee-paladin.
 """
 import importlib.machinery
 import io
@@ -52,13 +52,13 @@ def rejestruj(pid, pgid, prawa=0o600, started=None):
     return p
 
 
-# ---------------------------------------------------------------- poz. 10
+# ---------------------------------------------------------------- item 10
 print("=== poz. 10: pgid bierzemy z JADRA, nie z pliku ===")
-# start_new_session: wlasna grupa procesow, inaczej pgid nie rozni sie od naszego
+# start_new_session gives a private process group; otherwise pgid equals ours.
 ofiara = subprocess.Popen(["sleep", "300"], start_new_session=True)
 prawdziwy = os.getpgid(ofiara.pid)
 cudzy = os.getpgid(0)
-rejestruj(ofiara.pid, cudzy)              # w pliku CUDZE pgid
+rejestruj(ofiara.pid, cudzy)              # Foreign pgid in the file.
 res, _ = g.managed_pids_from_saferun()
 test("1. guard uzywa PRAWDZIWEGO pgid procesu, nie tego z pliku",
      res.get(ofiara.pid) == prawdziwy,
@@ -81,7 +81,7 @@ drugi.kill(); drugi.wait()
 for n in os.listdir(os.path.join(BASE, "managed")):
     os.remove(os.path.join(BASE, "managed", n))
 
-# ---------------------------------------------------------------- poz. 11
+# ---------------------------------------------------------------- item 11
 print("\n=== poz. 11: ochrona po podciagu ZOSTAJE, ale przestaje milczec ===")
 cfg = g.load_cfg()
 cfg["cpu_min_percent"] = 10
@@ -109,7 +109,7 @@ test("8. log MOWI, dlaczego goracy mds_solver jest pomijany",
 test("9. przy PELNYM dopasowaniu (mds) nie ma halasu w logu",
      "mds uses" not in log, "logujemy takze oczywiste przypadki")
 
-# ---------------------------------------------------------------- poz. 12
+# ---------------------------------------------------------------- item 12
 print("\n=== poz. 12: temat ntfy nie moze byc widoczny w ps ===")
 BIN = os.path.join(BASE, "bin")
 os.makedirs(BIN, exist_ok=True)
@@ -123,11 +123,10 @@ cfg = g.load_cfg()
 cfg["notify"] = True
 cfg["ntfy_topic"] = TEMAT
 g.push(cfg, "Cooling alarm", "chip 98.7 C, fans 0 rpm")
-# `push` uruchamia curla W TLE, wiec czekamy na PLIK, nie na staly czas. Sztywne
-# `sleep(0.8)` wystarczalo na wolnym Macu, ale w pelnej baterii testow pod limiterem
-# CPU atrapa nie zdazyla zapisac i test wywalal sie na FileNotFoundError - dwa razy
-# w bramce wydania 03.08. Test, ktory czasem pada bez powodu, psuje bramke tak samo
-# jak test, ktory nie pada nigdy.
+# `push` starts curl in the background, so wait for the file, not for fixed time.
+# A fixed `sleep(0.8)` passed on a slow Mac, but under the full test suite with a
+# CPU limiter the stub sometimes had not written yet, causing FileNotFoundError.
+# A flaky test damages the gate just like a test that never fails.
 _argv_path = os.path.join(BIN, "curl.argv")
 _stdin_path = os.path.join(BIN, "curl.stdin")
 _koniec = time.time() + 20.0

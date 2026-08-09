@@ -1,15 +1,15 @@
-# Testy `wykryj_twardy_pad()` — matryca dowodowa (Neo, 30.07.2026)
+# `wykryj_twardy_pad()` Tests - Evidence Matrix
 
-`test_wykryj_twardy_pad.py` — 16 przypadków bez uruchamiania demona i **bez dotykania**
-`~/.coffee-paladin` (izolacja: import przez `importlib` + podmiana w module wszystkich
-atrybutów `*_PATH`/`*_DIR` na katalog tymczasowy; `HOME` ze środowiska NIE wystarcza,
-bo `guard.py` liczy je z `pwd`).
+`test_wykryj_twardy_pad.py` covers 16 cases without starting the daemon and **without
+touching** `~/.coffee-paladin`. Isolation is done by importing through `importlib` and
+replacing every module `*_PATH`/`*_DIR` attribute with a temporary directory. Environment
+`HOME` is not enough because `guard.py` computes these paths from `pwd`.
 
     T=$(mktemp -d) && python3 test_wykryj_twardy_pad.py "$T"; rm -rf "$T"
 
-Zakres: A) 8 przypadków logiki (pad/czysty stop/okno `[puls-60, boot)`/podłoga 30 dni/
-restore bez `-p`), B) 4 warianty formatu pulsu (nowy `epoch tekst`, legacy sam tekst,
-śmieci, pusty plik), C) 4 scenariusze stref czasowych (w tym Kiritimati→Midway, delta 25 h,
-oraz legacy+strefa — jedyny znany FAIL, patrz notatka v4).
+Scope: A) 8 logic cases: hard shutdown, clean stop, `[heartbeat-60, boot)` window,
+30-day floor, restore without `-p`; B) 4 heartbeat format variants: new `epoch text`,
+legacy text-only, junk, empty file; C) 4 time-zone scenarios, including
+Kiritimati->Midway, 25 h delta, and legacy+zone, the only known FAIL; see note v4.
 
-Wynik na `v1.7.4` (b5262eb): **A 8/8, B 4/4, C 3/4**.
+Result on `v1.7.4` (b5262eb): **A 8/8, B 4/4, C 3/4**.

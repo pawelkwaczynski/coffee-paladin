@@ -1,23 +1,22 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Wykrywanie padu ma OZNACZAC watpliwy dowod, nie wyrzucac go (pozycja 3 z listy).
+"""Mark uncertain shutdown evidence instead of discarding it.
 
-Do 2.1.7 kazdy przypadek "podejrzany" konczyl sie `return None`, czyli CISZA - a to
-najgorsze mozliwe zachowanie czarnej skrzynki. Trzy realne drogi do utraty albo
-sfalszowania dowodu:
+Suspicious cases used to end with `return None`, meaning silence, the worst possible
+black-box behavior. Three real paths can lose or falsify evidence:
 
-  * rozladowany RTC / skok NTP - puls wypadal ponad 30 dni przed bootem, wiec podloga
-    30-dniowa WYRZUCALA go zamiast oznaczyc; dowod przepadal bezpowrotnie,
-  * demon ubity (SIGKILL, `launchctl bootout`, timeout launchd) przed NORMALNYM
-    restartem - puls sprzed bootu, brak clean_stop, wiec zdarzenie bylo FABRYKOWANE
-    jako twardy pad w dniu, w ktorym Mac dzialal poprawnie,
-  * jedno i drugie wygladalo w dokumencie tak samo pewnie jak prawdziwy pad.
+  * drained RTC / NTP jump - the heartbeat lands more than 30 days before boot, so the
+    30-day floor discarded it instead of marking it; evidence was lost permanently,
+  * daemon killed by SIGKILL, `launchctl bootout`, or launchd timeout before a normal
+    restart - heartbeat before boot and no clean_stop fabricated a hard shutdown on a
+    day when the Mac worked correctly,
+  * both looked just as certain in the document as a real hard shutdown.
 
-Zadnego z tych przypadkow nie da sie rozstrzygnac lokalnie i tanio - dlatego dowod
-zapisujemy ZAWSZE, ale z jawnym `confidence`. Rozstrzyga czlowiek w serwisie.
+None of these cases can be resolved locally and cheaply, so always record the evidence
+with explicit `confidence`. A service human decides.
 
-Uruchomienie:  python3 tests/test_pewnosc_padu.py
-Nie dotyka prawdziwego ~/.coffee-paladin.
+Run with:  python3 tests/test_pewnosc_padu.py
+Does not touch the real ~/.coffee-paladin.
 """
 import importlib.machinery
 import io
@@ -46,10 +45,10 @@ def test(nazwa, warunek, detal=""):
 
 
 def scena(puls, czyste=None, czysc_events=True):
-    """Katalog danych z konkretnym pulsem (i opcjonalnym clean_stop).
+    """Set up a data directory with a specific heartbeat and optional clean_stop.
 
-    `czysc_events=False` zostawia events.log - potrzebne tam, gdzie sprawdzamy
-    deduplikacje, bo ona wlasnie czyta to, co juz zapisano.
+    `czysc_events=False` leaves events.log in place for deduplication tests, because
+    deduplication reads what has already been written.
     """
     pliki = [g.HEARTBEAT_PATH, g.CLEAN_STOP_PATH]
     if czysc_events:
@@ -69,7 +68,7 @@ def scena(puls, czyste=None, czysc_events=True):
 
 
 def zapisane():
-    """Ostatni wpis z events.log (to, co naprawde trafia do dokumentu)."""
+    """Return the last events.log entry, which is what the document actually receives."""
     try:
         linie = [l for l in io.open(g.EVENTS_PATH, encoding="utf-8").read().splitlines() if l.strip()]
         return json.loads(linie[-1]) if linie else None
@@ -79,13 +78,13 @@ def zapisane():
 
 print("=== dowod ma byc OZNACZONY, nie wyrzucony ===")
 
-# 1. zwykly twardy pad - pelna pewnosc
+# 1. Plain hard shutdown, high confidence.
 r = scena(BOOT - 600)
 test("1. zwykly pad (10 min przed bootem) wykryty z pewnoscia high",
      r and r.get("confidence") == "high", "dostalem %s" % (r and r.get("confidence")))
 
-# 2. rozladowany RTC / skok NTP: puls ponad 30 dni przed bootem
-#    WCZESNIEJ: cisza, `return None`, dowod przepadal bezpowrotnie
+# 2. Drained RTC / NTP jump: heartbeat more than 30 days before boot.
+#    Previously: silence, `return None`, evidence lost permanently.
 r = scena(BOOT - 45 * 86400)
 w = zapisane()
 test("2. puls sprzed 45 dni: dowod ZAPISANY (nie wyrzucony po cichu)", bool(r) and bool(w),
@@ -98,7 +97,7 @@ test("4. ...z podanym POWODEM watpliwosci",
      bool(w and w.get("context", {}).get("confidence_reason")),
      "powod: %r" % (w and w.get("context", {}).get("confidence_reason")))
 
-# 3. demon ubity dlugo przed normalnym restartem - fabrykacja padu
+# 3. Daemon killed long before normal restart, fabricating a shutdown.
 r = scena(BOOT - 20 * 3600)
 w = zapisane()
 test("5. puls 20 h przed bootem: zapisany, ale NIE jako pewny twardy pad",
@@ -108,12 +107,12 @@ test("6. ...powod wskazuje na ubicie bezpiecznika, nie na pad Maca",
      bool(w) and "heartbeat" in (w.get("context", {}).get("confidence_reason") or "").lower(),
      "powod: %r" % (w and w.get("context", {}).get("confidence_reason")))
 
-# 4. granica: 6 h przed bootem to nadal wiarygodny pad (Mac lezal wylaczony na noc)
+# 4. Boundary: 6 h before boot is still credible; the Mac could be off overnight.
 r = scena(BOOT - 6 * 3600)
 test("7. 6 h przed bootem nadal liczy sie jako pewny pad",
      r and r.get("confidence") == "high", "confidence=%s" % (r and r.get("confidence")))
 
-# --- PRZYPADKI PRZECIWNE: cisza tam, gdzie cisza jest poprawna ---
+# --- Countercases: silence where silence is correct ---
 print("\n=== przypadek przeciwny: kiedy NIE wolno meldowac padu ===")
 
 test("8. puls z biezacej sesji: cisza", scena(BOOT + 60) is None)
@@ -121,19 +120,19 @@ test("9. czysty stop sprzed bootu: cisza", scena(BOOT - 600, czyste=BOOT - 600) 
 test("10. clean_stop z biezacej sesji NIE wycisza prawdziwego padu",
      scena(BOOT - 600, czyste=time.time()) is not None)
 
-# 11. opis dla czlowieka niesie ostrzezenie, nie samo suche zdanie
+# 11. Human-facing description carries a warning, not only a dry sentence.
 r = scena(BOOT - 45 * 86400)
 test("11. opis w dokumencie zawiera jawne ostrzezenie o niskiej wiarygodnosci",
      r and "LOW" in (r.get("description") or "").upper(),
      "opis: %r" % (r and (r.get("description") or "")[:90]))
 
-# 12. pole gap_to_boot_s pozwala czlowiekowi ocenic samodzielnie
+# 12. gap_to_boot_s lets a human assess the gap independently.
 w = zapisane()
 test("12. zdarzenie niesie zmierzona luke puls->boot",
      bool(w) and isinstance(w.get("context", {}).get("gap_to_boot_s"), (int, float)),
      "context=%s" % (w and list((w.get("context") or {}).keys())))
 
-# --- pozycja 4: ten sam pad wolno opisac DOKLADNIE RAZ ---
+# --- item 4: the same shutdown may be described exactly once ---
 print("\n=== jeden pad = jeden wpis ===")
 
 
@@ -145,11 +144,11 @@ def ile_hard():
         return -1
 
 
-# demon ginie, zanim tyknie heartbeat -> przy kazdym starcie widzi ten sam stary puls
+# The daemon dies before touching heartbeat; each start sees the same old heartbeat.
 os.remove(g.EVENTS_PATH) if os.path.exists(g.EVENTS_PATH) else None
-scena(BOOT - 600)                      # start 1: zapisuje
+scena(BOOT - 600)                      # Start 1: writes.
 przed = ile_hard()
-for _ in range(4):                     # cztery kolejne starty, heartbeat sie NIE zmienia
+for _ in range(4):                     # Four more starts, heartbeat unchanged.
     g.wykryj_twardy_pad()
 test("13. piec startow z tym samym pulsem daje JEDEN wpis, nie piec",
      ile_hard() == 1, "wpisow: %d (po pierwszym starcie: %d)" % (ile_hard(), przed))
@@ -157,12 +156,12 @@ test("13. piec startow z tym samym pulsem daje JEDEN wpis, nie piec",
 test("14. powtorne wykrycie zwraca None (bez drugiego powiadomienia)",
      g.wykryj_twardy_pad() is None)
 
-# przypadek PRZECIWNY: dwa ROZNE pady to dwa wpisy
-scena(BOOT - 4000, czysc_events=False)   # inny moment ostatniego pulsu = inna awaria
+# Countercase: two different shutdowns produce two entries.
+scena(BOOT - 4000, czysc_events=False)   # Different last heartbeat time = different failure.
 test("15. drugi, INNY pad jest zapisany osobno", ile_hard() == 2,
      "wpisow: %d" % ile_hard())
 
-# i granica: roznica ponizej tolerancji to nadal ten sam pad
+# Boundary: a difference below tolerance is still the same shutdown.
 scena(BOOT - 4000 + 30, czysc_events=False)
 test("16. puls przesuniety o 30 s (fallback na mtime) to nadal TEN SAM pad",
      ile_hard() == 2, "wpisow: %d" % ile_hard())

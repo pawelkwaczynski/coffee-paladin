@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""21 testow rebrandingu coffee-paladin (eggi, animacja, tlumaczenia, grafika, regresja).
-NIE dotyka procesow uzytkownika ani prawdziwego ~/.coffee-paladin - tylko czyta zrodla
-i uruchamia CLI w trybie tylko-do-odczytu.  Uruchom:  python3 testy/test_paladin.py"""
+"""Verify 21 coffee-paladin rebrand checks: eggs, animation, translations, art, regression.
+
+Does not touch user processes or the real ~/.coffee-paladin. It only reads source files
+and runs the CLI in read-only mode. Run with:  python3 testy/test_paladin.py
+"""
 import io, os, re, struct, subprocess, sys
 
 SRC = os.path.dirname(os.path.abspath(__file__)) + "/.."
@@ -27,14 +29,14 @@ def cli(args):
 
 print("=== coffee-paladin: 21 testow (wzmocnione po rundach recenzji) ===")
 
-# 0. zainstalowane CLI == zrodlo (inaczej reszta testuje stara binarke)
+# 0. Installed CLI == source; otherwise the rest tests an old binary.
 import filecmp
 test("0. zainstalowany heat = aktualne zrodlo",
      filecmp.cmp(os.path.join(SRC, "heat"), os.path.join(BIN, "heat"), shallow=False),
      "~/.local/bin/heat rozni sie od zrodla - reszta testow nic nie dowodzi")
 
-# 1. JEDEN egg: --paladin. Stare flagi maja byc naprawde usuniete, a nie martwe
-#    (kiedys --espresso/--paladin/--knight dawaly prawie to samo).
+# 1. One egg: --paladin. Old flags must be truly removed, not dead options.
+#    --espresso/--paladin/--knight once did almost the same thing.
 rc2, o2 = cli(["--paladin"])
 zrodlo_heat = czytaj("heat")
 test("1. jedyna komenda egga to --paladin (stare flagi wyciete ze zrodla)",
@@ -42,9 +44,9 @@ test("1. jedyna komenda egga to --paladin (stare flagi wyciete ze zrodla)",
      "kod=%s, espresso=%s, knight=%s" % (rc2, "--espresso" in zrodlo_heat,
                                          "--knight" in zrodlo_heat))
 
-# 2. rysunek w kolorze musi byc W PELNEJ jakosci (polbloki, >=40 linii) - to jest
-#    ta wersja, ktora widzi uzytkownik nowoczesnego terminala. Sprawdzamy w zrodle,
-#    bo test biegnie bez tty i sam dostalby fallback.
+# 2. Color art must be full quality: half-blocks, >=40 lines. This is the version a
+#    modern terminal shows. Check source because the test runs without a tty and would
+#    otherwise get the fallback.
 mk = re.search(r'PALADIN_KOLOR = """\n(.*?)\n"""', zrodlo_heat, re.S)
 art_kolor = mk.group(1).split("\n") if mk else []
 szer_kolor = max((len(re.sub(r"\x1b\[[0-9;]*m", "", l)) for l in art_kolor), default=0)
@@ -55,17 +57,17 @@ test("2. rysunek kolorowy: >=40 linii polblokow, szerokosc miesci sie w 80 kolum
      and "github.com/pawelkwaczynski/coffee-paladin" in o2,
      "linii: %d, szerokosc: %d" % (len(art_kolor), szer_kolor))
 
-# 3. jedna komenda niesie CALY meldunek warty: temperatura + przysiega + statystyki
+# 3. One command carries the full guard report: temperature, oath, and statistics.
 test("3. --paladin: temperatura i statystyki, BEZ angielskiej przysiegi",
      re.search(r"\d+[.,]\d+\s*C", o2) is not None
      and re.search(r"\d+\s+(pauz|pause)", o2) is not None
-     and "coffee first" not in o2          # linia wycieta na zyczenie autora
+     and "coffee first" not in o2          # Line removed at the author's request.
      and "coffee-paladin" in o2
-     and "pawelkwaczynski/coffee-paladin" in o2   # adres po zmianie nazwy repo
+     and "pawelkwaczynski/coffee-paladin" in o2   # URL after repository rename.
      and "pawelkwaczynski/thermal-guard" not in o2,
      "brak czesci meldunku albo zostal stary adres/przysiega")
 
-# 4. animacja: 8 klatek, kazda linia rownej dlugosci (monospace-safe)
+# 4. Animation: 8 frames, every line equal length for monospace safety.
 hb = czytaj("heatbar.swift")
 m = re.search(r"let PALADIN_FRAMES: \[String\] = \[(.*?)\n\]", hb, re.S)
 klatki = re.findall(r'"((?:[^"\\]|\\.)*)"', m.group(1)) if m else []
@@ -79,11 +81,11 @@ test("4. 8 klatek, stala szerokosc W KAZDEJ i MIEDZY klatkami",
      len(klatki) == 8 and all(len(r) == 1 for r in rozmiary) and len(wszystkie_szer) == 1,
      "klatek: %d, szerokosci w calym zestawie: %s" % (len(klatki), wszystkie_szer))
 
-# 5. wszystkie klatki maja te sama liczbe linii (postac nie 'plywa')
+# 5. All frames have the same line count, so the figure does not float.
 linie = {len(dekoduj(k)) for k in klatki}
 test("5. wszystkie klatki maja tyle samo linii", len(linie) == 1, "linie: %s" % linie)
 
-# 6. rebrand: nazwa i motto w pasku
+# 6. Rebrand: name and motto in the menu bar.
 test("6. APPNAME/MOTTO faktycznie UZYTE w UI (nie tylko zadeklarowane)",
      'let APPNAME = "coffee-paladin"' in hb
      and "SIGNATURE = \"\\(APPNAME)" in hb
@@ -92,8 +94,8 @@ test("6. APPNAME/MOTTO faktycznie UZYTE w UI (nie tylko zadeklarowane)",
      and "thermal-guard  ·  v" not in hb,
      "deklaracja bez uzycia albo zostala stara nazwa w naglowku")
 
-# 7. tlumaczenia: klucze powitania w 4 slownikach + etykieta wyjscia bez pulapki
-# kazdy slownik musi miec NIE-angielskie tlumaczenie obu kluczy
+# 7. Translations: welcome keys in 4 dictionaries plus a clear quit label.
+# Each dictionary must have non-English translations for both keys.
 def tlumaczenia(klucz_en):
     return [m for m in re.findall(re.escape(klucz_en) + r'\s*:\s*"((?:[^"\\]|\\.)*)"', hb)]
 tp = tlumaczenia('"The paladin stands guard. Choose how to begin:"')
@@ -104,14 +106,14 @@ test("7. realne tlumaczenia powitania i etykiety wyjscia w 4 jezykach",
      and all(t_ != "Quit coffee-paladin (protection stops)" for t_ in tq),
      "powitanie: %d tlumaczen, wyjscie: %d" % (len(tp), len(tq)))
 
-# 8. regresja DWUCZESCIOWA: (a) zrodlo guarda kompiluje sie i przechodzi --once w IZOLACJI,
-#    (b) zywa instalacja Pawla dziala (to celowo dotyka prawdziwego ~/.coffee-paladin - read-only)
+# 8. Two-part regression: (a) guard source compiles and passes --once in isolation,
+#    (b) the live install works. This intentionally reads the real ~/.coffee-paladin.
 import time, tempfile, py_compile, shutil
 st = os.path.expanduser("~/.coffee-paladin/status.json")
 wiek = time.time() - os.path.getmtime(st)
-# TYLKO BIEZACA SESJA demona. Test szukal bledow petli w CALYM logu, wiec jeden blad
-# sprzed naprawy trzymal bramke na czerwono do konca zycia pliku - a to nie jest sygnal
-# o stanie maszyny, tylko o jej historii. Odcinamy od ostatniego wpisu startowego.
+# Only the current daemon session. Searching the whole log kept the gate red forever
+# after one old loop error. That reports machine history, not current state, so slice
+# from the last startup entry.
 _pelny = io.open(os.path.expanduser("~/.coffee-paladin/guard.log"),
                  encoding="utf-8", errors="replace").read()
 _starty = [i for i, l in enumerate(_pelny.splitlines()) if "coffee-paladin start" in l]
@@ -119,14 +121,13 @@ log = "\n".join(_pelny.splitlines()[_starty[-1]:]) if _starty else _pelny
 zrodlo_ok = True
 tmp = tempfile.mkdtemp(prefix="paladin_test_once_")
 try:
-    # cfile w katalogu tymczasowym: bez tego py_compile zostawia __pycache__ w drzewie zrodel
+    # Put cfile in tmp; otherwise py_compile leaves __pycache__ in the source tree.
     py_compile.compile(os.path.join(SRC, "guard.py"),
                        cfile=os.path.join(tmp, "guard.pyc"), doraise=True)
-    # TG_BASE jest OBOWIAZKOWE. `--once` NIE jest tylko-do-odczytu: wola
-    # managed_pids_from_saferun(), ktora robi os.unlink na plikach rejestracji, oraz
-    # ensure_dirs(), ktora robi chmod na katalogu danych. Bez tej zmiennej ten test
-    # kasowal rejestracje DZIALAJACYCH zadan safe-run w prawdziwym ~/.coffee-paladin
-    # (odtworzone 02.08.2026: zywy pid znikal z managed/ po jednym przebiegu).
+    # TG_BASE is mandatory. `--once` is not read-only: it calls
+    # managed_pids_from_saferun(), which unlinks registration files, and ensure_dirs(),
+    # which chmods the data directory. Without TG_BASE, this test deleted registrations
+    # for live safe-run jobs from the real ~/.coffee-paladin managed/ directory.
     p = subprocess.run([sys.executable, os.path.join(SRC, "guard.py"), "--once"],
                        capture_output=True, text=True, timeout=60,
                        env=dict(os.environ, TG_LANG="en", TG_BASE=tmp))
@@ -139,7 +140,7 @@ test("8. regresja: zrodlo guarda kompiluje sie i raportuje + zywa instalacja zdr
      zrodlo_ok and wiek < 60 and "LOOP ERROR" not in log and "BLAD petli" not in log,
      "zrodlo_ok=%s, wiek statusu: %.0fs" % (zrodlo_ok, wiek))
 
-# --- grafika oficjalna (bez zadnych zaleznosci: czytamy naglowki PNG/GIF recznie) ---
+# --- Official art, dependency-free: read PNG/GIF headers manually ---
 
 def png_wh(p):
     with open(p, "rb") as f:
@@ -152,30 +153,30 @@ def gif_wh_klatki(p):
     d = open(p, "rb").read()
     assert d[:6] in (b"GIF89a", b"GIF87a"), "to nie GIF: " + p
     w, h = struct.unpack("<HH", d[6:10])
-    return w, h, d.count(b"\x21\xf9\x04")     # bloki Graphic Control = klatki
+    return w, h, d.count(b"\x21\xf9\x04")     # Graphic Control blocks = frames.
 
 
 B = os.path.join(SRC, "branding")
 
-# 9. oficjalne zrodla grafiki sa w repo i sa tym, czym maja byc
+# 9. Official art sources are in the repo and are what they should be.
 try:
     ow, oh = png_wh(os.path.join(B, "paladin.png"))
     gw, gh, gk = gif_wh_klatki(os.path.join(B, "paladin.gif"))
-    ok9 = ow >= 1000 and oh >= 1400 and gk >= 8 and gh > gw      # portret, nie miniatura
+    ok9 = ow >= 1000 and oh >= 1400 and gk >= 8 and gh > gw      # Portrait, not thumbnail.
 except Exception:
     ow = oh = gw = gh = gk = 0
     ok9 = False
 test("9. oficjalne zrodla: paladin.png (duzy portret) + paladin.gif (animacja)",
      ok9, "png %sx%s, gif %sx%s klatek=%s" % (ow, oh, gw, gh, gk))
 
-# 10. pochodne uzywane przez aplikacje istnieja, sa animowane i maja rozsadny rozmiar
+# 10. Derived assets used by the app exist, are animated, and have reasonable size.
 try:
     ww, wh, wk = gif_wh_klatki(os.path.join(B, "paladin_welcome.gif"))
     fw, fh = png_wh(os.path.join(B, "paladin_welcome.png"))
     waga = os.path.getsize(os.path.join(B, "paladin_welcome.gif"))
     ok10 = (wk >= 8 and 300 <= wh <= 700 and waga < 3 * 1024 * 1024
-            and abs(fw / max(fh, 1) - ww / max(wh, 1)) < 0.05     # ten sam kadr co animacja
-            # miniatura w naglowku menu zostala USUNIETA - ma nie wrocic bocznymi drzwiami
+            and abs(fw / max(fh, 1) - ww / max(wh, 1)) < 0.05     # Same crop as animation.
+            # The menu-header thumbnail was removed; it must not return indirectly.
             and not os.path.exists(os.path.join(B, "paladin_icon.png"))
             and "paladin_icon" not in hb)
 except Exception:
@@ -185,7 +186,7 @@ test("10. pochodne: welcome.gif animowany + PNG w tym samym kadrze, bez miniatur
      ok10, "welcome %sx%s k=%s (%.1f MB), png %sx%s"
            % (ww, wh, wk, waga / 1048576.0, fw, fh))
 
-# 11. pochodzenie grafiki jest zapisane tam, gdzie ktos je zobaczy (CREDITS + README)
+# 11. Art provenance is recorded where someone will see it: CREDITS and README.
 try:
     kred = czytaj("branding/CREDITS.md")
     rd = czytaj("README.md")
@@ -197,7 +198,7 @@ except Exception:
 test("11. nota o pochodzeniu grafiki w CREDITS.md i w README", ok11,
      "CREDITS: %s, README: %s" % ("asny autora" in kred, "own design" in rd))
 
-# 12. okno powitalne woli animacje, a instalator faktycznie ja kopiuje
+# 12. The welcome window prefers animation, and install.sh copies it.
 sh = czytaj("install.sh")
 test("12. Swift laduje paladin_welcome.gif (z fallbackiem) i install.sh go kopiuje",
      'contentsOfFile: base + "/paladin_welcome.gif"' in hb
@@ -206,15 +207,15 @@ test("12. Swift laduje paladin_welcome.gif (z fallbackiem) i install.sh go kopiu
      and "paladin_welcome.gif" in sh,
      "brak sciezki GIF w Swift albo w install.sh")
 
-# 13. --ascii ma wymuszac wersje znakowa NAWET w terminalu z truecolor.
-#     Bez pty nie da sie tego sprawdzic uczciwie: heat patrzy na isatty().
+# 13. --ascii must force the character version even in a truecolor terminal.
+#     Without a pty this cannot be tested honestly because heat checks isatty().
 import pty
 def przez_pty(args, env_extra, surowo=False):
     zebrane = []
     pid, fd = pty.fork()
     if pid == 0:
-        # bez tego dziecko dziedziczy TERM_PROGRAM terminala, w ktorym akurat
-        # uruchomiono testy - i "zwykly terminal" wcale nie jest zwykly
+        # Without this, the child inherits TERM_PROGRAM from the terminal that ran
+        # the tests, so a "plain terminal" is not plain.
         for zmienna in ("TERM", "TERM_PROGRAM", "COLORTERM", "TMUX", "NO_COLOR", "TG_NO_IMAGE"):
             os.environ.pop(zmienna, None)
         os.environ.update(env_extra)
@@ -234,9 +235,9 @@ def przez_pty(args, env_extra, surowo=False):
 
 kolorowy = przez_pty(["--paladin"], {"COLORTERM": "truecolor", "TERM": "xterm-256color"})
 wymuszony = przez_pty(["--paladin", "--ascii"], {"COLORTERM": "truecolor", "TERM": "xterm-256color"})
-# Fallback to filizanka z pierwszej wersji thermal-guard, nie zdegradowany paladyn:
-# w terminalu bez truecolor postaci nie da sie narysowac uczciwie, wiec rysujemy
-# to, co w znakach zawsze wygladalo dobrze.
+# Fallback to the cup from the first thermal-guard version, not a degraded paladin:
+# without truecolor the figure cannot be drawn honestly, so use the character art
+# that has always looked good.
 test("13. truecolor -> paladyn, --ascii -> filizanka (a nie rozmyty paladyn)",
      kolorowy.count("38;2;") > 100 and wymuszony.count("38;2;") == 0
      and ".------------." in wymuszony and "~~~~~~~~~~" in wymuszony
@@ -244,47 +245,47 @@ test("13. truecolor -> paladyn, --ascii -> filizanka (a nie rozmyty paladyn)",
      "kolor: %d sekwencji, --ascii: %d, kubek: %s"
      % (kolorowy.count("38;2;"), wymuszony.count("38;2;"), "`-----'" in wymuszony))
 
-# 14. klikniecie nazwy w menu otwiera paladyna przypietego pod paskiem
+# 14. Clicking the menu name opens the paladin panel anchored under the bar.
 test("14. panel paladyna: klikalna nazwa + kotwica pod ikona paska",
      "final class PaladinPanel" in hb
      and "PaladinPanel.shared.toggle()" in hb
      and "override func mouseUp" in hb
      and "Bar.shared?.item.button" in hb
-     and "cancelTracking()" in hb,          # menu musi sie zamknac PRZED panelem
+     and "cancelTracking()" in hb,          # The menu must close before the panel opens.
      "brak panelu albo kotwiczenia w pasku")
 
-# 15. wyjscie = koniec programu, nie schowanie ikony. Etykieta i skutek musza sie zgadzac:
-#     zatrzymujemy demona I pasek, i pytamy przed tym nieodwracalnym krokiem.
+# 15. Quit means program exit, not hiding the icon. Label and effect must match:
+#     stop both daemon and menu bar, and ask before this irreversible step.
 test("15. Quit zatrzymuje DEMONA i pasek, po potwierdzeniu w oknie",
      'bootout", "gui/\\(uid)/pl.pawel.coffee-paladin"' in hb
      and 'bootout", "gui/\\(uid)/pl.pawel.coffee-paladin-bar"' in hb
-     # Potwierdzenie MUSI byc, ale test nie moze pilnowac klasy okna: od 2.1.5 to
-     # wlasne okno z paladynem na srodku, nie NSAlert. Pilnujemy skutku - pytania
-     # przed nieodwracalnym krokiem i tego, ze wyjscie nastepuje TYLKO po zgodzie.
+     # Confirmation is mandatory, but the test cannot pin the window class. Since
+     # 2.1.5 this is a custom centered paladin window, not NSAlert. Check the effect:
+     # a question before the irreversible step and exit only after consent.
      and 'T("Turn off thermal protection for this Mac?")' in hb
      and "NSApp.runModal(for: win)" in hb
      and "guard wynik.rawValue == 0 else { return }" in hb
-     and "protection keeps running" not in hb,     # stara, mylaca obietnica ma zniknac
+     and "protection keeps running" not in hb,     # Old misleading promise must be gone.
      "brak zatrzymania demona albo zostala stara etykieta")
 
-# 16. skill dla agentow AI: musi istniec, miec poprawny naglowek i UCZYC rzeczy,
-#     ktore naprawde sa w programie (level, safe-run, zakaz SIGCONT).
+# 16. AI-agent skill must exist, have valid front matter, and teach real program
+#     behavior: level, safe-run, and the SIGCONT ban.
 try:
     sk = czytaj("skills/coffee-paladin/SKILL.md")
     ok16 = (sk.startswith("---") and "name: coffee-paladin" in sk
             and "description:" in sk
             and "status.json" in sk and "safe-run" in sk
             and "SIGCONT" in sk and "level" in sk
-            and "skills/coffee-paladin/SKILL.md" in sh)   # instalator go rozklada
+            and "skills/coffee-paladin/SKILL.md" in sh)   # Installer deploys it.
 except Exception:
     sk = ""
     ok16 = False
 test("16. skill dla agentow AI istnieje i uczy realnego interfejsu guarda", ok16,
      "brak skilla, naglowka albo wpisu w install.sh")
 
-# 17. PRAWDZIWY obrazek w terminalu, ktory to potrafi (Ghostty/kitty/WezTerm).
-#     Test sklada porcje protokolu z powrotem i porownuje z plikiem PNG bajt w bajt -
-#     zle poskladane chunki albo zla flaga m to najczestszy blad w tym protokole.
+# 17. Real image in a terminal that supports it, such as Ghostty/kitty/WezTerm.
+#     The test reassembles protocol chunks and compares them with the PNG byte for
+#     byte. Bad chunk assembly or an incorrect m flag is the common protocol bug.
 import base64, hashlib
 sur = przez_pty(["--paladin"], {"TERM": "xterm-ghostty", "TERM_PROGRAM": "ghostty",
                                 "COLORTERM": "truecolor"}, surowo=True)
@@ -299,14 +300,14 @@ try:
             and hashlib.sha256(zlozone).digest() == hashlib.sha256(oryg).digest())
 except Exception:
     ok17 = False
-# a w terminalu bez tej umiejetnosci obrazka NIE wysylamy (inaczej sypie smieciami)
+# In a terminal without image support, do not send the image or it prints junk.
 zwykly = przez_pty(["--paladin"], {"TERM": "xterm-256color", "COLORTERM": "truecolor"}, surowo=True)
 test("17. obrazek w Ghostty sklada sie bajt w bajt; w zwyklym terminalu go nie ma",
      ok17 and b"\x1b_G" not in zwykly and zwykly.count("▀".encode()) > 500,
      "porcji: %d, obrazek w zwyklym terminalu: %s" % (len(bloki), b"\x1b_G" in zwykly))
 
-# 18. Zrzuty ekranu w README: kazdy link musi prowadzic do istniejacego pliku,
-#     a caly katalog ma sie miescic w budzecie repo (WebP, nie PNG - roznica 10x).
+# 18. README screenshots: every link must point to an existing file, and the whole
+#     directory must fit the repo budget. WebP, not PNG, is a 10x difference.
 rd = czytaj("README.md")
 uzyte = set(re.findall(r"docs/screens/([\w.]+)", rd))
 kat = os.path.join(SRC, "docs", "screens")
@@ -321,8 +322,8 @@ test("18. zrzuty: linki w README prowadza do plikow, katalog ponizej 2 MB",
      and all(f.endswith(".webp") for f in pliki),
      "zepsute: %s, waga: %.1f MB, plikow: %d" % (zepsute, waga / 1048576.0, len(pliki)))
 
-# 19. README opisuje skill dla agentow - w OBU jezykach - i opis zgadza sie ze skillem
-#     (opis, ktory obiecuje cos, czego skill nie mowi, jest gorszy niz brak opisu).
+# 19. README describes the agent skill in both languages, and the description matches
+#     the skill. A description promising behavior the skill omits is worse than none.
 opis_en = "## Your AI agent can talk to it" in rd
 opis_pl = "## Twój agent AI umie z nim rozmawiać" in rd
 zgodnosc = all(
@@ -333,8 +334,8 @@ test("19. README opisuje skill (EN+PL) i nie obiecuje wiecej, niz skill naprawde
      and "~/.claude/skills/coffee-paladin" in rd,
      "EN=%s PL=%s zgodnosc=%s" % (opis_en, opis_pl, zgodnosc))
 
-# 20. README w trzech dodatkowych jezykach: istnieja, sa naprawde przetlumaczone
-#     (nie kopia angielskiego), maja dzialajace obrazki i te same fakty co oryginal.
+# 20. README in three additional languages exists, is truly translated rather than
+#     copied from English, has working images, and keeps the same facts as the original.
 def znaki_w(txt, od, do):
     return sum(1 for c in txt if od <= ord(c) <= do)
 
@@ -349,7 +350,7 @@ for plik, sprawdz in (("README.zh.md", lambda s: znaki_w(s, 0x4E00, 0x9FFF) > 80
                if not (os.path.exists(os.path.join(SRC, "docs/screens", o))
                        or os.path.exists(os.path.join(SRC, "branding", o)))]
         jezyki[plik] = (sprawdz(s_) and len(obrazki) >= 5 and not zle
-                        # te same twarde fakty, co w oryginale - inaczej tlumaczenie klamie
+                        # Same hard facts as the original; otherwise the translation lies.
                         and "89" in s_ and "60" in s_ and "595" in s_
                         and "MIT" in s_
                         and "pawelkwaczynski/coffee-paladin" in s_)

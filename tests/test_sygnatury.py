@@ -1,23 +1,20 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Kazde wolanie wlasnej funkcji musi pasowac do jej sygnatury. Sprawdzane statycznie.
+"""Statically verify that each local function call matches its signature.
 
-POWOD POWSTANIA (04.08.2026, znalezione w rundzie testowej przegladu):
-`do_resume(cfg, st, reason)` przyjmowal trzy argumenty, a petla glowna wolala go
-`do_resume(..., only_keys=gotowe)`. Python nie ma o tym pojecia do czasu wykonania, a to
-wykonanie siedzialo w rzadkiej sciezce (wznowienie po ostygnieciu) opakowanej w ogolny
-`except`. Efekt: zadanie zamrozone przy przegrzaniu NIE wracalo do pracy - czekalo na
-SIGTERM po limicie czasu pauzy. W logu: trzy pauzy, zero wznowien. Dwa dni w wydanym kodzie.
+`do_resume(cfg, st, reason)` accepted three arguments while the main loop called it as
+`do_resume(..., only_keys=gotowe)`. Python does not know until runtime, and runtime was
+a rare cooled-down resume path wrapped in a broad `except`. A job frozen for overheating
+did not resume; it waited for SIGTERM after the pause time limit.
 
-Czego NIE zlapalo: 19 plikow testow, dwa fuzzery, semgrep, ruff `--select ALL`.
-Pyflakes nie sprawdza sygnatur wolan, a testy nie dotykaly tej galezi.
+That escaped many tests, two fuzzers, semgrep, and ruff `--select ALL`. Pyflakes does not
+check call signatures, and tests did not touch that branch.
 
-Ten test przechodzi po AST i porownuje KAZDE wolanie funkcji zdefiniowanej w tym samym
-pliku z jej sygnatura: nieznane argumenty nazwane, za duzo argumentow pozycyjnych,
-brak wymaganych. Kosztuje ulamek sekundy i dziala takze na galeziach, ktorych nikt nie
-uruchamia - a to wlasnie tam takie bledy siedza najdluzej.
+This test walks AST and compares every call to a function defined in the same file with
+its signature: unknown keyword arguments, too many positional arguments, and missing
+required arguments. It is cheap and also covers branches nobody runs.
 
-Uruchomienie:  python3 tests/test_sygnatury.py
+Run with:  python3 tests/test_sygnatury.py
 """
 import ast
 import os
@@ -31,8 +28,11 @@ sprawdzonych = 0
 
 
 def sygnatury(drzewo):
-    """Funkcje zdefiniowane na POZIOMIE MODULU. Metody klas pomijamy: wolanie idzie
-    przez obiekt, wiec dopasowanie po samej nazwie dawaloby falszywe alarmy."""
+    """Return module-level function signatures.
+
+    Class methods are skipped because calls go through objects; matching by bare name
+    would produce false alarms.
+    """
     out = {}
     for w in drzewo.body:
         if isinstance(w, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -71,7 +71,7 @@ for nazwa in PLIKI:
         sprawdzonych += 1
         gdzie = "%s:%d  %s()" % (nazwa, wezel.lineno, wezel.func.id)
 
-        # 1) nieznany argument nazwany
+        # 1. Unknown keyword argument.
         if not s["ma_kwargs"]:
             dozwolone = set(s["pozycyjne"]) | set(s["kwonly"])
             for kw in wezel.keywords:
@@ -79,14 +79,14 @@ for nazwa in PLIKI:
                     bledy.append("%s: nieznany argument '%s' (definicja w linii %d, przyjmuje: %s)"
                                  % (gdzie, kw.arg, s["linia"], ", ".join(dozwolone) or "brak"))
 
-        # 2) za duzo argumentow pozycyjnych
+        # 2. Too many positional arguments.
         if not s["ma_gwiazdke"]:
             podane = len([a for a in wezel.args if not isinstance(a, ast.Starred)])
             if not any(isinstance(a, ast.Starred) for a in wezel.args) and podane > len(s["pozycyjne"]):
                 bledy.append("%s: %d argumentow pozycyjnych, a funkcja przyjmuje %d (linia %d)"
                              % (gdzie, podane, len(s["pozycyjne"]), s["linia"]))
 
-        # 3) brak wymaganego argumentu
+        # 3. Missing required argument.
         rozwija = any(isinstance(a, ast.Starred) for a in wezel.args) or \
                   any(k.arg is None for k in wezel.keywords)
         if not rozwija:

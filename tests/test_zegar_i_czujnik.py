@@ -1,21 +1,19 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Skok zegara nie moze ubic zadania, a slepy straznik nie moze wygladac na zdrowego.
+"""Ensure clock jumps cannot kill jobs and a blind guard cannot look healthy.
 
-Trzy rodziny bledow z bramki jakosci 02.08.2026:
+Three failure families are covered:
 
-1. ZEGAR SCIENNY. Dlugosc pauzy liczono z time.time(). Skok NTP o 3 h ubijal
-   SIGTERM-em zadanie zapauzowane minute wczesniej; cofniecie zegara wylaczalo
-   limit pauzy na dobre. Teraz liczy sie zegar monotoniczny.
-2. SLEPY STRAZNIK. Stan "unknown" (thermalstate nie odpowiedzial) mapowal sie na
-   poziom 1. Mac bez baterii i bez macmona - mini, Studio - siedzial na poziomie 1
-   w nieskonczonosc: nigdy nie osiagal 2, wiec nigdy niczego nie pauzowal, a wygladal
-   na zdrowa, lekko cieplawa maszyne.
-3. KALIBRACJA. Znacznik `calibrated_for` nie zawieral informacji o czujniku, wiec
-   Air zainstalowany PRZED macmonem dostawal tag "fans=0" i progi bezwentylatorowe
-   (78/70/88) nie byly nadawane nigdy.
+1. Wall clock. Pause length was computed from time.time(). A 3 h NTP jump killed a job
+   with SIGTERM one minute after pause; moving the clock backward disabled the pause
+   limit indefinitely. Monotonic time now decides.
+2. Blind guard. "unknown" thermalstate mapped to level 1. A Mac without battery and
+   without macmon, such as mini or Studio, stayed at level 1 forever: it never reached
+   2, never paused anything, and looked like a healthy slightly warm machine.
+3. Calibration. `calibrated_for` did not include sensor information, so an Air installed
+   before macmon got a "fans=0" tag and never received fanless thresholds (78/70/88).
 
-Uruchomienie:  python3 tests/test_zegar_i_czujnik.py
+Run with:  python3 tests/test_zegar_i_czujnik.py
 """
 import importlib.machinery
 import os
@@ -44,7 +42,7 @@ def test(nazwa, warunek, szczegol=""):
 
 
 def dlugosc_pauzy(v):
-    """Kopia logiki z petli demona - test pilnuje jej znaczenia, nie litery."""
+    """Mirror daemon-loop logic so the test guards meaning, not spelling."""
     m = v.get("since_mono")
     if m is not None:
         return max(0.0, time.monotonic() - m)
@@ -85,18 +83,17 @@ test("Air przed macmonem i po nim ma ROZNE znaczniki kalibracji", len(tagi) == 2
      "znaczniki: %s" % tagi)
 
 print("\n4. zegar monotoniczny zaczyna od zera w kazdym procesie")
-# Apple'owy /usr/bin/python3 - ten, ktorym launchd uruchamia demona - liczy
-# time.monotonic() od zera dla kazdego procesu. Dwa miejsca w guardzie zakladaly
-# inaczej i oba sie na tym wywrocily na zywym Macu 02.08.2026.
+# Apple's /usr/bin/python3, the one launchd uses for the daemon, counts
+# time.monotonic() from zero for each process. Two guard paths assumed otherwise and
+# failed on a live Mac.
 
-# 4a. Cache czujnika: wartosc startowa 0.0 wygladala jak "odczyt sprzed chwili",
-#     wiec przez pierwsze 10 s zycia demona soc_sensors() oddawalo None bez pytania
-#     macmona - straznik meldowal "brak czujnika chipa" i pilnowal samej baterii.
+# 4a. Sensor cache: initial value 0.0 looked like "read moments ago", so during the
+#     first 10 s of daemon life soc_sensors() returned None without asking macmon. The
+#     guard reported "no chip sensor" and watched only battery.
 test("cache czujnika nie udaje odczytu przed pierwszym odczytem",
      g._soc_cache["t"] is None, "wartosc startowa = %r" % (g._soc_cache["t"],))
 
-# Odtwarzamy dokladnie warunki demona: swiezy proces, zegar monotoniczny od zera,
-# ani jednego odczytu za soba.
+# Recreate daemon conditions: fresh process, monotonic clock near zero, no previous read.
 zapamietane = dict(g._soc_cache)
 prawdziwy_run, prawdziwy_mono = g.run, time.monotonic
 odczyty = [0]
@@ -110,7 +107,7 @@ def zliczajacy_run(cmd, timeout=10):
 
 try:
     g.run = zliczajacy_run
-    g.time.monotonic = lambda: 0.05          # tyle, ile ma demon tuz po starcie
+    g.time.monotonic = lambda: 0.05          # What the daemon sees just after start.
     g.soc_sensors()
     test("tuz po starcie demona straznik naprawde pyta czujnik chipa",
          odczyty[0] == 1, "odczytow macmona: %d (0 = straznik uznal, ze czujnika nie ma)"
@@ -120,9 +117,9 @@ finally:
     g._soc_cache.clear()
     g._soc_cache.update(zapamietane)
 
-# 4b. Limit pauzy: pomiar monotoniczny poprzedniego demona wychodzi w nowym procesie
-#     ujemny, wiec pauza wygladala na swiezo zalozona i limit nie odpalal nigdy.
-#     Zadanie zamrozone przed restartem zostawaloby w stanie T na zawsze.
+# 4b. Pause limit: a monotonic reading from the previous daemon is negative in the new
+#     process, so the pause looked freshly created and the limit never fired. A job
+#     frozen before restart would stay in state T forever.
 for opis, wpis, oczekiwane in [
     ("pauza tego demona, godzina - ubijamy",
      {"since": g.now() - 3600, "since_mono": time.monotonic() - 3600,

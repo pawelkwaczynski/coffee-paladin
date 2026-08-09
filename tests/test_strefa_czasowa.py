@@ -1,25 +1,25 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Artefakty dowodowe musza znaczyc TO SAMO w kazdej strefie (pozycja 2 z listy).
+"""Ensure evidence artifacts mean the same thing in every time zone.
 
-Do 2.1.7 `ts()` pisal gole `%Y-%m-%d %H:%M:%S` - czas lokalny bez informacji, ktory
-to lokalny. Zdarzenia w events.log byly filtrowane po polu `epoch` (absolutnym),
-a history.csv i guard.log po TEKSCIE interpretowanym w strefie CZYTELNIKA.
+`ts()` used to write bare `%Y-%m-%d %H:%M:%S`: local time without saying which local
+time. events.log was filtered by absolute `epoch`, while history.csv and guard.log
+were filtered by text interpreted in the reader's time zone.
 
-Odtworzone 02.08.2026: pad zapisany 23:30 w Warszawie, raport `--from/--to` na ten
-sam dzien czytany w Auckland pokazywal ZERO zdarzen krytycznych, a tuz obok drukowal
-os czasu, `[KILL]` z tej samej sekundy i szczyt 98,7 C. Dokument roszczeniowy
-twierdzil jednoczesnie, ze nic sie nie stalo i ze chip miał 98,7 C.
+A shutdown recorded at 23:30 in Warsaw and read in Auckland for the same `--from/--to`
+day showed zero critical events while also printing the timeline, `[KILL]` from the
+same second, and peak 98.7 C. The claim document said both that nothing happened and
+that the chip reached 98.7 C.
 
-Kontrakt, ktorego pilnuje ten plik:
-  1. stempel ma 24 znaki, a jego pierwsze 19 to DOKLADNIE stary format
-     (kazdy istniejacy parser bioracy `linia[:19]` musi dzialac dalej),
-  2. ten sam plik czytany w roznych strefach daje SPOJNY dokument - albo wszystkie
-     sekcje widza zdarzenie, albo zadna,
-  3. pliki bez offsetu (legacy) dalej sie czytaja.
+Contract checked here:
+  1. timestamp has 24 characters, and the first 19 are exactly the old format so every
+     existing parser using `linia[:19]` keeps working,
+  2. the same file read in different zones yields a consistent document: either every
+     section sees the event or none do,
+  3. legacy files without offsets still parse.
 
-Uruchomienie:  python3 tests/test_strefa_czasowa.py
-Nie dotyka prawdziwego ~/.coffee-paladin.
+Run with:  python3 tests/test_strefa_czasowa.py
+Does not touch the real ~/.coffee-paladin.
 """
 import importlib.machinery
 import io
@@ -47,7 +47,7 @@ def test(nazwa, warunek, detal=""):
                            ("  -> " + detal) if detal and not warunek else ""))
 
 
-# --- 1. ksztalt stempla -------------------------------------------------------------
+# --- 1. timestamp shape -------------------------------------------------------------
 os.environ["TZ"] = "Europe/Warsaw"
 time.tzset()
 s = g.ts(1785706200.0)                      # 2026-08-02 23:30:00 +0200
@@ -57,7 +57,7 @@ test("2. pierwsze 19 znakow to DOKLADNIE stary format (wsteczna zgodnosc)",
      re.fullmatch(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}", s[:19]) is not None,
      "dostalem %r" % s[:19])
 
-# --- 2. parser daje ten sam wynik w kazdej strefie ----------------------------------
+# --- 2. parser returns the same result in every zone ---------------------------------
 odczyty = {}
 for strefa in ("Europe/Warsaw", "America/Los_Angeles", "Pacific/Auckland", "Pacific/Midway"):
     os.environ["TZ"] = strefa
@@ -75,7 +75,7 @@ test("4. stempel legacy (bez offsetu) dalej sie parsuje",
 test("5. smiec nie wywala parsera",
      g.czas_abs("xyzzy") == 0.0 and g.czas_abs("") == 0.0 and g.czas_abs(None) == 0.0)
 
-# --- 3. dokument dowodowy jest SPOJNY w kazdej strefie -------------------------------
+# --- 3. evidence document is consistent in every zone --------------------------------
 DZIEN = "2026-08-02"
 STEMPEL = "2026-08-02 23:30:00+0200"
 EPOCH = 1785706200
@@ -114,13 +114,13 @@ for strefa in ("Europe/Warsaw", "America/Los_Angeles", "Pacific/Auckland", "Paci
 test("6. w KAZDEJ strefie dokument jest spojny (wszystkie sekcje widza zdarzenie albo zadna)",
      not niespojne, "niespojne: %s" % niespojne)
 
-# to jest dokladnie ten przypadek, ktory wczesniej klamal
+# This is the exact case that used to lie.
 w_auckland = sekcje("Pacific/Auckland")
 test("7. Auckland: nie ma juz 'zero zdarzen' obok wydrukowanego szczytu 98,7 C",
      not (w_auckland["zdarzenie"] is False and w_auckland["szczyt"] is True),
      "zdarzenie=%s szczyt=%s" % (w_auckland["zdarzenie"], w_auckland["szczyt"]))
 
-# --- 4. legacy: pliki bez offsetu dalej czytelne -------------------------------------
+# --- 4. legacy: files without offsets remain readable --------------------------------
 przygotuj("2026-08-02 23:30:00", EPOCH)
 w_domu = sekcje("Europe/Warsaw")
 test("8. legacy w strefie zapisu: raport nadal widzi pomiary i interwencje",

@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Raport dowodowy: nie klam, nie niszcz, nie przyjmuj po cichu (pozycje 6, 7, 8).
+"""Ensure evidence reports do not lie, destroy files, or accept bad input silently.
 
-  * poz. 6 - pusty katalog danych dawal dokument pelen "(brak - nie wykryto...)"
-    i pusta os czasu, czyli wygladajacy jak DOWOD ZDROWIA maszyny. A znaczyl tylko
-    tyle, ze nikt niczego nie mierzyl.
-  * poz. 7 - `--pdf` niszczyl cudze pliki w trzech trybach: nadpisywal bez slowa,
-    obcinal do 0 B przy braku Chrome, albo KASOWAL (`os.remove`), gdy cupsfilter
-    zwrocil blad.
-  * poz. 8 - odwrocony zakres, literowka w dacie i `--days` bez liczby konczyly sie
-    kodem 0 i raportem za INNY okres niz zamowiony. W dokumencie dowodowym to
-    falszywy negatyw: "w tym okresie nic sie nie dzialo".
+  * item 6 - an empty data directory produced a document full of "(none detected...)"
+    and an empty timeline, which looked like proof of machine health. It only meant
+    nothing had been measured.
+  * item 7 - `--pdf` destroyed foreign files in three ways: overwrite without notice,
+    truncate to 0 B when Chrome was missing, or delete with `os.remove` when cupsfilter
+    returned an error.
+  * item 8 - reversed range, date typo, and `--days` without a number exited 0 and
+    generated a report for a different period than requested. In an evidence document,
+    that is a false negative: "nothing happened in this period".
 
-Uruchomienie:  python3 tests/test_raport_bezpieczny.py
-Nie dotyka prawdziwego ~/.coffee-paladin.
+Run with:  python3 tests/test_raport_bezpieczny.py
+Does not touch the real ~/.coffee-paladin.
 """
 import hashlib
 import io
@@ -56,7 +56,7 @@ def czysc():
         os.remove(os.path.join(BASE, n))
 
 
-# ---------------------------------------------------------------- poz. 6
+# ---------------------------------------------------------------- item 6
 print("=== poz. 6: brak POMIAROW to nie brak ZDARZEN ===")
 czysc()
 cel = os.path.join(BASE, "pusty.txt")
@@ -69,14 +69,14 @@ test("2. ostrzezenie stoi na GORZE, nie na koncu",
      tekst.index("NO MEASUREMENTS") < len(tekst) // 3,
      "pozycja %d z %d" % (tekst.index("NO MEASUREMENTS") if "NO MEASUREMENTS" in tekst else -1,
                           len(tekst)))
-# przypadek przeciwny
+# Countercase.
 daj_pomiary()
 cel2 = os.path.join(BASE, "zdanymi.txt")
 uruchom("--file", cel2, "--days", "2")
 test("3. gdy pomiary SA, zadnego ostrzezenia nie ma",
      "NO MEASUREMENTS" not in io.open(cel2, encoding="utf-8").read())
 
-# ---------------------------------------------------------------- poz. 7
+# ---------------------------------------------------------------- item 7
 print("\n=== poz. 7: --pdf nie tyka cudzych plikow ===")
 czysc()
 daj_pomiary()
@@ -98,7 +98,7 @@ test("7. nie zostaly pliki robocze .thermal_report_*",
      not [n for n in os.listdir(BASE) if n.startswith(".thermal_report_")],
      "%s" % [n for n in os.listdir(BASE) if n.startswith(".thermal_report_")])
 
-# ---------------------------------------------------------------- poz. 8
+# ---------------------------------------------------------------- item 8
 print("\n=== poz. 8: zly zakres NIE moze konczyc sie kodem 0 ===")
 czysc()
 daj_pomiary()
@@ -125,10 +125,10 @@ for opis, args in (
     rc, out, err = uruchom("--file", cel, *args)
     test("%s -> kod 0" % opis, rc == 0, "rc=%d stderr=%r" % (rc, err[:70]))
 
-# ---------------------------------------------------------------- poz. 9
+# ---------------------------------------------------------------- item 9
 print("\n=== poz. 9: dlugi raport skracany JAWNIE, bez gubienia dowodu ===")
 czysc()
-# 12 000 pomiarow, w tym jeden GORACY z interwencja - musi przetrwac skracanie
+# 12,000 measurements, including one HOT intervention, must survive shortening.
 t0 = time.time() - 60 * 86400
 with io.open(os.path.join(BASE, "history.csv"), "w", encoding="utf-8") as f:
     f.write("time,thermal_state,chip_C,gpu_C,batt_C,fan,W,batt_pct,ac,cpu,load,level\n")
@@ -155,7 +155,7 @@ test("21. GORACY wiersz z interwencja PRZETRWAL skracanie",
      "wiersz dowodowy wyrzucony przy skracaniu - to bylby dokladnie ten blad, "
      "ktorego ta pozycja dotyczy")
 
-# przypadek przeciwny: maly zbior nietkniety
+# Countercase: small dataset remains untouched.
 czysc()
 daj_pomiary()
 cel = os.path.join(BASE, "maly.txt")

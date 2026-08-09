@@ -1,38 +1,38 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Runda przegladu 3 (05.08.2026): piec zastanych slabosci + widocznosc klampu configu.
+"""Verify review-round regressions and config-clamp visibility.
 
-1. STARTOWE WZNOWIENIE BEZ POMIARU. Restart demona (aktualizacja, kickstart -k) robil
-   `do_resume("guard startup")` ZANIM cokolwiek zmierzyl - gorace zadanie dostawalo
-   ~15 s pelnej pary przy chipie nad progiem. Lek: ta sama `bramka_wznowienia`,
-   ktorej uzywa petla, stoi teraz przed startowym wznowieniem.
+1. Startup resume without a measurement. Daemon restart via update or kickstart -k used
+   `do_resume("guard startup")` before any measurement, giving a hot job ~15 s of full
+   power above threshold. The same `bramka_wznowienia` used by the loop now gates startup
+   resume.
 
-2. OKNO SIGSTOP -> save_state. Zapis stanu szedl PO sygnale: demon ubity w tym oknie
-   zostawial proces zamrozony bez wpisu - czyli w stanie T na zawsze. Lek: wpis-intencja
-   na dysku PRZED sygnalem, kasowany gdy sygnal sie nie uda (ESRCH/EPERM).
+2. SIGSTOP -> save_state window. State was saved after the signal; a daemon killed in
+   that window left a frozen process with no entry, stuck in state T forever. The intent
+   entry is now written to disk before the signal and removed if the signal fails
+   with ESRCH/EPERM.
 
-3. SIGTERM PO NIESWIEZEJ MIGAWCE. `ps` z poczatku cyklu ma kilkanascie sekund; reczny
-   `kill -CONT` w srodku cyklu znaczyl SIGTERM w proces chodzacy pelna para.
-   Lek: re-check `wpis_stoi` w `do_terminate` tuz przed strzalem; nieudany pomiar
-   (`None`) wstrzymuje egzekucje w calosci.
+3. SIGTERM after a stale snapshot. `ps` from the start of a cycle can be several seconds
+   old; manual `kill -CONT` mid-cycle meant SIGTERM to a process already running at full
+   speed. `do_terminate` re-checks `wpis_stoi` just before firing, and a failed measurement
+   (`None`) stops execution entirely.
 
-4. `load_state` UFAL FORMATOWI. `paused` jako lista (stary format) albo klucz nie-liczba
-   dawaly crashloop przy starcie, z ktorego KeepAlive restartuje demona w ten sam mur.
-   Lek: normalizacja typow z logiem, zly fragment wyciety, reszta stanu zostaje.
+4. `load_state` trusted format. `paused` as a list or a non-numeric key caused a startup
+   crashloop. Type normalization logs and cuts the bad fragment while keeping the rest.
 
-5. JEDEN ZEPSUTY WPIS OSLEPIAL LIMITER. W `safe-run.guard_paused` nienumeryczny `pgid`
-   lecial do zewnetrznego `except` i CALA funkcja mowila "nic nie stoi" - limiter budzil
-   grupe, ktora bezpiecznik przed chwila zamrozil. Lek: lokalna oslona, pomijamy tylko
-   wadliwy wpis. Plus: bezposrednie trafienie pid waliduje grupe (pid-reuse).
+5. One bad entry blinded the limiter. In `safe-run.guard_paused`, a non-numeric `pgid`
+   reached the outer `except`, so the whole function reported "nothing is stopped" and
+   the limiter resumed a group the guard had just frozen. The fix is local shielding:
+   skip only the bad entry, and validate direct pid hits by group to avoid pid reuse.
 
-6. KLAMP CONFIGU BYL CICHYM ROZJAZDEM plik<->pamiec (05.08: plik mowil 100, demon
-   chodzil na 98). Lek: powiadomienie + pole `config_corrections` w status.json.
+6. Config clamping was a silent file-memory split. The fix is a notification plus the
+   `config_corrections` field in status.json.
 
-Uruchomienie:  python3 tests/test_runda3.py
-Mutacja (dowod, ze test umie zawiesc) - stary kod z HEAD~ musi oblac:
+Run with:  python3 tests/test_runda3.py
+Mutation proof that the test can fail: old code from HEAD~ must fail:
   git show <stary>:guard.py > /tmp/old_guard.py
   TG_TEST_GUARD=/tmp/old_guard.py python3 tests/test_runda3.py
-Nie dotyka prawdziwego ~/.coffee-paladin - pracuje w katalogu tymczasowym.
+Does not touch the real ~/.coffee-paladin; it works in a temporary directory.
 """
 import ast
 import errno
@@ -85,7 +85,7 @@ def cfg_test():
 
 
 try:
-    # ---------------------------------------------------------------- 1. startowa bramka
+    # ---------------------------------------------------------------- 1. startup gate
     print("1. startowe wznowienie przechodzi przez bramka_wznowienia (AST na zywym kodzie)")
     drzewo = ast.parse(open(GUARD_SRC).read())
     main_fn = next(n for n in ast.walk(drzewo)
@@ -97,7 +97,7 @@ try:
             trafiony = True
     test("do_resume('guard startup') stoi za bramka_wznowienia", trafiony)
 
-    # ---------------------------------------------------------------- 2. wpis-intencja
+    # ---------------------------------------------------------------- 2. intent entry
     print("2. do_pause: wpis w stanie ISTNIEJE juz w chwili sygnalu")
     cfg = cfg_test()
     logi = []
@@ -131,7 +131,7 @@ try:
     test("ESRCH: wpis-intencja skasowany", str(p.pid) not in st3["paused"])
     g.sig = stary_sig
 
-    # ---------------------------------------------------------------- 3. re-check w do_terminate
+    # ---------------------------------------------------------------- 3. re-check in do_terminate
     print("3. do_terminate: strzal tylko w to, co NAPRAWDE stoi TERAZ")
     strzaly = []
 
@@ -139,7 +139,7 @@ try:
         strzaly.append((pid, s))
         return stary_sig(pid, pgid, s)
 
-    # a) proces CHODZI (nikt go nie zatrzymal) -> wpis skasowany, zero sygnalow
+    # a) Process is running, nobody stopped it: entry removed, no signals.
     p_biega = dziecko()
     st = {"paused": {str(p_biega.pid): {"since": g.now(), "comm": "sleep", "pgid": None}},
           "demoted": [], "demoted_info": {}}
@@ -149,7 +149,7 @@ try:
     test("wpis po chodzacym procesie skasowany", str(p_biega.pid) not in st["paused"])
     test("proces przezyl", p_biega.poll() is None)
 
-    # b) `ps` pada -> zadnych decyzji, wpisy zostaja
+    # b) `ps` fails: no decisions, entries stay.
     stary_run = g.run
     g.run = lambda *a, **k: ""
     st = {"paused": {str(p_biega.pid): {"since": g.now(), "comm": "sleep", "pgid": None}},
@@ -160,7 +160,7 @@ try:
          wynik is False and str(p_biega.pid) in st["paused"] and not strzaly)
     g.run = stary_run
 
-    # c) proces STOI -> SIGTERM idzie (sciezka egzekucji dalej dziala)
+    # c) Process is stopped: SIGTERM fires, so execution path still works.
     p_stoi = dziecko()
     os.kill(p_stoi.pid, signal.SIGSTOP)
     time.sleep(0.3)
@@ -207,16 +207,16 @@ try:
         with open(os.path.join(sr.BASE, "state.json"), "w") as f:
             json.dump({"paused": paused}, f)
 
-    # zepsuty wpis (pgid nie-liczba) PRZED zdrowym wpisem o naszej grupie
+    # Broken entry (non-numeric pgid) before a healthy entry for our group.
     zapisz_stan({str(os.getpid()): {"pgid": "abc", "comm": "smiec"},
                  str(lider.pid): {"pgid": lider.pid, "comm": "bash"}})
     test("zepsuty wpis pominiety, PRAWDZIWA pauza grupy widoczna",
          sr.guard_paused(czlonek) is True)
-    # pid-reuse: wpis o NASZYM pid, ale z cudza grupa - nie moze nas zatrzymac
+    # pid reuse: entry for our pid but a foreign group must not stop us.
     zapisz_stan({str(czlonek): {"pgid": 999999999, "comm": "duch"}})
     test("trafienie pid z obca grupa (pid-reuse) = nie stoi",
          sr.guard_paused(czlonek) is False)
-    # wpis o naszym pid ze zgodna grupa - dalej dziala
+    # Entry for our pid with matching group still works.
     zapisz_stan({str(czlonek): {"pgid": lider.pid, "comm": "bash"}})
     test("trafienie pid ze zgodna grupa = stoi", sr.guard_paused(czlonek) is True)
     try:
@@ -224,7 +224,7 @@ try:
     except OSError:
         pass
 
-    # ---------------------------------------------------------------- 6. rate-limit + klamp
+    # ---------------------------------------------------------------- 6. rate limit + clamp
     print("6. untouchable raz na godzine; klamp configu widoczny w statusie")
     zegar = [1000000.0]
     stary_now = g.now
@@ -232,7 +232,7 @@ try:
     g._NIETYKALNI_PODCIAG.clear()
     logi[:] = []
     g._loguj_nietykalny_podciag("corespotlightd", "spotlight", 200.0)
-    zegar[0] += 700          # 11:40 pozniej - stary kod (10 min) juz by logowal
+    zegar[0] += 700          # 11:40 later; old 10 min code would already log.
     g._loguj_nietykalny_podciag("corespotlightd", "spotlight", 200.0)
     test("drugi wpis w tej samej godzinie wyciszony", len(logi) == 1, repr(len(logi)))
     zegar[0] += 3600
