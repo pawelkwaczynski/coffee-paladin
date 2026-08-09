@@ -96,6 +96,14 @@ If the Mac is hot, prefer `--wait-cool`: the job waits for the guard's resume th
 then starts, instead of exiting with code 3. A refusal is easy to miss in a long log - two
 real jobs were silently lost to it in one night before this flag existed.
 
+When `admission_control` is on in the config, declare your appetite honestly:
+`safe-run --cores 4 -- <command>` for a four-core job. The guard queues starts against a
+thermal core budget and the declaration is enforced, so understating cores slows your own
+job down and overstating them blocks the queue. Chain dependent jobs with
+`--after NAME` instead of polling with pgrep. If your job prints "waiting for admission",
+that is normal scheduling, not a hang - do not kill it and do not bypass the queue with
+`--allow-hot`.
+
 Do not call `nice` or `taskpolicy` inside a command that already runs under `safe-run`.
 The wrapper has lowered the job's priority itself: a nested call is redundant at best, and
 anything that tries to *raise* priority back fails with `setpriority: Operation not

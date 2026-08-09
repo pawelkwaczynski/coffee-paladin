@@ -18,6 +18,9 @@ Usage:
   safe-run --allow-hot -- ...      # start even though the Mac is warm (deliberately)
   safe-run --wait-cool -- ...      # on a hot Mac wait for cooldown instead of refusing (exit 3)
   safe-run --grace 120 -- ...      # seconds between SIGTERM and SIGKILL when cleaning up (default 30)
+  safe-run --cores 6 -- ...        # declare how many cores this job chews; enforced via the CPU limit
+  safe-run --queue-priority 3 ...  # admission queue rank, 0 first .. 9 last (default 5)
+  safe-run --after NAME -- ...     # start only after the safe-run job NAME finishes
   safe-run --normal -- ...         # all cores, normal priority (overrides job_cores_mode)
   safe-run --efficiency -- ...     # efficiency cores only (overrides job_cores_mode)
   safe-run --cpu-limit 80 -- ...   # cap the job at 80% duty (overrides job_cpu_percent)
@@ -102,6 +105,16 @@ PL = {
         "safe-run: --wait-cool - Mac jest goracy (%s), czekam az ostygnie (sprawdzam co 60 s)",
     "safe-run: cooled down after %d min - starting the job":
         "safe-run: ostyglo po %d min - startuje zadanie",
+    "safe-run: --after %s - waiting until that job finishes":
+        "safe-run: --after %s - czekam, az tamto zadanie sie skonczy",
+    "safe-run: admitted - starting the job":
+        "safe-run: wpuszczone - startuje zadanie",
+    "safe-run: waiting for admission (declared %d core(s), %d job(s) ahead)":
+        "safe-run: czekam na wpuszczenie (zadeklarowane rdzenie: %d, zadan przede mna: %d)",
+    "safe-run: WARNING - admission control is on but the guard's snapshot is stale; starting without admission":
+        "safe-run: UWAGA - admission control wlaczone, ale migawka bezpiecznika jest nieswieza; startuje bez wpuszczania",
+    "safe-run: --cores %d caps the CPU limit at %d%%":
+        "safe-run: --cores %d ogranicza limit CPU do %d%%",
     "safe-run: cleaning up %d leftover process(es) from the job's group (SIGTERM, then SIGKILL after %d s)":
         "safe-run: sprzatam %d proces(y) pozostale w grupie zadania (SIGTERM, po %d s SIGKILL)",
     "safe-run: WARNING - the job left %d process(es) running in its group (pids: %s) - no time budget applies to them":
@@ -141,6 +154,16 @@ RU = {
         "safe-run: --wait-cool - Mac горячий (%s), жду остывания (проверка каждые 60 с)",
     "safe-run: cooled down after %d min - starting the job":
         "safe-run: остыл через %d мин - запускаю задачу",
+    "safe-run: --after %s - waiting until that job finishes":
+        "safe-run: --after %s - жду завершения той задачи",
+    "safe-run: admitted - starting the job":
+        "safe-run: допущено - запускаю задачу",
+    "safe-run: waiting for admission (declared %d core(s), %d job(s) ahead)":
+        "safe-run: жду допуска (заявлено ядер: %d, задач впереди: %d)",
+    "safe-run: WARNING - admission control is on but the guard's snapshot is stale; starting without admission":
+        "safe-run: ВНИМАНИЕ - admission control включён, но снимок защитника устарел; запускаю без допуска",
+    "safe-run: --cores %d caps the CPU limit at %d%%":
+        "safe-run: --cores %d ограничивает лимит CPU до %d%%",
     "safe-run: cleaning up %d leftover process(es) from the job's group (SIGTERM, then SIGKILL after %d s)":
         "safe-run: убираю %d оставшихся процессов из группы задачи (SIGTERM, через %d с SIGKILL)",
     "safe-run: WARNING - the job left %d process(es) running in its group (pids: %s) - no time budget applies to them":
@@ -180,6 +203,16 @@ ZH = {
         "safe-run: --wait-cool - Mac 过热 (%s), 等待降温 (每 60 秒检查一次)",
     "safe-run: cooled down after %d min - starting the job":
         "safe-run: %d 分钟后已降温 - 启动任务",
+    "safe-run: --after %s - waiting until that job finishes":
+        "safe-run: --after %s - 等待该任务结束",
+    "safe-run: admitted - starting the job":
+        "safe-run: 已获准入 - 启动任务",
+    "safe-run: waiting for admission (declared %d core(s), %d job(s) ahead)":
+        "safe-run: 等待准入 (声明核心数: %d, 前面还有 %d 个任务)",
+    "safe-run: WARNING - admission control is on but the guard's snapshot is stale; starting without admission":
+        "safe-run: 警告 - 已启用准入控制, 但守护进程快照已过期; 不经准入直接启动",
+    "safe-run: --cores %d caps the CPU limit at %d%%":
+        "safe-run: --cores %d 将 CPU 限制压到 %d%%",
     "safe-run: cleaning up %d leftover process(es) from the job's group (SIGTERM, then SIGKILL after %d s)":
         "safe-run: 清理任务进程组中残留的 %d 个进程 (SIGTERM, %d 秒后 SIGKILL)",
     "safe-run: WARNING - the job left %d process(es) running in its group (pids: %s) - no time budget applies to them":
@@ -219,6 +252,16 @@ ES = {
         "safe-run: --wait-cool - el Mac está caliente (%s), esperando a que se enfríe (comprobando cada 60 s)",
     "safe-run: cooled down after %d min - starting the job":
         "safe-run: se enfrió tras %d min - arrancando la tarea",
+    "safe-run: --after %s - waiting until that job finishes":
+        "safe-run: --after %s - esperando a que esa tarea termine",
+    "safe-run: admitted - starting the job":
+        "safe-run: admitida - arrancando la tarea",
+    "safe-run: waiting for admission (declared %d core(s), %d job(s) ahead)":
+        "safe-run: esperando admisión (núcleos declarados: %d, tareas por delante: %d)",
+    "safe-run: WARNING - admission control is on but the guard's snapshot is stale; starting without admission":
+        "safe-run: AVISO - admission control está activo pero la instantánea del guardián está caducada; arrancando sin admisión",
+    "safe-run: --cores %d caps the CPU limit at %d%%":
+        "safe-run: --cores %d limita el CPU al %d%%",
     "safe-run: cleaning up %d leftover process(es) from the job's group (SIGTERM, then SIGKILL after %d s)":
         "safe-run: limpiando %d proceso(s) restantes del grupo de la tarea (SIGTERM, SIGKILL tras %d s)",
     "safe-run: WARNING - the job left %d process(es) running in its group (pids: %s) - no time budget applies to them":
@@ -330,7 +373,11 @@ def parse():
            # 95, not 100: same default as guard DEFAULTS and the documentation.
            "cpu_limit": float(c.get("job_cpu_percent") or 95),
            # 30 s = previous fixed window between SIGTERM and SIGKILL.
-           "grace": 30.0}
+           "grace": 30.0,
+           # Admission control (guard arbiter): declared cores, queue rank,
+           # and an optional job to wait for. cores=None means "not declared";
+           # with admission_control on it defaults to the P-core count.
+           "cores": None, "priority": 5, "after": None}
     i = 0
     while i < len(args):
         a = args[i]
@@ -349,6 +396,12 @@ def parse():
             opt["wait_cool"] = True; i += 1
         elif a == "--grace" and i + 1 < len(args):
             opt["grace"] = float(args[i + 1]); i += 2
+        elif a == "--cores" and i + 1 < len(args):
+            opt["cores"] = int(args[i + 1]); i += 2
+        elif a == "--queue-priority" and i + 1 < len(args):
+            opt["priority"] = int(args[i + 1]); i += 2
+        elif a == "--after" and i + 1 < len(args):
+            opt["after"] = args[i + 1]; i += 2
         elif a == "--normal":
             opt["normal"] = True; i += 1
         elif a == "--efficiency":
@@ -369,6 +422,9 @@ def parse():
     opt["cpu_limit"] = min(max(opt["cpu_limit"], 10.0), 100.0)
     # Cap at 1 h: a "grace window" longer than an hour is effectively no limit.
     opt["grace"] = min(max(opt["grace"], 0.0), 3600.0)
+    if opt["cores"] is not None:
+        opt["cores"] = min(max(opt["cores"], 1), os.cpu_count() or 64)
+    opt["priority"] = min(max(opt["priority"], 0), 9)
     return opt, cmd
 
 
@@ -612,6 +668,149 @@ def wait_for_cooldown(limit):
         time.sleep(WAIT_POLL_S)
 
 
+# Poll intervals for --after and admission waiting. Environment overrides
+# exist for tests; real minutes-long sleeps are untestable in reasonable time.
+AFTER_POLL_S = float(os.environ.get("SAFE_RUN_AFTER_POLL", 10))
+ADMIT_POLL_S = float(os.environ.get("SAFE_RUN_ADMIT_POLL", 5))
+# How long a fresh snapshot may lack the admission block before we conclude
+# the daemon simply does not support it. Right after admission_control is
+# enabled, the running daemon needs a tick or two to publish the block; a
+# 2.4-era daemon never will. Bounded waiting serves both without a trap.
+ADMIT_GRACE_S = float(os.environ.get("SAFE_RUN_ADMIT_GRACE", 45))
+
+
+def default_cores():
+    """Declared-core default: this machine's performance-core count."""
+    try:
+        with open(os.path.join(BASE, "hardware.json")) as f:
+            p = int(json.load(f).get("p_cores") or 0)
+        if p > 0:
+            return p
+    except Exception:
+        pass
+    n = os.cpu_count() or 8
+    return max(1, n // 2 + n % 2)
+
+
+def job_named_alive(job_name):
+    """Return whether a live safe-run registration with this name exists.
+
+    Our own pid never counts: a stale registration left by a crash can carry
+    a recycled pid, and if that pid is THIS wrapper, `--after build --name
+    build` would wait for itself forever. The guard validates and removes
+    stale registrations within a tick; ignoring ourselves closes the one
+    self-deadlock the guard cannot fix for us.
+    """
+    try:
+        for fn in os.listdir(MANAGED_DIR):
+            if not fn.endswith(".json"):
+                continue
+            try:
+                with open(os.path.join(MANAGED_DIR, fn)) as f:
+                    d = json.load(f)
+                if str(d.get("name")) != job_name:
+                    continue
+                pid = int(d.get("pid", 0))
+                if pid == os.getpid():
+                    continue
+                os.kill(pid, 0)
+                return True
+            except (OSError, ValueError, TypeError, json.JSONDecodeError):
+                continue
+    except OSError:
+        pass                      # unreadable managed/ must not deadlock --after
+    return False
+
+
+def wait_for_job(job_name):
+    """Block until no live safe-run job carries this name (--after)."""
+    last_message = 0.0
+    while job_named_alive(job_name):
+        if not last_message or time.time() - last_message >= 600.0:
+            print(T("safe-run: --after %s - waiting until that job finishes") % job_name)
+            sys.stdout.flush()
+            last_message = time.time()
+        time.sleep(AFTER_POLL_S)
+
+
+def admission_wait(opt):
+    """Queue with the guard's arbiter; return a placeholder path once admitted.
+
+    The wrapper writes a pre-registration with queued=true and polls the guard
+    snapshot until its own pid appears in admission.admitted. On admission the
+    placeholder flips to queued=false so the declared cores count as used from
+    the very first arbiter tick - otherwise two admissions in one tick could
+    overshoot the budget. The caller removes the placeholder right after the
+    real registration (keyed by the child pid) exists.
+
+    Waiting must never become a trap: a stale snapshot (daemon dead) or a
+    daemon that publishes no admission block (older version) means "start
+    without admission", loudly. Thermal safety is the pause logic's job.
+    """
+    my_pid = os.getpid()
+    reg = os.path.join(MANAGED_DIR, "%d.json" % my_pid)
+    entry = {"pid": my_pid, "name": opt["name"], "queued": True,
+             "cores": opt["cores"], "priority": opt["priority"],
+             "since": time.time(), "started": time.time()}
+    fd = os.open(reg, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as f:
+        json.dump(entry, f)
+    last_message = 0.0
+    admitted = False
+    wait_started = time.time()
+    try:
+        while True:
+            path = os.path.join(BASE, "status.json")
+            try:
+                with open(path) as f:
+                    st = json.load(f)
+                stale = (time.time() - os.path.getmtime(path)) > 120
+                if not isinstance(st, dict):
+                    st, stale = {}, True
+            except Exception:
+                st, stale = {}, True
+            if stale:
+                print(T("safe-run: WARNING - admission control is on but the guard's "
+                        "snapshot is stale; starting without admission"), file=sys.stderr)
+                return None
+            adm = st.get("admission")
+            if not isinstance(adm, dict):
+                # A fresh snapshot without the block: either a pre-admission
+                # daemon (never publishes it) or the flag was flipped moments
+                # ago (publishes it next tick). Give it a bounded grace, then
+                # start rather than wait forever on an old daemon.
+                if time.time() - wait_started < ADMIT_GRACE_S:
+                    time.sleep(ADMIT_POLL_S)
+                    continue
+                return None
+            if my_pid in (adm.get("admitted") or []):
+                admitted = True
+                entry["queued"] = False
+                fd = os.open(reg, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+                with os.fdopen(fd, "w") as f:
+                    json.dump(entry, f)
+                print(T("safe-run: admitted - starting the job"))
+                sys.stdout.flush()
+                return reg
+            if not last_message or time.time() - last_message >= 600.0:
+                ahead = 0
+                for q in adm.get("queued") or []:
+                    if q.get("pid") == my_pid:
+                        break
+                    ahead += 1
+                print(T("safe-run: waiting for admission (declared %d core(s), "
+                        "%d job(s) ahead)") % (opt["cores"], ahead))
+                sys.stdout.flush()
+                last_message = time.time()
+            time.sleep(ADMIT_POLL_S)
+    finally:
+        if not admitted:
+            try:
+                os.unlink(reg)
+            except OSError:
+                pass
+
+
 def limited_wait(proc, pct, deadline):
     """Wait for the job and enforce a CPU limit with process-group micro-pauses.
 
@@ -749,6 +948,16 @@ def main():
     # replaces itself with the command via execvp. One session, one registration,
     # one owner.
     if os.environ.get("TG_SAFE_RUN_PGID") and cmd:
+        # --after keeps its meaning inside a supervised job: waiting is just a
+        # sleep in the outer group, and a chain script relies on it. Admission
+        # is deliberately skipped here - the inner work already lives inside
+        # the outer job's admitted core budget, so queueing it again would
+        # double-count the same cores.
+        if opt["after"]:
+            try:
+                wait_for_job(opt["after"])
+            except KeyboardInterrupt:
+                return 130
         print(T("safe-run: already inside a supervised job - running the command directly"))
         sys.stdout.flush()
         try:
@@ -762,6 +971,31 @@ def main():
         # made three out of four fail with FileExistsError, and those jobs never
         # started.
         os.makedirs(d, 0o700, exist_ok=True)   # see guard.ensure_dirs: not public
+
+    # Chains first: waiting for a predecessor makes every later gate (thermal,
+    # admission) evaluate fresh conditions instead of hour-old ones.
+    if opt["after"]:
+        try:
+            wait_for_job(opt["after"])
+        except KeyboardInterrupt:
+            return 130
+
+    admission_on = bool(cfg().get("admission_control"))
+    if opt["cores"] is None and admission_on:
+        opt["cores"] = default_cores()
+    if opt["cores"] is not None and admission_on:
+        # The admission budget never exceeds the P-core pool. A declaration
+        # above it could NEVER be admitted and would block the whole queue
+        # from the head - clamp it to the largest admissible value.
+        opt["cores"] = min(opt["cores"], default_cores())
+    if opt["cores"] is not None:
+        # The declaration is HARD: the duty-cycle limiter caps the job at its
+        # declared share of the machine, so the arbiter's budget stays truthful.
+        cap = max(10, round(100.0 * opt["cores"] / (os.cpu_count() or 8)))
+        if cap < opt["cpu_limit"]:
+            opt["cpu_limit"] = float(cap)
+            print(T("safe-run: --cores %d caps the CPU limit at %d%%")
+                  % (opt["cores"], int(cap)))
 
     state, temp = thermal_state(), batt_temp()
     limit = cfg().get("batt_pause_c", 40.0)
@@ -796,6 +1030,13 @@ def main():
         if not start_guard():
             print(T("safe-run: WARNING - the guard did not start, this job will NOT be supervised.")
                   + "  launchctl kickstart -k gui/$UID/%s" % AGENT_LABEL)
+
+    placeholder = None
+    if admission_on:
+        try:
+            placeholder = admission_wait(opt)
+        except KeyboardInterrupt:
+            return 130
 
     wrapped = list(cmd)
     if not opt["normal"]:
@@ -832,7 +1073,15 @@ def main():
         # E-cores.
         json.dump({"pid": proc.pid, "pgid": proc.pid, "name": opt["name"],
                    "cmd": cmd, "started": t0, "hours": opt["hours"],
+                   "cores": opt["cores"], "priority": opt["priority"],
                    "normal": bool(opt["normal"])}, f, indent=1)
+    if placeholder:
+        # The admission placeholder held the declared cores between "admitted"
+        # and this registration; from here the real entry carries them.
+        try:
+            os.unlink(placeholder)
+        except OSError:
+            pass
 
     def forward(signum, frame):
         try:
