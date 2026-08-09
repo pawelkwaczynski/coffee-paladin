@@ -372,7 +372,7 @@ def parse():
     return opt, cmd
 
 
-def snapshot_fresh(nazwa, max_wiek=120):
+def snapshot_fresh(name, max_age=120):
     """Return whether a daemon snapshot is fresh enough to mean anything.
 
     `max_wiek` is seconds. False means the file is missing, stale, or unreadable.
@@ -383,7 +383,7 @@ def snapshot_fresh(nazwa, max_wiek=120):
     executed it. Checking freshness here is what breaks that trap.
     """
     try:
-        return (time.time() - os.path.getmtime(os.path.join(BASE, nazwa))) <= max_wiek
+        return (time.time() - os.path.getmtime(os.path.join(BASE, name))) <= max_age
     except Exception:
         return False
 
@@ -411,7 +411,7 @@ def guard_paused(pid):
         if not paused:
             return False
         try:
-            moja_grupa = os.getpgid(pid)
+            my_group = os.getpgid(pid)
         except OSError:
             return False
         if str(pid) in paused:
@@ -419,10 +419,10 @@ def guard_paused(pid):
             # entry may describe a dead process whose number we now have. The
             # saved pgid must match today's process group; an invalid pgid
             # invalidates only this entry.
-            wpis = paused[str(pid)]
-            zapisany = wpis.get("pgid") if isinstance(wpis, dict) else None
+            entry = paused[str(pid)]
+            saved_group = entry.get("pgid") if isinstance(entry, dict) else None
             try:
-                if zapisany is None or int(zapisany) == moja_grupa:
+                if saved_group is None or int(saved_group) == my_group:
                     return True
             except (TypeError, ValueError):
                 pass                              # malformed entry cannot stop us
@@ -448,19 +448,19 @@ def guard_paused(pid):
             # will never come, leaving our job in state T after a micro-pause.
             # Ask the system, not the note.
             try:
-                teraz = os.getpgid(int(k))
+                current_group = os.getpgid(int(k))
             except (OSError, ValueError):
                 continue
             # ONE malformed entry (non-numeric pgid) must not blind the limiter
             # to a real pause in a later entry. Skip the bad entry and keep
             # reading.
-            zapisany = v.get("pgid") if isinstance(v, dict) else None
+            saved_group = v.get("pgid") if isinstance(v, dict) else None
             try:
-                if zapisany is not None and int(zapisany) != teraz:
+                if saved_group is not None and int(saved_group) != current_group:
                     continue                      # entry now describes something else
             except (TypeError, ValueError):
                 continue                          # malformed entry: skip only this one
-            if teraz == moja_grupa:
+            if current_group == my_group:
                 return True
         return False
     except Exception:
@@ -516,10 +516,10 @@ def chip_already_hot():
     # This used to read "soc_pause_c", a key nobody writes. It always returned
     # None and silently fell back to config. On a fanless Mac where calibration
     # lowers the pause threshold to 78 C, that made the decision use 85 C.
-    progi = st.get("thresholds")
-    prog = (progi.get("pause") if isinstance(progi, dict) else None) or cfg().get("soc_pause_c", 85.0)
+    thresholds = st.get("thresholds")
+    threshold = (thresholds.get("pause") if isinstance(thresholds, dict) else None) or cfg().get("soc_pause_c", 85.0)
     try:
-        c, p = float(chip), float(prog)
+        c, p = float(chip), float(threshold)
         if c == c and c >= p - 5.0:          # c == c filters NaN
             return True, "chip %.1f C" % c
     except (TypeError, ValueError, OverflowError):
@@ -540,19 +540,19 @@ def read_chip_state():
     # can stay hot for reasons chip temperature does not show, such as throttling
     # or battery state.
     try:
-        sciezka = os.path.join(BASE, "status.json")
-        with open(sciezka) as f:
+        path = os.path.join(BASE, "status.json")
+        with open(path) as f:
             st = json.load(f)
-        if not isinstance(st, dict) or (time.time() - os.path.getmtime(sciezka)) > 120:
+        if not isinstance(st, dict) or (time.time() - os.path.getmtime(path)) > 120:
             st = {}
     except Exception:
         st = {}
-    progi = st.get("thresholds")
-    prog = (progi.get("resume") if isinstance(progi, dict) else None) or cfg().get("soc_resume_c", 76.0)
+    thresholds = st.get("thresholds")
+    threshold = (thresholds.get("resume") if isinstance(thresholds, dict) else None) or cfg().get("soc_resume_c", 76.0)
     try:
-        prog = float(prog)
+        threshold = float(threshold)
     except (TypeError, ValueError):
-        prog = 76.0
+        threshold = 76.0
     try:
         chip = float(st.get("chip_c"))
         if chip != chip:                      # NaN
@@ -563,7 +563,7 @@ def read_chip_state():
         lvl = int(st.get("level"))
     except (TypeError, ValueError):
         lvl = None
-    return chip, prog, lvl
+    return chip, threshold, lvl
 
 
 # Poll interval for --wait-cool. The environment variable exists for tests:
@@ -582,33 +582,33 @@ def wait_for_cooldown(limit):
     gate.
     """
     t0 = time.time()
-    ostatni_komunikat = 0.0
+    last_message = 0.0
     while True:
-        chip, prog, lvl = read_chip_state()
-        stan = thermal_state()
+        chip, threshold, lvl = read_chip_state()
+        state = thermal_state()
         bat = batt_temp()
-        powody = []
-        if stan in HOT:
-            powody.append("thermalState=%s" % stan)
+        reasons = []
+        if state in HOT:
+            reasons.append("thermalState=%s" % state)
         if bat is not None and bat >= limit - 2:
-            powody.append("batt %.1f C" % bat)
-        if chip is not None and chip > prog:
-            powody.append("chip %.1f C > %.0f C" % (chip, prog))
+            reasons.append("batt %.1f C" % bat)
+        if chip is not None and chip > threshold:
+            reasons.append("chip %.1f C > %.0f C" % (chip, threshold))
         # Same condition as the start gate: guard level "hot" counts even with a
         # cool chip (throttling, battery). Without it, waiting could end
         # immediately and start the job straight into a pause loop.
         if lvl is not None and lvl >= 2:
-            powody.append("guard level %d" % lvl)
-        if not powody:
+            reasons.append("guard level %d" % lvl)
+        if not reasons:
             return (time.time() - t0) / 60.0
         # Print once at the start and then about every 10 min. Overnight queue
         # logs must show that waiting is alive without flooding the file with
         # identical lines.
-        if not ostatni_komunikat or time.time() - ostatni_komunikat >= 600.0:
+        if not last_message or time.time() - last_message >= 600.0:
             print(T("safe-run: --wait-cool - the Mac is hot (%s), waiting until it "
-                    "cools down (checking every 60 s)") % ", ".join(powody))
+                    "cools down (checking every 60 s)") % ", ".join(reasons))
             sys.stdout.flush()
-            ostatni_komunikat = time.time()
+            last_message = time.time()
         time.sleep(WAIT_POLL_S)
 
 
@@ -686,9 +686,9 @@ def alive_in_group(pgid):
     if p.returncode != 0:                     # pgrep: error, not an empty group
         return None
     pids = []
-    for czesc in p.stdout.decode("utf-8", "replace").split():
+    for part in p.stdout.decode("utf-8", "replace").split():
         try:
-            pids.append(int(czesc))
+            pids.append(int(part))
         except ValueError:
             pass
     return pids
@@ -705,8 +705,8 @@ def sweep_group(pgid, grace):
         os.killpg(pgid, signal.SIGTERM)
     except Exception:
         pass
-    koniec = time.time() + grace
-    while time.time() < koniec:
+    deadline = time.time() + grace
+    while time.time() < deadline:
         # Only an explicitly empty group exits early. None (pgrep failed) waits
         # until SIGKILL; firing at an empty group is safer than skipping a live one.
         if alive_in_group(pgid) == []:
@@ -726,9 +726,9 @@ def guard_alive():
     Check the PID column, matching install.sh (`has_pid`). Fall back to the real
     binary name, not only "guard.py".
     """
-    for linia in sh(["launchctl", "list"]).splitlines():
-        czesci = linia.split()
-        if len(czesci) >= 3 and czesci[2] == AGENT_LABEL and czesci[0] != "-":
+    for line in sh(["launchctl", "list"]).splitlines():
+        parts = line.split()
+        if len(parts) >= 3 and parts[2] == AGENT_LABEL and parts[0] != "-":
             return True
     return bool(sh(["pgrep", "-f", "coffee-paladin$"]).strip()
                 or sh(["pgrep", "-f", "guard.py"]).strip())
@@ -765,9 +765,9 @@ def main():
 
     state, temp = thermal_state(), batt_temp()
     limit = cfg().get("batt_pause_c", 40.0)
-    chip_hot, chip_powod = chip_already_hot()
-    if chip_powod == "STALE":
-        chip_powod = ""
+    chip_hot, chip_reason = chip_already_hot()
+    if chip_reason == "STALE":
+        chip_reason = ""
         print(T("safe-run: WARNING - the guard's snapshot is stale, the daemon is probably "
                 "not running. This job will start, but NOTHING will supervise its "
                 "temperature."), file=sys.stderr)
@@ -779,16 +779,16 @@ def main():
     if hot and not opt["allow_hot"]:
         if not opt["wait_cool"]:
             print(T("safe-run: REFUSING TO START - the Mac is already hot. Use --wait-cool to wait, let it cool down, or pass --allow-hot.")
-                  + ((" (%s)" % chip_powod) if chip_powod else ""))
+                  + ((" (%s)" % chip_reason) if chip_reason else ""))
             return 3
         # Waiting DOES NOT consume the --hours budget: t0, the job deadline,
         # starts below after cooldown. Ctrl-C while waiting is a normal manual
         # interruption (rc 130, same contract as retry_run.sh: do not retry).
         try:
-            minuty = wait_for_cooldown(limit)
+            minutes = wait_for_cooldown(limit)
         except KeyboardInterrupt:
             return 130
-        print(T("safe-run: cooled down after %d min - starting the job") % round(minuty))
+        print(T("safe-run: cooled down after %d min - starting the job") % round(minutes))
         sys.stdout.flush()
 
     if not guard_running():
@@ -804,9 +804,9 @@ def main():
 
     t0 = time.time()
     try:
-        srodowisko = dict(os.environ)
-        srodowisko["TG_SAFE_RUN_PGID"] = str(os.getpid())   # see note in main()
-        proc = subprocess.Popen(wrapped, preexec_fn=os.setsid, env=srodowisko)
+        env = dict(os.environ)
+        env["TG_SAFE_RUN_PGID"] = str(os.getpid())   # see note in main()
+        proc = subprocess.Popen(wrapped, preexec_fn=os.setsid, env=env)
     except Exception as e:
         print(T("safe-run: cannot start: %r") % (e,))
         return 4
@@ -863,16 +863,16 @@ def main():
     # After killed_by_time, the group already had the full grace window and
     # SIGKILL. A second cleanup cannot kill anything SIGKILL did not kill, so
     # only report.
-    resztki = alive_in_group(proc.pid)
-    if resztki:
-        smierc_od_sygnalu = rc is not None and (rc < 0 or rc >= 128)
-        if smierc_od_sygnalu and not killed_by_time:
+    leftovers = alive_in_group(proc.pid)
+    if leftovers:
+        died_from_signal = rc is not None and (rc < 0 or rc >= 128)
+        if died_from_signal and not killed_by_time:
             print(T("safe-run: cleaning up %d leftover process(es) from the job's group (SIGTERM, then SIGKILL after %d s)")
-                  % (len(resztki), int(opt["grace"])))
+                  % (len(leftovers), int(opt["grace"])))
             sweep_group(proc.pid, opt["grace"])
         else:
             print(T("safe-run: WARNING - the job left %d process(es) running in its group (pids: %s) - no time budget applies to them")
-                  % (len(resztki), ", ".join(str(p) for p in resztki)))
+                  % (len(leftovers), ", ".join(str(p) for p in leftovers)))
 
     try:
         os.unlink(reg)

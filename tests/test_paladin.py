@@ -264,7 +264,7 @@ test("15. Quit stops DAEMON and bar after window confirmation",
      # a question before the irreversible step and exit only after consent.
      and 'T("Turn off thermal protection for this Mac?")' in hb
      and "NSApp.runModal(for: win)" in hb
-     and "guard wynik.rawValue == 0 else { return }" in hb
+     and "guard result.rawValue == 0 else { return }" in hb
      and "protection keeps running" not in hb,     # Old misleading promise must be gone.
      "missing daemon stop or old label remains")
 

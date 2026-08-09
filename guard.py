@@ -229,14 +229,14 @@ def logged_keys_snapshot(cfg):
     return {k: cfg.get(k) for k in LOGGED_KEYS}
 
 
-def log_config_changes(poprzednie, cfg):
+def log_config_changes(previous, cfg):
     """Log each observed config-key change and return the new snapshot."""
-    biezace = logged_keys_snapshot(cfg)
-    if poprzednie is not None:
+    current = logged_keys_snapshot(cfg)
+    if previous is not None:
         for k in LOGGED_KEYS:
-            if poprzednie.get(k) != biezace.get(k):
-                log("CONFIG CHANGED %s: %r -> %r" % (k, poprzednie.get(k), biezace.get(k)))
-    return biezace
+            if previous.get(k) != current.get(k):
+                log("CONFIG CHANGED %s: %r -> %r" % (k, previous.get(k), current.get(k)))
+    return current
 
 
 class config_lock:
@@ -325,10 +325,10 @@ def ensure_dirs():
                 # user saw no diagnostics at all.
                 print("coffee-paladin: nie moge utworzyc %s (%s)" % (d, e), file=sys.stderr)
     # Existing installs: tighten permissions at every start. Cheap and idempotent.
-    for sciezka, prawa in ((BASE, 0o700), (MANAGED_DIR, 0o700), (CFG_PATH, 0o600)):
+    for path, permissions in ((BASE, 0o700), (MANAGED_DIR, 0o700), (CFG_PATH, 0o600)):
         try:
-            if os.path.exists(sciezka) and (os.stat(sciezka).st_mode & 0o077):
-                os.chmod(sciezka, prawa)
+            if os.path.exists(path) and (os.stat(path).st_mode & 0o077):
+                os.chmod(path, permissions)
         except OSError:
             pass
 
@@ -356,18 +356,18 @@ def load_cfg():
     # Without this, one typo ("cpu_min_percent": "dwadziescia") crashes the loop
     # every cycle: status.json stops being written, nothing is paused, and `heat`
     # still reports that the daemon is running. The guard is alive but blind.
-    for klucz, wzor in DEFAULTS.items():
-        wart = cfg.get(klucz)
-        if isinstance(wzor, bool):
-            if not isinstance(wart, bool):
-                cfg[klucz] = wzor
-                _zle_typy.append(klucz)
-        elif isinstance(wzor, (int, float)):
+    for key, default in DEFAULTS.items():
+        value = cfg.get(key)
+        if isinstance(default, bool):
+            if not isinstance(value, bool):
+                cfg[key] = default
+                _zle_typy.append(key)
+        elif isinstance(default, (int, float)):
             # bool is a Python int subclass, so `poll_seconds: true` would pass as
             # 1 second, making a hot-chip daemon poll 15x more often.
-            if isinstance(wart, bool):
-                cfg[klucz] = wzor
-                _zle_typy.append(klucz)
+            if isinstance(value, bool):
+                cfg[key] = default
+                _zle_typy.append(key)
             else:
                 try:
                     # Catch OverflowError because 1e400 and 400-digit ints crashed the
@@ -375,52 +375,52 @@ def load_cfg():
                     # daemon never started. NaN and infinity made every comparison false,
                     # so threshold "nan" turned pick_targets into a trap for every process
                     # above zero percent CPU, without one log line.
-                    nowa = type(wzor)(wart)
-                    if isinstance(nowa, float) and (nowa != nowa or nowa in (float("inf"), float("-inf"))):
+                    converted = type(default)(value)
+                    if isinstance(converted, float) and (converted != converted or converted in (float("inf"), float("-inf"))):
                         raise ValueError("NaN albo nieskonczonosc")
-                    cfg[klucz] = nowa
+                    cfg[key] = converted
                 except (TypeError, ValueError, OverflowError):
-                    cfg[klucz] = wzor
-                    _zle_typy.append(klucz)
-        elif isinstance(wzor, list) and not isinstance(wart, list):
-            cfg[klucz] = list(wzor)
-            _zle_typy.append(klucz)
-        elif isinstance(wzor, str) and not isinstance(wart, str):
-            cfg[klucz] = wzor
-            _zle_typy.append(klucz)
+                    cfg[key] = default
+                    _zle_typy.append(key)
+        elif isinstance(default, list) and not isinstance(value, list):
+            cfg[key] = list(default)
+            _zle_typy.append(key)
+        elif isinstance(default, str) and not isinstance(value, str):
+            cfg[key] = default
+            _zle_typy.append(key)
 
     # Thresholds MUST increase: resume < pause < terminate. Without that, one typo turns
     # the guard into a churner (resume >= pause: pause and resume every cycle) or a job
     # killer (kill <= pause: SIGTERM at a completely healthy 82 C).
-    PARY_PROGOW = (("soc_resume_c", "soc_pause_c"), ("soc_pause_c", "soc_kill_c"),
+    threshold_pairs = (("soc_resume_c", "soc_pause_c"), ("soc_pause_c", "soc_kill_c"),
                    ("batt_resume_c", "batt_pause_c"), ("batt_pause_c", "batt_kill_c"))
     # Correction MUST repeat: lowering soc_pause_c in the second pair can break the
     # relation fixed in the first. Three passes are enough for four pairs.
     for _ in range(3):
-        zmienione = False
-        for nizszy, wyzszy in PARY_PROGOW:
+        changed_any = False
+        for lower, upper in threshold_pairs:
             try:
-                n, w = float(cfg[nizszy]), float(cfg[wyzszy])
+                n, w = float(cfg[lower]), float(cfg[upper])
             except (KeyError, TypeError, ValueError):
                 continue
             if n >= w:
-                cfg[nizszy] = w - 2.0
-                _zle_typy.append("%s (>= %s, obnizone do %.1f)" % (nizszy, wyzszy, cfg[nizszy]))
-                zmienione = True
-        if not zmienione:
+                cfg[lower] = w - 2.0
+                _zle_typy.append("%s (>= %s, obnizone do %.1f)" % (lower, upper, cfg[lower]))
+                changed_any = True
+        if not changed_any:
             break
     # After correction, a threshold can land outside physical sense, for example
     # soc_kill_c: 0 intended to "disable termination" can drag pause to -2 C. Then the
     # whole threshold family returns to defaults: known 85/76/90 beats custom nonsense.
-    for rodzina, zakres in ((("soc_resume_c", "soc_pause_c", "soc_kill_c"), (40.0, 110.0)),
+    for family, bounds in ((("soc_resume_c", "soc_pause_c", "soc_kill_c"), (40.0, 110.0)),
                             (("batt_resume_c", "batt_pause_c", "batt_kill_c"), (20.0, 60.0))):
-        if any(k in cfg and not (zakres[0] <= float(cfg[k]) <= zakres[1]) for k in rodzina
+        if any(k in cfg and not (bounds[0] <= float(cfg[k]) <= bounds[1]) for k in family
                if isinstance(cfg.get(k), (int, float))):
-            for k in rodzina:
+            for k in family:
                 if k in DEFAULTS:
                     cfg[k] = DEFAULTS[k]
             _zle_typy.append("progi %s poza zakresem %.0f-%.0f - przywrocone domyslne"
-                             % (rodzina[0].split("_")[0], zakres[0], zakres[1]))
+                             % (family[0].split("_")[0], bounds[0], bounds[1]))
 
     # Temperature thresholds had ranges, but counters and intervals had none. Those can do
     # the most damage because they do not look dangerous:
@@ -430,7 +430,7 @@ def load_cfg():
     #                             stopped job gets SIGTERM in the same second
     #   kill_after_polls: 0    -> terminate on the first critical reading, with no grace
     # Instead of rejecting the whole config, clamp one value to a sane bound and log it.
-    for klucz, dolna, gorna in (("poll_seconds", 1, 300),
+    for key, lower_bound, upper_bound in (("poll_seconds", 1, 300),
                                 ("min_pause_seconds", 0, 3600),
                                 ("fan_alert_polls", 1, 100),
                                 ("state_confirm_polls", 1, 100),
@@ -441,13 +441,13 @@ def load_cfg():
                                 ("batt_pct_pause", 0, 100),
                                 ("batt_pct_resume", 0, 100),
                                 ("keep_awake_hold_s", 0, 86400)):
-        v = cfg.get(klucz)
+        v = cfg.get(key)
         if isinstance(v, (int, float)) and not isinstance(v, bool):
-            if v < dolna or v > gorna:
-                cfg[klucz] = type(DEFAULTS[klucz])(min(max(v, dolna), gorna)) \
-                             if klucz in DEFAULTS else min(max(v, dolna), gorna)
+            if v < lower_bound or v > upper_bound:
+                cfg[key] = type(DEFAULTS[key])(min(max(v, lower_bound), upper_bound)) \
+                             if key in DEFAULTS else min(max(v, lower_bound), upper_bound)
                 _zle_typy.append("%s = %s poza zakresem %s-%s - przyciete do %s"
-                                 % (klucz, v, dolna, gorna, cfg[klucz]))
+                                 % (key, v, lower_bound, upper_bound, cfg[key]))
 
     # A minimum pause longer than the pause limit is a killing machine: resume can never
     # happen, and every pause ends in SIGTERM. Clamp it and say so.
@@ -464,11 +464,11 @@ def load_cfg():
     # every load. It used to grow forever (load_cfg runs every loop cycle, ~5760 entries
     # per day), while the user got no signal that their threshold was silently changed.
     if _zle_typy:
-        odrzucone = sorted(set(_zle_typy))
+        rejected = sorted(set(_zle_typy))
         del _zle_typy[:]
-        if odrzucone != _ostatnio_odrzucone["v"]:
-            _ostatnio_odrzucone["v"] = odrzucone
-            log("CONFIG: odrzucone albo poprawione wartosci: %s" % ", ".join(odrzucone))
+        if rejected != _ostatnio_odrzucone["v"]:
+            _ostatnio_odrzucone["v"] = rejected
+            log("CONFIG: odrzucone albo poprawione wartosci: %s" % ", ".join(rejected))
             # The clamp fixes values IN MEMORY while the file stays as it was. That is a
             # trap: a second session, human or AI agent, reads config.json and sees
             # something different from what the daemon enforces. A queue session set
@@ -476,19 +476,19 @@ def load_cfg():
             # We deliberately do not overwrite the file behind the human's back. Instead,
             # say exactly what to fix.
             notify(cfg, "coffee-paladin: config corrected in memory",
-                   "config.json still holds the old values. Fix: %s" % "; ".join(odrzucone),
+                   "config.json still holds the old values. Fix: %s" % "; ".join(rejected),
                    key="cfgclamp")
     else:
         # Corrections disappeared because the file was fixed; status must not warn forever.
         _ostatnio_odrzucone["v"] = []
-    for klucz in ("never_patterns", "never_arg_patterns", "never_extra",
+    for key in ("never_patterns", "never_arg_patterns", "never_extra",
                   "managed_patterns", "system_demote_patterns"):
-        lista = [w for w in (cfg.get(klucz) or []) if isinstance(w, str) and w.strip()]
-        if klucz in ("never_patterns", "never_arg_patterns"):
-            for nazwa in OWN_NAMES:
-                if nazwa not in lista:
-                    lista.append(nazwa)
-        cfg[klucz] = lista
+        items = [w for w in (cfg.get(key) or []) if isinstance(w, str) and w.strip()]
+        if key in ("never_patterns", "never_arg_patterns"):
+            for name in OWN_NAMES:
+                if name not in items:
+                    items.append(name)
+        cfg[key] = items
     return cfg
 
 
@@ -931,13 +931,13 @@ def rotate(path):
     except OSError:
         return
     try:
-        najstarszy = "%s.%d" % (path, MAX_LOG_GENERATIONS)
-        if os.path.exists(najstarszy):
-            os.remove(najstarszy)
+        oldest = "%s.%d" % (path, MAX_LOG_GENERATIONS)
+        if os.path.exists(oldest):
+            os.remove(oldest)
         for n in range(MAX_LOG_GENERATIONS - 1, 0, -1):
-            zrodlo = "%s.%d" % (path, n)
-            if os.path.exists(zrodlo):
-                os.replace(zrodlo, "%s.%d" % (path, n + 1))
+            source = "%s.%d" % (path, n)
+            if os.path.exists(source):
+                os.replace(source, "%s.%d" % (path, n + 1))
         os.replace(path, path + ".1")
     except OSError:
         pass
@@ -949,24 +949,24 @@ def generations(path):
     Every evidence reader, including thermal-report and statistics, must use this list
     instead of `path` alone. Otherwise rotation silently cuts history out of the document.
     """
-    zrotowane = []
+    rotated = []
     n = 1
     while True:
         p = "%s.%d" % (path, n)
         if not os.path.exists(p):
             break
-        zrotowane.append(p)
+        rotated.append(p)
         n += 1
-    zrotowane.reverse()                    # .3, .2, .1 = chronological
+    rotated.reverse()                    # .3, .2, .1 = chronological
     if os.path.exists(path):
-        zrotowane.append(path)
-    return zrotowane
+        rotated.append(path)
+    return rotated
 
 
 _SILENT_FAILURES = {}
 
 
-def silent_failure(gdzie, e):
+def silent_failure(location, e):
     """Record a swallowed exception from a critical path.
 
     In a safety daemon, `except Exception: pass` while writing evidence or state means the
@@ -976,14 +976,14 @@ def silent_failure(gdzie, e):
     location and counted in status.json. Exceptions are still swallowed, but no longer
     silently.
     """
-    _SILENT_FAILURES[gdzie] = _SILENT_FAILURES.get(gdzie, 0) + 1
-    znacznik = "_ostatni_log_" + gdzie
-    teraz = now()
-    if teraz - _SILENT_FAILURES.get(znacznik, 0) >= 600:
-        _SILENT_FAILURES[znacznik] = teraz
+    _SILENT_FAILURES[location] = _SILENT_FAILURES.get(location, 0) + 1
+    marker = "_ostatni_log_" + location
+    current_time = now()
+    if current_time - _SILENT_FAILURES.get(marker, 0) >= 600:
+        _SILENT_FAILURES[marker] = current_time
         try:
             log("SWALLOWED in %s: %s: %s (%d time(s) so far)"
-                % (gdzie, type(e).__name__, e, _SILENT_FAILURES[gdzie]))
+                % (location, type(e).__name__, e, _SILENT_FAILURES[location]))
         except Exception:
             pass
 
@@ -1128,9 +1128,9 @@ def play_sound(cfg, key):
     _last_sound[key] = now()
     # Prefer bundled files (CC0, see sounds/LICENSES.md). Fall back to system sounds so
     # old installs without sounds/ lose nothing.
-    wlasny = os.path.join(BASE, "sounds", SOUND_ALIAS.get(key, key) + ".wav")
-    if os.path.exists(wlasny):
-        popen_bg(["afplay", wlasny])
+    bundled_sound = os.path.join(BASE, "sounds", SOUND_ALIAS.get(key, key) + ".wav")
+    if os.path.exists(bundled_sound):
+        popen_bg(["afplay", bundled_sound])
         return
     name = SOUNDS.get(key, "Ping")
     path = "/System/Library/Sounds/%s.aiff" % name
@@ -1165,11 +1165,11 @@ def push(cfg, title, text):
     # JSON on stdin so argv contains only "curl -s -m 10 -H Content-Type... -d @-
     # https://ntfy.sh/". `-d @-` reads the body from stdin, so neither topic nor content
     # leaks through argv.
-    cialo = json.dumps({"topic": topic,
+    body = json.dumps({"topic": topic,
                         "title": title.replace("\n", " ").replace("\r", " "),
                         "message": text}, ensure_ascii=False)
     popen_bg(["curl", "-s", "-m", "10", "-H", "Content-Type: application/json",
-              "-d", "@-", "https://ntfy.sh/"], stdin_data=cialo)
+              "-d", "@-", "https://ntfy.sh/"], stdin_data=body)
 
 
 def notify(cfg, title, text, key="default"):
@@ -1426,9 +1426,9 @@ VERSIONED_INTERPRETER = re.compile(
     r"^(python|ruby|perl|php|node|nodejs|deno|bun)[0-9]+(\.[0-9]+)*$")
 
 
-def is_interpreter(nazwa):
+def is_interpreter(name):
     """Return whether `nazwa` is a lowercased, dequoted basename of an interpreter argv[0]."""
-    return nazwa in INTERPRETERS or bool(VERSIONED_INTERPRETER.match(nazwa))
+    return name in INTERPRETERS or bool(VERSIONED_INTERPRETER.match(name))
 
 
 def args_without_paths(pid):
@@ -1451,23 +1451,23 @@ def args_without_paths(pid):
       arguments without slash     - identity, flags and module names such as -m mcp.server
       remaining paths             - data, excluded from matching
     """
-    czesci = full_args(pid).split()
-    if not czesci:
+    parts = full_args(pid).split()
+    if not parts:
         return ""
-    zostaw = [czesci[0]]
-    interpreter = is_interpreter(os.path.basename(czesci[0].strip('"\'')).lower())
-    skrypt_wziety = not interpreter
-    for a in czesci[1:]:
+    kept = [parts[0]]
+    interpreter = is_interpreter(os.path.basename(parts[0].strip('"\'')).lower())
+    script_taken = not interpreter
+    for a in parts[1:]:
         if "/" not in a:
-            zostaw.append(a)          # flag or module name (-m mcp.server)
-        elif not skrypt_wziety and not a.startswith("-"):
+            kept.append(a)          # flag or module name (-m mcp.server)
+        elif not script_taken and not a.startswith("-"):
             # The first non-flag interpreter argument is the SCRIPT BEING RUN, therefore
             # process identity, even when flags came before it:
             # `node --experimental-modules /path/mcp-server.js`.
-            zostaw.append(a)
-            skrypt_wziety = True
+            kept.append(a)
+            script_taken = True
         # The rest is data path and is ignored.
-    return " ".join(zostaw).lower()
+    return " ".join(kept).lower()
 
 
 def top_lists(n=3):
@@ -1501,7 +1501,7 @@ def managed_pids_from_saferun():
     Demotion to E-cores must not silently override that.
     """
     res = {}
-    normalne = set()
+    normal = set()
     try:
         for name in os.listdir(MANAGED_DIR):
             if not name.endswith(".json"):
@@ -1513,8 +1513,8 @@ def managed_pids_from_saferun():
                 # is a ready lever: whoever replaces it points guard at a target to freeze.
                 # The directory is 0700 via ensure_dirs, but a file may remain from an old
                 # install or manual copy.
-                st_pliku = os.lstat(path)
-                if st_pliku.st_uid != os.getuid() or (st_pliku.st_mode & 0o022):
+                file_stat = os.lstat(path)
+                if file_stat.st_uid != os.getuid() or (file_stat.st_mode & 0o022):
                     log("ignoring managed registration with unsafe ownership/permissions: %s"
                         % name)
                     continue
@@ -1530,13 +1530,13 @@ def managed_pids_from_saferun():
                     # own registration right after it was created. The effect was managed/
                     # empty during live compression, `jobs: []` in status, and lost pgid and
                     # "normal" flag.
-                    zarejestrowany_start = d.get("started")
-                    if zarejestrowany_start:
-                        wiek = proc_age_seconds(pid)
-                        realny_start = now() - wiek
+                    registered_start = d.get("started")
+                    if registered_start:
+                        age = proc_age_seconds(pid)
+                        actual_start = now() - age
                         # 90 s slack: etime has one-second resolution, and registration is
                         # created shortly after process start.
-                        if wiek and abs(realny_start - float(zarejestrowany_start)) > 90:
+                        if age and abs(actual_start - float(registered_start)) > 90:
                             os.unlink(path)     # PID was taken by another process
                             continue
                     # Read PGID from the kernel, not the file. Registration is plain JSON
@@ -1550,7 +1550,7 @@ def managed_pids_from_saferun():
                         # The process disappeared between alive() and this call.
                         continue
                     if d.get("normal"):
-                        normalne.add(pid)
+                        normal.add(pid)
                 else:
                     os.unlink(path)
             except Exception:
@@ -1560,7 +1560,7 @@ def managed_pids_from_saferun():
                     pass
     except Exception:
         pass
-    return res, normalne
+    return res, normal
 
 
 def alive(pid):
@@ -1572,7 +1572,7 @@ def alive(pid):
         return e.errno == errno.EPERM
 
 
-def sensor_latch(st, klucz, wartosc, prog_pauzy, prog_wznowienia):
+def sensor_latch(st, key, value, pause_threshold, resume_threshold):
     """Apply hysteresis for one sensor and return whether that sensor still holds hot.
 
     The latch turns on at its own pause threshold, turns off at its own resume threshold,
@@ -1603,18 +1603,18 @@ def sensor_latch(st, klucz, wartosc, prog_pauzy, prog_wznowienia):
     alternative, persisting the latch to disk, creates the opposite failure: a latch from an
     old threshold era holding a job in T with no reason.
     """
-    prog_klucz = klucz + "_prog"
-    progi = [prog_pauzy, prog_wznowienia]
-    if st.get(prog_klucz) != progi:
-        st[prog_klucz] = progi
-        st[klucz] = False
-    if wartosc is None:
-        st[klucz] = False
-    elif wartosc >= prog_pauzy:
-        st[klucz] = True
-    elif wartosc <= prog_wznowienia:
-        st[klucz] = False
-    return bool(st.get(klucz, False))
+    threshold_key = key + "_prog"
+    thresholds = [pause_threshold, resume_threshold]
+    if st.get(threshold_key) != thresholds:
+        st[threshold_key] = thresholds
+        st[key] = False
+    if value is None:
+        st[key] = False
+    elif value >= pause_threshold:
+        st[key] = True
+    elif value <= resume_threshold:
+        st[key] = False
+    return bool(st.get(key, False))
 
 
 def stopped_now():
@@ -1633,8 +1633,8 @@ def stopped_now():
     One `ps -Ao` replaces one `ps` per entry. With dozens of frozen jobs, the loop used to
     fork that many processes every cycle.
     """
-    linie = run(["ps", "-Ao", "pid=,pgid=,stat="]).splitlines()
-    if not linie:
+    lines = run(["ps", "-Ao", "pid=,pgid=,stat="]).splitlines()
+    if not lines:
         # A failed measurement is not a measurement of "nothing is stopped". `run()`
         # returns an empty string for every error and timeout, while `ps -Ao` on a live
         # machine always has hundreds of lines. Reading emptiness literally would mark
@@ -1642,33 +1642,33 @@ def stopped_now():
         # without the only note anyone could use to resume them. None means "unknown" and
         # blocks decisions about another process's life.
         return None
-    pidy, grupy = set(), set()
-    for linia in linie:
-        czesci = linia.split(None, 2)
-        if len(czesci) < 3 or not czesci[2].startswith("T"):
+    pids, groups = set(), set()
+    for line in lines:
+        parts = line.split(None, 2)
+        if len(parts) < 3 or not parts[2].startswith("T"):
             continue
         try:
-            pidy.add(int(czesci[0]))
-            grupy.add(int(czesci[1]))
+            pids.add(int(parts[0]))
+            groups.add(int(parts[1]))
         except ValueError:
             continue
-    return pidy, grupy
+    return pids, groups
 
 
-def stale_entries(paused, stoja):
+def stale_entries(paused, stopped):
     """Return entries for jobs resumed outside guard, to be deleted."""
-    if stoja is None:
+    if stopped is None:
         return []
     return [k for k, v in paused.items()
-            if not v.get("manual") and not entry_stopped(k, v, *stoja)]
+            if not v.get("manual") and not entry_stopped(k, v, *stopped)]
 
 
-def expired_entries(paused, limit_s, stoja):
+def expired_entries(paused, limit_s, stopped):
     """Return over-limit entries whose jobs are REALLY stopped; only those may be killed."""
-    if stoja is None:
+    if stopped is None:
         return []
     return [k for k, v in paused.items()
-            if _pause_age(v) > limit_s and not v.get("manual") and entry_stopped(k, v, *stoja)]
+            if _pause_age(v) > limit_s and not v.get("manual") and entry_stopped(k, v, *stopped)]
 
 
 def resume_gate(cfg, st, temp, soc_t, state):
@@ -1679,26 +1679,26 @@ def resume_gate(cfg, st, temp, soc_t, state):
     level. The full decision lives in one function so tests check what the daemon executes,
     not a copied expression that could pass after production logic is broken.
     """
-    batt_trzyma = sensor_latch(st, "_batt_hot", temp,
+    battery_holds = sensor_latch(st, "_batt_hot", temp,
                                     cfg["batt_pause_c"], cfg["batt_resume_c"])
-    chip_trzyma = soc_t is not None and soc_t > cfg.get("soc_resume_c", 87.0)
-    return not batt_trzyma and not chip_trzyma and LEVELS.get(state, 1) <= 1
+    chip_holds = soc_t is not None and soc_t > cfg.get("soc_resume_c", 87.0)
+    return not battery_holds and not chip_holds and LEVELS.get(state, 1) <= 1
 
 
-def entry_stopped(key, info, pidy, grupy):
+def entry_stopped(key, info, pids, groups):
     """Return whether this entry's job is REALLY stopped, directly or through its group.
 
     Unknown state, such as a vanished process or unresponsive `ps`, means "not stopped":
     termination requires proof that something is stopped, not a lack of proof that it is not.
     """
     try:
-        if int(key) in pidy:
+        if int(key) in pids:
             return True
     except (TypeError, ValueError):
         return False
     pgid = (info or {}).get("pgid")
     try:
-        return pgid is not None and int(pgid) in grupy
+        return pgid is not None and int(pgid) in groups
     except (TypeError, ValueError):
         return False
 
@@ -1708,14 +1708,14 @@ def proc_age_seconds(pid):
     out = run(["ps", "-o", "etime=", "-p", str(pid)]).strip()
     if not out:
         return 0
-    dni = 0
+    days = 0
     if "-" in out:
         d, out = out.split("-", 1)
-        dni = int(d)
-    czesci = [int(x) for x in out.split(":")]
-    while len(czesci) < 3:
-        czesci.insert(0, 0)
-    return dni * 86400 + czesci[0] * 3600 + czesci[1] * 60 + czesci[2]
+        days = int(d)
+    parts = [int(x) for x in out.split(":")]
+    while len(parts) < 3:
+        parts.insert(0, 0)
+    return days * 86400 + parts[0] * 3600 + parts[1] * 60 + parts[2]
 
 
 def cpu_with_children(procs):
@@ -1727,48 +1727,48 @@ def cpu_with_children(procs):
     heats the Mac. Counting the subtree exposes the real culprit and lets guard freeze the
     source, so new children stop appearing.
     """
-    dzieci = {}
-    wlasne = {}
+    children = {}
+    own_cpu = {}
     for pid, ppid, cpu, comm in procs:
-        dzieci.setdefault(ppid, []).append(pid)
-        wlasne[pid] = cpu
-    suma = {}
+        children.setdefault(ppid, []).append(pid)
+        own_cpu[pid] = cpu
+    totals = {}
 
-    def licz(pid, glebokosc=0):
-        if pid in suma:
-            return suma[pid]
-        if glebokosc > 20:          # guard against a cycle in the process table
-            return wlasne.get(pid, 0.0)
-        suma[pid] = wlasne.get(pid, 0.0)   # insert early to guard against recursion
-        total = wlasne.get(pid, 0.0)
-        for d in dzieci.get(pid, []):
+    def count(pid, depth=0):
+        if pid in totals:
+            return totals[pid]
+        if depth > 20:          # guard against a cycle in the process table
+            return own_cpu.get(pid, 0.0)
+        totals[pid] = own_cpu.get(pid, 0.0)   # insert early to guard against recursion
+        total = own_cpu.get(pid, 0.0)
+        for d in children.get(pid, []):
             if d != pid:
-                total += licz(d, glebokosc + 1)
-        suma[pid] = total
+                total += count(d, depth + 1)
+        totals[pid] = total
         return total
 
-    for pid in list(wlasne):
-        licz(pid)
-    return suma
+    for pid in list(own_cpu):
+        count(pid)
+    return totals
 
 
 _UNTOUCHABLE_SUBSTRINGS = {}
 
 
-def _log_untouchable_match(comm, wzorzec, cpu):
+def _log_untouchable_match(comm, pattern, cpu):
     """Log at most once per hour per process.
 
     The log should inform, not flood. 10 minutes was too often: corespotlightd can grind
     indexing all day and fill the log with repeated entries. One entry per hour still
     answers "why did guard not touch this".
     """
-    teraz = now()
-    if teraz - _UNTOUCHABLE_SUBSTRINGS.get(comm, 0) < 3600:
+    current_time = now()
+    if current_time - _UNTOUCHABLE_SUBSTRINGS.get(comm, 0) < 3600:
         return
-    _UNTOUCHABLE_SUBSTRINGS[comm] = teraz
+    _UNTOUCHABLE_SUBSTRINGS[comm] = current_time
     log("%s uses %.0f%% CPU but is untouchable: its name contains the never-pause "
         "pattern %r (partial match). Rename it or narrow never_patterns if this is wrong."
-        % (comm, cpu, wzorzec))
+        % (comm, cpu, pattern))
 
 
 _DEMOTE_ONLY = []   # filled on every pick_targets; read by snapshot()
@@ -1787,10 +1787,10 @@ def pick_targets(cfg, procs, saferun):
     system_demote = [p.lower() for p in (cfg.get("system_demote_patterns") or [])]
     never = [p.lower() for p in list(cfg["never_patterns"]) + list(cfg.get("never_extra") or [])]
     patterns = [p.lower() for p in cfg["managed_patterns"]]
-    drzewo = cpu_with_children(procs) if cfg.get("count_children", True) else {}
+    cpu_tree = cpu_with_children(procs) if cfg.get("count_children", True) else {}
     out = []
     for pid, ppid, cpu, comm in procs:
-        cpu = max(cpu, drzewo.get(pid, 0.0))   # evaluate the whole subtree
+        cpu = max(cpu, cpu_tree.get(pid, 0.0))   # evaluate the whole subtree
         if pid in (me, os.getppid()) or pid <= 1:
             continue
         if cpu < cfg["cpu_min_percent"]:
@@ -1804,8 +1804,8 @@ def pick_targets(cfg, procs, saferun):
                 continue
             out.append((pid, cpu, comm, saferun[pid]))
             continue
-        trafienie = next((n for n in never if n in low), None)
-        if trafienie:
+        match = next((n for n in never if n in low), None)
+        if match:
             # System indexing daemons remain UNTOUCHABLE for pause and termination, but
             # travel through a separate channel for E-core demotion. The "untouchable" log
             # is silent for them because the answer to "why did guard not touch this" is
@@ -1822,8 +1822,8 @@ def pick_targets(cfg, procs, saferun):
             # and `sshd`. Do not narrow matching; stop being silent about it. When a truly
             # hot process is skipped by PARTIAL matching, log it so the user can see why
             # the guard did not touch what is heating the Mac.
-            if low != trafienie and cpu >= cfg.get("unknown_cpu_percent", 50.0):
-                _log_untouchable_match(comm, trafienie, cpu)
+            if low != match and cpu >= cfg.get("unknown_cpu_percent", 50.0):
+                _log_untouchable_match(comm, match, cpu)
             continue
         if not any(p in low for p in patterns):
             # A name list is inherently incomplete. Custom binaries (b3core, cadical,
@@ -1848,7 +1848,7 @@ def pick_targets(cfg, procs, saferun):
     return out
 
 
-def without_descendants(cele, procs):
+def without_descendants(target_entries, procs):
     """Return the DISPLAY list, excluding processes whose ancestor is already listed.
 
     When child CPU is rolled up to the parent (`count_children`), the same processor lands
@@ -1863,22 +1863,22 @@ def without_descendants(cele, procs):
     paused while the children keep grinding, giving false safety after overheating. Signals
     MUST still hit the whole subtree.
     """
-    if not cele:
-        return cele
-    rodzic = {pid: ppid for pid, ppid, cpu, comm in procs}
-    wybrane = {t[0] for t in cele}
+    if not target_entries:
+        return target_entries
+    parent = {pid: ppid for pid, ppid, cpu, comm in procs}
+    selected = {t[0] for t in target_entries}
     out = []
-    for t in cele:
-        p = rodzic.get(t[0])
-        ma_przodka = False
-        glebokosc = 0
-        while p and p > 1 and glebokosc < 40:
-            if p in wybrane:
-                ma_przodka = True
+    for t in target_entries:
+        p = parent.get(t[0])
+        has_ancestor = False
+        depth = 0
+        while p and p > 1 and depth < 40:
+            if p in selected:
+                has_ancestor = True
                 break
-            p = rodzic.get(p)
-            glebokosc += 1
-        if not ma_przodka:
+            p = parent.get(p)
+            depth += 1
+        if not has_ancestor:
             out.append(t)
     return out
 
@@ -1903,9 +1903,9 @@ def load_state():
                     log("state: 'paused' had type %s - dropped (old or corrupted format)"
                         % type(d.get("paused")).__name__)
                 d["paused"] = {}
-            zle = [k for k, v in d["paused"].items()
+            bad = [k for k, v in d["paused"].items()
                    if not str(k).lstrip("-").isdigit() or not isinstance(v, dict)]
-            for k in zle:
+            for k in bad:
                 log("state: dropping malformed pause entry %r" % (k,))
                 del d["paused"][k]
             if not isinstance(d.get("demoted"), list):
@@ -1939,24 +1939,24 @@ def sig(pid, pgid, s):
     actually incomplete).
     """
     import errno as _e
-    blad = 0
+    error = 0
     if pgid:
         try:
             os.killpg(pgid, s)
             return 0
         except OSError as ex:
-            blad = ex.errno
+            error = ex.errno
     try:
         os.kill(pid, s)
         return 0
     except OSError as ex:
-        return ex.errno or blad or _e.EPERM
+        return ex.errno or error or _e.EPERM
 
 
 _nie_da_sie = {}          # pid -> comm: processes that CANNOT be paused (EPERM)
 
 
-def licznik(st, klucz, ile=1):
+def licznik(st, key, amount=1):
     """Increment accumulated guard action counters in state.json.
 
     Amphetamine counts how long the Mac did NOT sleep. The valuable inverse here is how
@@ -1969,17 +1969,17 @@ def licznik(st, klucz, ile=1):
         # resets at daemon start. The menu-bar window says "session statistics", so it must
         # have a session to show. Otherwise the label lies, like counting manual pauses as
         # guard achievements.
-        for gdzie in ("stats", "stats_sesja"):
-            st.setdefault(gdzie, {})
-            st[gdzie].setdefault("since", now())
-            st[gdzie][klucz] = int(st[gdzie].get(klucz, 0)) + ile
+        for location in ("stats", "stats_sesja"):
+            st.setdefault(location, {})
+            st[location].setdefault("since", now())
+            st[location][key] = int(st[location].get(key, 0)) + amount
     except Exception:
         pass
 
 
-def do_pause(cfg, st, targets, reason, manual=False, lvl_krytyczny=False):
+def do_pause(cfg, st, targets, reason, manual=False, critical_level=False):
     changed = False
-    nieudane = []
+    failed = []
     for pid, cpu, comm, pgid in targets:
         key = str(pid)
         if key in st["paused"] or pid in _nie_da_sie:
@@ -2005,15 +2005,15 @@ def do_pause(cfg, st, targets, reason, manual=False, lvl_krytyczny=False):
                                       or "bateri" in (reason or "").lower() else "termika",
                              "comm": comm, "pgid": pgid, "cpu": cpu, "manual": manual}
         save_state(st)
-        blad = sig(pid, pgid, signal.SIGSTOP)
-        if blad == 0:
+        error = sig(pid, pgid, signal.SIGSTOP)
+        if error == 0:
             changed = True
             log(T("PAUSED %s (pid %d, %.0f%% CPU) - %s") % (comm, pid, cpu, reason), tag="PAUSE")
             # Count ONLY guard work. Manual menu-bar freeze is a human decision, not a
             # product achievement, while the statistics window promises the latter.
             if not manual:
                 licznik(st, "pauses")
-        elif blad == errno.ESRCH:
+        elif error == errno.ESRCH:
             # The process disappeared between ps and the signal. That is normal, not a
             # failure; remove the intent entry because it describes nothing alive.
             st["paused"].pop(key, None)
@@ -2026,22 +2026,22 @@ def do_pause(cfg, st, targets, reason, manual=False, lvl_krytyczny=False):
             st["paused"].pop(key, None)
             save_state(st)
             _nie_da_sie[pid] = comm
-            nieudane.append(comm)
+            failed.append(comm)
             log(T("FAILED to pause %s (pid %d) - errno %d, giving up on this pid")
-                % (comm, pid, blad))
+                % (comm, pid, error))
     st["_unpausable"] = sorted(set(_nie_da_sie.values()))
     if changed:
         names = ", ".join(sorted(set(v["comm"] for v in st["paused"].values())))
         notify(cfg, T("Thermal guard: hot"), T("Paused: %s (%s)") % (names, reason), "pause")
-    if nieudane and lvl_krytyczny:
+    if failed and critical_level:
         # Protection failed at critical level; the user MUST know.
         notify(cfg, T("Thermal guard: PROTECTION INCOMPLETE"),
                T("Could not pause: %s (%s). The Mac stays hot - intervene manually.")
-               % (", ".join(sorted(set(nieudane))), reason), key="failpause")
+               % (", ".join(sorted(set(failed))), reason), key="failpause")
     return changed
 
 
-def do_resume(cfg, st, reason, only_keys=None, po_ostygnieciu=False):
+def do_resume(cfg, st, reason, only_keys=None, after_cooling=False):
     """Resume frozen jobs, optionally limited to `only_keys`.
 
     This parameter is critical. The main loop calls `do_resume(..., only_keys=gotowe)`;
@@ -2057,15 +2057,15 @@ def do_resume(cfg, st, reason, only_keys=None, po_ostygnieciu=False):
             continue          # the rest stays frozen deliberately: min pause time or manual
         pid = int(key)
         if alive(pid):
-            blad = sig(pid, info.get("pgid"), signal.SIGCONT)
-            stan = run(["ps", "-o", "stat=", "-p", str(pid)]).strip()
-            if blad == 0 and not stan.startswith("T"):
+            error = sig(pid, info.get("pgid"), signal.SIGCONT)
+            status = run(["ps", "-o", "stat=", "-p", str(pid)]).strip()
+            if error == 0 and not status.startswith("T"):
                 log(T("RESUMED %s (pid %d) - %s") % (info.get("comm", "?"), pid, reason), tag="RESUME")
                 # The stats window says "resumed AFTER COOLING", so manual resume, startup,
                 # and daemon shutdown do not count. The label must be true.
-                if po_ostygnieciu:
+                if after_cooling:
                     licznik(st, "resumes")
-            elif stan.startswith("T"):
+            elif status.startswith("T"):
                 # SIGCONT was sent but the process is STILL stopped: classic SIGTTIN loop.
                 # It resumed in the background and tried to read the keyboard. It will not
                 # recover by itself.
@@ -2076,7 +2076,7 @@ def do_resume(cfg, st, reason, only_keys=None, po_ostygnieciu=False):
                        % info.get("comm", "?"), key="ttin")
             else:
                 log("FAILED to resume %s (pid %d) - errno %d"
-                    % (info.get("comm", "?"), pid, blad))
+                    % (info.get("comm", "?"), pid, error))
                 # A failed SIGCONT must NOT delete the entry: the process would stay frozen
                 # while guard forgot it, so even restart would not resume it. Count attempts
                 # and give up after the fifth so the entry does not remain forever.
@@ -2118,8 +2118,8 @@ def do_terminate(cfg, st, reason, only_keys=None):
     execution: termination needs proof that something is stopped, and pause is already
     cooling the machine.
     """
-    stoja = stopped_now()
-    if stoja is None:
+    stopped = stopped_now()
+    if stopped is None:
         log("ps unavailable - postponing termination decisions")
         return False
     victims = []
@@ -2135,7 +2135,7 @@ def do_terminate(cfg, st, reason, only_keys=None):
         if cfg["dry_run"]:
             log(T("[DRY-RUN] would terminate %s (pid %d) - %s") % (info.get("comm"), pid, reason))
             continue
-        if not entry_stopped(key, info, *stoja):
+        if not entry_stopped(key, info, *stopped):
             log(T("dropping stale pause entry: %s (pid %s) is running again "
                   "- resumed outside the guard") % (info.get("comm", "?"), key))
             del st["paused"][key]
@@ -2305,7 +2305,7 @@ def boot_time():
     return int(m.group(1)) if m else 0
 
 
-def record_event(rodzaj, opis, kontekst=None, synthetic=False, kiedy=None):
+def record_event(event_type, description, context=None, synthetic=False, when=None):
     """Write black-box events that must survive restart and enter the report.
 
     synthetic=True marks a test or harness entry. thermal-report skips it so a synthetic
@@ -2313,24 +2313,24 @@ def record_event(rodzaj, opis, kontekst=None, synthetic=False, kiedy=None):
     """
     try:
         with open(EVENTS_PATH, "a") as f:
-            # `kiedy` is the EVENT epoch. Without it, the file stored detection time, and a
+            # `when` is the EVENT epoch. Without it, the file stored detection time, and a
             # hard shutdown is detected only at startup after reboot. A report for the crash
             # day then said "no hard shutdown detected in this period".
             # That is the worst possible false negative in an insurance document.
-            t = kiedy if kiedy else now()
-            wpis = {"time": ts(t), "epoch": round(t, 3), "detected_at": ts(),
-                    "type": rodzaj, "description": opis}
+            t = when if when else now()
+            entry = {"time": ts(t), "epoch": round(t, 3), "detected_at": ts(),
+                    "type": event_type, "description": description}
             if synthetic:
-                wpis["synthetic"] = True
-            if kontekst:
-                wpis["context"] = kontekst
-            f.write(json.dumps(wpis, ensure_ascii=False) + "\n")
+                entry["synthetic"] = True
+            if context:
+                entry["context"] = context
+            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
     except Exception as e:
         # Evidence that silently failed to be written is worse than no evidence.
         silent_failure("record_event", e)
 
 
-def crash_already_recorded(epoch_padu, tolerancja=90.0):
+def crash_already_recorded(crash_epoch, tolerance=90.0):
     """Return whether the same hard shutdown is already in the black box.
 
     Compare the EVENT MOMENT (`epoch`), not detection time. The same crash detected on
@@ -2343,19 +2343,19 @@ def crash_already_recorded(epoch_padu, tolerancja=90.0):
     """
     try:
         with open(EVENTS_PATH, encoding="utf-8", errors="replace") as f:
-            linie = f.readlines()
+            lines = f.readlines()
     except OSError:
         return False
     # Tail is enough: duplicates are created by consecutive starts, so they sit together.
-    for linia in reversed(linie[-200:]):
+    for line in reversed(lines[-200:]):
         try:
-            z = json.loads(linia)
+            z = json.loads(line)
         except ValueError:
             continue
         if not isinstance(z, dict) or z.get("type") != "HARD_SHUTDOWN" or z.get("synthetic"):
             continue
         e = z.get("epoch")
-        if isinstance(e, (int, float)) and abs(e - epoch_padu) <= tolerancja:
+        if isinstance(e, (int, float)) and abs(e - crash_epoch) <= tolerance:
             return True
     return False
 
@@ -2410,33 +2410,33 @@ def detect_hard_shutdown():
         # None of these cases can be resolved locally and cheaply. Always write evidence,
         # but include explicit confidence. The evidence document must tell the truth about
         # how certain it is. A human service reviewer decides, not daemon heuristics.
-        pewnosc, powod_pewnosci = "high", ""
-        luka = boot - puls                    # elapsed time between last heartbeat and boot
-        if luka > 30 * 86400:
-            pewnosc = "low"
-            powod_pewnosci = T(
+        confidence, confidence_reason = "high", ""
+        gap = boot - puls                    # elapsed time between last heartbeat and boot
+        if gap > 30 * 86400:
+            confidence = "low"
+            confidence_reason = T(
                 "the last heartbeat is %d days before boot - the clock was most likely wrong "
-                "(dead RTC, NTP jump) or the data came from a backup") % int(luka // 86400)
-        elif luka > 12 * 3600:
-            pewnosc = "low"
-            powod_pewnosci = T(
+                "(dead RTC, NTP jump) or the data came from a backup") % int(gap // 86400)
+        elif gap > 12 * 3600:
+            confidence = "low"
+            confidence_reason = T(
                 "%.1f h passed between the last heartbeat and boot - the guard may have been "
-                "killed long before the Mac actually went down") % (luka / 3600.0)
-        czyste = os.path.getmtime(CLEAN_STOP_PATH) if os.path.exists(CLEAN_STOP_PATH) else 0
+                "killed long before the Mac actually went down") % (gap / 3600.0)
+        clean_stop = os.path.getmtime(CLEAN_STOP_PATH) if os.path.exists(CLEAN_STOP_PATH) else 0
         # The clean-shutdown marker counts ONLY when it predates the current boot. A
         # clean_stop from the current session or an artifact (backup, cp -p, future clock)
         # must not silence a real hard shutdown.
-        if puls - 60 <= czyste < boot:
+        if puls - 60 <= clean_stop < boot:
             return None                       # guard was shut down cleanly
         # Last measurements before power loss; this is evidence.
-        ogon = []
+        tail = []
         try:
             with open(HIST_PATH) as f:
                 iter_lines = f.readlines()
-            naglowek = iter_lines[0].strip().split(",") if iter_lines else []
+            header = iter_lines[0].strip().split(",") if iter_lines else []
             for w in iter_lines[-8:]:
                 if w.strip() and not w.startswith("time,"):
-                    ogon.append(dict(zip(naglowek, w.strip().split(","))))
+                    tail.append(dict(zip(header, w.strip().split(","))))
         except Exception:
             pass
         # Describe the same crash EXACTLY ONCE. If the daemon dies before it can tick
@@ -2446,18 +2446,18 @@ def detect_hard_shutdown():
         # An inflated failure count is worse than none because it undermines the report.
         if crash_already_recorded(puls):
             return None
-        opis = (T("Mac went down without a clean shutdown. Guard's last heartbeat: %s, "
+        description = (T("Mac went down without a clean shutdown. Guard's last heartbeat: %s, "
                 "system booted: %s.") % (ts(puls), ts(boot)))
-        if pewnosc == "low":
-            opis += " " + T("CONFIDENCE: LOW - %s.") % powod_pewnosci
-        record_event("HARD_SHUTDOWN", opis,
-                         {"last_readings": ogon, "confidence": pewnosc,
-                          "confidence_reason": powod_pewnosci,
-                          "gap_to_boot_s": round(luka, 1)},
-                         kiedy=puls)
-        log(T("!!! HARD SHUTDOWN DETECTED - ") + opis, tag="CRASH")
-        return {"time": ts(puls), "description": opis, "readings": ogon,
-                "confidence": pewnosc}
+        if confidence == "low":
+            description += " " + T("CONFIDENCE: LOW - %s.") % confidence_reason
+        record_event("HARD_SHUTDOWN", description,
+                         {"last_readings": tail, "confidence": confidence,
+                          "confidence_reason": confidence_reason,
+                          "gap_to_boot_s": round(gap, 1)},
+                         when=puls)
+        log(T("!!! HARD SHUTDOWN DETECTED - ") + description, tag="CRASH")
+        return {"time": ts(puls), "description": description, "readings": tail,
+                "confidence": confidence}
     except Exception:
         return None
 
@@ -2468,21 +2468,21 @@ def handle_command(cfg, st, targets):
         if not os.path.exists(COMMAND_PATH):
             return
         with open(COMMAND_PATH) as f:
-            rozkaz = f.read().strip()
+            command = f.read().strip()
         os.remove(COMMAND_PATH)
     except Exception:
         return
-    if rozkaz == "freeze" or rozkaz.startswith("freeze:"):
+    if command == "freeze" or command.startswith("freeze:"):
         # "freeze" = everything eligible; "freeze:123,456" = only selected PIDs from the
         # confirmation window. Selection filters candidates and does NOT bypass any rule:
         # a process outside targets will still not be touched.
-        if rozkaz.startswith("freeze:"):
-            chciane = set()
-            for kawalek in rozkaz.split(":", 1)[1].split(","):
-                kawalek = kawalek.strip()
-                if kawalek.isdigit():
-                    chciane.add(int(kawalek))
-            targets = [t for t in (targets or []) if t[0] in chciane]
+        if command.startswith("freeze:"):
+            wanted_pids = set()
+            for piece in command.split(":", 1)[1].split(","):
+                piece = piece.strip()
+                if piece.isdigit():
+                    wanted_pids.add(int(piece))
+            targets = [t for t in (targets or []) if t[0] in wanted_pids]
         # Set the flag ONLY when something was really frozen; otherwise the menu bar lies.
         if targets and do_pause(cfg, st, targets, T("MANUAL FREEZE (from the menu bar)"), manual=True):
             st["reczna_pauza"] = True
@@ -2490,34 +2490,34 @@ def handle_command(cfg, st, targets):
             log(T("manual freeze: there was nothing to freeze"))
             notify(cfg, T("Nothing to freeze"),
                    T("No heavy job meets the conditions"), key="freeze")
-    elif rozkaz == "resume":
+    elif command == "resume":
         st["reczna_pauza"] = False
         do_resume(cfg, st, T("manual resume (from the menu bar)"))
 
 
 def day_stats():
     """Return how many times guard intervened today for menu-bar display."""
-    dzis = time.strftime("%Y-%m-%d")
-    pauzy = wznowienia = ubicia = 0
+    today = time.strftime("%Y-%m-%d")
+    pauses = resumes = kills = 0
     try:
         # errors="replace": one non-UTF-8 byte from a truncated write or crash junk used to
         # crash the decoder on the first readline and zero the whole daily statistic. The
         # menu bar showed "today 0 pauses" after a night full of pauses, with no signal.
         with open(LOG_PATH, encoding="utf-8", errors="replace") as f:
             for line in f:
-                if not line.startswith(dzis):
+                if not line.startswith(today):
                     continue
                 # Tags are the parser contract (see log()): identical in every
                 # language, so no word matching is needed.
                 if "[KILL]" in line:
-                    ubicia += 1
+                    kills += 1
                 elif "[PAUSE]" in line:
-                    pauzy += 1
+                    pauses += 1
                 elif "[RESUME]" in line:
-                    wznowienia += 1
+                    resumes += 1
     except Exception:
         pass
-    return {"pauses": pauzy, "resumes": wznowienia, "kills": ubicia}
+    return {"pauses": pauses, "resumes": resumes, "kills": kills}
 
 
 _trend = []
@@ -2538,21 +2538,21 @@ def trend_and_forecast(cfg, soc_t):
     dt = (_trend[-1][0] - _trend[0][0]) / 60.0
     if dt <= 0:
         return None, None
-    nachylenie = (_trend[-1][1] - _trend[0][1]) / dt      # C per minute
-    prog = cfg.get("soc_pause_c", 85.0)
-    if nachylenie <= 0.5 or soc_t >= prog:
-        return round(nachylenie, 1), None
-    return round(nachylenie, 1), round((prog - soc_t) / nachylenie, 1)
+    slope = (_trend[-1][1] - _trend[0][1]) / dt      # C per minute
+    threshold = cfg.get("soc_pause_c", 85.0)
+    if slope <= 0.5 or soc_t >= threshold:
+        return round(slope, 1), None
+    return round(slope, 1), round((threshold - soc_t) / slope, 1)
 
 
 def saferun_jobs():
     """Return active jobs started by safe-run, with name and runtime."""
     out = []
     try:
-        for nazwa in os.listdir(MANAGED_DIR):
-            if not nazwa.endswith(".json"):
+        for name in os.listdir(MANAGED_DIR):
+            if not name.endswith(".json"):
                 continue
-            with open(os.path.join(MANAGED_DIR, nazwa)) as f:
+            with open(os.path.join(MANAGED_DIR, name)) as f:
                 d = json.load(f)
             pid = int(d.get("pid", 0))
             if pid and alive(pid):
@@ -2606,8 +2606,8 @@ def hardware_info():
     # soc_sensors tries two paths. Blind retries could delay daemon start by two minutes,
     # with nobody watching temperature.
     s = soc_sensors()
-    koniec_prob = time.monotonic() + 8.0
-    while not s and time.monotonic() < koniec_prob:
+    probe_deadline = time.monotonic() + 8.0
+    while not s and time.monotonic() < probe_deadline:
         time.sleep(2.0)
         s = soc_sensors(max_age=0)
     hw["fan_count"] = len((s or {}).get("fans") or [])
@@ -2637,12 +2637,12 @@ def auto_calibrate(cfg, hw):
                                        hw.get("fan_count"), bool(hw.get("chip_sensor")))
     try:
         with open(CFG_PATH) as f:
-            _na_dysku = json.load(f)
+            _on_disk = json.load(f)
     except Exception:
-        _na_dysku = {}
-    dry_ukryty = "dry_run" not in _na_dysku
+        _on_disk = {}
+    dry_hidden = "dry_run" not in _on_disk
     if cfg.get("calibrated_for") == tag:
-        if not dry_ukryty:
+        if not dry_hidden:
             return None
         # Hardware known, but dry_run is implicit from pre-v1.3 config. Write it explicitly.
         # Read-modify-write under lock because the menu bar may write concurrently.
@@ -2650,17 +2650,17 @@ def auto_calibrate(cfg, hw):
             with config_lock():
                 try:
                     with open(CFG_PATH) as f:
-                        _na_dysku = json.load(f)
+                        _on_disk = json.load(f)
                 except Exception:
-                    _na_dysku = {}
-                _na_dysku["dry_run"] = True
+                    _on_disk = {}
+                _on_disk["dry_run"] = True
                 tmp = CFG_PATH + ".tmp"
                 # 0600, not umask: config.json contains the ntfy topic. `ensure_dirs`
                 # tightens permissions only at startup, so calibration/migration writes
                 # otherwise relaxed the hardening until the next restart.
                 with os.fdopen(os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC,
                                        0o600), "w") as f:
-                    json.dump(_na_dysku, f, indent=2, ensure_ascii=False, sort_keys=True)
+                    json.dump(_on_disk, f, indent=2, ensure_ascii=False, sort_keys=True)
                 os.replace(tmp, CFG_PATH)
         except Exception:
             pass
@@ -2671,9 +2671,9 @@ def auto_calibrate(cfg, hw):
     # thresholds (85/76/90) and a 45 min pause limit until the next daemon restart. The
     # daemon has KeepAlive, so restart may be a week away. With a blind sensor, do NOT write
     # the tag; calibration must retry.
-    slepy = not hw.get("chip_sensor")
-    changes = {} if slepy else {"calibrated_for": tag}
-    if dry_ukryty:
+    blind_sensor = not hw.get("chip_sensor")
+    changes = {} if blind_sensor else {"calibrated_for": tag}
+    if dry_hidden:
         changes["dry_run"] = True
     # `soc_kill_c` MUST be in this condition: calibration overwrites it together with the
     # pause/resume pair, so a user who manually raised only the kill threshold lost it on
@@ -2691,7 +2691,7 @@ def auto_calibrate(cfg, hw):
         # A 45 min pause limit would kill long jobs that are simply waiting to cool.
         if cfg.get("max_pause_minutes") == DEFAULTS["max_pause_minutes"]:
             changes["max_pause_minutes"] = 120
-    elif slepy:
+    elif blind_sensor:
         # Do not be silent: without this line, the log said "thresholds defaults OK" on a
         # machine that was NOT calibrated. A minute later `heat` can show chip temperature
         # and everything looks healthy, so nobody would notice.
@@ -2708,7 +2708,7 @@ def auto_calibrate(cfg, hw):
     # not harmless: this path uses plain open(), so every start would relax config.json
     # permissions (it contains the ntfy topic) until the next `ensure_dirs`.
     if not changes:
-        return "watchonly" if dry_ukryty else None
+        return "watchonly" if dry_hidden else None
     # Read-modify-write under lock: a concurrent menu-bar write must not be lost.
     try:
         with config_lock():
@@ -2728,7 +2728,7 @@ def auto_calibrate(cfg, hw):
             os.replace(tmp, CFG_PATH)
     except Exception:
         pass
-    return "watchonly" if dry_ukryty else None
+    return "watchonly" if dry_hidden else None
 
 
 # ---------------------------------------------------------------- manual keep-awake
@@ -2825,7 +2825,7 @@ def keep_awake_update(cfg, targets, lvl, st=None):
         st["_awake_until"] = (adesc or {}).get("until") if manual else None
         st["_awake_app"] = (adesc or {}).get("app") if manual else None
     proc = _caff["proc"]
-    zywy = proc is not None and proc.poll() is None
+    alive_now = proc is not None and proc.poll() is None
     auto = bool(cfg.get("keep_awake_auto")) and bool(targets)
     # Decay: queued files have gaps between old encoder exit and next encoder start.
     # Stopping immediately in that gap caused 45-59 switches per day, and an aggressively
@@ -2837,19 +2837,19 @@ def keep_awake_update(cfg, targets, lvl, st=None):
     if auto:
         _caff["ostatni_job"] = time.monotonic()
     hold = max(0, cfg.get("keep_awake_hold_s", 300))
-    dogrzewa = (not auto and bool(cfg.get("keep_awake_auto")) and zywy
+    decay_active = (not auto and bool(cfg.get("keep_awake_auto")) and alive_now
                 and _caff.get("ostatni_job") is not None
                 and time.monotonic() - _caff["ostatni_job"] < hold)
-    chcemy = (auto or manual or dogrzewa) and lvl < 2
+    want_awake = (auto or manual or decay_active) and lvl < 2
     # Display is a SEPARATE decision from system wake. `-is` keeps the system awake but lets
     # the display sleep; `-d` keeps the display on too (presentation, dashboard, render
     # preview). The display costs power and heat, so it defaults OFF and yields to the guard
     # like the rest of wake because the whole condition rests on `lvl < 2`.
-    chce_ekran = bool(cfg.get("keep_awake_display"))
+    want_display = bool(cfg.get("keep_awake_display"))
     # Replace the process ONLY when wake should continue. Otherwise a display-mode change
     # coinciding with overheating would take the process away from the stop branch, and the
     # "wake yielded to heat" counter would miss the event.
-    if chcemy and zywy and _caff.get("display") != chce_ekran:
+    if want_awake and alive_now and _caff.get("display") != want_display:
         # Runtime change: caffeinate flags cannot be edited, so replace the process.
         try:
             proc.terminate()
@@ -2862,21 +2862,21 @@ def keep_awake_update(cfg, targets, lvl, st=None):
                 pass
         _caff["proc"] = None
         proc = None
-        zywy = False
+        alive_now = False
         _loguj_awake("KEEP-AWAKE restart (display mode changed to %s)"
-                     % ("on" if chce_ekran else "off"))
-    if chcemy and not zywy:
+                     % ("on" if want_display else "off"))
+    if want_awake and not alive_now:
         try:
             _caff["proc"] = subprocess.Popen(
-                ["caffeinate", "-isd"] if chce_ekran else ["caffeinate", "-is"],
+                ["caffeinate", "-isd"] if want_display else ["caffeinate", "-is"],
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            _caff["display"] = chce_ekran
+            _caff["display"] = want_display
             _loguj_awake("KEEP-AWAKE start (heavy job running, machine cool)%s"
-                         % (" [screen stays on]" if chce_ekran else ""))
+                         % (" [screen stays on]" if want_display else ""))
             play_sound(cfg, "awake")   # Funk: guard takes the cup
         except Exception:
             _caff["proc"] = None
-    elif not chcemy and zywy:
+    elif not want_awake and alive_now:
         try:
             proc.terminate()
             proc.wait(timeout=3)      # without wait(), every start/stop cycle leaves a zombie
@@ -2890,11 +2890,11 @@ def keep_awake_update(cfg, targets, lvl, st=None):
         # Distinguish TWO stop reasons. "Job finished" is normal. "Machine too hot" is when
         # the guard did its job, and only that counts because only that proves the product
         # acted.
-        przez_termike = (auto or manual) and lvl >= 2
-        if przez_termike and st is not None:
+        due_to_heat = (auto or manual) and lvl >= 2
+        if due_to_heat and st is not None:
             licznik(st, "awake_released_hot")
         _loguj_awake("KEEP-AWAKE stop (%s)"
-                     % ("machine too hot" if przez_termike else "job done or disabled"))
+                     % ("machine too hot" if due_to_heat else "job done or disabled"))
     return _caff["proc"] is not None and _caff["proc"].poll() is None
 
 
@@ -2913,23 +2913,23 @@ def _loguj_awake(msg):
     # The repeated-message condition MUST have a time limit. Without it, the same message
     # would never reach the log again. A negative difference from a clock rollback must not
     # silence it forever either.
-    odstep = t - _awake_log["kiedy"]
-    if odstep < 0:
+    elapsed = t - _awake_log["kiedy"]
+    if elapsed < 0:
         # The clock moved backward (NTP, wake from sleep, timezone change). Resetting the
         # gap here closed the throttle for another fresh 10 minutes, dropping an event that
         # landed exactly on the clock jump. A clock jump is itself a reason to let the entry
         # through because it is worth having in the black box.
         _awake_log["kiedy"] = t
-        odstep = 600
+        elapsed = 600
     if not isinstance(msg, str):
         msg = str(msg)
-    if odstep < 600:
+    if elapsed < 600:
         _awake_log["pominiete"] += 1
         _awake_log["ostatni"] = msg
         return
-    ile = _awake_log["pominiete"]
+    amount = _awake_log["pominiete"]
     _awake_log.update({"ostatni": msg, "kiedy": t, "pominiete": 0})
-    log(msg + (" [+%d przelaczen w miedzyczasie]" % ile if ile else ""))
+    log(msg + (" [+%d przelaczen w miedzyczasie]" % amount if amount else ""))
 
 
 _hw_fleet = {"v": None}
@@ -2967,9 +2967,9 @@ def fleet_write(cfg, status):
         # Authoritative snapshot timestamp. File mtime in iCloud can stand still while
         # content is fresh, and `fleet` uses this to compute report age.
         out["epoch"] = round(time.time(), 3)
-        _bledy = {k: v for k, v in _SILENT_FAILURES.items() if not k.startswith("_ostatni_log_")}
-        if _bledy:
-            out["swallowed_errors"] = _bledy
+        _errors = {k: v for k, v in _SILENT_FAILURES.items() if not k.startswith("_ostatni_log_")}
+        if _errors:
+            out["swallowed_errors"] = _errors
         tmp = os.path.join(d, ".%s.tmp" % hostname())
         with open(tmp, "w") as f:
             json.dump(out, f, ensure_ascii=False)
@@ -2979,7 +2979,7 @@ def fleet_write(cfg, status):
 
 
 def status_write(state, temp, soc, soc_t, ac, pct, speed, load, lvl, why, targets, st, disk=None,
-                 pokaz=None):
+                 display=None):
     """Write the menu-bar (`heatbar`) snapshot.
 
     The menu bar measures nothing by itself; it reads this file, so it costs zero CPU and
@@ -2988,7 +2988,7 @@ def status_write(state, temp, soc, soc_t, ac, pct, speed, load, lvl, why, target
     # The DISPLAY list excludes children, otherwise the same processor is counted twice.
     # Signals go to the FULL `targets` list; see `without_descendants`. This distinction exists
     # because filtering targets created broken protection for process trees.
-    do_pokazania = pokaz if pokaz is not None else (targets or [])
+    display_targets = display if display is not None else (targets or [])
     top = targets[0] if targets else None
     data = {
         "time": ts(), "thermal_state": state, "level": lvl, "reason": why,
@@ -3010,7 +3010,7 @@ def status_write(state, temp, soc, soc_t, ac, pct, speed, load, lvl, why, target
         # E-core demotion is INVISIBLE in temperature (44 C looks like cooling success) but
         # can cut job speed by 11x. It must be explicit in the snapshot.
         "demoted": [v.get("comm", "?") for v in st.get("demoted_info", {}).values()],
-        "heavy_count": len(do_pokazania),
+        "heavy_count": len(display_targets),
         "top_proc": top[2] if top else None,
         "top_cpu": round(top[1]) if top else None,
         "manual_pause": bool(st.get("reczna_pauza")),
@@ -3033,7 +3033,7 @@ def status_write(state, temp, soc, soc_t, ac, pct, speed, load, lvl, why, target
         # untouchable. The confirmation dialog promised to stop processes the guard would
         # never touch, and showed a different count than the nearby counter.
         "freeze_candidates": [{"pid": t[0], "name": t[2], "cpu": round(t[1])}
-                              for t in do_pokazania],
+                              for t in display_targets],
         "top_ram_list": st.get("_top_ram", []),
         "last_hard_shutdown": st.get("_ostatni_pad"),
         # "resume" is for safe-run --wait-cool. config.json may be corrected in memory by
@@ -3097,7 +3097,7 @@ def snapshot(cfg):
     saferun, saferun_normal = managed_pids_from_saferun()
     targets = pick_targets(cfg, procs, saferun)
     lvl, why = severity(cfg, state, temp, speed, soc_t, ac, pct)
-    # `do_pokazania` is separate from `targets`: signals go to the FULL list, otherwise
+    # `display_targets` is separate from `targets`: signals go to the FULL list, otherwise
     # children do not receive SIGSTOP. The counter and confirmation window show the list
     # without descendants, otherwise the same processor is counted twice.
     return (state, temp, speed, load, targets, lvl, why, soc, soc_t, ac, pct,
@@ -3155,16 +3155,16 @@ def acquire_exclusive():
     Returns a file handle that must be kept open; closing it releases the lock.
     """
     import fcntl
-    sciezka = os.path.join(BASE, "guard.lock")
+    path = os.path.join(BASE, "guard.lock")
     try:
         # "a+", not "w": "w" truncates before flock, so every failed start erased the PID
         # of the lock owner, the only diagnostic for "who holds it". Write only after the
         # lock is acquired.
-        f = open(sciezka, "a+")
+        f = open(path, "a+")
     except OSError as e:
         # Directory instead of file, no write permission. Without this, the daemon crashed
         # with a traceback at startup and launchd restarted it in a loop.
-        log("nie moge otworzyc %s (%s) - demon startuje BEZ wylacznosci" % (sciezka, e))
+        log("nie moge otworzyc %s (%s) - demon startuje BEZ wylacznosci" % (path, e))
         return False
     try:
         fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -3191,12 +3191,12 @@ def main():
     ensure_dirs()
     # Exclusivity applies ONLY to the daemon. `--once` and `status` are one-shot reads and
     # must always work, including while the daemon is running. Humans and tests use them.
-    jednorazowo = ("--once" in sys.argv) or ("status" in sys.argv)
-    _blokada = None if jednorazowo else acquire_exclusive()
+    one_shot = ("--once" in sys.argv) or ("status" in sys.argv)
+    _lock = None if one_shot else acquire_exclusive()
     # False means the lock file could not be opened (directory, no permission). Start
     # anyway: lack of exclusivity is bad, but lack of PROTECTION is worse. None means
     # somebody else holds it.
-    if not jednorazowo and _blokada is None:
+    if not one_shot and _lock is None:
         print(T("another coffee-paladin daemon is already running - this one exits"),
               file=sys.stderr)
         return 1
@@ -3205,10 +3205,10 @@ def main():
 
     # `coffee-paladin status` was a trap: exit code 0 with no output looked successful. It
     # is now an alias for --once, and every unknown argument prints what is supported.
-    znane = {"--once", "status", "--version"}
-    obce = [a for a in sys.argv[1:] if a not in znane]
-    if obce:
-        print(T("unknown argument: %s") % " ".join(obce), file=sys.stderr)
+    known = {"--once", "status", "--version"}
+    unknown_args = [a for a in sys.argv[1:] if a not in known]
+    if unknown_args:
+        print(T("unknown argument: %s") % " ".join(unknown_args), file=sys.stderr)
         print(T("usage: coffee-paladin [--once | status | --version]   (no arguments = run the daemon)"),
               file=sys.stderr)
         return 2
@@ -3232,10 +3232,10 @@ def main():
     # those processes frozen.
     if st["paused"]:
         try:
-            stan_mtime = os.path.getmtime(STATE_PATH)
+            state_mtime = os.path.getmtime(STATE_PATH)
         except Exception:
-            stan_mtime = 0
-        if stan_mtime >= boot_time():
+            state_mtime = 0
+        if state_mtime >= boot_time():
             # Measure BEFORE resuming anything. Daemon restart (update, kickstart) can
             # happen on a hot machine. Blind resume gave a hot job ~15 s at full speed above
             # the chip threshold before the first loop cycle froze it again. Use the same
@@ -3277,35 +3277,35 @@ def main():
 
     # Hardware and per-Mac calibration: once at startup because system_profiler is slow.
     hw = {}
-    kalibracja_odlozona = False   # must exist even when calibration raises
+    calibration_deferred = False   # must exist even when calibration raises
     try:
         hw = hardware_info()
-        wynik_kalibracji = auto_calibrate(cfg, hw)
+        calibration_result = auto_calibrate(cfg, hw)
         # The sensor can come up AFTER daemon start, for example while macmon is busy after
         # `install.sh` compiled the menu bar. Calibration runs once at startup, so without
         # this a fanless Mac would wait for its thresholds until the next daemon restart,
         # and the daemon has KeepAlive. The loop finishes the work when the sensor returns.
-        kalibracja_odlozona = not hw.get("chip_sensor")
+        calibration_deferred = not hw.get("chip_sensor")
         cfg = load_cfg()          # calibration may have written thresholds
-        if wynik_kalibracji == "watchonly" and cfg.get("dry_run"):
+        if calibration_result == "watchonly" and cfg.get("dry_run"):
             notify(cfg, T("coffee-paladin: watch-only mode"),
                    T("Measuring and alerting only - nothing is paused. Enable protection in the menu bar (one click)."),
                    key="dryinfo")
     except Exception as e:
         log("CALIBRATION skipped: %r" % (e,))
 
-    czujnik_chipa = T("yes") if soc_temp_c() is not None else T("NO (macmon missing - running on battery temperature only)")
+    chip_sensor_label = T("yes") if soc_temp_c() is not None else T("NO (macmon missing - running on battery temperature only)")
     log(T("coffee-paladin start | chip: pause>=%.0fC resume<=%.0fC kill>=%.0fC (sensor: %s)"
           " | battery: pause>=%.0fC kill>=%.0fC | state>=%s | battery gate: <=%d%% on battery")
         % (cfg.get("soc_pause_c", 92), cfg.get("soc_resume_c", 80), cfg.get("soc_kill_c", 100),
-           czujnik_chipa, cfg["batt_pause_c"], cfg["batt_kill_c"],
+           chip_sensor_label, cfg["batt_pause_c"], cfg["batt_kill_c"],
            cfg["pause_on_thermal_state"], cfg.get("batt_pct_pause", 10)))
 
     # Missing chip sensor is not minor: only the battery remains, and it reacts several
     # minutes late. A single log line was not enough while `heat` and `fleet` still reported
     # that everything was fine.
-    _bez_czujnika = soc_temp_c() is None
-    if _bez_czujnika:
+    _no_sensor = soc_temp_c() is None
+    if _no_sensor:
         notify(cfg, T("Thermal guard: PROTECTION INCOMPLETE"),
                T("No chip temperature sensor (macmon missing). Only battery temperature "
                  "is watched, and it reacts minutes late. Fix: brew install macmon"),
@@ -3315,26 +3315,26 @@ def main():
     cpu_hist = {}
     tick = 0
 
-    obserwowane_cfg = None
+    observed_cfg = None
     while not stop["flag"]:
         try:
             cfg = load_cfg()
             # Every threshold or behavior change leaves an old -> new trail. The first pass
             # only remembers state, without logging.
-            obserwowane_cfg = log_config_changes(obserwowane_cfg, cfg)
+            observed_cfg = log_config_changes(observed_cfg, cfg)
             reap_bg()
             (state, temp, speed, load, targets, lvl, why,
-             soc, soc_t, ac, pct, saferun_normal, do_pokazania, demote_only) = snapshot(cfg)
+             soc, soc_t, ac, pct, saferun_normal, display_targets, demote_only) = snapshot(cfg)
             # Sensor returned after startup? Finish deferred calibration. Without this, a
             # fanless Mac stays on fan-equipped thresholds until daemon restart. Use the
             # snapshot (`soc`) to avoid paying for macmon again; the rest of `hw` comes from
             # the system and does not change between ticks.
-            if kalibracja_odlozona and soc:
+            if calibration_deferred and soc:
                 hw["fan_count"] = len(soc.get("fans") or [])
                 hw["chip_sensor"] = True
                 auto_calibrate(cfg, hw)
                 cfg = load_cfg()
-                kalibracja_odlozona = False
+                calibration_deferred = False
 
             fan_alarm(cfg, soc, soc_t, st)
             handle_command(cfg, st, targets)
@@ -3354,7 +3354,7 @@ def main():
             if tick % 20 == 0 or not st.get("_disk"):
                 st["_disk"] = disk_usage()
             snap_dict = status_write(state, temp, soc, soc_t, ac, pct, speed, load, lvl, why,
-                                     targets, st, st.get("_disk"), pokaz=do_pokazania)
+                                     targets, st, st.get("_disk"), display=display_targets)
             if tick % 4 == 0 and snap_dict:      # fleet every ~1 min is enough
                 fleet_write(cfg, snap_dict)
 
@@ -3394,11 +3394,11 @@ def main():
             # `thermalState` and the chip threshold is NOT crossed, require several
             # consecutive readings. Minimum pause time reduced oscillation, but confirming
             # entry gives this trigger real hysteresis.
-            prog_chipu = cfg.get("soc_pause_c", 95.0)
-            sam_stan = (lvl >= 2 and (soc_t is None or soc_t < prog_chipu)
+            chip_threshold = cfg.get("soc_pause_c", 95.0)
+            state_only_hot = (lvl >= 2 and (soc_t is None or soc_t < chip_threshold)
                         and (temp is None or temp < cfg["batt_pause_c"]))
-            st["_state_polls"] = (st.get("_state_polls", 0) + 1) if sam_stan else 0
-            if sam_stan and st["_state_polls"] < cfg.get("state_confirm_polls", 2):
+            st["_state_polls"] = (st.get("_state_polls", 0) + 1) if state_only_hot else 0
+            if state_only_hot and st["_state_polls"] < cfg.get("state_confirm_polls", 2):
                 lvl = 1        # do not trust a single thermalState spike yet
 
             # Per-sensor latch. A sensor can BLOCK resume only if it crossed its own pause
@@ -3411,14 +3411,14 @@ def main():
             # Snapshot really stopped processes with ONE `ps` per cycle, only when anything
             # is frozen. Both paths that decide another process's life use it: stale-entry
             # cleanup and SIGTERM after the pause limit.
-            stoja = stopped_now() if st["paused"] else (set(), set())
-            if stoja is None and not st.get("_ps_cicho"):
+            stopped = stopped_now() if st["paused"] else (set(), set())
+            if stopped is None and not st.get("_ps_cicho"):
                 log("ps unavailable - postponing decisions about paused jobs")
-            st["_ps_cicho"] = stoja is None
+            st["_ps_cicho"] = stopped is None
 
             # Update latches in EVERY cycle, even while hot. Otherwise a battery crossing
             # 40 C during a pause would never turn on its latch.
-            wolno_wznowic = resume_gate(cfg, st, temp, soc_t, state)
+            may_resume = resume_gate(cfg, st, temp, soc_t, state)
 
             if lvl >= 3:
                 crit_polls += 1
@@ -3426,7 +3426,7 @@ def main():
                        (T("The Mac is critically hot (%s). Watch-only mode - nothing is being stopped.")
                         if cfg.get("dry_run") else
                         T("The Mac is critically hot (%s). Heavy jobs are being stopped.")) % why)
-                do_pause(cfg, st, targets, T("CRITICAL: ") + why, lvl_krytyczny=True)
+                do_pause(cfg, st, targets, T("CRITICAL: ") + why, critical_level=True)
                 if crit_polls >= cfg["kill_after_polls"]:
                     do_terminate(cfg, st, why)
                     crit_polls = 0
@@ -3435,7 +3435,7 @@ def main():
                 do_pause(cfg, st, targets, why)
             else:
                 crit_polls = 0
-                cool = wolno_wznowic
+                cool = may_resume
                 # After a battery pause, resume only on AC or after enough recharge.
                 powered = ac or pct is None or pct >= cfg.get("batt_pct_resume", 25)
                 # Clean dead entries HERE, independent of do_resume. Previously do_resume
@@ -3450,7 +3450,7 @@ def main():
                 # limiter woke it, the entry is only a delayed sentence. The pause clock
                 # keeps ticking and `max_pause_minutes` later sends SIGTERM into a job
                 # running at full speed. Delete the entry and log it.
-                for _k in stale_entries(st["paused"], stoja):
+                for _k in stale_entries(st["paused"], stopped):
                     log(T("dropping stale pause entry: %s (pid %s) is running again "
                           "- resumed outside the guard")
                         % (st["paused"][_k].get("comm", "?"), _k))
@@ -3468,12 +3468,12 @@ def main():
                 # already waited an hour. With state flicker, new candidates appear
                 # cyclically and the oldest pause could wait until SIGTERM. Manual menu-bar
                 # freezes have priority and are not touched.
-                gotowe = [k for k, v in st["paused"].items()
+                ready_keys = [k for k, v in st["paused"].items()
                           if _pause_age(v) >= min_p and not v.get("manual")
                           and (powered or v.get("powod") != "bateria")]
-                if gotowe and cool:
-                    do_resume(cfg, st, T("conditions are back to normal"), only_keys=gotowe,
-                              po_ostygnieciu=True)
+                if ready_keys and cool:
+                    do_resume(cfg, st, T("conditions are back to normal"), only_keys=ready_keys,
+                              after_cooling=True)
                 do_promote(cfg, st, cpu_hist, soc_t)
                 # System indexing daemons are added ONLY here: demotion yes, pause/terminate
                 # never. See system_demote_patterns.
@@ -3483,10 +3483,10 @@ def main():
             # chip and battery are cool and low battery is the only pause reason, give much
             # more time so computation can wait for the user to plug in instead of dying
             # after 45 minutes.
-            tylko_bateria = (not ac and lvl >= 2
+            battery_only = (not ac and lvl >= 2
                              and (soc_t is None or soc_t < cfg.get("soc_pause_c", 88) - 10)
                              and (temp is None or temp < cfg["batt_pause_c"] - 3))
-            limit_min = cfg.get("max_pause_minutes_batt", 240) if tylko_bateria else cfg["max_pause_minutes"]
+            limit_min = cfg.get("max_pause_minutes_batt", 240) if battery_only else cfg["max_pause_minutes"]
             # How long this pause REALLY lasted. Wall time can jump (NTP, RTC correction,
             # wake from sleep): a 3 h jump killed a job paused one minute earlier, and a
             # backward jump disabled the limit forever. monotonic() does not survive daemon
@@ -3500,13 +3500,13 @@ def main():
             # while its entry keeps aging. SIGTERM after 45 minutes then hits a healthy job
             # mid-work. The clock starts at the FIRST stop, as intended; proof that the
             # process is running saves it, not rewinding the stopwatch.
-            przeterminowane = expired_entries(st["paused"], limit_min * 60, stoja)
-            if przeterminowane:
-                for k in przeterminowane:
+            expired_keys = expired_entries(st["paused"], limit_min * 60, stopped)
+            if expired_keys:
+                for k in expired_keys:
                     log(T("PAUSE >%d min - terminating job %s (pid %s)")
                         % (limit_min, st["paused"][k].get("comm"), k), tag="KILL")
                 do_terminate(cfg, st, T("paused for longer than %d min") % limit_min,
-                             only_keys=przeterminowane)
+                             only_keys=expired_keys)
 
             for _p in [p for p in _nie_da_sie if not alive(p)]:
                 del _nie_da_sie[_p]
@@ -3523,9 +3523,9 @@ def main():
             cpu_hist = dict((k, v) for k, v in cpu_hist.items()
                             if k in live or alive(k))
             st["demoted"] = [p for p in st["demoted"] if alive(p)]
-            zywe_demoted = set(str(p) for p in st["demoted"])
+            live_demoted = set(str(p) for p in st["demoted"])
             st["demoted_info"] = {k: v for k, v in st.get("demoted_info", {}).items()
-                                  if k in zywe_demoted}
+                                  if k in live_demoted}
             save_state(st)
         except Exception as e:
             log(T("LOOP ERROR: %r") % (e,))
@@ -3539,20 +3539,20 @@ def main():
             except OSError:
                 return None
 
-        awake_przed = _mtime(AWAKE_PATH)
+        awake_before = _mtime(AWAKE_PATH)
         # Config changes wake the loop too. Without this, the menu-bar protection switch
         # waited a full tick because `dry_run` travels through config.json, not `command`,
         # so it was the only manual action without a wake path. With a 30 s interval slider,
         # it looked like a stuck toggle.
-        cfg_przed = _mtime(CFG_PATH)
+        cfg_before = _mtime(CFG_PATH)
         for _ in range(int(cfg["poll_seconds"] * 2)):
             if stop["flag"]:
                 break
             if os.path.exists(COMMAND_PATH):
                 break
-            if _mtime(AWAKE_PATH) != awake_przed:
+            if _mtime(AWAKE_PATH) != awake_before:
                 break
-            if _mtime(CFG_PATH) != cfg_przed:
+            if _mtime(CFG_PATH) != cfg_before:
                 break
             time.sleep(0.5)
 

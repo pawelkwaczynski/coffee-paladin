@@ -351,26 +351,26 @@ def _image_protocol():
     if os.environ.get("TMUX") or os.environ.get("TERM", "").startswith(("screen", "tmux")):
         return None
     term = os.environ.get("TERM", "")
-    prog = os.environ.get("TERM_PROGRAM", "")
-    if "kitty" in term or "ghostty" in term or prog in ("ghostty", "WezTerm"):
+    program = os.environ.get("TERM_PROGRAM", "")
+    if "kitty" in term or "ghostty" in term or program in ("ghostty", "WezTerm"):
         return "kitty"
-    if prog == "iTerm.app":
+    if program == "iTerm.app":
         return "iterm"
     return None
 
 
-def _send_image(sciezka, protokol, wierszy=IMAGE_ROWS):
+def _send_image(path, protocol, rows=IMAGE_ROWS):
     """Wypycha PNG do terminala. Zwraca True, gdy sie udalo."""
     import base64
     try:
-        with open(sciezka, "rb") as f:
-            dane = base64.b64encode(f.read())
+        with open(path, "rb") as f:
+            data = base64.b64encode(f.read())
     except Exception:
         return False
     out = sys.stdout
-    if protokol == "iterm":
+    if protocol == "iterm":
         out.write("\033]1337;File=inline=1;height=%d;preserveAspectRatio=1:%s\a\n"
-                  % (wierszy, dane.decode("ascii")))
+                  % (rows, data.decode("ascii")))
         out.flush()
         return True
 
@@ -378,35 +378,35 @@ def _send_image(sciezka, protokol, wierszy=IMAGE_ROWS):
     # to come", the last chunk has m=0. C=1 forbids the terminal to move the
     # cursor, so we scroll past exactly the rows the image took - otherwise
     # the text below would land on top of the knight.
-    KROK = 4096
-    porcje = [dane[i:i + KROK] for i in range(0, len(dane), KROK)] or [b""]
-    for nr, porcja in enumerate(porcje):
-        if nr == 0:
-            naglowek = "a=T,f=100,t=d,r=%d,C=1,m=%d" % (wierszy, 1 if len(porcje) > 1 else 0)
+    CHUNK_SIZE = 4096
+    chunks = [data[i:i + CHUNK_SIZE] for i in range(0, len(data), CHUNK_SIZE)] or [b""]
+    for index, chunk in enumerate(chunks):
+        if index == 0:
+            header = "a=T,f=100,t=d,r=%d,C=1,m=%d" % (rows, 1 if len(chunks) > 1 else 0)
         else:
-            naglowek = "m=%d" % (1 if nr < len(porcje) - 1 else 0)
-        out.write("\033_G%s;%s\033\\" % (naglowek, porcja.decode("ascii")))
-    out.write("\n" * wierszy)
+            header = "m=%d" % (1 if index < len(chunks) - 1 else 0)
+        out.write("\033_G%s;%s\033\\" % (header, chunk.decode("ascii")))
+    out.write("\n" * rows)
     out.flush()
     return True
 
 
-def paladin(ile_stopni=None, straz=None):
+def paladin(temperature=None, guard_summary=None):
     """Easter egg: `heat --paladin`. The drawing plus the full watch report.
 
     Three tiers, best first: a real image (Ghostty/kitty/WezTerm/iTerm2),
     truecolor half-blocks, ASCII cup. `--ascii` forces the cup, `--bloki`
     forces half-blocks (to preview what someone without graphics sees)."""
-    protokol = _image_protocol()
-    grafika = os.path.expanduser("~/.coffee-paladin/paladin_welcome.png")
-    if not (protokol and _send_image(grafika, protokol)):
+    protocol = _image_protocol()
+    image_path = os.path.expanduser("~/.coffee-paladin/paladin_welcome.png")
+    if not (protocol and _send_image(image_path, protocol)):
         print(PALADIN_COLOR if _truecolor_terminal() else PALADIN_MONO)
     print("   coffee-paladin  -  " + MOTTO)
-    if ile_stopni is not None:
+    if temperature is not None:
         print("   %s %.1f C" % ("Na warcie przy" if LANG == "pl" else "Standing watch at",
-                                ile_stopni))
-    if straz:
-        print("   " + straz)
+                                temperature))
+    if guard_summary:
+        print("   " + guard_summary)
     print("   " + REPO + "\n")
     return 0
 
@@ -421,53 +421,53 @@ def stuck():
     telling the two apart is exactly what this command is for.
     """
     out = sh(["ps", "-Ao", "pid=,stat=,etime=,comm="])
-    zatrzymane = []
-    for linia in out.splitlines():
-        czesci = linia.split(None, 3)
-        if len(czesci) < 4:
+    stopped = []
+    for line in out.splitlines():
+        parts = line.split(None, 3)
+        if len(parts) < 4:
             continue
-        pid, stat, etime, comm = czesci
+        pid, stat, etime, comm = parts
         if stat.startswith("T"):
-            zatrzymane.append((pid, stat, etime, comm))
+            stopped.append((pid, stat, etime, comm))
 
     # Who paused it: the daemon's state.json is the source of truth
     # (status.json is a snapshot every N seconds - in a fast pause/resume
     # cycle a process can be stopped BEFORE it reaches the snapshot, and we
     # would be shouting about the guard's own pause).
-    znane = set()
-    for plik, klucz in (("state.json", "paused"), ("status.json", "paused")):
+    known = set()
+    for file_name, key in (("state.json", "paused"), ("status.json", "paused")):
         try:
-            with open(os.path.join(BASE, plik)) as f:
-                dane = (json.load(f) or {}).get(klucz) or {}
-            if isinstance(dane, dict):
-                znane.update(str(k) for k in dane)
+            with open(os.path.join(BASE, file_name)) as f:
+                data = (json.load(f) or {}).get(key) or {}
+            if isinstance(data, dict):
+                known.update(str(k) for k in data)
             else:
-                znane.update(str(p.get("pid")) for p in dane)
+                known.update(str(p.get("pid")) for p in data)
         except Exception:
             pass
     # last line of defense: a fresh guard-log entry about pausing this PID
     try:
         with open(LOG) as f:
-            ogon = f.read()[-4000:]
+            tail = f.read()[-4000:]
     except Exception:
-        ogon = ""
+        tail = ""
 
-    if not zatrzymane:
+    if not stopped:
         print(T("No stopped processes. Nothing is waiting for a SIGCONT."))
         return 0
 
     print(T("Stopped processes (state T):"))
-    obce = 0
-    for pid, stat, etime, comm in zatrzymane:
-        nazwa = os.path.basename(comm)
-        if pid in znane or ("(pid %s," % pid) in ogon:
+    foreign = 0
+    for pid, stat, etime, comm in stopped:
+        name = os.path.basename(comm)
+        if pid in known or ("(pid %s," % pid) in tail:
             print(T("   ⏸  %s (pid %s, %s) - paused by coffee-paladin, resumes by itself")
-                  % (nazwa, pid, etime))
+                  % (name, pid, etime))
         else:
-            obce += 1
+            foreign += 1
             print(T("   ⚠️  %s (pid %s, %s) - stopped by something else")
-                  % (nazwa, pid, etime))
-    if obce:
+                  % (name, pid, etime))
+    if foreign:
         print(T("\nA process stopped by something else is usually the SIGTTIN trap: a background\n"
                 "job touched the terminal and the kernel stopped it. Nothing will resume it.\n"
                 "Bring it to the foreground (fg) or resume it: kill -CONT <pid>"))
@@ -484,9 +484,9 @@ def guard_alive():
     the same. As a fallback we look for the process by its real binary name,
     not by "guard.py".
     """
-    for linia in sh(["launchctl", "list"]).splitlines():
-        czesci = linia.split()
-        if len(czesci) >= 3 and czesci[2] == AGENT and czesci[0] != "-":
+    for line in sh(["launchctl", "list"]).splitlines():
+        parts = line.split()
+        if len(parts) >= 3 and parts[2] == AGENT and parts[0] != "-":
             return True
     return bool(sh(["pgrep", "-f", "coffee-paladin$"]).strip()
                 or sh(["pgrep", "-f", "guard.py"]).strip())
@@ -503,18 +503,18 @@ def main():
         return stuck()
     if "--paladin" in sys.argv:
         chip = None
-        straz = None
+        guard_summary = None
         try:
             with open(os.path.join(BASE, "status.json")) as f:
                 s = json.load(f)
             chip = float(s.get("chip_c")) if s.get("chip_c") else None
             stat = s.get("stats") or {}
-            straz = (("Dzis odparte ataki: %d pauz, %d ubic." if LANG == "pl"
+            guard_summary = (("Dzis odparte ataki: %d pauz, %d ubic." if LANG == "pl"
                       else "Today's watch: %d pauses, %d terminations.")
                      % (stat.get("pauses", 0), stat.get("kills", 0)))
         except Exception:
             pass
-        return paladin(chip, straz)
+        return paladin(chip, guard_summary)
     state = sh([os.path.join(HOME, ".local/bin/thermalstate")]).strip() or "unknown"
     ioreg = sh(["ioreg", "-r", "-c", "AppleSmartBattery", "-d", "1", "-w", "0"])
     m = re.search(r'"Temperature"\s*=\s*(\d+)', ioreg)
@@ -567,16 +567,16 @@ def main():
              ("%.1f °C" % temp) if temp else T("n/a"), speed, l1, l15, ncpu))
 
     if fans:
-        opis = ", ".join(T("stopped") if f == 0 else T("%d rpm") % f for f in fans)
-        ostrz = ""
+        description = ", ".join(T("stopped") if f == 0 else T("%d rpm") % f for f in fans)
+        warning = ""
         if chip and chip >= 75.0 and max(fans) == 0:
-            ostrz = T("   ⚠️ CHIP IS HOT BUT THE FANS ARE STOPPED - check the cooling!")
-        print(T("   fans: %s%s") % (opis, ostrz))
+            warning = T("   ⚠️ CHIP IS HOT BUT THE FANS ARE STOPPED - check the cooling!")
+        print(T("   fans: %s%s") % (description, warning))
 
     if snap:
-        zas = T("AC adapter") if snap.get("on_ac") else T("battery %s%%") % snap.get("battery_pct", "?")
+        power_source_text = T("AC adapter") if snap.get("on_ac") else T("battery %s%%") % snap.get("battery_pct", "?")
         watts = _num(snap.get("watts"))
-        print(T("   power: %s%s") % (zas, (T("   draw: %.1f W") % watts) if watts else ""))
+        print(T("   power: %s%s") % (power_source_text, (T("   draw: %.1f W") % watts) if watts else ""))
 
     if lifetime:
         print(T("   battery temperature record (whole lifetime): %.1f °C") % lifetime)

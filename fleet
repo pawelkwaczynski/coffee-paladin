@@ -355,26 +355,26 @@ def load_hosts(d):
             # of the table and the operator saw "all machines look fine". It
             # stays in the table, flagged and counted.
             try:
-                wiek = time.time() - os.lstat(path).st_mtime
+                age = time.time() - os.lstat(path).st_mtime
             except OSError:
-                wiek = 1e9
-            hosts.append({"host": _clean_text(name[:-5], 18), "_age": wiek,
+                age = 1e9
+            hosts.append({"host": _clean_text(name[:-5], 18), "_age": age,
                           "_bad": True, "level": 0, "fans": []})
             continue
         # Implausibility must be noticed BEFORE normalization: `_num()` turns
         # inf and NaN into None, after which "sensor did not answer" is
         # indistinguishable from "snapshot is nonsense". A host full of
         # infinities used to show up as a calm, healthy machine.
-        _podejrzane = []
+        _suspicious = []
         for k in ("chip_c", "battery_c", "gpu_c", "level", "load1", "watts", "battery_pct"):
             v = snap.get(k)
             if v is None or isinstance(v, str):
                 continue
             if isinstance(v, bool) or not isinstance(v, (int, float)) or v != v \
                     or abs(v) == float("inf"):
-                _podejrzane.append(k)
-        if _podejrzane:
-            snap["_implausible"] = sorted(_podejrzane)
+                _suspicious.append(k)
+        if _suspicious:
+            snap["_implausible"] = sorted(_suspicious)
         for k in ("chip_c", "watts", "ram_used_gb", "ram_total_gb"):
             snap[k] = _num(snap.get(k))
         if snap["ram_used_gb"] is None or snap["ram_total_gb"] is None:
@@ -452,8 +452,8 @@ def issues_for(h):
     if h.get("_implausible"):
         out.append(T("implausible readings: %s") % ",".join(h["_implausible"])[:40])
 
-    poziom = h.get("level") or 0
-    if isinstance(poziom, (int, float)) and poziom >= 2:
+    level = h.get("level") or 0
+    if isinstance(level, (int, float)) and level >= 2:
         chip = h.get("chip_c")
         out.append(T("HOT - %.0f C") % chip if isinstance(chip, (int, float))
                    else T("HOT - guard is intervening"))

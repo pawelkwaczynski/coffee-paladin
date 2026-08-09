@@ -374,7 +374,7 @@ def abs_epoch(s):
 KNOWN_FLAGS = ("--help", "-h", "--days", "--pdf", "--file", "--from", "--to", "--all")
 
 
-def free_name(sciezka):
+def free_name(path):
     """Return a path that is GUARANTEED not to overwrite someone's file.
 
     `--pdf` derives the PDF name from the report name, so `--file results.txt`
@@ -382,14 +382,14 @@ def free_name(sciezka):
     overwritten without a word. Instead of asking (the report also runs from
     cron and from the menu bar), pick a free name and print it at the end.
     """
-    if not os.path.exists(sciezka):
-        return sciezka
-    baza, roz = os.path.splitext(sciezka)
+    if not os.path.exists(path):
+        return path
+    base, ext = os.path.splitext(path)
     for n in range(2, 1000):
-        kandydat = "%s-%d%s" % (baza, n, roz)
-        if not os.path.exists(kandydat):
-            return kandydat
-    return sciezka
+        candidate = "%s-%d%s" % (base, n, ext)
+        if not os.path.exists(candidate):
+            return candidate
+    return path
 
 
 def generations(path):
@@ -399,21 +399,21 @@ def generations(path):
     self-contained and never import the daemon. Both copies are kept in sync
     by `tests/test_spojnosc.py`; change one, change the other.
     """
-    zrotowane = []
+    rotated = []
     n = 1
     while True:
         p = "%s.%d" % (path, n)
         if not os.path.exists(p):
             break
-        zrotowane.append(p)
+        rotated.append(p)
         n += 1
-    zrotowane.reverse()                    # .3, .2, .1 = chronologicznie
+    rotated.reverse()                    # .3, .2, .1 = chronologicznie
     if os.path.exists(path):
-        zrotowane.append(path)
-    return zrotowane
+        rotated.append(path)
+    return rotated
 
 
-def iter_lines(path, pomijaj_naglowek=False):
+def iter_lines(path, skip_header=False):
     """Lines from the current file AND all rotated generations, in order.
 
     The guard rotates `guard.log` and `history.csv` at 5 MB. This report used
@@ -425,10 +425,10 @@ def iter_lines(path, pomijaj_naglowek=False):
     for p in generations(path):
         try:
             with open(p, encoding="utf-8", errors="replace") as f:
-                if pomijaj_naglowek:
+                if skip_header:
                     f.readline()
-                for linia in f:
-                    yield linia
+                for line in f:
+                    yield line
         except OSError:
             continue
 
@@ -441,13 +441,13 @@ def _alarms_from_log(in_range):
     """
     out = []
     try:
-        for linia in iter_lines(LOG):
-            if ("[FANFAIL]" not in linia and "AWARIA CHLODZENIA" not in linia
-                    and "COOLING FAILURE" not in linia):
+        for line in iter_lines(LOG):
+            if ("[FANFAIL]" not in line and "AWARIA CHLODZENIA" not in line
+                    and "COOLING FAILURE" not in line):
                 continue
-            if not in_range(abs_epoch(linia[:24])):
+            if not in_range(abs_epoch(line[:24])):
                 continue
-            out.append(linia.rstrip())
+            out.append(line.rstrip())
     except Exception:
         pass
     return out
@@ -460,42 +460,42 @@ def main():
     # An unknown flag must NOT silently generate a report on the Desktop.
     # `thermal-report --help` used to do exactly that: it wrote the file and
     # exited 0.
-    obce = [a for a in sys.argv[1:] if a.startswith("-") and a not in KNOWN_FLAGS]
-    if obce:
-        print(T("thermal-report: unknown argument: %s") % " ".join(obce), file=sys.stderr)
+    unknown_flags = [a for a in sys.argv[1:] if a.startswith("-") and a not in KNOWN_FLAGS]
+    if unknown_flags:
+        print(T("thermal-report: unknown argument: %s") % " ".join(unknown_flags), file=sys.stderr)
         print(__doc__, file=sys.stderr)
         return 2
 
-    dni = 7
-    for flaga in ("--days",):
-        if flaga in sys.argv:
+    days = 7
+    for flag in ("--days",):
+        if flag in sys.argv:
             # A bad range must NOT be accepted silently. `--days` without a
             # number and `--days abc` used to exit 0 with a report for the
             # DEFAULT 7 days - a document describing a different period than
             # ordered, without saying a word. In an evidence document that is
             # a false negative: "nothing happened in this period".
             try:
-                dni = int(sys.argv[sys.argv.index(flaga) + 1])
+                days = int(sys.argv[sys.argv.index(flag) + 1])
             except (IndexError, ValueError):
-                print(T("thermal-report: %s needs a number of days") % flaga, file=sys.stderr)
+                print(T("thermal-report: %s needs a number of days") % flag, file=sys.stderr)
                 return 2
-            if dni < 1:
-                print(T("thermal-report: number of days must be 1 or more (got %s)") % dni,
+            if days < 1:
+                print(T("thermal-report: number of days must be 1 or more (got %s)") % days,
                       file=sys.stderr)
                 return 2
             break
-    cel = None
-    for flaga in ("--file", "--plik"):
-        if flaga in sys.argv:
+    target = None
+    for flag in ("--file", "--plik"):
+        if flag in sys.argv:
             try:
-                cel = sys.argv[sys.argv.index(flaga) + 1]
+                target = sys.argv[sys.argv.index(flag) + 1]
             except IndexError:
                 pass
             break
-    if cel is None:
-        cel = os.path.join(HOME, "Desktop",
+    if target is None:
+        target = os.path.join(HOME, "Desktop",
                            "thermal_report_%s.txt" % time.strftime("%Y%m%d_%H%M"))
-    # NOTE for the next reader: `cel` does NOT go through free_name() while
+    # NOTE for the next reader: `target` does NOT go through free_name() while
     # the PDF does - deliberate, not an oversight. The text file name is given
     # by the user (`--file`), so they may expect exactly that name; swapping
     # in "report-2.txt" would break every script and cron entry. Nobody
@@ -508,15 +508,15 @@ def main():
         return time.mktime(time.strptime(s, "%Y-%m-%d"))
 
     # range: --all (everything), --from/--to YYYY-MM-DD (calendar), or --days N
-    granica = time.time() - dni * 86400
-    gorna = None
-    zakres_opis = T("range: last %d days") % dni
+    lower_bound = time.time() - days * 86400
+    upper_bound = None
+    range_description = T("range: last %d days") % days
     if "--all" in sys.argv:
-        granica = 0
-        zakres_opis = T("range: everything on record")
+        lower_bound = 0
+        range_description = T("range: everything on record")
     if "--from" in sys.argv:
         try:
-            granica = _data(sys.argv[sys.argv.index("--from") + 1])
+            lower_bound = _data(sys.argv[sys.argv.index("--from") + 1])
         except (IndexError, ValueError, OverflowError):
             # a typo in the date silently fell back to "last 7 days" and the
             # header printed a range nobody asked for
@@ -531,37 +531,37 @@ def main():
             # date nobody asked about.
             _txt = sys.argv[sys.argv.index("--to") + 1]
             _d = datetime.datetime.strptime(_txt, "%Y-%m-%d").date() + datetime.timedelta(days=1)
-            gorna = time.mktime(_d.timetuple())
+            upper_bound = time.mktime(_d.timetuple())
         except (IndexError, ValueError, OverflowError):
             print(T("thermal-report: --to needs a date as YYYY-MM-DD"), file=sys.stderr)
             return 2
-    if gorna is not None and granica >= gorna:
+    if upper_bound is not None and lower_bound >= upper_bound:
         # a reversed range produced an EMPTY report with exit 0 - it reads as
         # "nothing happened in this period" but only means the range has no length
         print(T("thermal-report: the range ends before it starts (--from is after --to)"),
               file=sys.stderr)
         return 2
     if "--from" in sys.argv or "--to" in sys.argv:
-        zakres_opis = T("range: %s - %s") % (
-            time.strftime("%Y-%m-%d", time.localtime(granica)),
-            time.strftime("%Y-%m-%d", time.localtime((gorna - 1 if gorna else time.time()))))
+        range_description = T("range: %s - %s") % (
+            time.strftime("%Y-%m-%d", time.localtime(lower_bound)),
+            time.strftime("%Y-%m-%d", time.localtime((upper_bound - 1 if upper_bound else time.time()))))
 
     def in_range(t):
-        # `t < gorna`, not `<=`: gorna is midnight of the NEXT day, so with <=
+        # `t < upper_bound`, not `<=`: upper_bound is midnight of the NEXT day, so with <=
         # a one-day report included the first entry of the following day -
         # including a "peak temperature" attributed to a day it was not on.
-        return t >= granica and (gorna is None or t < gorna)
+        return t >= lower_bound and (upper_bound is None or t < upper_bound)
 
     W = []
 
     W.append(T("coffee-paladin - THERMAL AND POWER REPORT"))
-    W.append(T("generated: %s") % time.strftime("%Y-%m-%d %H:%M:%S") + "   " + zakres_opis)
+    W.append(T("generated: %s") % time.strftime("%Y-%m-%d %H:%M:%S") + "   " + range_description)
     W.append("=" * 78)
 
     W.append(T("\n## HARDWARE\n"))
-    for linia in sh(["system_profiler", "SPHardwareDataType"]).splitlines():
-        if re.search(r"Model Name|Model Identifier|Chip|Total Number of Cores|Memory|Serial", linia):
-            W.append("  " + linia.strip())
+    for line in sh(["system_profiler", "SPHardwareDataType"]).splitlines():
+        if re.search(r"Model Name|Model Identifier|Chip|Total Number of Cores|Memory|Serial", line):
+            W.append("  " + line.strip())
 
     # same data set as "About my Mac": macOS, configuration date, fans, disk,
     # Neural Engine, thresholds
@@ -594,24 +594,24 @@ def main():
         pass
 
     W.append(T("\n## BATTERY\n"))
-    for linia in sh(["system_profiler", "SPPowerDataType"]).splitlines()[:40]:
-        if re.search(r"Cycle Count|Condition|Maximum Capacity|Charging|State of Charge|Serial", linia):
-            W.append("  " + linia.strip())
+    for line in sh(["system_profiler", "SPPowerDataType"]).splitlines()[:40]:
+        if re.search(r"Cycle Count|Condition|Maximum Capacity|Charging|State of Charge|Serial", line):
+            W.append("  " + line.strip())
     ioreg = sh(["ioreg", "-r", "-c", "AppleSmartBattery", "-d", "1", "-w", "0"])
-    for klucz in ("MaximumTemperature", "PermanentFailureStatus", "CycleCount", "Voltage"):
-        m = re.search(r'"%s"\s*=\s*(\d+)' % klucz, ioreg)
+    for key in ("MaximumTemperature", "PermanentFailureStatus", "CycleCount", "Voltage"):
+        m = re.search(r'"%s"\s*=\s*(\d+)' % key, ioreg)
         if m:
-            W.append("  %s = %s" % (klucz, m.group(1)))
+            W.append("  %s = %s" % (key, m.group(1)))
 
     # --- najwazniejsza czesc: twarde pady
     W.append(T("\n## CRITICAL EVENTS (hard shutdowns, cooling alarms)\n"))
-    zdarzen = 0
-    _juz_alarmy = []     # czasy alarmow z events.log — do deduplikacji tych z guard.log
-    _wpisy = []          # (czas, linie) — sekcja krytyczna musi byc CHRONOLOGICZNA
+    event_count = 0
+    _seen_alarms = []     # czasy alarmow z events.log — do deduplikacji tych z guard.log
+    _entries = []          # (time, lines) — sekcja krytyczna musi byc CHRONOLOGICZNA
     try:
-        for linia in iter_lines(EVENTS):
+        for line in iter_lines(EVENTS):
             try:
-                z = json.loads(linia)
+                z = json.loads(line)
             except Exception:
                 continue
             if not isinstance(z, dict):
@@ -620,28 +620,28 @@ def main():
                 continue          # test entries do not belong in service evidence
             # `epoch` is unambiguous; `time` is text without a timezone, so an
             # entry read in another timezone could fall out of the range.
-            t_zdarzenia = z.get("epoch")
-            if not isinstance(t_zdarzenia, (int, float)):
-                t_zdarzenia = abs_epoch(z.get("time", ""))
-            if not in_range(t_zdarzenia):
+            event_time = z.get("epoch")
+            if not isinstance(event_time, (int, float)):
+                event_time = abs_epoch(z.get("time", ""))
+            if not in_range(event_time):
                 continue
-            zdarzen += 1
+            event_count += 1
             if "COOLING" in str(z.get("type", "")):
-                _juz_alarmy.append(t_zdarzenia)
-            _linie = ["  [%s] %s — %s" % (z.get("time"), z.get("type"), z.get("description"))]
-            kontekst = z.get("context")
-            pomiary = kontekst.get("last_readings") if isinstance(kontekst, dict) else []
-            pomiary = [x for x in (pomiary or []) if isinstance(x, dict)]
-            if pomiary:
-                _linie.append(T("      readings immediately before the event:"))
-                for p in pomiary:
-                    _linie.append("        %s  chip %s C  fan %s rpm  %s W  battery %s%%  %s  load %s"
+                _seen_alarms.append(event_time)
+            _entry_lines = ["  [%s] %s — %s" % (z.get("time"), z.get("type"), z.get("description"))]
+            context = z.get("context")
+            readings = context.get("last_readings") if isinstance(context, dict) else []
+            readings = [x for x in (readings or []) if isinstance(x, dict)]
+            if readings:
+                _entry_lines.append(T("      readings immediately before the event:"))
+                for p in readings:
+                    _entry_lines.append("        %s  chip %s C  fan %s rpm  %s W  battery %s%%  %s  load %s"
                              % (p.get("time", "?"), p.get("chip_C", "?"),
                                 p.get("fan_rpm", "?"), p.get("watts", "?"),
                                 p.get("battery_pct", "?"),
                                 (T("AC") if p.get("on_ac") == "1" else T("battery")) if p.get("on_ac") is not None else "?",
                                 p.get("load1", "?")))
-            _wpisy.append((t_zdarzenia, _linie))
+            _entries.append((event_time, _entry_lines))
     except FileNotFoundError:
         pass
     # Fan alarms reach events.log only on newer installs. For older ones we
@@ -651,38 +651,38 @@ def main():
     # events.log; the log reader exists for installs predating that change,
     # so it must skip what already came from events.log - otherwise every
     # alarm counts TWICE in a warranty-claim document.
-    for linia in _alarms_from_log(in_range):
-        _t = abs_epoch(linia[:24])
-        if any(abs(_t - e) <= 2 for e in _juz_alarmy):
+    for line in _alarms_from_log(in_range):
+        _t = abs_epoch(line[:24])
+        if any(abs(_t - e) <= 2 for e in _seen_alarms):
             continue
-        zdarzen += 1
-        _wpisy.append((_t, ["  " + linia]))
+        event_count += 1
+        _entries.append((_t, ["  " + line]))
     # events.log is ordered by DETECTION, not occurrence (a crash is detected
     # after the restart), and guard.log alarms used to be appended at the end.
     # The reader could not reconstruct causality - did the fans stop first,
     # or did the Mac crash first.
-    for _, _l in sorted(_wpisy, key=lambda x: x[0]):
+    for _, _l in sorted(_entries, key=lambda x: x[0]):
         W.extend(_l)
-    if not zdarzen:
+    if not event_count:
         W.append(T("  (none - no hard shutdown or cooling alarm was detected in this period)"))
 
     W.append(T("\n## SHUTDOWN CAUSES REPORTED BY THE SYSTEM\n"))
-    wy = sh(["pmset", "-g", "log"], timeout=60)
-    trafienia = [l for l in wy.splitlines() if "shutdown cause" in l.lower()][-10:]
-    W.extend("  " + l.strip() for l in trafienia) if trafienia else W.append(
+    output = sh(["pmset", "-g", "log"], timeout=60)
+    matches = [l for l in output.splitlines() if "shutdown cause" in l.lower()][-10:]
+    W.extend("  " + l.strip() for l in matches) if matches else W.append(
         T("  (no 'Previous shutdown cause' entries - typical after a loss of power)"))
 
     W.append(T("\n## GUARD INTERVENTIONS\n"))
     inter = 0
     try:
-        for linia in iter_lines(LOG):
-            if not in_range(abs_epoch(linia[:24])):
+        for line in iter_lines(LOG):
+            if not in_range(abs_epoch(line[:24])):
                 continue
             # Tags are the parser contract (see guard.log()): identical in every
             # language, so intervention matching needs no word lists.
-            if re.search(r"\[(PAUSE|RESUME|KILL|DEMOTE|PROMOTE|FANFAIL|CRASH)\]", linia):
+            if re.search(r"\[(PAUSE|RESUME|KILL|DEMOTE|PROMOTE|FANFAIL|CRASH)\]", line):
                 inter += 1
-                W.append("  " + linia.rstrip())
+                W.append("  " + line.rstrip())
     except FileNotFoundError:
         pass
     if not inter:
@@ -690,16 +690,16 @@ def main():
 
     W.append(T("\n## MEASUREMENT TIMELINE\n"))
     W.append(T("  time, state, chip C, GPU C, battery C, fan rpm, W, battery %, on AC, CPU limit, load, level"))
-    ile = 0
-    szczyt = (0, "")
-    odrzucone, odrzucony_max = 0, 0.0
-    osie = []
+    measurement_count = 0
+    peak = (0, "")
+    rejected_count, rejected_max = 0, 0.0
+    timeline_rows = []
     try:
-        for linia in iter_lines(HIST, pomijaj_naglowek=True):
-            c = linia.strip().split(",")
+        for line in iter_lines(HIST, skip_header=True):
+            c = line.strip().split(",")
             if len(c) < 12 or not in_range(abs_epoch(c[0])):
                 continue
-            ile += 1
+            measurement_count += 1
             try:
                 # Physical range: one truncated row after a power loss used to
                 # replace the document's key number with "999.9 C (CORRUPTED ROW)".
@@ -718,21 +718,21 @@ def main():
                 if v != v:                       # NaN
                     pass
                 elif 0.0 < v <= 110.0 and abs_epoch(c[0]):
-                    if v > szczyt[0]:
-                        szczyt = (v, c[0])
+                    if v > peak[0]:
+                        peak = (v, c[0])
                 elif v > 110.0 and v != float("inf"):
-                    odrzucone += 1
-                    odrzucony_max = max(odrzucony_max, v)
+                    rejected_count += 1
+                    rejected_max = max(rejected_max, v)
             except (ValueError, OverflowError):
                 pass
             # collect into a list instead of appending right away: only with
             # the whole set do we know which rows are HOT and thus must
             # survive truncation
             try:
-                poziom = int(float(c[11])) if c[11] else 0
+                level = int(float(c[11])) if c[11] else 0
             except (ValueError, IndexError):
-                poziom = 0
-            osie.append(("  " + ", ".join(c[:12]), v if v == v else 0.0, poziom))
+                level = 0
+            timeline_rows.append(("  " + ", ".join(c[:12]), v if v == v else 0.0, level))
     except FileNotFoundError:
         pass
 
@@ -744,18 +744,18 @@ def main():
     # the peak and all rows with a nonzero intervention level stay, the rest
     # is sampled evenly. And we say so explicitly - silent truncation would be
     # the same bug as silently dropping corrupted rows.
-    prog_goracy = max(0.0, szczyt[0] - 10.0)
-    skrocono = 0
-    if len(osie) > MAX_TIMELINE_ROWS:
-        istotne = [i for i, (_, v, lv) in enumerate(osie) if v >= prog_goracy > 0 or lv > 0]
-        budzet = max(1, MAX_TIMELINE_ROWS - len(istotne))
-        reszta = [i for i in range(len(osie)) if i not in set(istotne)]
-        krok = max(1, len(reszta) // budzet) if reszta else 1
-        wybrane = sorted(set(istotne) | set(reszta[::krok]))
-        skrocono = len(osie) - len(wybrane)
-        osie = [osie[i] for i in wybrane]
-    for tekst_wiersza, _v, _lv in osie:
-        W.append(tekst_wiersza)
+    hot_threshold = max(0.0, peak[0] - 10.0)
+    truncated_count = 0
+    if len(timeline_rows) > MAX_TIMELINE_ROWS:
+        important_indices = [i for i, (_, v, lv) in enumerate(timeline_rows) if v >= hot_threshold > 0 or lv > 0]
+        budget = max(1, MAX_TIMELINE_ROWS - len(important_indices))
+        rest_indices = [i for i in range(len(timeline_rows)) if i not in set(important_indices)]
+        step = max(1, len(rest_indices) // budget) if rest_indices else 1
+        selected_indices = sorted(set(important_indices) | set(rest_indices[::step]))
+        truncated_count = len(timeline_rows) - len(selected_indices)
+        timeline_rows = [timeline_rows[i] for i in selected_indices]
+    for row_text, _v, _lv in timeline_rows:
+        W.append(row_text)
     # NO MEASUREMENTS is not the same as NO EVENTS. With an empty data
     # directory the document filled with "(none - not detected...)" lines and
     # an empty timeline, so it looked like proof of a HEALTHY machine - while
@@ -763,49 +763,49 @@ def main():
     # or the range predates the install). In a warranty-claim document that
     # difference is fundamental, so we state it AT THE TOP where it cannot be
     # missed, not as an empty table at the bottom.
-    if ile == 0:
+    if measurement_count == 0:
         W.insert(3, "")
         W.insert(4, T("  !! NO MEASUREMENTS IN THIS RANGE. This document does NOT show that "
                       "nothing happened -\n     it shows that nothing was recorded. Possible "
                       "reasons: the guard was not running,\n     the data was deleted, or the "
                       "range predates the installation."))
 
-    naglowek_osi = []
-    if skrocono:
-        naglowek_osi.append(
+    timeline_header = []
+    if truncated_count:
+        timeline_header.append(
             T("  TIMELINE SHORTENED: showing %d of %d measurements. Every reading within 10 C "
               "of the peak\n     and every reading with an intervention was kept; the calm rest "
               "is sampled evenly.\n     Full data: history.csv (and its rotated generations).")
-            % (len(osie), len(osie) + skrocono))
-    if szczyt[0]:
-        naglowek_osi.append(T("  PEAK MEASURED CHIP TEMPERATURE: %.1f C (%s)") % szczyt)
-    if odrzucone:
-        naglowek_osi.append(
+            % (len(timeline_rows), len(timeline_rows) + truncated_count))
+    if peak[0]:
+        timeline_header.append(T("  PEAK MEASURED CHIP TEMPERATURE: %.1f C (%s)") % peak)
+    if rejected_count:
+        timeline_header.append(
             T("  DISCARDED AS IMPLAUSIBLE: %d row(s) over 110 C (highest %.1f C) - shown in "
-              "the timeline below, not counted towards the peak") % (odrzucone, odrzucony_max))
+              "the timeline below, not counted towards the peak") % (rejected_count, rejected_max))
     # one insertion, so the order does not depend on how many lines happen to go in
-    W[len(W) - ile - 1:len(W) - ile - 1] = naglowek_osi
+    W[len(W) - measurement_count - 1:len(W) - measurement_count - 1] = timeline_header
 
     W.append("\n" + "=" * 78)
     try:
-        interwal = int(json.load(open(CFG)).get("poll_seconds", 15))
+        interval = int(json.load(open(CFG)).get("poll_seconds", 15))
     except Exception:
-        interwal = 15
-    W.append(T("Measurements are collected by the algorithm every %d s (written every 5 min and on every event).") % interwal)
+        interval = 15
+    W.append(T("Measurements are collected by the algorithm every %d s (written every 5 min and on every event).") % interval)
     W.append(T("Chip temperature is read through IOReport, battery temperature through AppleSmartBattery."))
     W.append("")
     W.append("coffee-paladin v%s  ·  Shield the Process, Sip the Coffee" % VERSION)
     W.append("https://github.com/pawelkwaczynski/coffee-paladin")
     W.append("FOCUS FRAME")
 
-    tekst = "\n".join(W) + "\n"
+    content = "\n".join(W) + "\n"
     try:
-        with os.fdopen(os.open(cel, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w") as f:
-            f.write(tekst)
+        with os.fdopen(os.open(target, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w") as f:
+            f.write(content)
     except OSError as e:
         # This tool runs exactly when the disk is full or right after a crash -
         # a traceback is the worst possible answer then.
-        print(T("thermal-report: cannot write %s (%s)") % (cel, e), file=sys.stderr)
+        print(T("thermal-report: cannot write %s (%s)") % (target, e), file=sys.stderr)
         return 1
 
     # PDF via the system cupsfilter (textutil cannot write PDF - verified).
@@ -818,7 +818,7 @@ def main():
         # `open(pdf,"wb")` truncated someone's file to 0 B before anything was
         # generated, and `--print-to-pdf` overwrote it entirely. Generate next
         # to it, swap in only after success.
-        pdf = free_name(os.path.splitext(cel)[0] + ".pdf")
+        pdf = free_name(os.path.splitext(target)[0] + ".pdf")
         _fd_pdf, tmp_pdf = tempfile.mkstemp(suffix=".pdf", prefix=".thermal_report_",
                                             dir=os.path.dirname(os.path.abspath(pdf)) or ".")
         os.close(_fd_pdf)
@@ -830,12 +830,12 @@ def main():
             try:
                 import base64
                 import html as _html
-                tresc = _html.escape(tekst.rsplit("FOCUS FRAME", 1)[0].rstrip())
-                stopka = ""
+                html_content = _html.escape(content.rsplit("FOCUS FRAME", 1)[0].rstrip())
+                footer = ""
                 if os.path.exists(logo):
                     with open(logo, "rb") as f:
                         b64 = base64.b64encode(f.read()).decode()
-                    stopka = ('<div class="stopka"><img src="data:image/png;base64,%s"></div>'
+                    footer = ('<div class="stopka"><img src="data:image/png;base64,%s"></div>'
                               % b64)
                 doc = ("""<!doctype html><meta charset="utf-8"><style>
 @page { margin: 14mm 12mm; }
@@ -843,7 +843,7 @@ body { font: 8.5pt ui-monospace, "SF Mono", Menlo, monospace; color: #111; }
 pre { white-space: pre-wrap; word-break: break-word; margin: 0; }
 .stopka { margin-top: 10mm; text-align: center; }
 .stopka img { width: 42mm; }
-</style><pre>%s</pre>%s""" % (tresc, stopka))
+</style><pre>%s</pre>%s""" % (html_content, footer))
                 # The intermediate HTML goes to a temp directory. It used to be
                 # created NEXT TO the target and deleted without asking:
                 # `--pdf --file report.txt` overwrote and REMOVED someone's
@@ -868,7 +868,7 @@ pre { white-space: pre-wrap; word-break: break-word; margin: 0; }
         # FALLBACK: cupsfilter (no logo, but always works)
         try:
             with open(tmp_pdf, "wb") as f:
-                r = subprocess.run(["cupsfilter", cel], stdout=f,
+                r = subprocess.run(["cupsfilter", target], stdout=f,
                                    stderr=subprocess.DEVNULL, timeout=120)
             if r.returncode == 0 and os.path.getsize(tmp_pdf) > 1000:
                 os.replace(tmp_pdf, pdf)
@@ -882,7 +882,7 @@ pre { white-space: pre-wrap; word-break: break-word; margin: 0; }
             os.remove(tmp_pdf)
         except OSError:
             pass
-    print(cel)
+    print(target)
     return 0
 
 
