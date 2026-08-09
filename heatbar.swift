@@ -16,7 +16,7 @@
 
 import Cocoa
 
-let VERSION = "2.3.4"
+let VERSION = "2.4.0"
 let APPNAME = "coffee-paladin"
 let CODENAME = "Ristretto"
 let SIGNATURE = "\(APPNAME) v\(VERSION) \u{201E}\(CODENAME)\u{201D}  ·  by panbookovsky"
@@ -2752,6 +2752,12 @@ final class Bar: NSObject, NSMenuDelegate {
     // z 60 s przerwy.
     private var wentylOstatnio = Date.distantPast
     private var ostatnieObroty = -1
+    // Ostatni dobry odczyt chipa. Pod pelnym obciazeniem pojedynczy odczyt macmona
+    // potrafi pasc (null w migawce na ~1 cykl) i pasek migal wtedy pustka, mimo ze
+    // demon chwile wczesniej mial poprawna temperature. Trzymamy ostatnia wartosc
+    // przez maks. 2 cykle demona i rysujemy ja na szaro.
+    private var ostatniChip: Double?
+    private var ostatniChipKiedy = Date.distantPast
 
     private func zakrecPasek(_ s: Snap) {
         wentylOstatnio = Date()
@@ -2874,6 +2880,23 @@ final class Bar: NSObject, NSMenuDelegate {
             }
         }
 
+        // Dziura odczytu macmona (chip_c == null w SWIEZEJ migawce) nie gasi paska:
+        // przez maks. 45 s (2 cykle demona po ~15 s + zapas) pokazujemy ostatnia
+        // dobra wartosc, na szaro. Nieswieza migawka to inna sytuacja - wtedy demon
+        // najpewniej nie zyje i zadna "ostatnia wartosc" nie jest prawda o TERAZ.
+        var chipZPamieci = false
+        if !s.stale, let c = s.chip {
+            // zapamietujemy TYLKO ze swiezej migawki: wartosc z pliku po martwym
+            // demonie odswiezalaby stempel w kazdym cyklu i po restarcie demona
+            // udawalaby aktualny pomiar
+            ostatniChip = c
+            ostatniChipKiedy = Date()
+        } else if !s.stale, let c = ostatniChip,
+                  Date().timeIntervalSince(ostatniChipKiedy) <= 45 {
+            s.chip = c
+            chipZPamieci = true
+        }
+
         if prefs.enabled(.flame), s.level >= 3, plomienTimer == nil,
            Date().timeIntervalSince(plomienOstatnio) > 60 {
             zapalPasek(s)
@@ -2907,7 +2930,14 @@ final class Bar: NSObject, NSMenuDelegate {
         if prefs.enabled(.chip) { temps.append(s.chip.map { String(format: "%.0f°", $0) } ?? "—") }
         if prefs.enabled(.gpu), let g = s.gpu { temps.append(String(format: "%.0f°", g)) }
         if prefs.enabled(.battery), let b = s.batt { temps.append(String(format: "%.0f°", b)) }
-        if !temps.isEmpty { text(" " + temps.joined(separator: "/")) }
+        var zakresChipa: NSRange?
+        if !temps.isEmpty {
+            let start = out.length + 1                       // za spacja po ikonie
+            text(" " + temps.joined(separator: "/"))
+            if chipZPamieci, prefs.enabled(.chip), let pierwszy = temps.first {
+                zakresChipa = NSRange(location: start, length: (pierwszy as NSString).length)
+            }
+        }
 
         if prefs.enabled(.fans), let f = s.fans.max() {
             gap()
@@ -2960,6 +2990,11 @@ final class Bar: NSObject, NSMenuDelegate {
 
         out.addAttributes([.foregroundColor: tint(s), .font: bold],
                           range: NSRange(location: 0, length: out.length))
+        // szary = "wartosc z pamieci, nie z biezacego odczytu" - nakladany PO kolorze
+        // calego paska, zeby zaden tint go nie nadpisal
+        if let z = zakresChipa {
+            out.addAttribute(.foregroundColor, value: NSColor.secondaryLabelColor, range: z)
+        }
         item.button?.attributedTitle = out
 
         var tip = s.reason.isEmpty ? "coffee-paladin: " + T("calm") : s.reason
