@@ -1,4 +1,4 @@
-# coffee-paladin v2.4.0
+# coffee-paladin v2.5.0
 
 <p align="center">
   <img src="branding/paladin.gif" alt="coffee-paladin - the project mascot" width="260">
@@ -772,6 +772,19 @@ Since v2.4.0:
   a leftover child used to survive its supervisor and burn for hours with no time budget.
   After a clean exit, surviving children are only reported, not touched.
 
+Admission control (optional, `"admission_control": true` in config.json): jobs declare how
+many cores they will chew (`--cores 6`, default: this machine's performance-core count) and
+the guard admits or queues them against a thermal core budget - full P-core pool on a cool
+chip, half between the resume and pause thresholds, no new admissions on a hot one. Load
+from unregistered processes shrinks the budget too. The declaration is enforced through the
+CPU duty limiter, so the budget stays truthful. `--queue-priority N` (0 first, 9 last,
+default 5) orders the queue; arrival breaks ties and a small job never overtakes the head.
+`--after NAME` starts a job only when the safe-run job NAME has finished - chains without
+hand-rolled pgrep loops. The queue survives a guard restart, `heat` lists who is waiting,
+and `fleet` gains a Q column. The arbiter only delays starts: it never pauses or kills
+anything, and on any internal error it admits everyone - thermal safety stays with the
+pause logic. Off by default; without the flag every start behaves exactly as before.
+
 ### `heatbar` - menu bar
 
 <p align="center">
@@ -1471,7 +1484,15 @@ nie wstrzymuje, dopóki sam nie włączysz ochrony - jednym kliknięciem w pasku
 - `safe-run --hours 8 --name render -- <polecenie>` - tak uruchamiaj ciężkie zadania;
   od v2.4.0 też `--wait-cool` (na gorącym Macu poczekaj do progu wznowienia i startuj,
   zamiast wychodzić kodem 3), `--grace N` (sekundy między SIGTERM a SIGKILL, domyślnie 30)
-  i sprzątanie grupy procesów przy wyjściu (dziecko nie przeżyje już swojego nadzorcy)
+  i sprzątanie grupy procesów przy wyjściu (dziecko nie przeżyje już swojego nadzorcy);
+  opcjonalnie admission control (`"admission_control": true` w config.json): zadania
+  deklarują rdzenie (`--cores 6`), a bezpiecznik wpuszcza je lub kolejkuje według
+  termicznego zapasu (chłodny chip = pełna pula P, między progami = połowa, gorący =
+  zero nowych wpuszczeń); deklaracja jest twarda (wymuszana limiterem CPU),
+  `--queue-priority` ustawia kolejność, `--after NAZWA` startuje po końcu innego zadania,
+  kolejka przeżywa restart demona, `heat` pokazuje czekających, `fleet` ma kolumnę Q;
+  arbiter tylko opóźnia starty - nigdy niczego nie pauzuje ani nie ubija, a przy
+  własnym błędzie wpuszcza wszystkich
 - `heatbar` - pasek menu: chip, GPU, bateria, obroty, waty, RAM i dysk (wybierasz checkboxami
   w „Pokaż na pasku"), wykres, prognoza, listy „co grzeje" (top 3 po CPU - najlepsze dostępne
   przybliżenie ciepła per proces) i „co zjada RAM" (top 3 po pamięci), ręczne zamrażanie,
