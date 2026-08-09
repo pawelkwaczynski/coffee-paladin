@@ -37,7 +37,7 @@ import subprocess
 import sys
 import time
 
-GUARD_VERSION = "2.4.0"   # bump together with heatbar VERSION, thermal-report VERSION, README
+GUARD_VERSION = "2.5.0"   # bump together with heatbar VERSION, thermal-report VERSION, README
 
 HOME = os.path.expanduser("~")
 BASE = os.environ.get("TG_BASE") or os.path.join(HOME, ".coffee-paladin")
@@ -160,6 +160,11 @@ DEFAULTS = {
     # Mac could sleep in the middle of a queue. The switch counter reached 45-59 entries per
     # day. Heat has priority: at level >=2 the assertion drops immediately, with no decay.
     "keep_awake_hold_s": 300,
+    # Admission control: safe-run jobs declare cores (--cores) and the guard admits or
+    # queues them against a thermal core budget. Off by default: without the flag every
+    # start behaves exactly as before. The arbiter only DELAYS starts; it never pauses or
+    # kills anything - that stays with the thermal core of the guard.
+    "admission_control": False,
     # Watch-only by default. A fresh install measures, logs, and alerts, but does not pause
     # anyone's processes. Protection is enabled deliberately, either from the menu bar or
     # with "dry_run": false. A tool that touches other people's work on first launch loses
@@ -221,7 +226,7 @@ LOGGED_KEYS = (
     "demote_after_minutes", "demote_above_c", "demote_cpu_percent",
     "max_pause_minutes", "max_pause_minutes_batt", "cpu_min_percent",
     "job_cores_mode", "job_cpu_percent", "dry_run", "lang",
-    "keep_awake_hold_s", "system_demote_patterns",
+    "keep_awake_hold_s", "system_demote_patterns", "admission_control",
 )
 
 
@@ -1520,6 +1525,21 @@ def managed_pids_from_saferun():
                     continue
                 with open(path) as f:
                     d = json.load(f)
+                # A queued pre-registration is the WRAPPER waiting for admission,
+                # not a job: it must never become a pause or kill target. It
+                # still gets the liveness and identity checks - a wrapper killed
+                # while waiting leaves a queued:true file behind, and after pid
+                # reuse a phantom entry would hold admission cores forever.
+                if d.get("queued"):
+                    pid = int(d["pid"])
+                    stale_placeholder = not alive(pid)
+                    if not stale_placeholder and d.get("started"):
+                        age = proc_age_seconds(pid)
+                        if age and abs((now() - age) - float(d["started"])) > 90:
+                            stale_placeholder = True
+                    if stale_placeholder:
+                        os.unlink(path)
+                    continue
                 pid = int(d["pid"])
                 if alive(pid):
                     # A PID can be reused after guard crashes, so check whether the current
@@ -2558,10 +2578,138 @@ def saferun_jobs():
             if pid and alive(pid):
                 out.append({"name": d.get("name") or d.get("comm") or "?",
                             "pid": pid,
+                            "queued": bool(d.get("queued")),
                             "minutes": round(proc_age_seconds(pid) / 60.0)})
     except Exception:
         pass
     return out
+
+
+def _admission_entries():
+    """Return (running, queued) admission entries from managed/ registrations.
+
+    running: jobs already started (queued flag absent or false), with their
+    declared core count. A registration without a declaration counts as ALL
+    performance cores: admission exists to protect the machine, so an
+    undeclared job is assumed big, not small.
+    queued: wrapper pre-registrations waiting for admission, oldest first.
+    """
+    running, queued = [], []
+    try:
+        p_cores = _admission_p_cores()
+        for name in os.listdir(MANAGED_DIR):
+            if not name.endswith(".json"):
+                continue
+            try:
+                path = os.path.join(MANAGED_DIR, name)
+                # Same trust bar as the signal path: a registration that
+                # managed_pids_from_saferun would reject for unsafe ownership
+                # or permissions must not consume the admission budget either,
+                # or a planted file starves every honest job in the queue.
+                file_stat = os.lstat(path)
+                if file_stat.st_uid != os.getuid() or (file_stat.st_mode & 0o022):
+                    continue
+                with open(path) as f:
+                    d = json.load(f)
+                pid = int(d.get("pid", 0))
+                if not pid or not alive(pid):
+                    continue
+                if d.get("started"):
+                    age = proc_age_seconds(pid)
+                    if age and abs((now() - age) - float(d["started"])) > 90:
+                        continue          # recycled pid; the managed scan unlinks it
+                cores = d.get("cores")
+                try:
+                    # Cap at the pool: a declaration above it could never be
+                    # admitted and would freeze the queue from the head.
+                    cores = min(max(1, int(cores)), p_cores)
+                except (TypeError, ValueError):
+                    cores = p_cores
+                entry = {"pid": pid, "name": str(d.get("name") or "?")[:24],
+                         "cores": cores}
+                if d.get("queued"):
+                    try:
+                        entry["priority"] = int(d.get("priority", 5))
+                    except (TypeError, ValueError):
+                        entry["priority"] = 5
+                    try:
+                        entry["since"] = float(d.get("since") or 0)
+                    except (TypeError, ValueError):
+                        entry["since"] = 0.0
+                    queued.append(entry)
+                else:
+                    running.append(entry)
+            except Exception:
+                continue
+    except Exception:
+        pass
+    return running, queued
+
+
+def _admission_p_cores():
+    """Performance-core count for the admission budget, from hardware.json."""
+    try:
+        with open(HW_PATH) as f:
+            p = int(json.load(f).get("p_cores") or 0)
+        if p > 0:
+            return p
+    except Exception:
+        pass
+    return max(1, (os.cpu_count() or 8) // 2 + (os.cpu_count() or 8) % 2)
+
+
+def admission_update(cfg, soc_t, lvl, load1):
+    """Decide which queued safe-run jobs may start; return the published state.
+
+    Budget in cores follows the thermal headroom: chip at or below the resume
+    threshold means the full performance-core pool, between resume and pause
+    half of it, at or above pause (or guard level >= 2) no new admissions.
+    Load generated OUTSIDE registered jobs shrinks the budget too, so a bare
+    process chewing six cores is not scheduled over.
+
+    The arbiter only delays starts. On any internal error it admits everyone:
+    a broken optimizer must never become a second kill switch that silently
+    keeps jobs from ever starting. Thermal safety stays with the pause logic.
+    """
+    try:
+        running, queued = _admission_entries()
+        p_cores = _admission_p_cores()
+        if lvl >= 2:
+            budget = 0
+        elif soc_t is None:
+            budget = p_cores
+        elif soc_t >= cfg.get("soc_pause_c", 85.0):
+            budget = 0
+        elif soc_t > cfg.get("soc_resume_c", 76.0):
+            budget = max(1, p_cores // 2)
+        else:
+            budget = p_cores
+        used = sum(e["cores"] for e in running)
+        # Load of unregistered work: whatever load1 shows beyond the declared
+        # sum. Rounded down so normal scheduling noise does not eat the budget.
+        foreign = max(0, int((load1 or 0) - used))
+        free = budget - used - foreign
+        # Lower priority value goes first; equal priorities keep arrival order.
+        # Head-of-line blocking is deliberate: a small job must not overtake,
+        # simplicity beats cleverness here.
+        queued.sort(key=lambda e: (e.get("priority", 5), e.get("since", 0.0)))
+        admitted = []
+        for e in queued:
+            if e["cores"] > free:
+                break
+            admitted.append(e["pid"])
+            free -= e["cores"]
+        return {"enabled": True, "budget_cores": budget, "used_cores": used,
+                "foreign_load": foreign, "admitted": admitted,
+                "queued": [{"pid": e["pid"], "name": e["name"], "cores": e["cores"],
+                            "priority": e.get("priority", 5),
+                            "since": e.get("since", 0.0)} for e in queued]}
+    except Exception as e:
+        silent_failure("admission", e)
+        _, queued = _admission_entries()
+        return {"enabled": True, "budget_cores": -1, "used_cores": 0,
+                "foreign_load": 0, "error": True,
+                "admitted": [q["pid"] for q in queued], "queued": []}
 
 
 # ---------------------------------------------------------------- hardware and calibration
@@ -3049,6 +3197,10 @@ def status_write(state, temp, soc, soc_t, ac, pct, speed, load, lvl, why, target
         # first, or they diagnose a different system from the one actually running.
         "config_corrections": list(_ostatnio_odrzucone["v"]),
     }
+    if st.get("_admission"):
+        data["admission"] = st["_admission"]
+        # A plain counter for the fleet table; the full queue stays local.
+        data["queued_count"] = len(st["_admission"].get("queued") or [])
     tmp = STATUS_PATH + ".tmp"
     try:
         with open(tmp, "w") as f:
@@ -3346,6 +3498,10 @@ def main():
             st["_prog_pauza"] = cfg.get("soc_pause_c")
             st["_prog_ubicie"] = cfg.get("soc_kill_c")
             st["_prog_wznowienia"] = cfg.get("soc_resume_c")
+            # Admission decisions every tick: a queued wrapper polls the
+            # snapshot, so its start latency is one poll interval.
+            st["_admission"] = admission_update(cfg, soc_t, lvl, load) \
+                if cfg.get("admission_control") else None
             if tick % 4 == 0:                      # less often, this reads from disk
                 st["_zadania"] = saferun_jobs()
                 st["_stat"] = day_stats()
