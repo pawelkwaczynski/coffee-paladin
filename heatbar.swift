@@ -16,7 +16,7 @@
 
 import Cocoa
 
-let VERSION = "2.6.3"
+let VERSION = "2.6.4"
 let APPNAME = "coffee-paladin"
 let CODENAME = "Ristretto"
 let SIGNATURE = "\(APPNAME) v\(VERSION) \u{201E}\(CODENAME)\u{201D}  ·  by panbookovsky"
@@ -5097,6 +5097,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             FileHandle.standardError.write(line.data(using: .utf8)!)
         }
     }
+}
+
+// ONE bar per Mac. A second copy puts a second identical thermometer into a
+// menu bar that may already have no room for the first, and the two then fight
+// over it. It happens easily: the app is in /Applications, so a person clicks
+// it - from the Dock, from Launchpad, from Finder - while the launch agent has
+// been running it since login.
+//
+// That click is not a mistake to punish, it is a request to see the program.
+// Hand it to the instance that is already running, which opens its panel, and
+// leave. `flock` and not a pid file: a pid file survives a crash and locks the
+// bar out of its own machine, a lock dies with the process that held it.
+let instanceLock = open(base + "/heatbar.lock", O_CREAT | O_RDWR, 0o600)
+if instanceLock >= 0 && flock(instanceLock, LOCK_EX | LOCK_NB) != 0 {
+    try? "panel".write(toFile: base + "/show_window", atomically: true, encoding: .utf8)
+    FileHandle.standardError.write(
+        "another menu bar is already running - asked it to open the panel\n".data(using: .utf8)!)
+    exit(0)
 }
 
 let app = NSApplication.shared

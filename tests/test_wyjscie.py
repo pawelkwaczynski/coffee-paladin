@@ -252,6 +252,48 @@ for shell_path in ("/usr/bin:/bin", os.path.expanduser("~/.local/bin") + ":/usr/
           printed.startswith("/") == expected_full, printed)
 
 print("=" * 78)
+print("G. ONE BAR PER MAC")
+print("=" * 78)
+
+# The app sits in /Applications, so people click it - from the Dock, from
+# Launchpad - while the launch agent has been running it since login. A second
+# copy adds a second identical thermometer to a menu bar that may have no room
+# for the first. The click means "show me the program", so it is handed over.
+check("35. the bar takes a lock before it starts", "heatbar.lock" in bar_source
+      and "LOCK_EX | LOCK_NB" in bar_source)
+check("36. and a second copy asks the first one to open its panel, then leaves",
+      'try? "panel".write(toFile: base + "/show_window"' in bar_source
+      and "exit(0)" in bar_source.split("heatbar.lock")[1][:900])
+check("37. the lock is flock, not a pid file that outlives a crash",
+      "flock(instanceLock" in bar_source and "O_CREAT | O_RDWR" in bar_source)
+
+bar_binary = "/Applications/coffee-paladin.app/Contents/MacOS/coffee-paladin-bar"
+# Only run a binary that HAS the guard. An older one would start a full second
+# menu bar and sit there until the timeout, putting a stray thermometer in the
+# tester's own menu bar - which is exactly the behaviour under test.
+has_guard = (os.path.exists(bar_binary)
+             and b"another menu bar is already running" in io.open(bar_binary, "rb").read())
+if has_guard:
+    # Hold the lock here and let the real binary meet it. It exits before any UI
+    # exists, so nothing appears on screen and the running bar is not touched.
+    sandbox = tempfile.mkdtemp()
+    lock = open(os.path.join(sandbox, "heatbar.lock"), "w")
+    fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    second = subprocess.run([bar_binary], capture_output=True, text=True, timeout=60,
+                            env=dict(os.environ, TG_BASE=sandbox))
+    handed = os.path.join(sandbox, "show_window")
+    check("38. the real binary refuses to be a second bar and exits cleanly",
+          second.returncode == 0 and "already running" in second.stderr,
+          "code %d, %r" % (second.returncode, second.stderr.strip()[:70]))
+    check("39. and it leaves the request the running bar will pick up",
+          os.path.exists(handed)
+          and io.open(handed, encoding="utf-8").read().strip() == "panel")
+    lock.close()
+    shutil.rmtree(sandbox, ignore_errors=True)
+else:
+    print("  [SKIP] 38-39: the installed bar predates this guard (reinstall to cover them)")
+
+print("=" * 78)
 print("E. THE UNINSTALLER'S OWN PROMISES")
 print("=" * 78)
 
