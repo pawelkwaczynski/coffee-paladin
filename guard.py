@@ -37,7 +37,7 @@ import subprocess
 import sys
 import time
 
-GUARD_VERSION = "2.5.4"   # bump together with heatbar VERSION, thermal-report VERSION, README
+GUARD_VERSION = "2.6.0"   # bump together with heatbar VERSION, thermal-report VERSION, README
 
 HOME = os.path.expanduser("~")
 BASE = os.environ.get("TG_BASE") or os.path.join(HOME, ".coffee-paladin")
@@ -3230,7 +3230,10 @@ def hist_write(row):
         with open(HIST_PATH, "a") as f:
             if new:
                 f.write(HIST_HEADER)
-            f.write(",".join(str(x) for x in row) + "\n")
+            # A process is free to have a comma in its name, and this writer joins
+            # on commas. One such name shifts every later column by one, so the
+            # readers see a name where a number belongs and quietly drop the row.
+            f.write(",".join(str(x).replace(",", " ") for x in row) + "\n")
     except Exception as e:
         silent_failure("hist_write", e)   # no measurements means an empty evidence timeline
 
