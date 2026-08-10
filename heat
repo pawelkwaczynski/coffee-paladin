@@ -164,6 +164,8 @@ PL = {
         '   dlawienie:       nie wiadomo - %d probek pod obciazeniem nie ma odczytu limitu CPU',
     '   the plateau reaches the pause threshold, and this history does not say whether macOS was holding the CPU back. Unknown is not the same as fine, so nothing is advised here.':
         '   plateau siega progu pauzy, a ta historia nie mowi, czy macOS przyhamowywal CPU. Nie wiadomo to nie to samo co w porzadku, wiec nic tu nie doradzam.',
+    '   menu bar: running. Cannot see the thermometer? `coffee-paladin panel` opens a window without it.':
+        '   pasek menu: dziala. Nie widzisz termometru? `coffee-paladin panel` otworzy okno bez niego.',
 }
 
 RU = {
@@ -250,6 +252,8 @@ RU = {
         '   троттлинг:       неизвестно - у %d нагруженных замеров нет чтения лимита CPU',
     '   the plateau reaches the pause threshold, and this history does not say whether macOS was holding the CPU back. Unknown is not the same as fine, so nothing is advised here.':
         '   плато достает до порога паузы, а эта история не говорит, придерживал ли macOS процессор. Неизвестно - это не то же самое, что нормально, поэтому советов тут нет.',
+    '   menu bar: running. Cannot see the thermometer? `coffee-paladin panel` opens a window without it.':
+        '   строка меню: работает. Не видите термометр? `coffee-paladin panel` откроет окно без неё.',
 }
 
 ZH = {
@@ -336,6 +340,8 @@ ZH = {
         '   降频：           无法判断 - %d 个负载样本没有 CPU 限制读数',
     '   the plateau reaches the pause threshold, and this history does not say whether macOS was holding the CPU back. Unknown is not the same as fine, so nothing is advised here.':
         '   平台值触到暂停阈值，而这段历史没有说明 macOS 当时是否在压制 CPU。未知不等于没事，所以这里不给建议。',
+    '   menu bar: running. Cannot see the thermometer? `coffee-paladin panel` opens a window without it.':
+        '   菜单栏：正在运行。看不到温度计？用 `coffee-paladin panel` 可以不经过它直接打开窗口。',
 }
 
 ES = {
@@ -422,6 +428,8 @@ ES = {
         '   limitacion:      no se puede saber - %d muestras con carga no traen lectura del limite de CPU',
     '   the plateau reaches the pause threshold, and this history does not say whether macOS was holding the CPU back. Unknown is not the same as fine, so nothing is advised here.':
         '   la meseta llega al umbral de pausa y este historial no dice si macOS frenaba la CPU. Desconocido no es lo mismo que correcto, asi que aqui no aconsejo nada.',
+    '   menu bar: running. Cannot see the thermometer? `coffee-paladin panel` opens a window without it.':
+        '   barra de menus: funcionando. ¿No ves el termometro? `coffee-paladin panel` abre una ventana sin ella.',
 }
 
 DICTS = {"pl": PL, "ru": RU, "zh": ZH, "es": ES}
@@ -1051,6 +1059,15 @@ def profile_command():
     return 0
 
 
+def bar_running():
+    """Is the menu bar agent alive? Being alive says nothing about being visible."""
+    for line in sh(["launchctl", "list"]).splitlines():
+        parts = line.split()
+        if len(parts) >= 3 and parts[2] == AGENT + "-bar" and parts[0] != "-":
+            return True
+    return False
+
+
 def main():
     if "--help" in sys.argv or "-h" in sys.argv:
         print(__doc__)
@@ -1144,6 +1161,13 @@ def main():
 
     running = guard_alive()
     print(T("   coffee-paladin: %s") % (T("running ✅") if running else T("NOT RUNNING ❌  (launchctl kickstart -k gui/%d/%s)") % (os.getuid(), AGENT)))
+
+    # The menu bar can be running and still be nowhere on screen: macOS declines
+    # to draw a status item that does not fit, and a Mac with a notch runs out of
+    # room quickly. There is no API to detect it, so say the one thing that helps.
+    if bar_running():
+        print(T("   menu bar: running. Cannot see the thermometer? `coffee-paladin panel` "
+                "opens a window without it."))
 
     try:
         with open(STATE) as f:

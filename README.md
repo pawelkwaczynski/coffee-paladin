@@ -1,4 +1,4 @@
-# coffee-paladin v2.6.0
+# coffee-paladin v2.6.1
 
 <p align="center">
   <img src="branding/paladin.gif" alt="coffee-paladin - the project mascot" width="260">
@@ -852,10 +852,20 @@ limiting the CPU and a pause marker when something is frozen. a fan reading of 0
 hot; a RAM warning means memory is 62 % used **and** the machine has started swapping.
 
 Everything on the bar is optional - **Show in the bar** gives you a checkbox per element and the
-choice is remembered in `~/.coffee-paladin/heatbar.json`. A new install shows the chip temperature
-alone, because on a Mac with a notch the full readout does not fit and macOS then draws nothing at
-all; add what you want back one checkbox at a time. The markers stay on: they are invisible until
-something happens. An upgrade keeps the layout you already had.
+choice is remembered in `~/.coffee-paladin/heatbar.json`, and three presets sit above the
+checkboxes: **Icon only**, **Icon and chip temperature** (what a new install starts with) and
+**Show all**. On a Mac with a notch the full readout does not fit, and macOS then draws no status
+item at all - no warning, and no way to ask why. If that happens you cannot open the menu either,
+so the same three presets work from a terminal:
+
+```bash
+coffee-paladin bar icon-only     # nothing but the thermometer, fits anywhere
+coffee-paladin bar chip          # the icon and one number
+coffee-paladin bar full          # everything
+coffee-paladin panel             # open a window without going through the bar
+```
+
+An upgrade keeps the layout you already had.
 The language switch (EN · PL · RU · 中文 · ES) sits as a row of buttons right on the main menu,
 **About my Mac** shows the detected hardware, and **Start at login** toggles autostart of both
 agents (on by default).
@@ -1551,8 +1561,10 @@ nie wstrzymuje, dopóki sam nie włączysz ochrony - jednym kliknięciem w pasku
   arbiter tylko opóźnia starty - nigdy niczego nie pauzuje ani nie ubija, a przy
   własnym błędzie wpuszcza wszystkich
 - `heatbar` - pasek menu: świeża instalacja pokazuje sam chip, bo na Macu z notchem pełny
-  odczyt się nie mieści i macOS nie rysuje wtedy nic; GPU, baterię, obroty, waty, RAM i dysk
-  dokładasz checkboxami w „Pokaż na pasku", wykres, prognoza, listy „co grzeje" (top 3 po CPU - najlepsze dostępne
+  odczyt się nie mieści i macOS nie rysuje wtedy NIC; trzy gotowe układy („Sama ikona",
+  „Ikona i temperatura chipa", „Pokaż wszystko") są w „Pokaż na pasku", a gdy ikony nie widać,
+  te same układy ustawisz z terminala: `coffee-paladin bar icon-only|chip|full`, a
+  `coffee-paladin panel` otworzy okno bez paska. Do tego wykres, prognoza, listy „co grzeje" (top 3 po CPU - najlepsze dostępne
   przybliżenie ciepła per proces) i „co zjada RAM" (top 3 po pamięci), ręczne zamrażanie,
   eksport raportu oraz **Flota Apple** - wszystkie Twoje Maki z parametrami, własnymi nazwami
   (Ustawienia > „Nazwij tego Maca we flocie" - przy pięciu identycznych MacBookach nazwa
