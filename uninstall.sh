@@ -4,9 +4,15 @@
 # the measurement history is exactly the thing you may still need for a warranty claim.
 set -uo pipefail
 BIN="$HOME/.local/bin"
-for A in pl.pawel.coffee-paladin-bar pl.pawel.coffee-paladin; do
+# The DAEMON goes first. Stopping the bar first would leave a Mac where nothing
+# shows the temperature while something is still pausing processes, and if the
+# second bootout then failed, the user would never learn about it.
+STILL_RUNNING=""
+for A in pl.pawel.coffee-paladin pl.pawel.coffee-paladin-bar; do
   launchctl bootout "gui/$UID/$A" 2>/dev/null
   rm -f "$HOME/Library/LaunchAgents/$A.plist"
+  # A bootout that failed is not a detail: it means that part is still alive.
+  launchctl print "gui/$UID/$A" >/dev/null 2>&1 && STILL_RUNNING="$STILL_RUNNING $A"
 done
 for APP in "/Applications/coffee-paladin.app" "$HOME/Applications/coffee-paladin.app"; do
   rm -rf "$APP"
@@ -22,12 +28,25 @@ try:
     st = json.load(open(sys.argv[1]))
 except Exception:
     sys.exit(0)
-for pid in (st.get("paused") or {}):
+for pid, info in (st.get("paused") or {}).items():
+    # The guard freezes the whole process GROUP, so resuming the leader alone
+    # leaves its children stopped forever with nothing left on the Mac that
+    # knows about them. Group first, leader as the fallback.
+    pgid = (info or {}).get("pgid") if isinstance(info, dict) else None
+    resumed = False
+    if pgid:
+        try:
+            os.killpg(int(pgid), signal.SIGCONT)
+            resumed = True
+        except Exception:
+            pass
     try:
         os.kill(int(pid), signal.SIGCONT)
-        print("  ▶️  wznowione przed deinstalacja: pid %s" % pid)
+        resumed = True
     except Exception:
         pass
+    if resumed:
+        print("  ▶️  wznowione przed deinstalacja: pid %s" % pid)
 PY
 fi
 
@@ -55,9 +74,21 @@ rm -rf "$HOME/.claude/skills/coffee-paladin"
 rm -f "$BIN/thermal-guard" "$BIN/heatbar"
 rm -f "$BIN/coffee-paladin" "$BIN/coffee-paladin-bar" "$BIN/heat" "$BIN/safe-run" "$BIN/thermal-report" "$BIN/fleet" "$BIN/thermalstate"
 echo "binaries and LaunchAgents removed"
+if [ -n "$STILL_RUNNING" ]; then
+  echo "⚠️  still loaded:$STILL_RUNNING - log out and back in, or: launchctl bootout gui/$UID/<name>"
+fi
 if [ "${1:-}" = "--purge" ]; then
   rm -rf "$HOME/.coffee-paladin"
   echo "data removed too (~/.coffee-paladin)"
 else
   echo "data kept in ~/.coffee-paladin (history + black box; remove with: uninstall.sh --purge)"
+  # The installed copy of this script is not data. It cannot be deleted while
+  # bash is still reading it - the shell reads a script in pieces - so hand the
+  # removal to a detached child that waits for this one to finish.
+  SELF="$HOME/.coffee-paladin/uninstall.sh"
+  if [ "$(cd "$(dirname "$0")" && pwd)/$(basename "$0")" = "$SELF" ]; then
+    ( sleep 2; rm -f "$SELF" ) >/dev/null 2>&1 &
+  else
+    rm -f "$SELF"
+  fi
 fi

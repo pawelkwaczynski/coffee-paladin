@@ -304,6 +304,13 @@ JSON
   fi
 fi
 
+# The menu offers "Uninstall", so the script has to be somewhere the app can
+# find it. The sources may be a brew cellar, a clone, or a folder the user has
+# since deleted; the data directory is the one place that is always there.
+if [ -f "$SRC/uninstall.sh" ]; then
+  cp "$SRC/uninstall.sh" "$BASE/uninstall.sh" && chmod 755 "$BASE/uninstall.sh"
+fi
+
 # 3b. branding: header/footer logos + the paladin (welcome window, menu icon).
 # Copy ONLY what the app uses - full-resolution originals
 # (branding/paladin.png, branding/paladin.gif) stay in the repo, not in the
@@ -365,7 +372,9 @@ if [ -x "$BAR_EXEC" ] && [ -f "$SRC/pl.pawel.coffee-paladin-bar.plist" ]; then
     has_pid "pl.pawel.coffee-paladin-bar" && break
   done
   has_pid "pl.pawel.coffee-paladin-bar" \
-    && echo "  ✅ menu bar is running - look for the THERMOMETER with temperatures in the top-right corner (the shield is only the Finder icon)" \
+    && { echo "  ✅ menu bar is running - look for the THERMOMETER with temperatures in the top-right corner (the shield is only the Finder icon)"; \
+         echo "     cannot see it? A menu bar with a notch may have no room, and macOS then draws nothing:"; \
+         echo "       coffee-paladin bar icon-only     (shrinks it to a single icon)"; } \
     || echo "  ⚠️  menu bar did not start - check $BASE/heatbar.err and: launchctl kickstart gui/$UID/pl.pawel.coffee-paladin-bar"
 fi
 

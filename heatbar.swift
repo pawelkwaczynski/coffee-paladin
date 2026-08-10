@@ -16,7 +16,7 @@
 
 import Cocoa
 
-let VERSION = "2.6.0"
+let VERSION = "2.6.1"
 let APPNAME = "coffee-paladin"
 let CODENAME = "Ristretto"
 let SIGNATURE = "\(APPNAME) v\(VERSION) \u{201E}\(CODENAME)\u{201D}  ·  by panbookovsky"
@@ -302,6 +302,28 @@ czy wtrącałby się za gorliwie, czy odwrotnie - za późno.
 Pamiętaj: póki ten przełącznik jest wyłączony, NIC nie chroni Maca.\nWłącz go z powrotem, \
 gdy skończysz.
 """,
+    "Uninstall coffee-paladin…":
+        "Odinstaluj coffee-paladin…",
+    "Uninstall coffee-paladin?":
+        "Odinstalować coffee-paladin?",
+    "Goes away: the daemon and the menu bar (they stop starting at login), the app, the heat, safe-run, thermal-report and fleet commands, and the skill for AI agents.\n\nStays: the measurement history and the black box in ~/.coffee-paladin. That is what a service centre asks for when a Mac dies under load.":
+        "Zniknie: demon i pasek menu (przestaną startować przy logowaniu), aplikacja oraz polecenia heat, safe-run, thermal-report i fleet, a także wtyczka dla agentów AI.\n\nZostanie: historia pomiarów i czarna skrzynka w ~/.coffee-paladin. To jest dokładnie to, o co pyta serwis, kiedy Mac gaśnie pod obciążeniem.",
+    "Delete the history and the black box too":
+        "Usuń też historię i czarną skrzynkę",
+    "Uninstall":
+        "Odinstaluj",
+    "Delete the black box as well?":
+        "Usunąć także czarną skrzynkę?",
+    "Every measurement, every pause and every hard shutdown this Mac recorded goes with it. This cannot be undone, and it is the record a service centre or a warranty claim asks for. Uninstalling without this leaves the files untouched and costs nothing.":
+        "Przepadnie każdy pomiar, każda pauza i każde twarde zgaśnięcie, jakie ten Mac zapisał. Tego nie da się cofnąć, a to właśnie ten zapis bierze serwis albo reklamacja gwarancyjna. Deinstalacja bez tego zostawia pliki nietknięte i nic nie kosztuje.",
+    "Delete everything":
+        "Usuń wszystko",
+    "Icon only, no numbers":
+        "Sama ikona (zmieści się w każdym pasku)",
+    "Icon and chip temperature":
+        "Ikona i temperatura chipa",
+    "Icon only, no numbers":
+        "Sama ikona, bez liczb",
 ]
 
 let RU: [String: String] = [
@@ -558,6 +580,28 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
     "Chip sensor (macmon):  %@": "Датчик чипа (macmon):  %@",
     "yes": "да",
     "no": "нет",
+    "Uninstall coffee-paladin…":
+        "Удалить coffee-paladin…",
+    "Uninstall coffee-paladin?":
+        "Удалить coffee-paladin?",
+    "Goes away: the daemon and the menu bar (they stop starting at login), the app, the heat, safe-run, thermal-report and fleet commands, and the skill for AI agents.\n\nStays: the measurement history and the black box in ~/.coffee-paladin. That is what a service centre asks for when a Mac dies under load.":
+        "Уйдёт: демон и строка меню (перестанут запускаться при входе), приложение и команды heat, safe-run, thermal-report и fleet, а также навык для ИИ-агентов.\n\nОстанется: история замеров и чёрный ящик в ~/.coffee-paladin. Именно это спрашивает сервис, когда Mac гаснет под нагрузкой.",
+    "Delete the history and the black box too":
+        "Удалить также историю и чёрный ящик",
+    "Uninstall":
+        "Удалить",
+    "Delete the black box as well?":
+        "Удалить и чёрный ящик?",
+    "Every measurement, every pause and every hard shutdown this Mac recorded goes with it. This cannot be undone, and it is the record a service centre or a warranty claim asks for. Uninstalling without this leaves the files untouched and costs nothing.":
+        "Пропадёт каждый замер, каждая пауза и каждое жёсткое выключение, записанные этим Mac. Это необратимо, а именно этот журнал берут сервис или гарантийная претензия. Удаление без этого оставляет файлы нетронутыми и ничего не стоит.",
+    "Delete everything":
+        "Удалить всё",
+    "Icon only, no numbers":
+        "Только значок (влезет в любую строку меню)",
+    "Icon and chip temperature":
+        "Значок и температура чипа",
+    "Icon only, no numbers":
+        "Только значок, без цифр",
 ]
 
 let ZH: [String: String] = [
@@ -812,6 +856,28 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
     "Chip sensor (macmon):  %@": "芯片传感器(macmon):  %@",
     "yes": "是",
     "no": "否",
+    "Uninstall coffee-paladin…":
+        "卸载 coffee-paladin…",
+    "Uninstall coffee-paladin?":
+        "要卸载 coffee-paladin 吗？",
+    "Goes away: the daemon and the menu bar (they stop starting at login), the app, the heat, safe-run, thermal-report and fleet commands, and the skill for AI agents.\n\nStays: the measurement history and the black box in ~/.coffee-paladin. That is what a service centre asks for when a Mac dies under load.":
+        "将被移除：守护进程与菜单栏（不再随登录启动）、应用本体，以及 heat、safe-run、thermal-report 和 fleet 命令，还有给 AI 代理的技能包。\n\n将会保留：~/.coffee-paladin 里的测量历史与黑匣子。当 Mac 在负载下熄灭时，维修中心要的正是这些。",
+    "Delete the history and the black box too":
+        "同时删除历史记录与黑匣子",
+    "Uninstall":
+        "卸载",
+    "Delete the black box as well?":
+        "连黑匣子也一起删除吗？",
+    "Every measurement, every pause and every hard shutdown this Mac recorded goes with it. This cannot be undone, and it is the record a service centre or a warranty claim asks for. Uninstalling without this leaves the files untouched and costs nothing.":
+        "这台 Mac 记录的每一次测量、每一次暂停、每一次硬关机都会随之消失。此操作无法撤销，而维修中心或保修索赔要的正是这份记录。不勾选这一项的卸载会完整保留文件，且没有任何代价。",
+    "Delete everything":
+        "全部删除",
+    "Icon only, no numbers":
+        "仅图标（任何菜单栏都放得下）",
+    "Icon and chip temperature":
+        "图标与芯片温度",
+    "Icon only, no numbers":
+        "仅图标，不显示数字",
 ]
 
 let ES: [String: String] = [
@@ -1068,6 +1134,28 @@ Vuelve a activarlo cuando termines.
     "Chip sensor (macmon):  %@": "Sensor del chip (macmon):  %@",
     "yes": "sí",
     "no": "no",
+    "Uninstall coffee-paladin…":
+        "Desinstalar coffee-paladin…",
+    "Uninstall coffee-paladin?":
+        "¿Desinstalar coffee-paladin?",
+    "Goes away: the daemon and the menu bar (they stop starting at login), the app, the heat, safe-run, thermal-report and fleet commands, and the skill for AI agents.\n\nStays: the measurement history and the black box in ~/.coffee-paladin. That is what a service centre asks for when a Mac dies under load.":
+        "Se va: el demonio y la barra de menus (dejan de arrancar al iniciar sesion), la app y los comandos heat, safe-run, thermal-report y fleet, mas la habilidad para agentes de IA.\n\nSe queda: el historial de mediciones y la caja negra en ~/.coffee-paladin. Es justo lo que pide un servicio tecnico cuando un Mac se apaga bajo carga.",
+    "Delete the history and the black box too":
+        "Borrar tambien el historial y la caja negra",
+    "Uninstall":
+        "Desinstalar",
+    "Delete the black box as well?":
+        "¿Borrar tambien la caja negra?",
+    "Every measurement, every pause and every hard shutdown this Mac recorded goes with it. This cannot be undone, and it is the record a service centre or a warranty claim asks for. Uninstalling without this leaves the files untouched and costs nothing.":
+        "Desaparece cada medicion, cada pausa y cada apagado brusco que este Mac registro. No se puede deshacer, y es justo el registro que pide un servicio tecnico o una reclamacion de garantia. Desinstalar sin esto deja los archivos intactos y no cuesta nada.",
+    "Delete everything":
+        "Borrar todo",
+    "Icon only, no numbers":
+        "Solo el icono (cabe en cualquier barra)",
+    "Icon and chip temperature":
+        "Icono y temperatura del chip",
+    "Icon only, no numbers":
+        "Solo el icono, sin numeros",
 ]
 
 let DICTS: [String: [String: String]] = ["pl": PL, "ru": RU, "zh": ZH, "es": ES]
@@ -1965,6 +2053,22 @@ final class Prefs {
         for i in Item.allCases { on[i.rawValue] = true }
         save()
     }
+
+    /// Nothing but the thermometer. The markers go too: this preset exists for a
+    /// bar with no room left, and a marker that appears later would take the item
+    /// back over the width that made it disappear in the first place.
+    func enableNone() {
+        for i in Item.allCases { on[i.rawValue] = false }
+        save()
+    }
+
+    func enableChipOnly() {
+        for i in Item.allCases { on[i.rawValue] = (i == .chip) }
+        save()
+    }
+
+    var noneEnabled: Bool { Item.allCases.allSatisfy { !enabled($0) } }
+    var onlyChipEnabled: Bool { Item.allCases.allSatisfy { enabled($0) == ($0 == .chip) } }
 }
 
 let prefs = Prefs()
@@ -2624,6 +2728,7 @@ final class Bar: NSObject, NSMenuDelegate {
     private var expectedDryRunSince = Date.distantPast
     /// Prevent the guide from returning every 5 s when the signal file cannot be removed.
     private var shownGuideFromSignal = false
+    private var shownWindowFromStuckSignal = false
     /// Exist only while the manual-freeze confirmation window is open.
     private var allCheckbox: NSButton?
     private var processCheckboxes: [NSButton] = []
@@ -2701,12 +2806,26 @@ final class Bar: NSObject, NSMenuDelegate {
         if NSApp.modalWindow != nil {
             return
         }
-        try? fm.removeItem(atPath: windowSignal)
+        // Same trap as show_guide: if the file cannot be removed (read-only
+        // directory, uchg flag), the window would come back every five seconds
+        // and make the Mac unusable. Act once per file that will not go away.
+        let removed = (try? fm.removeItem(atPath: windowSignal)) != nil
+        if !removed {
+            if shownWindowFromStuckSignal { return }
+            shownWindowFromStuckSignal = true
+        } else {
+            shownWindowFromStuckSignal = false
+        }
         NSApp.activate(ignoringOtherApps: true)
         switch body {
         case "ntfy": ntfyDialog()
         case "fleetname": fleetNameDialog()
         case "observe": explainDry()
+        // The way in when the status item is not on screen at all: on a Mac with
+        // a notch macOS silently declines to draw an item that does not fit, and
+        // there is no API to ask whether that happened. The panel places itself
+        // in the top-right corner when it cannot find the button.
+        case "panel": PaladinPanel.shared.toggle()
         default: Guide.shared.show()
         }
     }
@@ -3397,9 +3516,26 @@ final class Bar: NSObject, NSMenuDelegate {
         sub.autoenablesItems = false
         // At the top, so users do not click every item separately. Disabled when
         // everything is already visible; a dead click confuses more than it helps.
+        // Three presets before the checkboxes. On a Mac with a notch the full
+        // readout does not fit and macOS then draws NOTHING - no warning, no way
+        // to ask why. Someone in that situation needs one click, not eleven.
+        // The eye (watch-only) and the cup (keep-awake) stay outside the presets:
+        // they say what the program is DOING and hiding them to save pixels would
+        // trade a truth for a few points of width. Hence "no numbers", not "one icon".
+        let iconOnly = NSMenuItem(title: T("Icon only, no numbers"),
+                                  action: #selector(barIconOnly), keyEquivalent: "")
+        iconOnly.target = self
+        iconOnly.state = prefs.noneEnabled ? .on : .off
+        sub.addItem(iconOnly)
+        let iconAndChip = NSMenuItem(title: T("Icon and chip temperature"),
+                                     action: #selector(barIconAndChip), keyEquivalent: "")
+        iconAndChip.target = self
+        iconAndChip.state = prefs.onlyChipEnabled ? .on : .off
+        sub.addItem(iconAndChip)
         let showAll = NSMenuItem(title: T("Show all"), action: #selector(showAllItems),
                                   keyEquivalent: "")
         showAll.target = self
+        showAll.state = prefs.allEnabled ? .on : .off
         showAll.isEnabled = !prefs.allEnabled
         sub.addItem(showAll)
         sub.addItem(.separator())
@@ -3824,6 +3960,14 @@ final class Bar: NSObject, NSMenuDelegate {
 
         // Separator divides credits from the exit action.
         m.addItem(.separator())
+        // A person who cannot get the app working has to be able to leave without
+        // hunting for a command in the README. That is the worst possible moment
+        // for friction, so the way out sits in the menu, above the way to stop it.
+        let uninstallIt = NSMenuItem(title: T("Uninstall coffee-paladin…"),
+                                     action: #selector(uninstall), keyEquivalent: "")
+        uninstallIt.target = self
+        uninstallIt.image = img("trash")
+        m.addItem(uninstallIt)
         // Left-aligned like every other item; no more centering.
         let quitIt = NSMenuItem(title: T("Quit coffee-paladin (protection stops)"),
                                 action: #selector(quit), keyEquivalent: "q")
@@ -4154,6 +4298,16 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
         guard let code = sender.representedObject as? String, code != lang else { return }
         GuardCfg.set(["lang": code])
         exit(1)
+    }
+
+    @objc func barIconOnly() {
+        prefs.enableNone()
+        refreshAfterAction()
+    }
+
+    @objc func barIconAndChip() {
+        prefs.enableChipOnly()
+        refreshAfterAction()
     }
 
     @objc func showAllItems() {
@@ -4690,6 +4844,158 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
     /// which misled people in the opposite direction: they thought protection was off
     /// while it still ran. Now label and effect match, and we ask before the irreversible
     /// step.
+    /// Remove the whole thing, with the data question asked separately.
+    ///
+    /// Two windows, not three buttons in one: "Uninstall" and "Uninstall and
+    /// delete everything" side by side are one slip apart, and the second one
+    /// destroys the black box - the measurement history that is the only
+    /// evidence left after a Mac dies under load.
+    @objc func uninstall() {
+        let windowWidth: CGFloat = 380, margin: CGFloat = 20
+        let title = NSTextField(wrappingLabelWithString: T("Uninstall coffee-paladin?"))
+        title.font = .boldSystemFont(ofSize: 13)
+        title.alignment = .center
+        title.preferredMaxLayoutWidth = windowWidth - 2 * margin
+        let titleHeight = title.sizeThatFits(NSSize(width: windowWidth - 2 * margin, height: 200)).height
+
+        let body = NSTextField(wrappingLabelWithString: T(
+            "Goes away: the daemon and the menu bar (they stop starting at login), the app, "
+            + "the heat, safe-run, thermal-report and fleet commands, and the skill for AI agents.\n\n"
+            + "Stays: the measurement history and the black box in ~/.coffee-paladin. That is what "
+            + "a service centre asks for when a Mac dies under load."))
+        body.font = .systemFont(ofSize: 11)
+        body.textColor = .secondaryLabelColor
+        body.preferredMaxLayoutWidth = windowWidth - 2 * margin
+        let bodyHeight = body.sizeThatFits(NSSize(width: windowWidth - 2 * margin, height: 400)).height
+
+        let purgeBox = NSButton(checkboxWithTitle: T("Delete the history and the black box too"),
+                                target: nil, action: nil)
+        purgeBox.state = .off
+        purgeBox.font = .systemFont(ofSize: 12)
+
+        let windowHeight = 18 + 44 + 8 + titleHeight + 10 + bodyHeight + 14 + 20 + 18 + 32 + 18
+        let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: windowWidth, height: windowHeight),
+                           styleMask: [.titled, .fullSizeContentView], backing: .buffered, defer: false)
+        win.titlebarAppearsTransparent = true
+        win.titleVisibility = .hidden
+        win.isMovableByWindowBackground = true
+        win.level = .modalPanel
+        win.center()
+        let backgroundView = NSVisualEffectView(frame: NSRect(x: 0, y: 0, width: windowWidth, height: windowHeight))
+        backgroundView.material = .popover
+        backgroundView.state = .active
+        win.contentView = backgroundView
+
+        var y = windowHeight - 18 - 44
+        let iconView = NSImageView(frame: NSRect(x: (windowWidth - 44) / 2, y: y, width: 44, height: 44))
+        if let img = NSImage(contentsOfFile: base + "/paladin_welcome.png") { iconView.image = img }
+        iconView.imageScaling = .scaleProportionallyUpOrDown
+        backgroundView.addSubview(iconView)
+
+        y -= 8 + titleHeight
+        title.frame = NSRect(x: margin, y: y, width: windowWidth - 2 * margin, height: titleHeight)
+        backgroundView.addSubview(title)
+
+        y -= 10 + bodyHeight
+        body.frame = NSRect(x: margin, y: y, width: windowWidth - 2 * margin, height: bodyHeight)
+        backgroundView.addSubview(body)
+
+        y -= 14 + 20
+        purgeBox.frame = NSRect(x: margin, y: y, width: windowWidth - 2 * margin, height: 20)
+        backgroundView.addSubview(purgeBox)
+
+        y -= 18 + 32
+        // Enter must not uninstall anything.
+        buttonRow(backgroundView, windowWidth, y, [T("Uninstall"), T("Cancel")], defaultIndex: 1,
+                  action: #selector(closeFreezeDialog(_:)))
+        NSApp.activate(ignoringOtherApps: true)
+        let result = NSApp.runModal(for: win)
+        win.orderOut(nil)
+        guard result.rawValue == 0 else { return }
+
+        let purge = purgeBox.state == .on
+        if purge && !confirmPurge() { return }
+        runUninstaller(purge: purge)
+    }
+
+    /// The second question, asked only when the first one was answered with the
+    /// box ticked. Deleting the history is the one step nothing can undo.
+    private func confirmPurge() -> Bool {
+        let windowWidth: CGFloat = 380, margin: CGFloat = 20
+        let title = NSTextField(wrappingLabelWithString: T("Delete the black box as well?"))
+        title.font = .boldSystemFont(ofSize: 13)
+        title.alignment = .center
+        title.preferredMaxLayoutWidth = windowWidth - 2 * margin
+        let titleHeight = title.sizeThatFits(NSSize(width: windowWidth - 2 * margin, height: 200)).height
+
+        let body = NSTextField(wrappingLabelWithString: T(
+            "Every measurement, every pause and every hard shutdown this Mac recorded goes with it. "
+            + "This cannot be undone, and it is the record a service centre or a warranty claim asks "
+            + "for. Uninstalling without this leaves the files untouched and costs nothing."))
+        body.font = .systemFont(ofSize: 11)
+        body.textColor = .secondaryLabelColor
+        body.preferredMaxLayoutWidth = windowWidth - 2 * margin
+        let bodyHeight = body.sizeThatFits(NSSize(width: windowWidth - 2 * margin, height: 400)).height
+
+        let windowHeight = 18 + 44 + 8 + titleHeight + 10 + bodyHeight + 18 + 32 + 18
+        let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: windowWidth, height: windowHeight),
+                           styleMask: [.titled, .fullSizeContentView], backing: .buffered, defer: false)
+        win.titlebarAppearsTransparent = true
+        win.titleVisibility = .hidden
+        win.isMovableByWindowBackground = true
+        win.level = .modalPanel
+        win.center()
+        let backgroundView = NSVisualEffectView(frame: NSRect(x: 0, y: 0, width: windowWidth, height: windowHeight))
+        backgroundView.material = .popover
+        backgroundView.state = .active
+        win.contentView = backgroundView
+
+        var y = windowHeight - 18 - 44
+        let iconView = NSImageView(frame: NSRect(x: (windowWidth - 44) / 2, y: y, width: 44, height: 44))
+        iconView.image = NSImage(systemSymbolName: "exclamationmark.triangle.fill", accessibilityDescription: nil)
+        iconView.contentTintColor = .systemOrange
+        iconView.imageScaling = .scaleProportionallyUpOrDown
+        backgroundView.addSubview(iconView)
+
+        y -= 8 + titleHeight
+        title.frame = NSRect(x: margin, y: y, width: windowWidth - 2 * margin, height: titleHeight)
+        backgroundView.addSubview(title)
+
+        y -= 10 + bodyHeight
+        body.frame = NSRect(x: margin, y: y, width: windowWidth - 2 * margin, height: bodyHeight)
+        backgroundView.addSubview(body)
+
+        y -= 18 + 32
+        buttonRow(backgroundView, windowWidth, y, [T("Delete everything"), T("Cancel")], defaultIndex: 1,
+                  action: #selector(closeFreezeDialog(_:)))
+        NSApp.activate(ignoringOtherApps: true)
+        let result = NSApp.runModal(for: win)
+        win.orderOut(nil)
+        return result.rawValue == 0
+    }
+
+    /// Start the uninstaller in a session of its own.
+    ///
+    /// Its first act is to boot out this very job, and launchd takes the whole
+    /// job down, children included. A plain child would therefore die halfway
+    /// through and leave a Mac with no daemon and half the files still in place.
+    private func runUninstaller(purge: Bool) {
+        let script = base + "/uninstall.sh"
+        guard FileManager.default.isReadableFile(atPath: script) else {
+            FileHandle.standardError.write(
+                "uninstall.sh not found at \(script)\n".data(using: .utf8)!)
+            return
+        }
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
+        p.arguments = ["-c",
+                       "import os, subprocess, sys; os.setsid(); "
+                       + "subprocess.Popen(['/bin/bash'] + sys.argv[1:])",
+                       script]
+        if purge { p.arguments?.append("--purge") }
+        try? p.run()
+    }
+
     @objc func quit() {
         // Custom window, as with manual freeze: this is the most serious decision in
         // the menu, so the paladin stands centered instead of pinned to the left edge

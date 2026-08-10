@@ -37,7 +37,7 @@ import subprocess
 import sys
 import time
 
-GUARD_VERSION = "2.6.0"   # bump together with heatbar VERSION, thermal-report VERSION, README
+GUARD_VERSION = "2.6.1"   # bump together with heatbar VERSION, thermal-report VERSION, README
 
 HOME = os.path.expanduser("~")
 BASE = os.environ.get("TG_BASE") or os.path.join(HOME, ".coffee-paladin")
@@ -540,8 +540,8 @@ PL = {
         "PROMOTE %s (pid %d) -> z powrotem na rdzenie P (maszyna ostygla)",
     "Thermal guard: hot": "Thermal guard: goraco",
     "unknown argument: %s": "nieznany argument: %s",
-    "usage: coffee-paladin [--once | status | --version]   (no arguments = run the daemon)":
-        "uzycie: coffee-paladin [--once | status | --version]   (bez argumentow = uruchom demona)",
+    "usage: coffee-paladin [--once | status | --version | panel | bar icon-only|chip|full]   (no arguments = run the daemon)":
+        "uzycie: coffee-paladin [--once | status | --version | panel | bar icon-only|chip|full]   (bez argumentow = uruchom demona)",
     "Thermal guard: job slowed down": "Thermal guard: zadanie zwolnione",
     "%s moved to E-cores (up to several times slower) - returns to full speed when the machine cools":
         "%s zepchniete na rdzenie E (nawet kilka razy wolniej) - wroci na pelna predkosc, gdy maszyna ostygnie",
@@ -625,6 +625,18 @@ PL = {
         "ostatni puls jest %d dni przed startem systemu - zegar byl najpewniej zly (rozladowany RTC, skok NTP) albo dane pochodza z kopii zapasowej",
     "%.1f h passed between the last heartbeat and boot - the guard may have been killed long before the Mac actually went down":
         "miedzy ostatnim pulsem a startem systemu uplynelo %.1f h - bezpiecznik mogl zostac ubity dlugo przed tym, jak Mac naprawde zgasl",
+    'cannot ask the menu bar to open a window: %s':
+        'nie moge poprosic paska menu o otwarcie okna: %s',
+    'asked the menu bar to open the panel (it appears within a few seconds)':
+        'poprosilem pasek menu o otwarcie panelu (pojawi sie w ciagu kilku sekund)',
+    'the menu bar is not running, so there is nothing to open a window: launchctl kickstart -k gui/%d/pl.pawel.coffee-paladin-bar':
+        'pasek menu nie dziala, wiec nie ma komu otworzyc okna: launchctl kickstart -k gui/%d/pl.pawel.coffee-paladin-bar',
+    'usage: coffee-paladin bar [icon-only | chip | full]':
+        'uzycie: coffee-paladin bar [icon-only | chip | full]',
+    'cannot write the bar layout: %s':
+        'nie moge zapisac ukladu paska: %s',
+    'menu bar layout: %s':
+        'uklad paska menu: %s',
 }
 
 # Notifications and alerts for the remaining menu-bar languages (ru/zh/es). Translate what
@@ -690,7 +702,7 @@ RU = {
     "DEMOTED %s (pid %d) -> background QoS/E-cores (hot for >%d min)": "ПОНИЖЕНО %s (pid %d) -> фоновый QoS/E-ядра (жарко дольше %d мин)",
     "PROMOTED %s (pid %d) -> back on P-cores (machine cooled down)": "ПОВЫШЕНО %s (pid %d) -> обратно на P-ядра (машина остыла)",
     "unknown argument: %s": "неизвестный аргумент: %s",
-    "usage: coffee-paladin [--once | status | --version]   (no arguments = run the daemon)": "использование: coffee-paladin [--once | status | --version]   (без аргументов = запуск демона)",
+    "usage: coffee-paladin [--once | status | --version | panel | bar icon-only|chip|full]   (no arguments = run the daemon)": "использование: coffee-paladin [--once | status | --version | panel | bar icon-only|chip|full]   (без аргументов = запуск демона)",
     "!!! HARD SHUTDOWN DETECTED - ": "!!! ОБНАРУЖЕНО ЖЁСТКОЕ ОТКЛЮЧЕНИЕ - ",
     "manual freeze: there was nothing to freeze": "ручная заморозка: замораживать было нечего",
     "PAUSE >%d min - terminating job %s (pid %s)": "ПАУЗА >%d мин - завершаю задачу %s (pid %s)",
@@ -721,6 +733,18 @@ RU = {
         "последний пульс на %d дн. раньше загрузки - часы почти наверняка были неверны (севший RTC, скачок NTP) либо данные из резервной копии",
     "%.1f h passed between the last heartbeat and boot - the guard may have been killed long before the Mac actually went down":
         "между последним пульсом и загрузкой прошло %.1f ч - защита могла быть убита задолго до того, как Mac реально погас",
+    'cannot ask the menu bar to open a window: %s':
+        'не могу попросить строку меню открыть окно: %s',
+    'asked the menu bar to open the panel (it appears within a few seconds)':
+        'попросил строку меню открыть панель (появится через несколько секунд)',
+    'the menu bar is not running, so there is nothing to open a window: launchctl kickstart -k gui/%d/pl.pawel.coffee-paladin-bar':
+        'строка меню не работает, окно открывать некому: launchctl kickstart -k gui/%d/pl.pawel.coffee-paladin-bar',
+    'usage: coffee-paladin bar [icon-only | chip | full]':
+        'использование: coffee-paladin bar [icon-only | chip | full]',
+    'cannot write the bar layout: %s':
+        'не могу записать раскладку строки меню: %s',
+    'menu bar layout: %s':
+        'раскладка строки меню: %s',
 }
 
 ZH = {
@@ -781,7 +805,7 @@ ZH = {
     "DEMOTED %s (pid %d) -> background QoS/E-cores (hot for >%d min)": "已降级 %s (pid %d) -> 后台 QoS/能效核心(持续过热超过 %d 分钟)",
     "PROMOTED %s (pid %d) -> back on P-cores (machine cooled down)": "已恢复 %s (pid %d) -> 回到性能核心(机器已降温)",
     "unknown argument: %s": "未知参数:%s",
-    "usage: coffee-paladin [--once | status | --version]   (no arguments = run the daemon)": "用法:coffee-paladin [--once | status | --version]   (不带参数 = 运行守护进程)",
+    "usage: coffee-paladin [--once | status | --version | panel | bar icon-only|chip|full]   (no arguments = run the daemon)": "用法:coffee-paladin [--once | status | --version | panel | bar icon-only|chip|full]   (不带参数 = 运行守护进程)",
     "!!! HARD SHUTDOWN DETECTED - ": "!!! 检测到硬关机 - ",
     "manual freeze: there was nothing to freeze": "手动冻结:没有可冻结的进程",
     "PAUSE >%d min - terminating job %s (pid %s)": "暂停超过 %d 分钟 - 结束任务 %s (pid %s)",
@@ -812,6 +836,18 @@ ZH = {
         "最后一次心跳比开机早 %d 天 - 时钟很可能不正确(RTC 电池耗尽、NTP 跳变),或数据来自备份",
     "%.1f h passed between the last heartbeat and boot - the guard may have been killed long before the Mac actually went down":
         "最后一次心跳与开机之间相隔 %.1f 小时 - 守护可能在 Mac 真正断电之前很久就被杀掉了",
+    'cannot ask the menu bar to open a window: %s':
+        '无法请求菜单栏打开窗口：%s',
+    'asked the menu bar to open the panel (it appears within a few seconds)':
+        '已请求菜单栏打开面板（几秒内出现）',
+    'the menu bar is not running, so there is nothing to open a window: launchctl kickstart -k gui/%d/pl.pawel.coffee-paladin-bar':
+        '菜单栏没有运行，没有谁能打开窗口：launchctl kickstart -k gui/%d/pl.pawel.coffee-paladin-bar',
+    'usage: coffee-paladin bar [icon-only | chip | full]':
+        '用法:coffee-paladin bar [icon-only | chip | full]',
+    'cannot write the bar layout: %s':
+        '无法写入菜单栏布局：%s',
+    'menu bar layout: %s':
+        '菜单栏布局：%s',
 }
 
 ES = {
@@ -874,7 +910,7 @@ ES = {
     "DEMOTED %s (pid %d) -> background QoS/E-cores (hot for >%d min)": "DEGRADADO %s (pid %d) -> QoS de fondo/núcleos de eficiencia (caliente durante más de %d min)",
     "PROMOTED %s (pid %d) -> back on P-cores (machine cooled down)": "PROMOVIDO %s (pid %d) -> de vuelta a los núcleos de rendimiento (la máquina se enfrió)",
     "unknown argument: %s": "argumento desconocido: %s",
-    "usage: coffee-paladin [--once | status | --version]   (no arguments = run the daemon)": "uso: coffee-paladin [--once | status | --version]   (sin argumentos = ejecuta el demonio)",
+    "usage: coffee-paladin [--once | status | --version | panel | bar icon-only|chip|full]   (no arguments = run the daemon)": "uso: coffee-paladin [--once | status | --version | panel | bar icon-only|chip|full]   (sin argumentos = ejecuta el demonio)",
     "!!! HARD SHUTDOWN DETECTED - ": "!!! APAGADO BRUSCO DETECTADO - ",
     "manual freeze: there was nothing to freeze": "congelación manual: no había nada que congelar",
     "PAUSE >%d min - terminating job %s (pid %s)": "PAUSA de más de %d min - cierro la tarea %s (pid %s)",
@@ -905,6 +941,18 @@ ES = {
         "el último latido es %d días anterior al arranque - el reloj casi seguro estaba mal (RTC agotada, salto de NTP) o los datos vienen de una copia de seguridad",
     "%.1f h passed between the last heartbeat and boot - the guard may have been killed long before the Mac actually went down":
         "pasaron %.1f h entre el último latido y el arranque - el guardián pudo morir mucho antes de que el Mac se apagara de verdad",
+    'cannot ask the menu bar to open a window: %s':
+        'no puedo pedir a la barra de menus que abra una ventana: %s',
+    'asked the menu bar to open the panel (it appears within a few seconds)':
+        'he pedido a la barra de menus que abra el panel (aparece en unos segundos)',
+    'the menu bar is not running, so there is nothing to open a window: launchctl kickstart -k gui/%d/pl.pawel.coffee-paladin-bar':
+        'la barra de menus no esta funcionando, asi que no hay quien abra una ventana: launchctl kickstart -k gui/%d/pl.pawel.coffee-paladin-bar',
+    'usage: coffee-paladin bar [icon-only | chip | full]':
+        'uso: coffee-paladin bar [icon-only | chip | full]',
+    'cannot write the bar layout: %s':
+        'no puedo escribir la disposicion de la barra: %s',
+    'menu bar layout: %s':
+        'disposicion de la barra de menus: %s',
 }
 
 DICTS = {"pl": PL, "ru": RU, "zh": ZH, "es": ES}
@@ -3336,6 +3384,21 @@ def acquire_exclusive():
     return f
 
 
+def bar_alive():
+    """Is the menu bar agent loaded AND running? A dash for the pid means loaded only."""
+    try:
+        out = subprocess.run(["launchctl", "list"], capture_output=True, text=True,
+                             timeout=10).stdout
+    except (OSError, subprocess.SubprocessError):
+        return False
+    for line in out.splitlines():
+        parts = line.split()
+        if len(parts) >= 3 and parts[2] == "pl.pawel.coffee-paladin-bar" and parts[0] != "-":
+            return True
+    return False
+
+
+
 def main():
     # An install updated by git reset without --version forced guessing what is installed.
     # git describe works only in a clone. Check this before the exclusivity lock so it works
@@ -3346,7 +3409,14 @@ def main():
     ensure_dirs()
     # Exclusivity applies ONLY to the daemon. `--once` and `status` are one-shot reads and
     # must always work, including while the daemon is running. Humans and tests use them.
-    one_shot = ("--once" in sys.argv) or ("status" in sys.argv)
+    # `panel` and `bar` are one-shot too. They were not, and the rescue command
+    # for a bar nobody can see failed with "another daemon is already running"
+    # on every machine where the daemon was working - that is, on every machine
+    # where it matters.
+    # ANY argument means a person is asking a question, not launching a second
+    # daemon. Anything else and an unknown argument answers "another daemon is
+    # already running", which is both wrong and impossible to act on.
+    one_shot = len(sys.argv) > 1
     _lock = None if one_shot else acquire_exclusive()
     # False means the lock file could not be opened (directory, no permission). Start
     # anyway: lack of exclusivity is bad, but lack of PROTECTION is worse. None means
@@ -3360,14 +3430,88 @@ def main():
 
     # `coffee-paladin status` was a trap: exit code 0 with no output looked successful. It
     # is now an alias for --once, and every unknown argument prints what is supported.
-    known = {"--once", "status", "--version"}
-    unknown_args = [a for a in sys.argv[1:] if a not in known]
+    known = {"--once", "status", "--version", "panel", "bar"}
+    # `bar` takes a value, so it is the one form that is two words long. Checking
+    # it here keeps the preset name out of the set of standalone commands, where
+    # a bare `coffee-paladin chip` would have been accepted.
+    bar_form = sys.argv[1:2] == ["bar"] and len(sys.argv) == 3
+    unknown_args = [] if bar_form else [a for a in sys.argv[1:] if a not in known]
     if unknown_args:
         print(T("unknown argument: %s") % " ".join(unknown_args), file=sys.stderr)
-        print(T("usage: coffee-paladin [--once | status | --version]   (no arguments = run the daemon)"),
+        print(T("usage: coffee-paladin [--once | status | --version | panel | bar icon-only|chip|full]   (no arguments = run the daemon)"),
               file=sys.stderr)
         return 2
 
+    # A status item that does not fit in the menu bar is not drawn at all, and
+    # macOS offers no way to ask whether that happened. On a 14-inch Mac with a
+    # notch and a few other apps this leaves a running program with no way in.
+    # The bar already watches for this file, so one command opens a window
+    # without touching the menu bar at all.
+    # One command for the one failure nobody can see: on a Mac with a notch the
+    # full readout does not fit, and macOS then draws no status item at all. The
+    # menu has the same three presets, but a person who cannot see the icon
+    # cannot open the menu either.
+    if "bar" in sys.argv:
+        # Exactly two words, in order. A loose parser accepted `--once bar chip`
+        # and `bar chip panel`, where the intent is anybody's guess.
+        if sys.argv[1:2] != ["bar"] or len(sys.argv) != 3 or sys.argv[2] not in ("icon-only", "chip", "full"):
+            print(T("usage: coffee-paladin bar [icon-only | chip | full]"), file=sys.stderr)
+            return 2
+        wanted = [sys.argv[2]]
+        keys = ("chip", "gpu", "battery", "fans", "watts", "ram", "disk",
+                "throttle", "paused", "flame", "awakeLeft")
+        if wanted[0] == "full":
+            show = {k: True for k in keys}
+        elif wanted[0] == "chip":
+            show = {k: (k == "chip") for k in keys}
+        else:
+            show = {k: False for k in keys}
+        path = os.path.join(BASE, "heatbar.json")
+        # O_EXCL on a name of our own: a fixed ".tmp" is a target somebody can
+        # point at another file. fsync before the rename, or a crash can leave
+        # the layout empty and the bar with nothing to read.
+        tmp = "%s.%d.tmp" % (path, os.getpid())
+        try:
+            fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            with os.fdopen(fd, "w") as f:
+                json.dump({"show": show}, f, indent=2)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp, path)
+        except (IOError, OSError) as e:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+            print(T("cannot write the bar layout: %s") % e, file=sys.stderr)
+            return 1
+        # The bar reads its preferences once, at startup. Restart it ONLY when
+        # this is the real data directory: under TG_BASE (tests, a sandbox) the
+        # agent belongs to somebody else's session and must not be touched.
+        if BASE == os.path.join(HOME, ".coffee-paladin"):
+            subprocess.run(["launchctl", "kickstart", "-k",
+                            "gui/%d/pl.pawel.coffee-paladin-bar" % os.getuid()],
+                           capture_output=True)
+        print(T("menu bar layout: %s") % wanted[0])
+        return 0
+
+    if "panel" in sys.argv:
+        # Only the menu bar can open windows. Writing the signal for a bar that
+        # is not running would promise a window that never comes and leave the
+        # file behind to fire at the next login.
+        if not bar_alive():
+            print(T("the menu bar is not running, so there is nothing to open a window: "
+                    "launchctl kickstart -k gui/%d/pl.pawel.coffee-paladin-bar") % os.getuid(),
+                  file=sys.stderr)
+            return 1
+        try:
+            with open(os.path.join(BASE, "show_window"), "w") as f:
+                f.write("panel")
+        except (IOError, OSError) as e:
+            print(T("cannot ask the menu bar to open a window: %s") % e, file=sys.stderr)
+            return 1
+        print(T("asked the menu bar to open the panel (it appears within a few seconds)"))
+        return 0
     if "--once" in sys.argv or "status" in sys.argv:
         (state, temp, speed, load, targets, lvl, why,
          soc, soc_t, ac, pct, _saferun_normal, _pokaz, _demote_only) = snapshot(cfg)
