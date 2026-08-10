@@ -1,4 +1,4 @@
-# coffee-paladin v2.5.3
+# coffee-paladin v2.5.4
 
 <p align="center">
   <img src="branding/paladin.gif" alt="coffee-paladin - the project mascot" width="260">
@@ -827,7 +827,10 @@ limiting the CPU and a pause marker when something is frozen. a fan reading of 0
 hot; a RAM warning means memory is 62 % used **and** the machine has started swapping.
 
 Everything on the bar is optional - **Show in the bar** gives you a checkbox per element and the
-choice is remembered in `~/.coffee-paladin/heatbar.json`. RAM and disk are off by default.
+choice is remembered in `~/.coffee-paladin/heatbar.json`. A new install shows the chip temperature
+alone, because on a Mac with a notch the full readout does not fit and macOS then draws nothing at
+all; add what you want back one checkbox at a time. The markers stay on: they are invisible until
+something happens. An upgrade keeps the layout you already had.
 The language switch (EN · PL · RU · 中文 · ES) sits as a row of buttons right on the main menu,
 **About my Mac** shows the detected hardware, and **Start at login** toggles autostart of both
 agents (on by default).
@@ -1519,8 +1522,9 @@ nie wstrzymuje, dopóki sam nie włączysz ochrony - jednym kliknięciem w pasku
   kolejka przeżywa restart demona, `heat` pokazuje czekających, `fleet` ma kolumnę Q;
   arbiter tylko opóźnia starty - nigdy niczego nie pauzuje ani nie ubija, a przy
   własnym błędzie wpuszcza wszystkich
-- `heatbar` - pasek menu: chip, GPU, bateria, obroty, waty, RAM i dysk (wybierasz checkboxami
-  w „Pokaż na pasku"), wykres, prognoza, listy „co grzeje" (top 3 po CPU - najlepsze dostępne
+- `heatbar` - pasek menu: świeża instalacja pokazuje sam chip, bo na Macu z notchem pełny
+  odczyt się nie mieści i macOS nie rysuje wtedy nic; GPU, baterię, obroty, waty, RAM i dysk
+  dokładasz checkboxami w „Pokaż na pasku", wykres, prognoza, listy „co grzeje" (top 3 po CPU - najlepsze dostępne
   przybliżenie ciepła per proces) i „co zjada RAM" (top 3 po pamięci), ręczne zamrażanie,
   eksport raportu oraz **Flota Apple** - wszystkie Twoje Maki z parametrami, własnymi nazwami
   (Ustawienia > „Nazwij tego Maca we flocie" - przy pięciu identycznych MacBookach nazwa

@@ -1,6 +1,6 @@
 """Check cross-file contracts that tend to drift during changes.
 
-Eight categories, each from a real failure:
+Nine categories, each from a real failure:
   1. string passed to T() without a dictionary entry -> English text in non-English UI;
   2. version must match in five places: guard, thermal-report, heatbar, plugin.json, README;
   3. tool without --help: `thermal-report --help` generated a report on Desktop;
@@ -8,7 +8,8 @@ Eight categories, each from a real failure:
   5. guard logs a tag unknown to parsers -> evidence report loses events;
   6. guard.py and thermal-report copies of generations() must not drift;
   7. timestamp parsers in four tools must return the same result;
-  8. .app bundle must be created and removed symmetrically without touching /Applications.
+  8. .app bundle must be created and removed symmetrically without touching /Applications;
+  9. a new bar default must not take readouts away from an existing install.
 
 Run with:  python3 tests/test_spojnosc.py
 Does not touch the real ~/.coffee-paladin.
@@ -191,7 +192,37 @@ try:
 except Exception as _e:
     errors.append("cannot compare timestamp parser: %s: %s" % (type(_e).__name__, _e))
 
-print("CHECKS: 8 categories")
+# 9. The upgrade path writes the previous bar layout into heatbar.json so a new
+#    default does not silently take readouts away from an existing user. That file
+#    has to list EVERY Item the bar knows, or the next new readout appears on the
+#    bars of people who were supposed to keep exactly what they had.
+try:
+    _bar_source = io.open(os.path.join(SRC, 'heatbar.swift'), encoding='utf-8').read()
+    # Read the WHOLE enum body, not its first line: cases may be split across lines,
+    # and a case the test cannot see is exactly the one that would be forgotten.
+    _body = re.search(r'enum Item: String, CaseIterable \{(.*?)\n\s*var label',
+                      _bar_source, re.S).group(1)
+    _items = {c.strip() for line in re.findall(r'^\s*case ([^\n]+)$', _body, re.M)
+              for c in line.split(',')}
+    _installer = io.open(os.path.join(SRC, 'install.sh'), encoding='utf-8').read()
+    _block = re.search(r'cat > "\$BASE/heatbar\.json" <<\'JSON\'\n(.*?)\nJSON', _installer, re.S)
+    # The migration belongs to the upgrade branch and must never overwrite choices
+    # the user already made, so the guard around it is part of the contract.
+    if _block and 'if [ ! -f "$BASE/heatbar.json" ]; then' not in _installer:
+        errors.append("install.sh writes heatbar.json without checking that it is absent")
+    if not _block:
+        errors.append("install.sh no longer writes heatbar.json - upgrades will silently change the bar")
+    else:
+        _kept = json.loads(_block.group(1))["show"]
+        if set(_kept) != _items:
+            errors.append("install.sh heatbar.json migration covers %s, the bar knows %s"
+                         % (sorted(_kept), sorted(_items)))
+        elif not all(_kept.values()):
+            errors.append("the upgrade migration must keep every readout on: %s" % _kept)
+except Exception as _e:
+    errors.append("cannot compare the bar layout migration: %s: %s" % (type(_e).__name__, _e))
+
+print("CHECKS: 9 categories")
 if errors:
     for b in errors: print("  ERROR: %s" % b)
     sys.exit(1)
