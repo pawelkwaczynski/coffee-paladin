@@ -285,6 +285,23 @@ JSON
   echo "      Enable protection in the menu bar (🌡 > one click) or: dry_run=false in config.json"
 else
   echo "  ℹ️  config.json already exists - leaving it alone"
+  # An existing install kept every readout on the bar, because that used to be the
+  # default. The default is now the chip alone, so without this the upgrade would
+  # quietly take GPU, battery, fans, watts, RAM and disk away from someone who
+  # never asked for that. Write the old set down explicitly, once, and only when
+  # the user has no preferences of their own yet.
+  if [ ! -f "$BASE/heatbar.json" ]; then
+    cat > "$BASE/heatbar.json" <<'JSON'
+{
+  "show": {
+    "chip": true, "gpu": true, "battery": true, "fans": true, "watts": true,
+    "ram": true, "disk": true, "throttle": true, "paused": true,
+    "flame": true, "awakeLeft": true
+  }
+}
+JSON
+    echo "  ℹ️  bar layout kept as it was (a new install now starts with the chip alone)"
+  fi
 fi
 
 # 3b. branding: header/footer logos + the paladin (welcome window, menu icon).

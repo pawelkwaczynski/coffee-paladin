@@ -16,7 +16,7 @@
 
 import Cocoa
 
-let VERSION = "2.5.3"
+let VERSION = "2.5.4"
 let APPNAME = "coffee-paladin"
 let CODENAME = "Ristretto"
 let SIGNATURE = "\(APPNAME) v\(VERSION) \u{201E}\(CODENAME)\u{201D}  ·  by panbookovsky"
@@ -1926,8 +1926,20 @@ enum Item: String, CaseIterable {
         }
     }
 
-    /// Default to showing EVERYTHING; users can uncheck what they do not want.
-    var byDefault: Bool { true }
+    /// A fresh bar shows the chip temperature and nothing else that costs width.
+    /// Every MacBook Pro since 2021 has a notch, and the space left of it is small:
+    /// a full readout (chip, GPU, battery, fans, watts, RAM, disk) runs to about
+    /// thirty characters, and macOS does not draw a status item that does not fit.
+    /// It appears at login, then vanishes as the other menu extras load, which
+    /// reads as a broken app (field report: 14-inch M1 Pro, the item was attached
+    /// and reported visible the whole time). The markers stay on because they are
+    /// silent until something happens, and when it happens the user must see it.
+    var byDefault: Bool {
+        switch self {
+        case .chip, .throttle, .paused, .flame, .awakeLeft: return true
+        case .gpu, .battery, .fans, .watts, .ram, .disk: return false
+        }
+    }
 }
 
 final class Prefs {
