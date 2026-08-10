@@ -2,7 +2,7 @@
 
 Eight categories, each from a real failure:
   1. string passed to T() without a dictionary entry -> English text in non-English UI;
-  2. version must match in four places: guard, thermal-report, heatbar, plugin.json;
+  2. version must match in five places: guard, thermal-report, heatbar, plugin.json, README;
   3. tool without --help: `thermal-report --help` generated a report on Desktop;
   4. install.sh creates something uninstall.sh does not remove: skill, symlinks, fleet snapshot;
   5. guard logs a tag unknown to parsers -> evidence report loses events;
@@ -60,12 +60,16 @@ for file_path in ("guard.py", "thermal-report", "fleet", "heat", "safe-run"):
                          % (file_path, name, len(missing), missing[0][:60]))
 source = io.open(os.path.join(SRC, 'guard.py'), encoding='utf-8').read()
 
-# 2. Version is the same in all four places.
+# 2. Version is the same in all five places. The README title is one of them:
+# it is the version a person reads before installing, and it drifted once while
+# the four machine-readable copies stayed in step.
 versions = {}
 versions['guard.py'] = re.search(r'^GUARD_VERSION = "([^"]+)"', source, re.M).group(1)
 versions['thermal-report'] = re.search(r'^VERSION = "([^"]+)"', io.open(os.path.join(SRC,'thermal-report')).read(), re.M).group(1)
 versions['heatbar.swift'] = re.search(r'let VERSION = "([^"]+)"', io.open(os.path.join(SRC,'heatbar.swift')).read()).group(1)
 versions['plugin.json'] = json.load(open(os.path.join(SRC,'.claude-plugin/plugin.json')))['version']
+readme_title = re.search(r'^# coffee-paladin v([0-9.]+)', io.open(os.path.join(SRC,'README.md'), encoding='utf-8').read(), re.M)
+versions['README.md'] = readme_title.group(1) if readme_title else 'no version in the title'
 if len(set(versions.values())) != 1:
     errors.append("versions differ: %s" % versions)
 
