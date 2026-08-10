@@ -374,13 +374,26 @@ if [ -x "$BAR_EXEC" ] && [ -f "$SRC/pl.pawel.coffee-paladin-bar.plist" ]; then
   has_pid "pl.pawel.coffee-paladin-bar" \
     && { echo "  ✅ menu bar is running - look for the THERMOMETER with temperatures in the top-right corner (the shield is only the Finder icon)"; \
          echo "     cannot see it? A menu bar with a notch may have no room, and macOS then draws nothing:"; \
-         echo "       coffee-paladin bar icon-only     (shrinks it to a single icon)"; } \
+         echo "       $BIN/coffee-paladin bar icon-only     (shrinks it to a single icon)"; } \
     || echo "  ⚠️  menu bar did not start - check $BASE/heatbar.err and: launchctl kickstart gui/$UID/pl.pawel.coffee-paladin-bar"
 fi
 
 echo
-echo "Check the state now:   heat"
-echo "Run heavy jobs with:   safe-run -- <command>"
+# Every hint below is a command someone will copy. If $BIN is not on their PATH
+# the bare name fails, and the failure looks like a broken install rather than a
+# missing directory - so print the full path exactly when it is needed, and say
+# once how to stop needing it.
+case ":$PATH:" in
+  *":$BIN:"*) P="" ;;
+  *)          P="$BIN/" ;;
+esac
+echo "Check the state now:   ${P}heat"
+echo "Run heavy jobs with:   ${P}safe-run -- <command>"
 echo "Disable the menu bar:  launchctl bootout gui/$UID/pl.pawel.coffee-paladin-bar"
-echo "Fleet (several Macs):  fleet --setup"
-echo "Uninstall:             bash uninstall.sh"
+echo "Fleet (several Macs):  ${P}fleet --setup"
+echo "Uninstall:             bash $BASE/uninstall.sh"
+if [ -n "$P" ]; then
+  echo ""
+  echo "  ℹ️  $BIN is not on your PATH, hence the full paths above. To use short names:"
+  echo "       echo 'export PATH=\"$BIN:\$PATH\"' >> ~/.zshrc && exec zsh"
+fi

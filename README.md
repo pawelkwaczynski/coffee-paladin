@@ -1,4 +1,4 @@
-# coffee-paladin v2.6.2
+# coffee-paladin v2.6.3
 
 <p align="center">
   <img src="branding/paladin.gif" alt="coffee-paladin - the project mascot" width="260">
@@ -708,6 +708,10 @@ and [Homebrew](https://brew.sh) so the installer can fetch `macmon`.
 brew install pawelkwaczynski/tap/coffee-paladin
 bash "$(brew --prefix)/share/coffee-paladin/install.sh"
 ```
+
+If your Mac was set up by Migration Assistant from an Intel one, it may carry the Intel Homebrew
+in `/usr/local` as well, and a bare `brew` can still resolve to it - it cannot write there and
+does not know this tap. Then use full paths: `/opt/homebrew/bin/brew install ...`. See the FAQ.
 
 **From source:**
 
@@ -1525,6 +1529,10 @@ o hasło administratora i nie powinien iść przez cudzy skrypt.
 brew install pawelkwaczynski/tap/coffee-paladin
 bash "$(brew --prefix)/share/coffee-paladin/install.sh"
 ```
+
+Jeśli Mac był stawiany Asystentem migracji z Intela, może mieć w `/usr/local` drugiego,
+Intelowego Homebrew, a gołe `brew` potrafi trafiać właśnie tam - nie ma prawa zapisu i nie zna
+tego tapa. Wtedy pełne ścieżki: `/opt/homebrew/bin/brew install ...`. Szczegóły w FAQ.
 
 **Ze źródeł:**
 

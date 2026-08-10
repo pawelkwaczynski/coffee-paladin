@@ -222,6 +222,35 @@ held2.close()
 check("30. the installer says the command at the moment it matters",
       "coffee-paladin bar icon-only" in installer)
 
+# A hint is a command somebody will copy. ~/.local/bin is not on the PATH of a
+# fresh macOS account, and a bare name then fails in a way that looks like a
+# broken install: the report from the field was two errors in a row, neither of
+# them about the actual problem.
+check("31. every command the installer prints survives an empty PATH",
+      'case ":$PATH:" in' in installer
+      and '"Check the state now:   ${P}heat"' in installer
+      and '"Run heavy jobs with:   ${P}safe-run' in installer
+      and '"Fleet (several Macs):  ${P}fleet' in installer
+      and '$BIN/coffee-paladin bar icon-only' in installer)
+check("32. and it says once how to stop needing the full path",
+      "is not on your PATH" in installer and "export PATH" in installer)
+check("33. uninstall is offered from the copy that always exists",
+      'bash $BASE/uninstall.sh' in installer)
+
+# The same trap one level up: the hint for a bar nobody can see must not need a
+# PATH entry to work, because that person is already in trouble.
+for shell_path in ("/usr/bin:/bin", os.path.expanduser("~/.local/bin") + ":/usr/bin:/bin"):
+    probe = subprocess.run(
+        ["/bin/bash", "-c",
+         'BIN="$HOME/.local/bin"; case ":$PATH:" in *":$BIN:"*) P="" ;; *) P="$BIN/" ;; esac; '
+         'echo "${P}heat"'],
+        capture_output=True, text=True, env=dict(os.environ, PATH=shell_path))
+    printed = probe.stdout.strip()
+    expected_full = not shell_path.startswith(os.path.expanduser("~/.local/bin"))
+    check("34. with PATH=%s the hint is %s" % (shell_path.split(":")[0],
+                                               "a full path" if expected_full else "a short name"),
+          printed.startswith("/") == expected_full, printed)
+
 print("=" * 78)
 print("E. THE UNINSTALLER'S OWN PROMISES")
 print("=" * 78)
