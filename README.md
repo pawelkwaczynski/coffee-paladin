@@ -1,4 +1,4 @@
-# coffee-paladin v2.5.4
+# coffee-paladin v2.6.0
 
 <p align="center">
   <img src="branding/paladin.gif" alt="coffee-paladin - the project mascot" width="260">
@@ -753,6 +753,31 @@ Make sure `~/.local/bin` is on your `PATH`.
 ```
 
 Plus what is currently burning CPU, the 24-hour peak, and the guard's recent interventions.
+
+### `heat --profile` - what THIS Mac does, read from its own history
+
+Thresholds ship as one number for every Mac, and no single number fits a fanless Air and a
+14-inch Pro at once. This reads the measurements the guard has been writing all along and says
+where your machine's own limits are: the temperature it idles at, the plateau it settles on
+under sustained load, the temperature that starts the fans, and whether macOS ever had to hold
+the CPU back.
+
+```
+THERMAL PROFILE OF THIS MAC
+   data: 3425 samples on 13 days with measurements (2026-07-29 ... 2026-08-10)
+   idle:             42.9 °C   (median of 783 samples, 90% below 52.4 °C)
+   under load:       95.7 °C   (plateau of 2413 samples, median 90.5 °C, peak 101.8 °C)
+   fans spin up at:  79.5 °C
+   throttling:      never seen - macOS did not have to hold the CPU back
+```
+
+If the numbers say your thresholds do not fit the machine, it says so and prints the ones that
+would. **It never writes anything.** The advice has rails, each from a way this could hurt
+someone: the kill threshold is never raised, a suggested pause keeps its distance from it, the
+resume threshold never lands inside the band the machine idles in (a job would pause and never
+come back), thin data produces no advice at all, and a Mac that has already touched the kill
+threshold or that macOS was already throttling is never given a wider margin. Add `--json` for
+the same as data.
 
 ### `safe-run` - the right way to start a heavy job
 
@@ -1509,7 +1534,10 @@ poddawać kwarantannie i nie zobaczysz ostrzeżenia o „niezidentyfikowanym dew
 nie wstrzymuje, dopóki sam nie włączysz ochrony - jednym kliknięciem w pasku menu albo przez
 `"dry_run": false` w konfiguracji.
 
-- `heat` - jednym poleceniem: jak gorąco, co grzeje, czy bezpiecznik żyje
+- `heat` - jednym poleceniem: jak gorąco, co grzeje, czy bezpiecznik żyje;
+  `heat --profile` czyta historię pomiarów tego Maca i mówi, gdzie leżą JEGO granice
+  (temperatura spoczynkowa, plateau pod obciążeniem, przy czym ruszają wentylatory,
+  czy macOS musiał dławić CPU) plus ocenę, czy progi pasują - niczego nie zapisuje
 - `safe-run --hours 8 --name render -- <polecenie>` - tak uruchamiaj ciężkie zadania;
   od v2.4.0 też `--wait-cool` (na gorącym Macu poczekaj do progu wznowienia i startuj,
   zamiast wychodzić kodem 3), `--grace N` (sekundy między SIGTERM a SIGKILL, domyślnie 30)
