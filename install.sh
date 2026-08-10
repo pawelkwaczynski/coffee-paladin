@@ -172,14 +172,33 @@ fi
 # late. IOHIDEventSystem sensors are blocked on macOS 26 for unprivileged
 # processes - IOReport (macmon) still works. Without macmon the guard does not
 # fail, it only loses chip thresholds and fan readings.
-# PATH is not the truth here: with a fresh ARM brew the user's shell often still
-# lacks /opt/homebrew/bin, and this check used to warn about a macmon that WAS
-# installed seconds earlier as a brew dependency.
-if command -v macmon >/dev/null 2>&1 || [ -x /opt/homebrew/bin/macmon ] || [ -x /usr/local/bin/macmon ]; then
+# The installer's own PATH is not the truth here, in either direction: with a
+# fresh ARM brew the user's shell often still lacks /opt/homebrew/bin (so a
+# macmon installed seconds earlier as a dependency looked missing), while a copy
+# under /usr/local/bin from an Intel Homebrew looks present to the shell and
+# stays invisible to the daemon. Only these locations count, because they are
+# the ones the daemon searches: /opt/homebrew/bin plus the PATH in its plist.
+macmon_visible_to_daemon() {
+  for candidate in /opt/homebrew/bin/macmon "$HOME/.local/bin/macmon" \
+                   /usr/bin/macmon /bin/macmon /usr/sbin/macmon /sbin/macmon; do
+    [ -x "$candidate" ] && return 0
+  done
+  return 1
+}
+
+if macmon_visible_to_daemon; then
   echo "  ℹ️  macmon already installed"
 elif command -v brew >/dev/null 2>&1; then
-  brew install macmon >/dev/null 2>&1 && echo "  ✅ macmon installed (chip temperature + fans)" \
-    || echo "  ⚠️  could not install macmon - the guard will use battery temperature only"
+  # An Intel Homebrew installs into /usr/local, which the daemon never reads, so
+  # a successful install is not yet a working sensor: confirm the file landed
+  # somewhere the daemon looks before claiming the chip is being watched.
+  if ! brew install macmon >/dev/null 2>&1; then
+    echo "  ⚠️  could not install macmon - the guard will use battery temperature only"
+  elif macmon_visible_to_daemon; then
+    echo "  ✅ macmon installed (chip temperature + fans)"
+  else
+    echo "  ⚠️  macmon went to a prefix the daemon does not read (it reads /opt/homebrew/bin/macmon), most likely an Intel Homebrew under /usr/local - the guard will use battery temperature only"
+  fi
 else
   echo "  ⚠️  no brew and no macmon - the guard will use battery temperature only"
 fi
