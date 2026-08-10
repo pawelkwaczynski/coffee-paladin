@@ -7,6 +7,10 @@ Usage:
   heat --json       the same as JSON: own measurements plus the guard's snapshot
   heat --stuck      processes stopped in state T, and who stopped them
                     (a guard pause resumes by itself; the SIGTTIN trap does not)
+  heat --profile    what THIS Mac does thermally, read from its own history:
+                    idle band, working plateau, when the fans spin up, and
+                    whether the thresholds fit. Reports only, changes nothing.
+                    Add --json for the same as data.
   heat --help       this text
 
 Language: TG_LANG=en|pl, or "lang" in ~/.coffee-paladin/config.json. Default: en.
@@ -108,6 +112,58 @@ PL = {
     "   ⏸  %s (pid %s, %s) - paused by coffee-paladin, resumes by itself": "   ⏸  %s (pid %s, %s) - pauza coffee-paladin, wznowi sie sam",
     "   ⚠️  %s (pid %s, %s) - stopped by something else": "   ⚠️  %s (pid %s, %s) - zatrzymany przez cos innego",
     "\nA process stopped by something else is usually the SIGTTIN trap: a background\njob touched the terminal and the kernel stopped it. Nothing will resume it.\nBring it to the foreground (fg) or resume it: kill -CONT <pid>": "\nProces zatrzymany przez cos innego to zwykle pulapka SIGTTIN: zadanie w tle\ndotknelo terminala i jadro je zatrzymalo. Nikt go nie wznowi.\nPrzenies je na pierwszy plan (fg) albo wznow: kill -CONT <pid>",
+    'THERMAL PROFILE OF THIS MAC':
+        'PROFIL TERMICZNY TEGO MACA',
+    '   data: %d samples on %d days with measurements (%s ... %s)':
+        '   dane: %d probek z %.1f dni (%s ... %s)',
+    '   too little to judge yet - the profile needs at least %d samples on %d days':
+        '   za malo, zeby cokolwiek orzec - profil potrzebuje co najmniej %d probek z %.1f dni',
+    '   idle:            %5.1f °C   (median of %d samples, 90%% below %.1f °C)':
+        '   bezczynnie:      %5.1f °C   (mediana z %d probek, 90%% ponizej %.1f °C)',
+    '   under load:      %5.1f °C   (plateau of %d samples, median %.1f °C, peak %.1f °C)':
+        '   pod obciazeniem: %5.1f °C   (plateau z %d probek, mediana %.1f °C, szczyt %.1f °C)',
+    '   under load:      no heavy work in this history, so there is no plateau to read':
+        '   pod obciazeniem: w tej historii nie bylo ciezkiej pracy, wiec nie ma z czego czytac plateau',
+    '   fans spin up at: %5.1f °C':
+        '   wentylatory od:  %5.1f °C',
+    '   fans:            none on this Mac - it can only cool down by slowing down':
+        '   wentylatory:     brak w tym Macu - moze stygnac tylko zwalniajac',
+    '   throttling from: %5.1f °C   (%d samples with the CPU held back)':
+        '   dlawienie od:    %5.1f °C   (%d probek z przyhamowanym CPU)',
+    '   throttling:      never seen - macOS did not have to hold the CPU back':
+        '   dlawienie:       nie wystapilo - macOS nie musial przyhamowac CPU',
+    '\nADVICE (nothing is changed - this only reads and reports)':
+        '\nRADA (nic nie jest zmieniane - to tylko czyta i melduje)',
+    '   your thresholds fit what this machine does. Nothing to change.':
+        '   twoje progi pasuja do tego, co ta maszyna robi. Nie ma co zmieniac.',
+    '   the plateau sits at or above the pause threshold, so the guard stops your work during ordinary heavy use. The CPU was never throttled at that temperature, which means the machine was coping.':
+        '   plateau siedzi na progu pauzy albo powyzej, wiec straznik przerywa ci zwykla ciezka prace. CPU nie bylo w tej temperaturze ani razu dlawione, czyli maszyna sobie radzila.',
+    '   the plateau reaches the pause threshold AND macOS was already holding the CPU back. Raising the threshold would buy speed with heat. Leave it.':
+        '   plateau siega progu pauzy, A macOS juz przyhamowywal CPU. Podniesienie progu kupiloby predkosc za cieplo. Zostaw.',
+    '   the plateau reaches the pause threshold and there is no room left below the kill threshold. Leave it, or lower how many cores heavy jobs get.':
+        '   plateau siega progu pauzy, a pod progiem ubicia nie ma juz miejsca. Zostaw albo zmniejsz liczbe rdzeni dla ciezkich zadan.',
+    '   this Mac has no fans and stays far below the pause threshold, so the guard reacts late: the chip climbs a long way before anything happens.':
+        '   ten Mac nie ma wentylatorow i trzyma sie daleko pod progiem pauzy, wiec straznik reaguje pozno: chip idzie dlugo w gore, zanim cokolwiek sie stanie.',
+    '   pause  %5.1f °C  (now %.1f)':
+        '   pauza  %5.1f °C  (teraz %.1f)',
+    '   resume %5.1f °C  (now %.1f)':
+        '   wznow. %5.1f °C  (teraz %.1f)',
+    '   kill   %5.1f °C  (unchanged - advice never raises the last line)':
+        '   ubicie %5.1f °C  (bez zmian - rada nigdy nie podnosi ostatniej linii)',
+    '   To use them, edit soc_pause_c and soc_resume_c in ~/.coffee-paladin/config.json.':
+        '   Zeby ich uzyc, zmien soc_pause_c i soc_resume_c w ~/.coffee-paladin/config.json.',
+    'No history yet: ~/.coffee-paladin/history.csv is empty or missing.':
+        'Nie ma jeszcze historii: ~/.coffee-paladin/history.csv jest pusty albo go nie ma.',
+    '   data: %d samples on %d days with measurements (%s ... %s)':
+        '   dane: %d probek z %d dni z pomiarami (%s ... %s)',
+    '   too little to judge yet - the profile needs at least %d samples on %d days':
+        '   za malo, zeby cokolwiek orzec - profil potrzebuje co najmniej %d probek z %d dni',
+    '   this Mac has already reached the kill threshold at least once, so there is no spare margin to hand out here. Keep the thresholds and give heavy jobs fewer cores instead.':
+        '   ten Mac siegnal juz progu ubicia co najmniej raz, wiec nie ma tu zapasu do rozdania. Zostaw progi, a ciezkim zadaniom daj mniej rdzeni.',
+    '   throttling:      cannot tell - %d busy samples carry no CPU limit reading':
+        '   dlawienie:       nie wiadomo - %d probek pod obciazeniem nie ma odczytu limitu CPU',
+    '   the plateau reaches the pause threshold, and this history does not say whether macOS was holding the CPU back. Unknown is not the same as fine, so nothing is advised here.':
+        '   plateau siega progu pauzy, a ta historia nie mowi, czy macOS przyhamowywal CPU. Nie wiadomo to nie to samo co w porzadku, wiec nic tu nie doradzam.',
 }
 
 RU = {
@@ -142,6 +198,58 @@ RU = {
     "   ⏸  %s (pid %s, %s) - paused by coffee-paladin, resumes by itself": "   ⏸  %s (pid %s, %s) - пауза coffee-paladin, возобновится сам",
     "   ⚠️  %s (pid %s, %s) - stopped by something else": "   ⚠️  %s (pid %s, %s) - остановлен чем-то другим",
     "\nA process stopped by something else is usually the SIGTTIN trap: a background\njob touched the terminal and the kernel stopped it. Nothing will resume it.\nBring it to the foreground (fg) or resume it: kill -CONT <pid>": "\nПроцесс, остановленный чем-то другим, - обычно ловушка SIGTTIN: фоновая задача\nобратилась к терминалу, и ядро её остановило. Сама она не продолжится.\nВерните её на передний план (fg) или возобновите: kill -CONT <pid>",
+    'THERMAL PROFILE OF THIS MAC':
+        'ТЕПЛОВОЙ ПРОФИЛЬ ЭТОГО MAC',
+    '   data: %d samples on %d days with measurements (%s ... %s)':
+        '   данные: %d замеров за %.1f дней (%s ... %s)',
+    '   too little to judge yet - the profile needs at least %d samples on %d days':
+        '   пока слишком мало для выводов - профилю нужно минимум %d замеров за %.1f дней',
+    '   idle:            %5.1f °C   (median of %d samples, 90%% below %.1f °C)':
+        '   в покое:         %5.1f °C   (медиана из %d замеров, 90%% ниже %.1f °C)',
+    '   under load:      %5.1f °C   (plateau of %d samples, median %.1f °C, peak %.1f °C)':
+        '   под нагрузкой:   %5.1f °C   (плато по %d замерам, медиана %.1f °C, пик %.1f °C)',
+    '   under load:      no heavy work in this history, so there is no plateau to read':
+        '   под нагрузкой:   в этой истории не было тяжелой работы, плато читать не из чего',
+    '   fans spin up at: %5.1f °C':
+        '   вентиляторы с:   %5.1f °C',
+    '   fans:            none on this Mac - it can only cool down by slowing down':
+        '   вентиляторы:     их нет - этот Mac остывает только замедляясь',
+    '   throttling from: %5.1f °C   (%d samples with the CPU held back)':
+        '   троттлинг с:     %5.1f °C   (%d замеров с придержанным CPU)',
+    '   throttling:      never seen - macOS did not have to hold the CPU back':
+        '   троттлинг:       не встречался - macOS не пришлось придерживать CPU',
+    '\nADVICE (nothing is changed - this only reads and reports)':
+        '\nСОВЕТ (ничего не меняется - только чтение и отчет)',
+    '   your thresholds fit what this machine does. Nothing to change.':
+        '   ваши пороги соответствуют тому, что делает эта машина. Менять нечего.',
+    '   the plateau sits at or above the pause threshold, so the guard stops your work during ordinary heavy use. The CPU was never throttled at that temperature, which means the machine was coping.':
+        '   плато стоит на пороге паузы или выше, поэтому страж прерывает обычную тяжелую работу. При этой температуре CPU ни разу не троттлил, значит машина справлялась.',
+    '   the plateau reaches the pause threshold AND macOS was already holding the CPU back. Raising the threshold would buy speed with heat. Leave it.':
+        '   плато достает до порога паузы, И macOS уже придерживал CPU. Поднять порог значит купить скорость теплом. Оставьте.',
+    '   the plateau reaches the pause threshold and there is no room left below the kill threshold. Leave it, or lower how many cores heavy jobs get.':
+        '   плато достает до порога паузы, а под порогом убийства места уже нет. Оставьте или уменьшите число ядер для тяжелых задач.',
+    '   this Mac has no fans and stays far below the pause threshold, so the guard reacts late: the chip climbs a long way before anything happens.':
+        '   у этого Mac нет вентиляторов и он держится далеко ниже порога паузы, поэтому страж реагирует поздно: чип успевает пройти долгий путь до первой реакции.',
+    '   pause  %5.1f °C  (now %.1f)':
+        '   пауза  %5.1f °C  (сейчас %.1f)',
+    '   resume %5.1f °C  (now %.1f)':
+        '   возобн.%5.1f °C  (сейчас %.1f)',
+    '   kill   %5.1f °C  (unchanged - advice never raises the last line)':
+        '   убийство %5.1f °C  (без изменений - совет никогда не поднимает последнюю черту)',
+    '   To use them, edit soc_pause_c and soc_resume_c in ~/.coffee-paladin/config.json.':
+        '   Чтобы применить, измените soc_pause_c и soc_resume_c в ~/.coffee-paladin/config.json.',
+    'No history yet: ~/.coffee-paladin/history.csv is empty or missing.':
+        'Истории пока нет: ~/.coffee-paladin/history.csv пуст или отсутствует.',
+    '   data: %d samples on %d days with measurements (%s ... %s)':
+        '   данные: %d замеров за %d дней с измерениями (%s ... %s)',
+    '   too little to judge yet - the profile needs at least %d samples on %d days':
+        '   пока слишком мало для выводов - профилю нужно минимум %d замеров за %d дней',
+    '   this Mac has already reached the kill threshold at least once, so there is no spare margin to hand out here. Keep the thresholds and give heavy jobs fewer cores instead.':
+        '   этот Mac уже как минимум раз доставал до порога убийства, значит запаса раздавать нечего. Оставьте пороги, а тяжелым задачам дайте меньше ядер.',
+    '   throttling:      cannot tell - %d busy samples carry no CPU limit reading':
+        '   троттлинг:       неизвестно - у %d нагруженных замеров нет чтения лимита CPU',
+    '   the plateau reaches the pause threshold, and this history does not say whether macOS was holding the CPU back. Unknown is not the same as fine, so nothing is advised here.':
+        '   плато достает до порога паузы, а эта история не говорит, придерживал ли macOS процессор. Неизвестно - это не то же самое, что нормально, поэтому советов тут нет.',
 }
 
 ZH = {
@@ -176,6 +284,58 @@ ZH = {
     "   ⏸  %s (pid %s, %s) - paused by coffee-paladin, resumes by itself": "   ⏸  %s (pid %s, %s) - 由 coffee-paladin 暂停,会自行恢复",
     "   ⚠️  %s (pid %s, %s) - stopped by something else": "   ⚠️  %s (pid %s, %s) - 被其他东西停止",
     "\nA process stopped by something else is usually the SIGTTIN trap: a background\njob touched the terminal and the kernel stopped it. Nothing will resume it.\nBring it to the foreground (fg) or resume it: kill -CONT <pid>": "\n被其他东西停止的进程通常是 SIGTTIN 陷阱:后台任务碰了终端,内核把它停住了,\n没有人会恢复它。把它调到前台(fg),或者手动恢复:kill -CONT <pid>",
+    'THERMAL PROFILE OF THIS MAC':
+        '这台 Mac 的热档案',
+    '   data: %d samples on %d days with measurements (%s ... %s)':
+        '   数据：%d 个样本，跨 %.1f 天（%s ... %s）',
+    '   too little to judge yet - the profile needs at least %d samples on %d days':
+        '   数据还不足以下结论 - 档案至少需要 %d 个样本、跨 %.1f 天',
+    '   idle:            %5.1f °C   (median of %d samples, 90%% below %.1f °C)':
+        '   空闲：           %5.1f °C   （%d 个样本的中位数，90%% 低于 %.1f °C）',
+    '   under load:      %5.1f °C   (plateau of %d samples, median %.1f °C, peak %.1f °C)':
+        '   负载下：         %5.1f °C   （%d 个样本的平台值，中位数 %.1f °C，峰值 %.1f °C）',
+    '   under load:      no heavy work in this history, so there is no plateau to read':
+        '   负载下：         这段历史里没有重负载，读不出平台值',
+    '   fans spin up at: %5.1f °C':
+        '   风扇启动于：     %5.1f °C',
+    '   fans:            none on this Mac - it can only cool down by slowing down':
+        '   风扇：           这台 Mac 没有风扇，只能靠降速降温',
+    '   throttling from: %5.1f °C   (%d samples with the CPU held back)':
+        '   降频起于：       %5.1f °C   （%d 个样本中 CPU 被压制）',
+    '   throttling:      never seen - macOS did not have to hold the CPU back':
+        '   降频：           从未出现 - macOS 不必压制 CPU',
+    '\nADVICE (nothing is changed - this only reads and reports)':
+        '\n建议（不改动任何设置，只读取并报告）',
+    '   your thresholds fit what this machine does. Nothing to change.':
+        '   你的阈值与这台机器的实际表现相符，无需改动。',
+    '   the plateau sits at or above the pause threshold, so the guard stops your work during ordinary heavy use. The CPU was never throttled at that temperature, which means the machine was coping.':
+        '   平台值达到或超过暂停阈值，所以守卫会在正常的重负载中打断你的工作。而在该温度下 CPU 从未被降频，说明机器应付得来。',
+    '   the plateau reaches the pause threshold AND macOS was already holding the CPU back. Raising the threshold would buy speed with heat. Leave it.':
+        '   平台值触到暂停阈值，而且 macOS 已经在压制 CPU。抬高阈值等于用热量换速度。别动。',
+    '   the plateau reaches the pause threshold and there is no room left below the kill threshold. Leave it, or lower how many cores heavy jobs get.':
+        '   平台值触到暂停阈值，而终止阈值之下已无余量。保持原样，或减少重任务可用的核心数。',
+    '   this Mac has no fans and stays far below the pause threshold, so the guard reacts late: the chip climbs a long way before anything happens.':
+        '   这台 Mac 没有风扇，而且一直远低于暂停阈值，所以守卫反应偏晚：芯片要爬升很久才会触发。',
+    '   pause  %5.1f °C  (now %.1f)':
+        '   暂停   %5.1f °C  （现在 %.1f）',
+    '   resume %5.1f °C  (now %.1f)':
+        '   恢复   %5.1f °C  （现在 %.1f）',
+    '   kill   %5.1f °C  (unchanged - advice never raises the last line)':
+        '   终止   %5.1f °C  （不变 - 建议绝不抬高最后一道防线）',
+    '   To use them, edit soc_pause_c and soc_resume_c in ~/.coffee-paladin/config.json.':
+        '   要采用，请修改 ~/.coffee-paladin/config.json 中的 soc_pause_c 和 soc_resume_c。',
+    'No history yet: ~/.coffee-paladin/history.csv is empty or missing.':
+        '还没有历史记录：~/.coffee-paladin/history.csv 为空或不存在。',
+    '   data: %d samples on %d days with measurements (%s ... %s)':
+        '   数据：%d 个样本，来自 %d 个有测量的日子（%s ... %s）',
+    '   too little to judge yet - the profile needs at least %d samples on %d days':
+        '   数据还不足以下结论 - 档案至少需要 %d 个样本、分布在 %d 天',
+    '   this Mac has already reached the kill threshold at least once, so there is no spare margin to hand out here. Keep the thresholds and give heavy jobs fewer cores instead.':
+        '   这台 Mac 至少有一次已经触到终止阈值，所以这里没有余量可分。保持阈值不变，改为给重任务更少的核心。',
+    '   throttling:      cannot tell - %d busy samples carry no CPU limit reading':
+        '   降频：           无法判断 - %d 个负载样本没有 CPU 限制读数',
+    '   the plateau reaches the pause threshold, and this history does not say whether macOS was holding the CPU back. Unknown is not the same as fine, so nothing is advised here.':
+        '   平台值触到暂停阈值，而这段历史没有说明 macOS 当时是否在压制 CPU。未知不等于没事，所以这里不给建议。',
 }
 
 ES = {
@@ -210,6 +370,58 @@ ES = {
     "   ⏸  %s (pid %s, %s) - paused by coffee-paladin, resumes by itself": "   ⏸  %s (pid %s, %s) - pausado por coffee-paladin, se reanuda solo",
     "   ⚠️  %s (pid %s, %s) - stopped by something else": "   ⚠️  %s (pid %s, %s) - detenido por otra cosa",
     "\nA process stopped by something else is usually the SIGTTIN trap: a background\njob touched the terminal and the kernel stopped it. Nothing will resume it.\nBring it to the foreground (fg) or resume it: kill -CONT <pid>": "\nUn proceso detenido por otra cosa suele ser la trampa SIGTTIN: una tarea en segundo\nplano tocó el terminal y el kernel la detuvo. Nadie la reanudará.\nTráela al primer plano (fg) o reanúdala: kill -CONT <pid>",
+    'THERMAL PROFILE OF THIS MAC':
+        'PERFIL TERMICO DE ESTE MAC',
+    '   data: %d samples on %d days with measurements (%s ... %s)':
+        '   datos: %d muestras en %.1f dias (%s ... %s)',
+    '   too little to judge yet - the profile needs at least %d samples on %d days':
+        '   aun es poco para juzgar - el perfil necesita al menos %d muestras en %.1f dias',
+    '   idle:            %5.1f °C   (median of %d samples, 90%% below %.1f °C)':
+        '   en reposo:       %5.1f °C   (mediana de %d muestras, 90%% por debajo de %.1f °C)',
+    '   under load:      %5.1f °C   (plateau of %d samples, median %.1f °C, peak %.1f °C)':
+        '   bajo carga:      %5.1f °C   (meseta de %d muestras, mediana %.1f °C, pico %.1f °C)',
+    '   under load:      no heavy work in this history, so there is no plateau to read':
+        '   bajo carga:      no hay trabajo pesado en este historial, asi que no hay meseta que leer',
+    '   fans spin up at: %5.1f °C':
+        '   ventiladores en: %5.1f °C',
+    '   fans:            none on this Mac - it can only cool down by slowing down':
+        '   ventiladores:    este Mac no tiene, solo puede enfriarse frenando',
+    '   throttling from: %5.1f °C   (%d samples with the CPU held back)':
+        '   limitacion desde:%5.1f °C   (%d muestras con la CPU frenada)',
+    '   throttling:      never seen - macOS did not have to hold the CPU back':
+        '   limitacion:      nunca vista - macOS no tuvo que frenar la CPU',
+    '\nADVICE (nothing is changed - this only reads and reports)':
+        '\nCONSEJO (no se cambia nada - esto solo lee e informa)',
+    '   your thresholds fit what this machine does. Nothing to change.':
+        '   tus umbrales encajan con lo que hace esta maquina. No hay nada que cambiar.',
+    '   the plateau sits at or above the pause threshold, so the guard stops your work during ordinary heavy use. The CPU was never throttled at that temperature, which means the machine was coping.':
+        '   la meseta esta en el umbral de pausa o por encima, asi que el guardian corta tu trabajo pesado normal. La CPU nunca fue limitada a esa temperatura, o sea que la maquina aguantaba.',
+    '   the plateau reaches the pause threshold AND macOS was already holding the CPU back. Raising the threshold would buy speed with heat. Leave it.':
+        '   la meseta llega al umbral de pausa Y macOS ya frenaba la CPU. Subir el umbral seria comprar velocidad con calor. Dejalo.',
+    '   the plateau reaches the pause threshold and there is no room left below the kill threshold. Leave it, or lower how many cores heavy jobs get.':
+        '   la meseta llega al umbral de pausa y ya no queda margen bajo el umbral de terminacion. Dejalo o reduce cuantos nucleos reciben los trabajos pesados.',
+    '   this Mac has no fans and stays far below the pause threshold, so the guard reacts late: the chip climbs a long way before anything happens.':
+        '   este Mac no tiene ventiladores y se queda muy por debajo del umbral de pausa, asi que el guardian reacciona tarde: el chip sube mucho antes de que pase nada.',
+    '   pause  %5.1f °C  (now %.1f)':
+        '   pausa  %5.1f °C  (ahora %.1f)',
+    '   resume %5.1f °C  (now %.1f)':
+        '   reanud.%5.1f °C  (ahora %.1f)',
+    '   kill   %5.1f °C  (unchanged - advice never raises the last line)':
+        '   terminar %5.1f °C  (sin cambios - el consejo nunca sube la ultima linea)',
+    '   To use them, edit soc_pause_c and soc_resume_c in ~/.coffee-paladin/config.json.':
+        '   Para usarlos, edita soc_pause_c y soc_resume_c en ~/.coffee-paladin/config.json.',
+    'No history yet: ~/.coffee-paladin/history.csv is empty or missing.':
+        'Todavia no hay historial: ~/.coffee-paladin/history.csv esta vacio o no existe.',
+    '   data: %d samples on %d days with measurements (%s ... %s)':
+        '   datos: %d muestras en %d dias con mediciones (%s ... %s)',
+    '   too little to judge yet - the profile needs at least %d samples on %d days':
+        '   aun es poco para juzgar - el perfil necesita al menos %d muestras en %d dias',
+    '   this Mac has already reached the kill threshold at least once, so there is no spare margin to hand out here. Keep the thresholds and give heavy jobs fewer cores instead.':
+        '   este Mac ya alcanzo el umbral de terminacion al menos una vez, asi que no hay margen que repartir. Manten los umbrales y da menos nucleos a los trabajos pesados.',
+    '   throttling:      cannot tell - %d busy samples carry no CPU limit reading':
+        '   limitacion:      no se puede saber - %d muestras con carga no traen lectura del limite de CPU',
+    '   the plateau reaches the pause threshold, and this history does not say whether macOS was holding the CPU back. Unknown is not the same as fine, so nothing is advised here.':
+        '   la meseta llega al umbral de pausa y este historial no dice si macOS frenaba la CPU. Desconocido no es lo mismo que correcto, asi que aqui no aconsejo nada.',
 }
 
 DICTS = {"pl": PL, "ru": RU, "zh": ZH, "es": ES}
@@ -508,10 +720,343 @@ def guard_alive():
                 or sh(["pgrep", "-f", "guard.py"]).strip())
 
 
+# ---------------------------------------------------------------- profile
+# Thresholds are shipped as one number for every Mac, and no single number can
+# fit a fanless Air and a 14-inch Pro at once. This reads what THIS machine has
+# actually been doing and says where its own limits are. It only reports:
+# nothing here writes config.json, because a fuse that retunes itself while you
+# are not looking is not a fuse.
+
+MIN_SAMPLES = 200          # below this the percentiles are noise, not a profile
+MIN_DAYS = 2               # days WITH measurements; one hot afternoon is not a habit
+MIN_LOAD_SAMPLES = 60      # a plateau read off a handful of busy moments is a guess
+LOAD_TOP_CPU = 150.0       # more than one and a half cores busy = real work
+LOAD_WATTS = 15.0          # the package draw says "working" even when no single
+                           # process looks busy: history records the guard's top
+                           # TARGET, not the true top consumer, so an orchestrator
+                           # scattering short children shows almost no CPU
+IDLE_TOP_CPU = 30.0
+IDLE_WATTS = 8.0
+MAX_GENERATIONS = 12       # the guard keeps far fewer; this only bounds the reader
+MAX_ROWS = 500000          # ~7 years of samples: a stop, not a policy
+# The same window the daemon accepts (guard.py restores defaults outside it).
+# Advice computed from thresholds the guard would never run with is advice for
+# a machine that does not exist.
+SANE_C = (40.0, 110.0)
+MAX_SAMPLE_GAP_S = 900     # two rows further apart than this are not neighbours
+MIN_SAMPLES_PER_DAY = 2    # a day needs more than one row; a machine that is used
+                           # for ten minutes a week still gets its days counted
+MIN_KILL_MARGIN = 3.0      # a suggested pause never comes closer than this to kill
+MIN_PAUSE_GAP = 6.0        # pause minus resume, or the machine cycles constantly
+MIN_SENSIBLE_PAUSE = 70.0  # an M-series chip idles in the forties; below this it is noise
+IDLE_RESUME_MARGIN = 2.0   # resume must clear the idle band or a pause never ends
+
+
+def generations(path):
+    """Current file plus rotated generations, oldest first.
+
+    Deliberate copy of `guard.generations` for the same reason as `abs_epoch`:
+    the tools stay single files with no shared import. A reader that skips the
+    rotated files silently profiles only the last few days.
+    """
+    rotated = []
+    n = 1
+    while os.path.exists("%s.%d" % (path, n)) and n <= MAX_GENERATIONS:
+        rotated.append("%s.%d" % (path, n))
+        n += 1
+    rotated.reverse()
+    if os.path.exists(path):
+        rotated.append(path)
+    return rotated
+
+
+def cell(row, key):
+    """A finite number from a CSV cell, or None.
+
+    NaN and inf are rejected on purpose: a corrupted file could otherwise put
+    them into the percentiles, and json.dumps writes NaN, which is not JSON.
+    """
+    try:
+        value = float(row[key])
+    except (TypeError, ValueError, KeyError):
+        return None
+    return value if value == value and abs(value) != float("inf") else None
+
+
+def read_history():
+    """Every history row from every generation, as dicts. Bad rows are skipped.
+
+    A row written while the guard was starting can have empty columns, and a
+    file can be truncated mid-line by a hard shutdown - the exact event this
+    project exists to catch, so it must not crash the reader.
+    """
+    import csv
+    rows = []
+    for path in generations(HIST):
+        try:
+            # utf-8-sig, not utf-8: a byte order mark turns the first header name
+            # into "﻿time", and then every timestamp silently disappears.
+            with open(path, newline="", encoding="utf-8-sig", errors="replace") as f:
+                for row in csv.DictReader(f):
+                    # A comma inside a process name shifts every later column, so
+                    # the row carries a name where a number belongs. csv puts the
+                    # overflow under the None key; such a row is evidence of a
+                    # different bug and must not become a measurement here.
+                    if row.get(None) is None and cell(row, "chip_C"):
+                        rows.append(row)
+                    if len(rows) >= MAX_ROWS:
+                        return rows
+        except (IOError, OSError, csv.Error):
+            continue
+    return rows
+
+
+def pct(values, q):
+    """Percentile without numpy; `values` must be non-empty."""
+    ordered = sorted(values)
+    return ordered[min(len(ordered) - 1, max(0, int(len(ordered) * q)))]
+
+
+def fan_start_temp(rows):
+    """Chip temperature at which the fans actually spin up.
+
+    Measured on TRANSITIONS (0 rpm -> spinning), never on "lowest temperature
+    seen with the fans on": fans keep running while the chip cools, so that
+    reading returns an idle temperature and means nothing.
+    """
+    starts, previous = [], None
+    for row in rows:
+        rpm, chip, when = cell(row, "fan_rpm"), cell(row, "chip_C"), abs_epoch(row.get("time", ""))
+        if rpm is None or chip is None:
+            continue
+        # Only CONSECUTIVE samples describe a spin-up. Across a gap - the daemon
+        # was down, the Mac slept, the file was rotated - the fans may have
+        # started and stopped several times, and the later row says nothing about
+        # the temperature that started them.
+        # The gap must be positive as well as small: timestamps can go BACKWARDS
+        # (a clock correction, a restored file, rows merged from two machines),
+        # and a negative gap is not a neighbour either.
+        if (previous and previous[0] == 0 and rpm > 0 and when and previous[1]
+                and 0 < when - previous[1] <= MAX_SAMPLE_GAP_S):
+            starts.append(chip)
+        previous = (rpm, when)
+    return pct(starts, 0.5) if starts else None
+
+
+def _working(row):
+    """Is the machine doing real work in this sample?
+
+    Two signals, either one is enough. Package draw is the honest one: the
+    history stores the guard's top TARGET, not the true top consumer, so an
+    orchestrator that scatters short-lived children reports almost no CPU while
+    the chip cooks.
+    """
+    return ((cell(row, "top_cpu") or 0) >= LOAD_TOP_CPU
+            or (cell(row, "watts") or 0) >= LOAD_WATTS)
+
+
+def thermal_profile(rows):
+    """What this Mac does thermally: idle band, working plateau, fans, throttling."""
+    stamps = [t for t in (abs_epoch(r.get("time", "")) for r in rows) if t]
+    # Distinct calendar days, not last-minus-first: one row with a wrong clock
+    # (a jump, a restore, a machine brought back from another timezone) would
+    # otherwise be enough to claim months of coverage.
+    per_day = {}
+    for t in stamps:
+        day = time.strftime("%Y-%m-%d", time.localtime(t))
+        per_day[day] = per_day.get(day, 0) + 1
+    # A day counts only if it actually holds measurements. Otherwise a single row
+    # with a wrong clock buys a whole day of "coverage" and unlocks advice.
+    days = sum(1 for n in per_day.values() if n >= MIN_SAMPLES_PER_DAY)
+    chips = [c for c in (cell(r, "chip_C") for r in rows) if c]
+    load = [cell(r, "chip_C") for r in rows if _working(r) and cell(r, "chip_C")]
+    idle = [cell(r, "chip_C") for r in rows
+            if (cell(r, "top_cpu") or 0) < IDLE_TOP_CPU
+            and (cell(r, "watts") or 0) < IDLE_WATTS and cell(r, "chip_C")]
+    throttled = [cell(r, "chip_C") for r in rows
+                 if (cell(r, "cpu_limit") or 100) < 100 and cell(r, "chip_C")]
+    # An unreadable cpu_limit is NOT evidence of no throttling. Counting unknown
+    # as 100 would let a corrupted or truncated history unlock the one piece of
+    # advice that makes a Mac run hotter.
+    throttle_unknown = sum(1 for r in rows if _working(r) and cell(r, "cpu_limit") is None)
+    spinning = [r for r in rows if (cell(r, "fan_rpm") or 0) > 0]
+    fan_start = fan_start_temp(rows)
+    return {
+        "samples": len(rows),
+        "days": days,
+        "from": rows[0].get("time") if rows else None,
+        "to": rows[-1].get("time") if rows else None,
+        "enough_data": len(rows) >= MIN_SAMPLES and days >= MIN_DAYS,
+        "peak_c": max(chips) if chips else None,
+        # The coldest this Mac gets, from ALL samples. The idle band above is a
+        # narrow definition and a warm machine can fall outside it entirely; a
+        # resume threshold has to clear the floor even then.
+        "baseline_c": round(pct(chips, 0.05), 1) if chips else None,
+        "idle_samples": len(idle),
+        "idle_median_c": round(pct(idle, 0.5), 1) if idle else None,
+        "idle_p90_c": round(pct(idle, 0.9), 1) if idle else None,
+        "load_samples": len(load),
+        "load_median_c": round(pct(load, 0.5), 1) if load else None,
+        "plateau_c": round(pct(load, 0.95), 1) if load else None,
+        "has_fans": bool(spinning),
+        "fan_start_c": round(fan_start, 1) if fan_start else None,
+        "throttled_samples": len(throttled),
+        "throttle_unknown": throttle_unknown,
+        "throttle_from_c": round(min(throttled), 1) if throttled else None,
+    }
+
+
+def suggest_thresholds(prof, cfg):
+    """Advice only. Three rails, each from a way this could hurt someone.
+
+    The kill threshold is never raised: it is the last line, and an analysis of
+    past behaviour cannot know about the run that ends in smoke. A suggested
+    pause keeps its distance from kill, and keeps the gap to resume the user
+    already chose, so the machine does not cycle pause-resume-pause.
+    """
+    try:
+        pause, resume, kill = (float(cfg.get("soc_pause_c")), float(cfg.get("soc_resume_c")),
+                               float(cfg.get("soc_kill_c")))
+    except (TypeError, ValueError):
+        return None
+    # Advice is arithmetic on the thresholds that are there, and config.json is a
+    # file a human edits. Nonsense in - nonsense out is not acceptable when the
+    # output is a number someone will paste back into the fuse.
+    if not all(SANE_C[0] <= v <= SANE_C[1] for v in (pause, resume, kill)):
+        return None
+    if not resume < pause < kill:
+        return None
+    if not (prof["enough_data"] and prof["plateau_c"]
+            and prof["load_samples"] >= MIN_LOAD_SAMPLES):
+        return None
+    # A machine that has already reached the last line is not a candidate for a
+    # wider margin, whatever the average says.
+    if prof["peak_c"] and prof["peak_c"] >= kill:
+        return {"verdict": "touched_kill", "pause": pause, "resume": resume, "kill": kill}
+    gap = max(MIN_PAUSE_GAP, pause - resume)
+    plateau = prof["plateau_c"]
+    ceiling = kill - MIN_KILL_MARGIN
+    keep = {"verdict": "fits", "pause": pause, "resume": resume, "kill": kill}
+    if plateau >= pause:
+        # The machine lives at the threshold, so the guard fires during ordinary
+        # work. Room above the plateau is only worth taking while the chip is not
+        # being throttled - that is the sign it is coping.
+        if prof["throttled_samples"]:
+            return dict(keep, verdict="throttling")
+        if prof.get("throttle_unknown"):
+            return dict(keep, verdict="throttle_unknown")
+        want = min(plateau + 2.0, ceiling)
+        # The suggestion has to CLEAR the plateau. One that lands under it changes
+        # nothing except the margin to kill: the guard keeps interrupting, only
+        # closer to the last line. Half a fix here is worse than none.
+        if want <= plateau + 0.5 or want <= pause + 0.5:
+            return dict(keep, verdict="at_ceiling")
+        return {"verdict": "pauses_during_work", "pause": round(want, 1),
+                "resume": round(want - gap, 1), "kill": kill}
+    if not prof["has_fans"] and plateau <= pause - 8.0:
+        # A fanless Mac cannot blow heat away, so an unused margin is not safety,
+        # it is a late reaction: the chip climbs and nothing has happened yet.
+        # The floor matters more than the ceiling here. A resume threshold at or
+        # below the temperature this Mac sits at while doing nothing means a
+        # paused job never gets resumed, so the fuse turns into a stall.
+        floor = MIN_SENSIBLE_PAUSE
+        for cold in (prof["idle_p90_c"], prof["baseline_c"]):
+            if cold:
+                floor = max(floor, cold + gap + IDLE_RESUME_MARGIN)
+        want = max(plateau + 4.0, floor)
+        if want >= pause - 0.5:
+            return keep
+        return {"verdict": "reacts_late", "pause": round(want, 1),
+                "resume": round(want - gap, 1), "kill": kill}
+    return keep
+
+
+def print_profile(prof, sug, cfg):
+    print(T("THERMAL PROFILE OF THIS MAC"))
+    print(T("   data: %d samples on %d days with measurements (%s ... %s)")
+          % (prof["samples"], prof["days"], prof["from"] or "?", prof["to"] or "?"))
+    if not prof["enough_data"]:
+        print(T("   too little to judge yet - the profile needs at least %d samples on %d days")
+              % (MIN_SAMPLES, MIN_DAYS))
+    if prof["idle_median_c"]:
+        print(T("   idle:            %5.1f °C   (median of %d samples, 90%% below %.1f °C)")
+              % (prof["idle_median_c"], prof["idle_samples"], prof["idle_p90_c"]))
+    if prof["plateau_c"]:
+        print(T("   under load:      %5.1f °C   (plateau of %d samples, median %.1f °C, peak %.1f °C)")
+              % (prof["plateau_c"], prof["load_samples"], prof["load_median_c"], prof["peak_c"]))
+    else:
+        print(T("   under load:      no heavy work in this history, so there is no plateau to read"))
+    if prof["fan_start_c"]:
+        print(T("   fans spin up at: %5.1f °C") % prof["fan_start_c"])
+    elif not prof["has_fans"]:
+        print(T("   fans:            none on this Mac - it can only cool down by slowing down"))
+    if prof["throttled_samples"]:
+        print(T("   throttling from: %5.1f °C   (%d samples with the CPU held back)")
+              % (prof["throttle_from_c"], prof["throttled_samples"]))
+    elif prof.get("throttle_unknown"):
+        print(T("   throttling:      cannot tell - %d busy samples carry no CPU limit reading")
+              % prof["throttle_unknown"])
+    else:
+        print(T("   throttling:      never seen - macOS did not have to hold the CPU back"))
+
+    if not sug:
+        return
+    now = (float(cfg.get("soc_pause_c") or 0), float(cfg.get("soc_resume_c") or 0),
+           float(cfg.get("soc_kill_c") or 0))
+    print(T("\nADVICE (nothing is changed - this only reads and reports)"))
+    reason = {
+        "fits": T("   your thresholds fit what this machine does. Nothing to change."),
+        "touched_kill": T("   this Mac has already reached the kill threshold at least once, so "
+                          "there is no spare margin to hand out here. Keep the thresholds and "
+                          "give heavy jobs fewer cores instead."),
+        "pauses_during_work": T("   the plateau sits at or above the pause threshold, so the guard "
+                                "stops your work during ordinary heavy use. The CPU was never "
+                                "throttled at that temperature, which means the machine was coping."),
+        "throttle_unknown": T("   the plateau reaches the pause threshold, and this history does not "
+                              "say whether macOS was holding the CPU back. Unknown is not the same "
+                              "as fine, so nothing is advised here."),
+        "throttling": T("   the plateau reaches the pause threshold AND macOS was already holding "
+                        "the CPU back. Raising the threshold would buy speed with heat. Leave it."),
+        "at_ceiling": T("   the plateau reaches the pause threshold and there is no room left "
+                        "below the kill threshold. Leave it, or lower how many cores heavy jobs get."),
+        "reacts_late": T("   this Mac has no fans and stays far below the pause threshold, so the "
+                         "guard reacts late: the chip climbs a long way before anything happens."),
+    }[sug["verdict"]]
+    print(reason)
+    if (sug["pause"], sug["resume"]) != (now[0], now[1]):
+        print(T("   pause  %5.1f °C  (now %.1f)") % (sug["pause"], now[0]))
+        print(T("   resume %5.1f °C  (now %.1f)") % (sug["resume"], now[1]))
+        print(T("   kill   %5.1f °C  (unchanged - advice never raises the last line)") % sug["kill"])
+        print(T("   To use them, edit soc_pause_c and soc_resume_c in ~/.coffee-paladin/config.json."))
+
+
+def profile_command():
+    rows = read_history()
+    if not rows:
+        print(T("No history yet: ~/.coffee-paladin/history.csv is empty or missing."))
+        return 1
+    try:
+        with open(os.path.join(BASE, "config.json")) as f:
+            cfg = json.load(f)
+    except (IOError, OSError, ValueError):
+        cfg = {}
+    if not isinstance(cfg, dict):     # valid JSON, wrong shape: [] or "x"
+        cfg = {}
+    prof = thermal_profile(rows)
+    sug = suggest_thresholds(prof, cfg)
+    if "--json" in sys.argv:
+        print(json.dumps({"profile": prof, "advice": sug}, indent=2, sort_keys=True))
+        return 0
+    print_profile(prof, sug, cfg)
+    return 0
+
+
 def main():
     if "--help" in sys.argv or "-h" in sys.argv:
         print(__doc__)
         return 0
+    if "--profile" in sys.argv:
+        return profile_command()
     # Easter egg: one command, `heat --paladin` - the drawing and the full
     # watch report. (There used to be three near-identical flags; one that
     # says everything remained.)
