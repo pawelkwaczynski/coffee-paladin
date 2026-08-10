@@ -361,6 +361,23 @@ test("20. README zh/ru/es: real translations, good images, matching numbers, lin
      all(languages.values()) and links_present,
      "%s, README links: %s" % (languages, links_present))
 
+# 22. A dictionary literal with the same key twice is a WARNING to swiftc and a
+# CRASH to the user. Version 2.6.1 shipped that way: the build log held one note,
+# the installer said "menu bar did not start", and launchctl showed SIGTRAP.
+_duplicates = []
+_bar = io.open(os.path.join(SRC, "heatbar.swift"), encoding="utf-8").read()
+for _lang in ("PL", "RU", "ZH", "ES"):
+    _body = _bar.split("let %s: [String: String] = [" % _lang, 1)[1].split("\n]\n", 1)[0]
+    _seen = set()
+    # Entries come in two shapes: key and value on one line, or the value on the
+    # next. Matching only the second shape is how the first duplicate slipped by.
+    for _key in re.findall(r'^    ("(?:[^"\\]|\\.)*")\s*:', _body, re.M):
+        if _key in _seen:
+            _duplicates.append("%s %s" % (_lang, _key[:45]))
+        _seen.add(_key)
+test("22. no translation dictionary repeats a key (that crashes the bar at launch)",
+     not _duplicates, "; ".join(_duplicates))
+
 ok = sum(1 for _, w in results if w)
 print("\nRESULT: %d/%d" % (ok, len(results)))
 sys.exit(0 if ok == len(results) else 1)

@@ -16,7 +16,7 @@
 
 import Cocoa
 
-let VERSION = "2.6.1"
+let VERSION = "2.6.2"
 let APPNAME = "coffee-paladin"
 let CODENAME = "Ristretto"
 let SIGNATURE = "\(APPNAME) v\(VERSION) \u{201E}\(CODENAME)\u{201D}  ·  by panbookovsky"
@@ -322,8 +322,6 @@ gdy skończysz.
         "Sama ikona (zmieści się w każdym pasku)",
     "Icon and chip temperature":
         "Ikona i temperatura chipa",
-    "Icon only, no numbers":
-        "Sama ikona, bez liczb",
 ]
 
 let RU: [String: String] = [
@@ -600,8 +598,6 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
         "Только значок (влезет в любую строку меню)",
     "Icon and chip temperature":
         "Значок и температура чипа",
-    "Icon only, no numbers":
-        "Только значок, без цифр",
 ]
 
 let ZH: [String: String] = [
@@ -876,8 +872,6 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
         "仅图标（任何菜单栏都放得下）",
     "Icon and chip temperature":
         "图标与芯片温度",
-    "Icon only, no numbers":
-        "仅图标，不显示数字",
 ]
 
 let ES: [String: String] = [
@@ -1154,8 +1148,6 @@ Vuelve a activarlo cuando termines.
         "Solo el icono (cabe en cualquier barra)",
     "Icon and chip temperature":
         "Icono y temperatura del chip",
-    "Icon only, no numbers":
-        "Solo el icono, sin numeros",
 ]
 
 let DICTS: [String: [String: String]] = ["pl": PL, "ru": RU, "zh": ZH, "es": ES]
