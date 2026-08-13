@@ -46,6 +46,65 @@ HOME = os.path.expanduser("~")
 BASE = os.environ.get("TG_BASE") or os.path.join(HOME, ".coffee-paladin")
 BASE = os.path.expanduser(BASE)   # TG_BASE lets tests run in isolation.
 MANAGED_DIR = os.path.join(BASE, "managed")
+ML_EVENTS_PATH = os.path.join(BASE, "history_events.jsonl")
+ML_EVENTS_MAX_BYTES = 5 * 1024 * 1024
+ML_EVENTS_GENERATIONS = 5
+
+
+def _rotate_events(path):
+    """Deliberate copy of guard.rotate() (same generation scheme, same limits).
+
+    Without it, a machine where only safe-run writes events - the daemon
+    disabled, a queue still running - would grow the file without bound.
+    """
+    try:
+        if os.path.getsize(path) <= ML_EVENTS_MAX_BYTES:
+            return
+    except OSError:
+        return
+    try:
+        oldest = "%s.%d" % (path, ML_EVENTS_GENERATIONS)
+        if os.path.exists(oldest):
+            os.remove(oldest)
+        for n in range(ML_EVENTS_GENERATIONS - 1, 0, -1):
+            source = "%s.%d" % (path, n)
+            if os.path.exists(source):
+                os.replace(source, "%s.%d" % (path, n + 1))
+        os.replace(path, path + ".1")
+    except OSError:
+        pass
+
+
+def event_name(name):
+    """A job name safe for the event stream: no paths, no control bytes.
+
+    `--name` is free text and people paste paths into it; the stream promises
+    to carry neither paths nor client names hidden in them.
+    """
+    s = os.path.basename(str(name or "?")).strip()
+    s = "".join(ch for ch in s if ch >= " ")[:64]
+    return s or "?"
+
+
+def event_jsonl(etype, source="safe-run", **fields):
+    """Append one predictor-training event; same contract as guard.event_jsonl.
+
+    No command line and no paths on purpose (they can hold client names and
+    tokens). Telemetry must never break a start.
+    """
+    try:
+        # Record construction sits INSIDE the try: it touches the clock, and a
+        # telemetry line must never take down a job start with it.
+        rec = {"time": time.strftime("%Y-%m-%d %H:%M:%S%z"),
+               "epoch": round(time.time(), 1), "type": etype, "source": source}
+        rec.update({k: v for k, v in fields.items() if v is not None})
+        _rotate_events(ML_EVENTS_PATH)
+        with open(ML_EVENTS_PATH, "a") as f:
+            f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+    except Exception:
+        pass
+
+
 HIST = os.path.join(BASE, "history.csv")
 GUARD = os.path.join(HOME, ".local/bin/coffee-paladin")
 THERMALSTATE = os.path.join(HOME, ".local/bin/thermalstate")
@@ -1074,7 +1133,10 @@ def main():
         json.dump({"pid": proc.pid, "pgid": proc.pid, "name": opt["name"],
                    "cmd": cmd, "started": t0, "hours": opt["hours"],
                    "cores": opt["cores"], "priority": opt["priority"],
+                   "cpu_limit_pct": opt["cpu_limit"],
                    "normal": bool(opt["normal"])}, f, indent=1)
+    event_jsonl("job_start", name=event_name(opt["name"]), pid=proc.pid,
+                pgid=proc.pid, cores=opt["cores"], cpu_limit_pct=opt["cpu_limit"])
     if placeholder:
         # The admission placeholder held the declared cores between "admitted"
         # and this registration; from here the real entry carries them.
@@ -1130,19 +1192,32 @@ def main():
 
     dur = time.time() - t0
     mx = max_temp_since(t0)
-    print(T("safe-run: %s - exit code %s, took %dh %dm, peak temperature %s%s") % (
-        opt["name"], rc, int(dur // 3600), int(dur % 3600 // 60),
-        ("%.1f C" % mx) if mx else T("n/a"),
-        (", " + T("terminated by the time budget")) if killed_by_time else ""))
-    if rc is not None and rc < 0 and -rc in (signal.SIGTERM, signal.SIGKILL):
-        print(T("safe-run: the job was stopped by signal %d - check ~/.coffee-paladin/guard.log") % -rc)
     # A job killed by signal returns a negative rc (-15 SIGTERM, -9 SIGKILL).
     # Returning 0 made `safe-run ... && next_step` continue after a half-finished
     # job, for example a compression queue deleting the source after an
     # incomplete encode. 128+signal is the shell convention for "killed by signal".
-    if rc and rc < 0:
-        return 128 - rc
-    return rc if rc and rc > 0 else 0
+    # A time-budget kill is not a crash: it exits 124 (the timeout(1) convention)
+    # so monitors can tell "the supervisor closed the window" from "the job died".
+    # killed_by_time is the source of truth, not rc: after cleanup the child can
+    # end as -15, -9 or even 0, and a child that itself exits 124 stays a plain
+    # child code because the flag is not set.
+    if killed_by_time:
+        final = 124
+    elif rc and rc < 0:
+        final = 128 - rc
+    else:
+        final = rc if rc and rc > 0 else 0
+    event_jsonl("job_end", name=event_name(opt["name"]), pid=proc.pid,
+                pgid=proc.pid, exit_code=final,
+                killed_by_time=killed_by_time or None, duration_s=round(dur))
+    print(T("safe-run: %s - exit code %s, took %dh %dm, peak temperature %s%s") % (
+        opt["name"], final, int(dur // 3600), int(dur % 3600 // 60),
+        ("%.1f C" % mx) if mx else T("n/a"),
+        (", " + T("terminated by the time budget")) if killed_by_time else ""))
+    if (not killed_by_time and rc is not None and rc < 0
+            and -rc in (signal.SIGTERM, signal.SIGKILL)):
+        print(T("safe-run: the job was stopped by signal %d - check ~/.coffee-paladin/guard.log") % -rc)
+    return final
 
 
 if __name__ == "__main__":

@@ -37,7 +37,7 @@ import subprocess
 import sys
 import time
 
-GUARD_VERSION = "2.6.4"   # bump together with heatbar VERSION, thermal-report VERSION, README
+GUARD_VERSION = "2.6.5"   # bump together with heatbar VERSION, thermal-report VERSION, README
 
 HOME = os.path.expanduser("~")
 BASE = os.environ.get("TG_BASE") or os.path.join(HOME, ".coffee-paladin")
@@ -50,6 +50,10 @@ STATUS_PATH = os.path.join(BASE, "status.json")   # snapshot for the menu bar
 HEARTBEAT_PATH = os.path.join(BASE, "heartbeat")  # live pulse; a hard shutdown leaves the last one
 CLEAN_STOP_PATH = os.path.join(BASE, "clean_stop")
 EVENTS_PATH = os.path.join(BASE, "events.log")    # black box: crashes, alarms
+# Training labels for the overheat predictor: what happened, next to history.csv
+# measurements. Separate from history.csv on purpose - hist_write rotates that
+# file on any header change, so a new column would cut old data off the profile.
+ML_EVENTS_PATH = os.path.join(BASE, "history_events.jsonl")
 COMMAND_PATH = os.path.join(BASE, "command")      # menu bar commands
 AWAKE_PATH = os.path.join(BASE, "awake.json")     # manual menu-bar keep-awake timer/app/download
 HW_PATH = os.path.join(BASE, "hardware.json")     # detected hardware for About my Mac and calibration
@@ -542,6 +546,17 @@ PL = {
     "unknown argument: %s": "nieznany argument: %s",
     "usage: coffee-paladin [--once | status | --version | panel | bar icon-only|chip|full]   (no arguments = run the daemon)":
         "uzycie: coffee-paladin [--once | status | --version | panel | bar icon-only|chip|full]   (bez argumentow = uruchom demona)",
+    "paused by the guard:": "wstrzymane przez guarda:",
+    "  frozen: %-16s pid=%-7d since %s (%d min) - manual freeze, no automatic termination":
+        "  zamrozone: %-16s pid=%-7d od %s (%d min) - reczna pauza, bez automatycznego ubicia",
+    "  frozen: %-16s pid=%-7d since %s (%d min) - reason %s, termination in %d min":
+        "  zamrozone: %-16s pid=%-7d od %s (%d min) - powod: %s, ubicie za %d min",
+    "limited by the safe-run duty cycle (T-state blinks are normal, not a guard pause):":
+        "ograniczane przez duty-cycle safe-run (miganie stanu T jest normalne, to NIE pauza guarda):",
+    "  limited: %-16s pid=%-7d cap %d%%":
+        "  ograniczone: %-16s pid=%-7d limit %d%%",
+    "battery": "bateria",
+    "thermal": "termika",
     "Thermal guard: job slowed down": "Thermal guard: zadanie zwolnione",
     "%s moved to E-cores (up to several times slower) - returns to full speed when the machine cools":
         "%s zepchniete na rdzenie E (nawet kilka razy wolniej) - wroci na pelna predkosc, gdy maszyna ostygnie",
@@ -703,6 +718,17 @@ RU = {
     "PROMOTED %s (pid %d) -> back on P-cores (machine cooled down)": "ПОВЫШЕНО %s (pid %d) -> обратно на P-ядра (машина остыла)",
     "unknown argument: %s": "неизвестный аргумент: %s",
     "usage: coffee-paladin [--once | status | --version | panel | bar icon-only|chip|full]   (no arguments = run the daemon)": "использование: coffee-paladin [--once | status | --version | panel | bar icon-only|chip|full]   (без аргументов = запуск демона)",
+    "paused by the guard:": "приостановлено guard-ом:",
+    "  frozen: %-16s pid=%-7d since %s (%d min) - manual freeze, no automatic termination":
+        "  заморожено: %-16s pid=%-7d с %s (%d мин) - ручная пауза, без автозавершения",
+    "  frozen: %-16s pid=%-7d since %s (%d min) - reason %s, termination in %d min":
+        "  заморожено: %-16s pid=%-7d с %s (%d мин) - причина: %s, завершение через %d мин",
+    "limited by the safe-run duty cycle (T-state blinks are normal, not a guard pause):":
+        "ограничено duty-cycle safe-run (мигание состояния T нормально, это НЕ пауза guard-а):",
+    "  limited: %-16s pid=%-7d cap %d%%":
+        "  ограничено: %-16s pid=%-7d предел %d%%",
+    "battery": "батарея",
+    "thermal": "перегрев",
     "!!! HARD SHUTDOWN DETECTED - ": "!!! ОБНАРУЖЕНО ЖЁСТКОЕ ОТКЛЮЧЕНИЕ - ",
     "manual freeze: there was nothing to freeze": "ручная заморозка: замораживать было нечего",
     "PAUSE >%d min - terminating job %s (pid %s)": "ПАУЗА >%d мин - завершаю задачу %s (pid %s)",
@@ -806,6 +832,17 @@ ZH = {
     "PROMOTED %s (pid %d) -> back on P-cores (machine cooled down)": "已恢复 %s (pid %d) -> 回到性能核心(机器已降温)",
     "unknown argument: %s": "未知参数:%s",
     "usage: coffee-paladin [--once | status | --version | panel | bar icon-only|chip|full]   (no arguments = run the daemon)": "用法:coffee-paladin [--once | status | --version | panel | bar icon-only|chip|full]   (不带参数 = 运行守护进程)",
+    "paused by the guard:": "被 guard 暂停：",
+    "  frozen: %-16s pid=%-7d since %s (%d min) - manual freeze, no automatic termination":
+        "  已冻结：%-16s pid=%-7d 自 %s（%d 分钟）- 手动冻结，不会自动终止",
+    "  frozen: %-16s pid=%-7d since %s (%d min) - reason %s, termination in %d min":
+        "  已冻结：%-16s pid=%-7d 自 %s（%d 分钟）- 原因：%s，%d 分钟后终止",
+    "limited by the safe-run duty cycle (T-state blinks are normal, not a guard pause):":
+        "受 safe-run 占空比限制（T 状态闪烁是正常的，不是 guard 的暂停）：",
+    "  limited: %-16s pid=%-7d cap %d%%":
+        "  受限：%-16s pid=%-7d 上限 %d%%",
+    "battery": "电池",
+    "thermal": "过热",
     "!!! HARD SHUTDOWN DETECTED - ": "!!! 检测到硬关机 - ",
     "manual freeze: there was nothing to freeze": "手动冻结:没有可冻结的进程",
     "PAUSE >%d min - terminating job %s (pid %s)": "暂停超过 %d 分钟 - 结束任务 %s (pid %s)",
@@ -911,6 +948,17 @@ ES = {
     "PROMOTED %s (pid %d) -> back on P-cores (machine cooled down)": "PROMOVIDO %s (pid %d) -> de vuelta a los núcleos de rendimiento (la máquina se enfrió)",
     "unknown argument: %s": "argumento desconocido: %s",
     "usage: coffee-paladin [--once | status | --version | panel | bar icon-only|chip|full]   (no arguments = run the daemon)": "uso: coffee-paladin [--once | status | --version | panel | bar icon-only|chip|full]   (sin argumentos = ejecuta el demonio)",
+    "paused by the guard:": "pausado por el guard:",
+    "  frozen: %-16s pid=%-7d since %s (%d min) - manual freeze, no automatic termination":
+        "  congelado: %-16s pid=%-7d desde %s (%d min) - pausa manual, sin terminación automática",
+    "  frozen: %-16s pid=%-7d since %s (%d min) - reason %s, termination in %d min":
+        "  congelado: %-16s pid=%-7d desde %s (%d min) - motivo: %s, terminación en %d min",
+    "limited by the safe-run duty cycle (T-state blinks are normal, not a guard pause):":
+        "limitado por el duty cycle de safe-run (los parpadeos del estado T son normales, NO es una pausa del guard):",
+    "  limited: %-16s pid=%-7d cap %d%%":
+        "  limitado: %-16s pid=%-7d tope %d%%",
+    "battery": "batería",
+    "thermal": "sobrecalentamiento",
     "!!! HARD SHUTDOWN DETECTED - ": "!!! APAGADO BRUSCO DETECTADO - ",
     "manual freeze: there was nothing to freeze": "congelación manual: no había nada que congelar",
     "PAUSE >%d min - terminating job %s (pid %s)": "PAUSA de más de %d min - cierro la tarea %s (pid %s)",
@@ -1062,6 +1110,25 @@ def log(msg, tag=None):
     if sys.stdout.isatty():
         sys.stdout.write(line)
         sys.stdout.flush()
+
+
+def event_jsonl(etype, source="guard", **fields):
+    """Append one predictor-training event to history_events.jsonl.
+
+    Deliberately carries no command line and no paths: a full cmdline can hold
+    client names and tokens, and the predictor needs only the process name and
+    timing. Telemetry must never break the guard, hence the broad except.
+    """
+    try:
+        # Record construction sits INSIDE the try: ts() touches the clock, and a
+        # telemetry line must never take down do_pause with it.
+        rec = {"time": ts(), "epoch": round(time.time(), 1), "type": etype, "source": source}
+        rec.update({k: v for k, v in fields.items() if v is not None})
+        rotate(ML_EVENTS_PATH)
+        with open(ML_EVENTS_PATH, "a") as f:
+            f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+    except Exception:
+        pass
 
 
 def _kill_group(p):
@@ -2045,7 +2112,22 @@ def licznik(st, key, amount=1):
         pass
 
 
-def do_pause(cfg, st, targets, reason, manual=False, critical_level=False):
+def pause_limit_min(cfg, ac, lvl, soc_t, temp):
+    """The pause timeout the daemon will actually enforce right now.
+
+    Waiting for AC is not a failure, so a machine whose ONLY problem is a low
+    battery gets the long limit. One function for the kill loop and for
+    `status`: two copies of this formula once disagreed, and status promised
+    240 minutes while the daemon killed after 45.
+    """
+    battery_only = (not ac and lvl >= 2
+                    and (soc_t is None or soc_t < cfg.get("soc_pause_c", 88) - 10)
+                    and (temp is None or temp < cfg["batt_pause_c"] - 3))
+    return cfg.get("max_pause_minutes_batt", 240) if battery_only else cfg["max_pause_minutes"]
+
+
+def do_pause(cfg, st, targets, reason, manual=False, critical_level=False,
+             battery_reason=False):
     changed = False
     failed = []
     for pid, cpu, comm, pgid in targets:
@@ -2067,16 +2149,21 @@ def do_pause(cfg, st, targets, reason, manual=False, critical_level=False):
         # Store pause reason in the entry. Without it, the "resume only on AC" gate applied
         # to EVERY pause, including purely thermal ones: at battery 11-24%, a job paused for
         # hot chip never returned even though the 10% battery gate was not crossed.
+        # Structural flag, not string sniffing: the reason text is translated,
+        # and on a RU/ZH/ES machine a battery pause carried no "batt" substring,
+        # so it was classified as thermal and lost the AC-resume gate.
         st["paused"][key] = {"since": now(), "since_mono": time.monotonic(),
                              "mono_id": _MONO_ID,
-                             "powod": "bateria" if "batt" in (reason or "").lower()
-                                      or "bateri" in (reason or "").lower() else "termika",
+                             "powod": "bateria" if battery_reason else "termika",
                              "comm": comm, "pgid": pgid, "cpu": cpu, "manual": manual}
         save_state(st)
         error = sig(pid, pgid, signal.SIGSTOP)
         if error == 0:
             changed = True
             log(T("PAUSED %s (pid %d, %.0f%% CPU) - %s") % (comm, pid, cpu, reason), tag="PAUSE")
+            event_jsonl("pause_start", name=comm, pid=pid, pgid=pgid,
+                        reason_code=st["paused"][key]["powod"], cpu_pct=round(cpu),
+                        manual=manual or None)
             # Count ONLY guard work. Manual menu-bar freeze is a human decision, not a
             # product achievement, while the statistics window promises the latter.
             if not manual:
@@ -2129,6 +2216,8 @@ def do_resume(cfg, st, reason, only_keys=None, after_cooling=False):
             status = run(["ps", "-o", "stat=", "-p", str(pid)]).strip()
             if error == 0 and not status.startswith("T"):
                 log(T("RESUMED %s (pid %d) - %s") % (info.get("comm", "?"), pid, reason), tag="RESUME")
+                event_jsonl("pause_end", name=info.get("comm"), pid=pid,
+                            pause_s=round(_pause_age(info)))
                 # The stats window says "resumed AFTER COOLING", so manual resume, startup,
                 # and daemon shutdown do not count. The label must be true.
                 if after_cooling:
@@ -2212,6 +2301,9 @@ def do_terminate(cfg, st, reason, only_keys=None):
         sig(pid, info.get("pgid"), signal.SIGTERM)
         victims.append((pid, info))
         log(T("TERMINATED (SIGTERM) %s (pid %d) - %s") % (info.get("comm", "?"), pid, reason), tag="KILL")
+        event_jsonl("terminate", name=info.get("comm"), pid=pid,
+                    pgid=info.get("pgid"), reason_code=info.get("powod"),
+                    pause_s=round(_pause_age(info)))
         licznik(st, "kills")
         del st["paused"][key]
     if victims:
@@ -2292,6 +2384,8 @@ def do_demote(cfg, st, targets, cpu_hist, soc_t, saferun_normal=frozenset()):
         st.setdefault("demoted_info", {})[str(pid)] = {"comm": comm}
         log(T("DEMOTED %s (pid %d) -> background QoS/E-cores (hot for >%d min)")
             % (comm, pid, cfg["demote_after_minutes"]), tag="DEMOTE")
+        event_jsonl("demote_start", name=comm, pid=pid, pgid=pgid,
+                    chip_c=soc_t, cpu_pct=round(cpu))
         # Pause has sound and push, and demotion has a larger lasting effect on job time.
         # Pause passes; slowdown remains, so it must be audible too.
         notify(cfg, T("Thermal guard: job slowed down"),
@@ -2322,6 +2416,7 @@ def do_promote(cfg, st, cpu_hist, soc_t):
         cpu_hist[pid] = 0.0
         log(T("PROMOTED %s (pid %d) -> back on P-cores (machine cooled down)")
             % (info.get("comm", "?"), pid), tag="PROMOTE")
+        event_jsonl("demote_end", name=info.get("comm"), pid=pid, chip_c=soc_t)
         notify(cfg, T("Thermal guard: full speed again"),
                T("%s is back on P-cores") % info.get("comm", "?"), "promote")
 
@@ -2624,9 +2719,22 @@ def saferun_jobs():
                 d = json.load(f)
             pid = int(d.get("pid", 0))
             if pid and alive(pid):
+                # managed/*.json can be hand-written or corrupted; a string or
+                # NaN here used to throw inside the broad except and hide every
+                # later job from status.
+                try:
+                    cap = float(d.get("cpu_limit_pct"))
+                    cap = min(100.0, max(0.0, cap)) if cap == cap and abs(cap) != float("inf") else None
+                except (TypeError, ValueError):
+                    cap = None
                 out.append({"name": d.get("name") or d.get("comm") or "?",
                             "pid": pid,
                             "queued": bool(d.get("queued")),
+                            "cpu_limit_pct": cap,
+                            # The duty limiter blinks the job's state between S
+                            # and T on purpose; status must say so or a monitor
+                            # mistakes the blinking for a guard pause.
+                            "cpu_limited": bool(cap is not None and cap < 100),
                             "minutes": round(proc_age_seconds(pid) / 60.0)})
     except Exception:
         pass
@@ -3203,6 +3311,13 @@ def status_write(state, temp, soc, soc_t, ac, pct, speed, load, lvl, why, target
         "battery_pct": pct, "on_ac": bool(ac),
         "cpu_limit": speed, "load1": round(load, 2),
         "paused": [v.get("comm") for v in st.get("paused", {}).values()],
+        # Structured pause entries so the bar, agents, and `status` can tell a
+        # ticking guard pause from anything else without parsing state.json.
+        "paused_details": [{"name": v.get("comm"), "pid": int(k),
+                            "since": v.get("since"), "reason": v.get("powod"),
+                            "manual": bool(v.get("manual")),
+                            "age_s": round(_pause_age(v))}
+                           for k, v in st.get("paused", {}).items()],
         # E-core demotion is INVISIBLE in temperature (44 C looks like cooling success) but
         # can cut job speed by 11x. It must be explicit in the snapshot.
         "demoted": [v.get("comm", "?") for v in st.get("demoted_info", {}).values()],
@@ -3523,6 +3638,37 @@ def main():
             speed, load, lvl, why or T("calm")))
         for pid, cpu, comm, _ in targets[:5]:
             print(T("  candidate: %-20s pid=%-7d %.0f%% CPU") % (comm, pid, cpu))
+        # Two different situations look identical in `ps` (state T): a guard
+        # pause, which has a clock ticking toward SIGTERM, and the safe-run duty
+        # limiter, whose micro-pauses blink T on purpose. A monitor confusing
+        # them once sent six kill -CONT into a healthy speed-limited queue.
+        if st.get("paused"):
+            # The SAME limit the daemon enforces right now (one helper, not a
+            # copy): status once promised 240 min while the kill went at 45.
+            limit_min = pause_limit_min(cfg, ac, lvl, soc_t, temp)
+            print(T("paused by the guard:"))
+            for k, v in st["paused"].items():
+                age_min = int(_pause_age(v) // 60)
+                since_txt = time.strftime("%H:%M", time.localtime(v.get("since") or 0))
+                if v.get("manual"):
+                    print(T("  frozen: %-16s pid=%-7d since %s (%d min) - manual freeze, no automatic termination")
+                          % (v.get("comm", "?"), int(k), since_txt, age_min))
+                else:
+                    reason = T("battery") if v.get("powod") == "bateria" else T("thermal")
+                    print(T("  frozen: %-16s pid=%-7d since %s (%d min) - reason %s, termination in %d min")
+                          % (v.get("comm", "?"), int(k), since_txt, age_min, reason,
+                             max(0, int(limit_min) - age_min)))
+        # A job can be BOTH speed-limited and guard-paused; listing it under
+        # "not a guard pause" would lie in exactly the case this section exists
+        # to distinguish.
+        paused_pids = {int(k) for k in st.get("paused", {})}
+        limited = [j for j in saferun_jobs()
+                   if j.get("cpu_limited") and j.get("pid") not in paused_pids]
+        if limited:
+            print(T("limited by the safe-run duty cycle (T-state blinks are normal, not a guard pause):"))
+            for j in limited:
+                print(T("  limited: %-16s pid=%-7d cap %d%%")
+                      % (j["name"], j["pid"], round(j.get("cpu_limit_pct") or 0)))
         return 0
 
     # Cleanup after a previous daemon is done ONLY by the daemon. This block used to run
@@ -3723,19 +3869,25 @@ def main():
             # 40 C during a pause would never turn on its latch.
             may_resume = resume_gate(cfg, st, temp, soc_t, state)
 
+            # Structural, language-independent battery involvement for the pause
+            # entry; mirrors the battery contributions inside severity().
+            batt_involved = ((temp is not None and temp >= cfg["batt_pause_c"])
+                             or (not ac and pct is not None
+                                 and pct <= cfg.get("batt_pct_pause", 10)))
             if lvl >= 3:
                 crit_polls += 1
                 banner(cfg, T("Thermal guard: CRITICAL overheating"),
                        (T("The Mac is critically hot (%s). Watch-only mode - nothing is being stopped.")
                         if cfg.get("dry_run") else
                         T("The Mac is critically hot (%s). Heavy jobs are being stopped.")) % why)
-                do_pause(cfg, st, targets, T("CRITICAL: ") + why, critical_level=True)
+                do_pause(cfg, st, targets, T("CRITICAL: ") + why, critical_level=True,
+                         battery_reason=batt_involved)
                 if crit_polls >= cfg["kill_after_polls"]:
                     do_terminate(cfg, st, why)
                     crit_polls = 0
             elif lvl == 2:
                 crit_polls = 0
-                do_pause(cfg, st, targets, why)
+                do_pause(cfg, st, targets, why, battery_reason=batt_involved)
             else:
                 crit_polls = 0
                 cool = may_resume
@@ -3786,10 +3938,7 @@ def main():
             # chip and battery are cool and low battery is the only pause reason, give much
             # more time so computation can wait for the user to plug in instead of dying
             # after 45 minutes.
-            battery_only = (not ac and lvl >= 2
-                             and (soc_t is None or soc_t < cfg.get("soc_pause_c", 88) - 10)
-                             and (temp is None or temp < cfg["batt_pause_c"] - 3))
-            limit_min = cfg.get("max_pause_minutes_batt", 240) if battery_only else cfg["max_pause_minutes"]
+            limit_min = pause_limit_min(cfg, ac, lvl, soc_t, temp)
             # How long this pause REALLY lasted. Wall time can jump (NTP, RTC correction,
             # wake from sleep): a 3 h jump killed a job paused one minute earlier, and a
             # backward jump disabled the limit forever. monotonic() does not survive daemon
