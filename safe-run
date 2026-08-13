@@ -25,6 +25,9 @@ Usage:
   safe-run --efficiency -- ...     # efficiency cores only (overrides job_cores_mode)
   safe-run --cpu-limit 80 -- ...   # cap the job at 80% duty (overrides job_cpu_percent)
   safe-run --allow-sleep -- ...    # do not hold the Mac awake for this job
+  safe-run --progress-interval 300 -- ...  # the job promises to touch $PALADIN_PROGRESS
+                                   # about every 300 s; the guard may then say
+                                   # "this job may be stalled" (advisory, never a signal)
 
 Defaults come from ~/.coffee-paladin/config.json: job_cores_mode ("efficiency" or "all")
 and job_cpu_percent (95 = full speed with a sliver of headroom; below 100 the whole
@@ -46,6 +49,7 @@ HOME = os.path.expanduser("~")
 BASE = os.environ.get("TG_BASE") or os.path.join(HOME, ".coffee-paladin")
 BASE = os.path.expanduser(BASE)   # TG_BASE lets tests run in isolation.
 MANAGED_DIR = os.path.join(BASE, "managed")
+PROGRESS_DIR = os.path.join(BASE, "progress")
 ML_EVENTS_PATH = os.path.join(BASE, "history_events.jsonl")
 ML_EVENTS_MAX_BYTES = 5 * 1024 * 1024
 ML_EVENTS_GENERATIONS = 5
@@ -436,7 +440,11 @@ def parse():
            # Admission control (guard arbiter): declared cores, queue rank,
            # and an optional job to wait for. cores=None means "not declared";
            # with admission_control on it defaults to the P-core count.
-           "cores": None, "priority": 5, "after": None}
+           "cores": None, "priority": 5, "after": None,
+           # Progress heartbeat (advisory only): the job touches the file safe-run
+           # hands it in $PALADIN_PROGRESS; a declared interval lets the guard say
+           # "this job may be stalled" instead of a monitor guessing thresholds.
+           "progress_interval": None}
     i = 0
     while i < len(args):
         a = args[i]
@@ -461,6 +469,8 @@ def parse():
             opt["priority"] = int(args[i + 1]); i += 2
         elif a == "--after" and i + 1 < len(args):
             opt["after"] = args[i + 1]; i += 2
+        elif a == "--progress-interval" and i + 1 < len(args):
+            opt["progress_interval"] = max(1.0, float(args[i + 1])); i += 2
         elif a == "--normal":
             opt["normal"] = True; i += 1
         elif a == "--efficiency":
@@ -1103,9 +1113,22 @@ def main():
         wrapped = ["nice", "-n", "10", "taskpolicy", "-b"] + wrapped
 
     t0 = time.time()
+    # Progress heartbeat: the job (or its wrapper script) touches this file after
+    # every finished unit of work. Created BEFORE the fork and touched once, so
+    # "age of the file" means "time since start" until the first real tick.
+    # Purely advisory: the guard may say "stalled?", it never acts on it.
+    progress_path = os.path.join(PROGRESS_DIR, "%d.progress" % os.getpid())
+    try:
+        os.makedirs(PROGRESS_DIR, exist_ok=True)
+        with open(progress_path, "w"):
+            pass
+    except OSError:
+        progress_path = None      # no heartbeat is a lost feature, not a lost job
     try:
         env = dict(os.environ)
         env["TG_SAFE_RUN_PGID"] = str(os.getpid())   # see note in main()
+        if progress_path:
+            env["PALADIN_PROGRESS"] = progress_path
         proc = subprocess.Popen(wrapped, preexec_fn=os.setsid, env=env)
     except Exception as e:
         print(T("safe-run: cannot start: %r") % (e,))
@@ -1134,6 +1157,8 @@ def main():
                    "cmd": cmd, "started": t0, "hours": opt["hours"],
                    "cores": opt["cores"], "priority": opt["priority"],
                    "cpu_limit_pct": opt["cpu_limit"],
+                   "progress_path": progress_path,
+                   "progress_interval_s": opt["progress_interval"],
                    "normal": bool(opt["normal"])}, f, indent=1)
     event_jsonl("job_start", name=event_name(opt["name"]), pid=proc.pid,
                 pgid=proc.pid, cores=opt["cores"], cpu_limit_pct=opt["cpu_limit"])
@@ -1189,6 +1214,11 @@ def main():
         os.unlink(reg)
     except Exception:
         pass
+    if progress_path:
+        try:
+            os.unlink(progress_path)
+        except OSError:
+            pass
 
     dur = time.time() - t0
     mx = max_temp_since(t0)

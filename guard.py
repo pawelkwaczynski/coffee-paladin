@@ -557,6 +557,13 @@ PL = {
         "  ograniczone: %-16s pid=%-7d limit %d%%",
     "battery": "bateria",
     "thermal": "termika",
+    "job %s (pid %d): no progress for %d min despite a declared interval of %d s":
+        "zadanie %s (pid %d): brak postepu od %d min mimo zadeklarowanego interwalu %d s",
+    "Thermal guard: job may be stalled": "Thermal guard: zadanie moze stac",
+    "%s reports no progress for %d min. Check it - the guard only watches here, it will not touch the job.":
+        "%s nie zglasza postepu od %d min. Sprawdz je - straznik tu tylko patrzy, nie ruszy zadania.",
+    "  stalled? %-16s pid=%-7d no progress for %d min (declared every %d s)":
+        "  stoi? %-16s pid=%-7d brak postepu od %d min (deklarowane co %d s)",
     "Thermal guard: job slowed down": "Thermal guard: zadanie zwolnione",
     "%s moved to E-cores (up to several times slower) - returns to full speed when the machine cools":
         "%s zepchniete na rdzenie E (nawet kilka razy wolniej) - wroci na pelna predkosc, gdy maszyna ostygnie",
@@ -729,6 +736,11 @@ RU = {
         "  ограничено: %-16s pid=%-7d предел %d%%",
     "battery": "батарея",
     "thermal": "перегрев",
+    "Thermal guard: job may be stalled": "Thermal guard: задача, возможно, стоит",
+    "%s reports no progress for %d min. Check it - the guard only watches here, it will not touch the job.":
+        "%s не сообщает о прогрессе %d мин. Проверьте задачу - страж здесь только наблюдает и не тронет её.",
+    "  stalled? %-16s pid=%-7d no progress for %d min (declared every %d s)":
+        "  стоит? %-16s pid=%-7d нет прогресса %d мин (заявлено каждые %d с)",
     "!!! HARD SHUTDOWN DETECTED - ": "!!! ОБНАРУЖЕНО ЖЁСТКОЕ ОТКЛЮЧЕНИЕ - ",
     "manual freeze: there was nothing to freeze": "ручная заморозка: замораживать было нечего",
     "PAUSE >%d min - terminating job %s (pid %s)": "ПАУЗА >%d мин - завершаю задачу %s (pid %s)",
@@ -843,6 +855,11 @@ ZH = {
         "  受限：%-16s pid=%-7d 上限 %d%%",
     "battery": "电池",
     "thermal": "过热",
+    "Thermal guard: job may be stalled": "Thermal guard:任务可能停滞",
+    "%s reports no progress for %d min. Check it - the guard only watches here, it will not touch the job.":
+        "%s 已 %d 分钟没有进度。请检查 - 守护者在这里只观察，不会动这个任务。",
+    "  stalled? %-16s pid=%-7d no progress for %d min (declared every %d s)":
+        "  停滞？%-16s pid=%-7d 已 %d 分钟无进度（声明每 %d 秒）",
     "!!! HARD SHUTDOWN DETECTED - ": "!!! 检测到硬关机 - ",
     "manual freeze: there was nothing to freeze": "手动冻结:没有可冻结的进程",
     "PAUSE >%d min - terminating job %s (pid %s)": "暂停超过 %d 分钟 - 结束任务 %s (pid %s)",
@@ -959,6 +976,11 @@ ES = {
         "  limitado: %-16s pid=%-7d tope %d%%",
     "battery": "batería",
     "thermal": "sobrecalentamiento",
+    "Thermal guard: job may be stalled": "Thermal guard: la tarea puede estar parada",
+    "%s reports no progress for %d min. Check it - the guard only watches here, it will not touch the job.":
+        "%s no informa progreso desde hace %d min. Revísala: el guardián aquí solo observa, no tocará la tarea.",
+    "  stalled? %-16s pid=%-7d no progress for %d min (declared every %d s)":
+        "  ¿parada? %-16s pid=%-7d sin progreso desde hace %d min (declarado cada %d s)",
     "!!! HARD SHUTDOWN DETECTED - ": "!!! APAGADO BRUSCO DETECTADO - ",
     "manual freeze: there was nothing to freeze": "congelación manual: no había nada que congelar",
     "PAUSE >%d min - terminating job %s (pid %s)": "PAUSA de más de %d min - cierro la tarea %s (pid %s)",
@@ -2335,6 +2357,7 @@ def demote_threshold(cfg):
 
 
 _demote_nie_da_sie = set()    # PIDs taskpolicy rejected, usually another owner
+_stall_said = {}              # pid -> last stall-advisory timestamp (30 min gap)
 
 
 def do_demote(cfg, st, targets, cpu_hist, soc_t, saferun_normal=frozenset()):
@@ -2727,6 +2750,27 @@ def saferun_jobs():
                     cap = min(100.0, max(0.0, cap)) if cap == cap and abs(cap) != float("inf") else None
                 except (TypeError, ValueError):
                     cap = None
+                # Progress heartbeat, advisory only. Age comes from the file's
+                # mtime, the one clock a shell `touch` and a Python `os.utime`
+                # both speak. "Stalled" needs a DECLARED interval: guessing
+                # thresholds is exactly the false-alarm generator this replaces
+                # (a 21-84 min encode was alarmed at 5-minute windows).
+                p_age = p_int = None
+                stalled = False
+                p_path = d.get("progress_path")
+                if isinstance(p_path, str) and p_path:
+                    try:
+                        p_age = max(0, round(time.time() - os.path.getmtime(p_path)))
+                    except OSError:
+                        p_age = None
+                try:
+                    p_int = float(d.get("progress_interval_s"))
+                    if not (p_int == p_int and 0 < p_int < float("inf")):
+                        p_int = None
+                except (TypeError, ValueError):
+                    p_int = None
+                if p_age is not None and p_int:
+                    stalled = p_age > 3 * p_int
                 out.append({"name": d.get("name") or d.get("comm") or "?",
                             "pid": pid,
                             "queued": bool(d.get("queued")),
@@ -2735,6 +2779,9 @@ def saferun_jobs():
                             # and T on purpose; status must say so or a monitor
                             # mistakes the blinking for a guard pause.
                             "cpu_limited": bool(cap is not None and cap < 100),
+                            "progress_age_s": p_age,
+                            "progress_interval_s": p_int,
+                            "progress_stalled": stalled,
                             "minutes": round(proc_age_seconds(pid) / 60.0)})
     except Exception:
         pass
@@ -3662,13 +3709,21 @@ def main():
         # "not a guard pause" would lie in exactly the case this section exists
         # to distinguish.
         paused_pids = {int(k) for k in st.get("paused", {})}
-        limited = [j for j in saferun_jobs()
+        jobs_now = saferun_jobs()
+        limited = [j for j in jobs_now
                    if j.get("cpu_limited") and j.get("pid") not in paused_pids]
         if limited:
             print(T("limited by the safe-run duty cycle (T-state blinks are normal, not a guard pause):"))
             for j in limited:
                 print(T("  limited: %-16s pid=%-7d cap %d%%")
                       % (j["name"], j["pid"], round(j.get("cpu_limit_pct") or 0)))
+        # Advisory only: a job that DECLARED a progress interval and went 3x
+        # quiet. The guard never acts on this - a human does.
+        for j in jobs_now:
+            if j.get("progress_stalled") and j.get("pid") not in paused_pids:
+                print(T("  stalled? %-16s pid=%-7d no progress for %d min (declared every %d s)")
+                      % (j["name"], j["pid"], (j.get("progress_age_s") or 0) // 60,
+                         round(j.get("progress_interval_s") or 0)))
         return 0
 
     # Cleanup after a previous daemon is done ONLY by the daemon. This block used to run
@@ -3799,6 +3854,24 @@ def main():
                 st["_zadania"] = saferun_jobs()
                 st["_stat"] = day_stats()
                 st["_top_cpu"], st["_top_ram"] = top_lists()
+                # Stall advisory: say it, never act on it. A job that declared a
+                # progress interval and went 3x quiet gets one notification per
+                # half hour - the guard's whole authority here is a sentence.
+                for job in st["_zadania"]:
+                    if not job.get("progress_stalled"):
+                        _stall_said.pop(job["pid"], None)
+                        continue
+                    if time.time() - _stall_said.get(job["pid"], 0) < 1800:
+                        continue
+                    _stall_said[job["pid"]] = time.time()
+                    log(T("job %s (pid %d): no progress for %d min despite a declared "
+                          "interval of %d s") % (job["name"], job["pid"],
+                                                 job["progress_age_s"] // 60,
+                                                 job["progress_interval_s"]), tag="STALL?")
+                    notify(cfg, T("Thermal guard: job may be stalled"),
+                           T("%s reports no progress for %d min. Check it - the guard "
+                             "only watches here, it will not touch the job.")
+                           % (job["name"], job["progress_age_s"] // 60), key="stall")
             # Disk changes slowly; one read every ~5 min is enough.
             if tick % 20 == 0 or not st.get("_disk"):
                 st["_disk"] = disk_usage()
