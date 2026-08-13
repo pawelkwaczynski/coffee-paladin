@@ -169,6 +169,8 @@ DEFAULTS = {
     # start behaves exactly as before. The arbiter only DELAYS starts; it never pauses or
     # kills anything - that stays with the thermal core of the guard.
     "admission_control": False,
+    # Display-only "what did the AI start" snapshot (agent_activity.json).
+    "agent_activity": True,
     # Watch-only by default. A fresh install measures, logs, and alerts, but does not pause
     # anyone's processes. Protection is enabled deliberately, either from the menu bar or
     # with "dry_run": false. A tool that touches other people's work on first launch loses
@@ -230,7 +232,7 @@ LOGGED_KEYS = (
     "demote_after_minutes", "demote_above_c", "demote_cpu_percent",
     "max_pause_minutes", "max_pause_minutes_batt", "cpu_min_percent",
     "job_cores_mode", "job_cpu_percent", "dry_run", "lang",
-    "keep_awake_hold_s", "system_demote_patterns", "admission_control",
+    "keep_awake_hold_s", "system_demote_patterns", "admission_control", "agent_activity",
 )
 
 
@@ -2731,6 +2733,122 @@ def trend_and_forecast(cfg, soc_t):
     return round(slope, 1), round((threshold - soc_t) / slope, 1)
 
 
+# AI coding sessions, recognised the same way agent PROTECTION recognises them:
+# by the identity part of the command line, never by data paths. This list is
+# about display ("what did the AI start"), so it is separate from never_*.
+AGENT_MARKERS = ("claude", "codex", "cursor", "openclaw", "grok",
+                 "gemini", "antigravity", "aider", "copilot", "hermes")
+# comm values that can BE an agent directly (no args needed) or can host one
+# (interpreters - args decide).
+_AGENT_COMMS = frozenset(("claude", "codex", "cursor", "grok", "gemini", "aider"))
+
+ACTIVITY_PATH = os.path.join(BASE, "agent_activity.json")
+ACTIVITY_MAX_NODES = 200
+ACTIVITY_DEPTH = 3
+
+
+def _agent_roots(procs, args_fn=None):
+    """Return {pid: label} of OUTERMOST AI-session processes.
+
+    A Claude session spawns node MCP servers whose args also say "claude"; only
+    the outermost match is a session, everything below is its activity. args are
+    read once per interpreter-like candidate (args_fn injectable for tests).
+    """
+    args_fn = args_fn or args_without_paths
+    by_pid = {p[0]: p for p in procs}
+    hits = {}
+    for pid, ppid, cpu, comm in procs:
+        base = comm.strip().lower()
+        if base in _AGENT_COMMS:
+            hits[pid] = base
+            continue
+        if is_interpreter(base) or base.startswith("python"):
+            ident = (args_fn(pid) or "").lower()
+            for marker in AGENT_MARKERS:
+                if marker in ident:
+                    hits[pid] = marker
+                    break
+    roots = {}
+    for pid, label in hits.items():
+        cur = by_pid.get(pid)
+        ancestor_hit = False
+        # Seeding with pid itself matters: a pid/ppid CYCLE in a stale ps
+        # snapshot would otherwise make a process its own "ancestor" and
+        # silently drop the only session root.
+        seen = {pid}
+        while cur and cur[1] > 1 and cur[1] not in seen:
+            seen.add(cur[1])
+            if cur[1] in hits:
+                ancestor_hit = True
+                break
+            cur = by_pid.get(cur[1])
+        if not ancestor_hit:
+            roots[pid] = label
+    return roots
+
+
+def agent_activity(procs, chip_c=None, level=0, args_fn=None):
+    """Build the "what did the AI start on this Mac" snapshot.
+
+    Display only: no signals, no full command lines (args_without_paths already
+    strips data paths, and the JSON stores just comm), capped in depth and node
+    count so a fork storm cannot balloon the file.
+    """
+    kids = {}
+    for pid, ppid, cpu, comm in procs:
+        kids.setdefault(ppid, []).append((pid, cpu, comm))
+    budget = [ACTIVITY_MAX_NODES]
+
+    def subtree(pid, depth):
+        out = []
+        if depth >= ACTIVITY_DEPTH:
+            return out
+        for cpid, cpu, comm in sorted(kids.get(pid, []), key=lambda x: -x[1]):
+            if budget[0] <= 0:
+                return out
+            budget[0] -= 1
+            out.append({"pid": cpid, "comm": comm, "cpu": round(cpu, 1),
+                        "kids": subtree(cpid, depth + 1)})
+        return out
+
+    def subtree_cpu(pid):
+        total = 0.0
+        stack = [pid]
+        seen = set()
+        while stack:
+            cur = stack.pop()
+            if cur in seen:
+                continue
+            seen.add(cur)
+            for cpid, cpu, _ in kids.get(cur, []):
+                total += cpu
+                stack.append(cpid)
+        return total
+
+    agents = []
+    for pid, label in sorted(_agent_roots(procs, args_fn).items()):
+        own = next((p for p in procs if p[0] == pid), None)
+        agents.append({"pid": pid, "agent": label,
+                       "comm": own[3] if own else label,
+                       "cpu_own": round(own[2], 1) if own else 0.0,
+                       "cpu_tree": round(subtree_cpu(pid) + (own[2] if own else 0), 1),
+                       "children": subtree(pid, 0)})
+    return {"time": ts(), "epoch": round(time.time(), 1),
+            "chip_c": chip_c, "level": level, "agents": agents}
+
+
+def activity_write(data):
+    """Atomic 0600 write, same discipline as status.json."""
+    try:
+        tmp = ACTIVITY_PATH + ".tmp"
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w") as f:
+            json.dump(data, f, ensure_ascii=False)
+        os.replace(tmp, ACTIVITY_PATH)
+    except Exception:
+        pass                      # an add-on must never take down the guard
+
+
 def saferun_jobs():
     """Return active jobs started by safe-run, with name and runtime."""
     out = []
@@ -3854,6 +3972,10 @@ def main():
                 st["_zadania"] = saferun_jobs()
                 st["_stat"] = day_stats()
                 st["_top_cpu"], st["_top_ram"] = top_lists()
+                # Agent activity: display-only snapshot of what AI sessions
+                # started, in its own file so status.json stays small.
+                if cfg.get("agent_activity", True):
+                    activity_write(agent_activity(list_procs(), chip_c=soc_t, level=lvl))
                 # Stall advisory: say it, never act on it. A job that declared a
                 # progress interval and went 3x quiet gets one notification per
                 # half hour - the guard's whole authority here is a sentence.
