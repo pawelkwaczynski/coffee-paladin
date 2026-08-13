@@ -179,6 +179,12 @@ test("28. --replace consciously takes over",
 nerd = {"statusLine": {"type": "command",
                        "command": "COFFEE_PALADIN_STATUSLINE_ICONS=nerd " + SCRIPT}}
 json.dump(nerd, open(SET, "w"))
+test("28b. re-wiring OUR env-prefixed entry keeps the prefix (a reinstall must "
+     "not reset the user's icon style)",
+     wire("wire", SCRIPT) == "ok"
+     and json.load(open(SET))["statusLine"]["command"].startswith(
+         "COFFEE_PALADIN_STATUSLINE_ICONS=nerd ")
+     and json.load(open(SET))["statusLine"]["refreshInterval"] == 15)
 test("29. unwire recognises our entry behind an env prefix",
      wire("unwire") == "ok" and "statusLine" not in json.load(open(SET)))
 tricky = {"statusLine": {"type": "command",

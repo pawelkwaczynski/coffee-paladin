@@ -86,14 +86,32 @@ def wire(script, replace):
     # runs the command only on conversation events, so the red OFF for a dead
     # daemon might never appear on an idle session - the exact failure this
     # line exists to catch.
-    entry = {"type": "command",
-             "command": script.replace(os.path.expanduser("~"), "~", 1),
-             "padding": 0, "refreshInterval": 15}
+    command = script.replace(os.path.expanduser("~"), "~", 1)
     current = settings.get("statusLine")
     ours = command_target(current) == os.path.expanduser(script)
     if current is not None and not ours and not replace:
         print("foreign")
         return
+    entry = {"type": "command", "command": command, "padding": 0, "refreshInterval": 15}
+    if ours:
+        # Re-running the installer must not erase the user's own choices on OUR
+        # entry: env prefixes (icon style) and tuned values survive; only the
+        # script path is normalised and the load-bearing keys are guaranteed.
+        try:
+            words = shlex.split(str(current.get("command", "")))
+        except ValueError:
+            words = []
+        prefixes = []
+        for word in words:
+            if re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", word):
+                prefixes.append(word)
+            else:
+                break
+        entry = dict(current)
+        entry["type"] = "command"
+        entry["command"] = " ".join(prefixes + [command])
+        entry.setdefault("padding", 0)
+        entry.setdefault("refreshInterval", 15)
     if current == entry:
         print("ok")
         return

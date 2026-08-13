@@ -546,8 +546,8 @@ PL = {
         "PROMOTE %s (pid %d) -> z powrotem na rdzenie P (maszyna ostygla)",
     "Thermal guard: hot": "Thermal guard: goraco",
     "unknown argument: %s": "nieznany argument: %s",
-    "usage: coffee-paladin [--once | status | --version | panel | bar icon-only|chip|full]   (no arguments = run the daemon)":
-        "uzycie: coffee-paladin [--once | status | --version | panel | bar icon-only|chip|full]   (bez argumentow = uruchom demona)",
+    "usage: coffee-paladin [--once | status | --version | panel | bar icon-only|chip|full | hook-gate]   (no arguments = run the daemon)":
+        "uzycie: coffee-paladin [--once | status | --version | panel | bar icon-only|chip|full | hook-gate]   (bez argumentow = uruchom demona)",
     "paused by the guard:": "wstrzymane przez guarda:",
     "  frozen: %-16s pid=%-7d since %s (%d min) - manual freeze, no automatic termination":
         "  zamrozone: %-16s pid=%-7d od %s (%d min) - reczna pauza, bez automatycznego ubicia",
@@ -726,7 +726,7 @@ RU = {
     "DEMOTED %s (pid %d) -> background QoS/E-cores (hot for >%d min)": "ПОНИЖЕНО %s (pid %d) -> фоновый QoS/E-ядра (жарко дольше %d мин)",
     "PROMOTED %s (pid %d) -> back on P-cores (machine cooled down)": "ПОВЫШЕНО %s (pid %d) -> обратно на P-ядра (машина остыла)",
     "unknown argument: %s": "неизвестный аргумент: %s",
-    "usage: coffee-paladin [--once | status | --version | panel | bar icon-only|chip|full]   (no arguments = run the daemon)": "использование: coffee-paladin [--once | status | --version | panel | bar icon-only|chip|full]   (без аргументов = запуск демона)",
+    "usage: coffee-paladin [--once | status | --version | panel | bar icon-only|chip|full | hook-gate]   (no arguments = run the daemon)": "использование: coffee-paladin [--once | status | --version | panel | bar icon-only|chip|full | hook-gate]   (без аргументов = запуск демона)",
     "paused by the guard:": "приостановлено guard-ом:",
     "  frozen: %-16s pid=%-7d since %s (%d min) - manual freeze, no automatic termination":
         "  заморожено: %-16s pid=%-7d с %s (%d мин) - ручная пауза, без автозавершения",
@@ -847,7 +847,7 @@ ZH = {
     "DEMOTED %s (pid %d) -> background QoS/E-cores (hot for >%d min)": "已降级 %s (pid %d) -> 后台 QoS/能效核心(持续过热超过 %d 分钟)",
     "PROMOTED %s (pid %d) -> back on P-cores (machine cooled down)": "已恢复 %s (pid %d) -> 回到性能核心(机器已降温)",
     "unknown argument: %s": "未知参数:%s",
-    "usage: coffee-paladin [--once | status | --version | panel | bar icon-only|chip|full]   (no arguments = run the daemon)": "用法:coffee-paladin [--once | status | --version | panel | bar icon-only|chip|full]   (不带参数 = 运行守护进程)",
+    "usage: coffee-paladin [--once | status | --version | panel | bar icon-only|chip|full | hook-gate]   (no arguments = run the daemon)": "用法:coffee-paladin [--once | status | --version | panel | bar icon-only|chip|full | hook-gate]   (不带参数 = 运行守护进程)",
     "paused by the guard:": "被 guard 暂停：",
     "  frozen: %-16s pid=%-7d since %s (%d min) - manual freeze, no automatic termination":
         "  已冻结：%-16s pid=%-7d 自 %s（%d 分钟）- 手动冻结，不会自动终止",
@@ -970,7 +970,7 @@ ES = {
     "DEMOTED %s (pid %d) -> background QoS/E-cores (hot for >%d min)": "DEGRADADO %s (pid %d) -> QoS de fondo/núcleos de eficiencia (caliente durante más de %d min)",
     "PROMOTED %s (pid %d) -> back on P-cores (machine cooled down)": "PROMOVIDO %s (pid %d) -> de vuelta a los núcleos de rendimiento (la máquina se enfrió)",
     "unknown argument: %s": "argumento desconocido: %s",
-    "usage: coffee-paladin [--once | status | --version | panel | bar icon-only|chip|full]   (no arguments = run the daemon)": "uso: coffee-paladin [--once | status | --version | panel | bar icon-only|chip|full]   (sin argumentos = ejecuta el demonio)",
+    "usage: coffee-paladin [--once | status | --version | panel | bar icon-only|chip|full | hook-gate]   (no arguments = run the daemon)": "uso: coffee-paladin [--once | status | --version | panel | bar icon-only|chip|full | hook-gate]   (sin argumentos = ejecuta el demonio)",
     "paused by the guard:": "pausado por el guard:",
     "  frozen: %-16s pid=%-7d since %s (%d min) - manual freeze, no automatic termination":
         "  congelado: %-16s pid=%-7d desde %s (%d min) - pausa manual, sin terminación automática",
@@ -3887,7 +3887,7 @@ def main():
     unknown_args = [] if bar_form else [a for a in sys.argv[1:] if a not in known]
     if unknown_args:
         print(T("unknown argument: %s") % " ".join(unknown_args), file=sys.stderr)
-        print(T("usage: coffee-paladin [--once | status | --version | panel | bar icon-only|chip|full]   (no arguments = run the daemon)"),
+        print(T("usage: coffee-paladin [--once | status | --version | panel | bar icon-only|chip|full | hook-gate]   (no arguments = run the daemon)"),
               file=sys.stderr)
         return 2
 
