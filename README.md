@@ -1,4 +1,4 @@
-# coffee-paladin v2.6.5
+# coffee-paladin v2.6.6
 
 <p align="center">
   <img src="branding/paladin.gif" alt="coffee-paladin - the project mascot" width="260">
@@ -432,6 +432,33 @@ exactly what a thermal guard is for. A guard that freezes the session driving it
 ```bash
 cat ~/.claude/skills/coffee-paladin/SKILL.md    # what your agent was told
 ```
+
+**Claude Code statusline.** The installer can also put the thermal state into
+Claude Code's status bar - one line under every session, refreshed live:
+
+```
+🛡  🌡 55°  🌀 2.4k  🧠 50%  💾 94%  ☕  Opus  my-project
+```
+
+The shield turns into an eye in watch-only mode and into a loud red `OFF`
+when the daemon's snapshot goes stale - the exact failure where the guard is
+unloaded and nobody notices. Elements appear only when they carry an action:
+paused jobs, jobs demoted to E-cores (running up to several times slower),
+the admission queue, a missing chip sensor, a hard shutdown within the last
+24 hours, and at hot levels the name of the process about to be paused. The
+model and directory come back at the end of the line, because this line
+replaces the default one that showed them.
+
+The wiring is deliberately conservative: `install.sh` copies the script and
+touches `~/.claude/settings.json` only when no `statusLine` is configured
+(with a timestamped backup); an existing statusline of yours is never
+overwritten unless you run `bash install.sh --replace`, and `uninstall.sh`
+removes only the entry that points at the paladin's own script. This wires the
+user-level settings; a project's own `.claude/settings.json` statusline, where
+one exists, takes precedence by Claude Code's scope rules. Icons default
+to emoji, which every Mac renders; a patched font is opt-in:
+`COFFEE_PALADIN_STATUSLINE_ICONS=nerd` (or `ascii` for plain terminals) in
+the command line stored in settings.
 
 
 ## Fleets: every Mac in one table
@@ -1395,6 +1422,33 @@ działać bezpiecznik termiczny. Guard, który zamraża sesję sterującą nim s
 ```bash
 cat ~/.claude/skills/coffee-paladin/SKILL.md    # co dostał Twój agent
 ```
+
+**Statusline w Claude Code.** Instalator potrafi też wpiąć stan termiczny w pasek
+statusu Claude Code - jedna linia pod każdą sesją, odświeżana na żywo:
+
+```
+🛡  🌡 55°  🌀 2.4k  🧠 50%  💾 94%  ☕  Opus  moj-projekt
+```
+
+Tarcza zamienia się w oko w trybie obserwacji, a w głośne czerwone `OFF`, gdy
+migawka demona przestaje być świeża - dokładnie ta awaria, w której strażnik
+jest wypięty i nikt tego nie widzi. Elementy pojawiają się tylko wtedy, gdy
+niosą akcję: wstrzymane zadania, zadania zdegradowane na rdzenie E (potrafią
+działać kilkukrotnie wolniej), kolejka admission, brak czujnika chipa, nagłe
+wyłączenie z ostatnich 24 godzin, a przy gorących poziomach nazwa procesu,
+który zaraz dostanie pauzę. Model i katalog sesji wracają na końcu linii, bo
+ta linia zastępuje domyślną, która je pokazywała.
+
+Wpięcie jest celowo zachowawcze: `install.sh` kopiuje skrypt, a
+`~/.claude/settings.json` dotyka wyłącznie wtedy, gdy klucz `statusLine` jest
+wolny (z kopią zapasową z datą); Twojej istniejącej linii nigdy nie nadpisze,
+chyba że świadomie uruchomisz `bash install.sh --replace`, a `uninstall.sh`
+usuwa tylko wpis wskazujący na własny skrypt paladyna. Wpięcie dotyczy ustawień
+użytkownika; statusline zdefiniowany w `.claude/settings.json` projektu, jeśli
+istnieje, ma pierwszeństwo zgodnie z zasadami zakresów Claude Code. Ikony domyślnie to
+emoji, które renderuje każdy Mac; łatany font jest świadomym wyborem:
+`COFFEE_PALADIN_STATUSLINE_ICONS=nerd` (albo `ascii` dla prostych terminali)
+w komendzie zapisanej w ustawieniach.
 
 
 ## Flota: wszystkie Maki w jednej tabeli

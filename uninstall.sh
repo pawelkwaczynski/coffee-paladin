@@ -70,6 +70,15 @@ PY
 # AI-agent skill: install.sh creates it, so uninstall must take it away -
 # otherwise Claude Code keeps invoking a `safe-run` that no longer exists
 rm -rf "$HOME/.claude/skills/coffee-paladin"
+# Claude Code statusline: remove OUR entry from settings.json before deleting
+# the script it points at - a dangling entry would break somebody's Claude Code
+# on every session start. A foreign statusLine is never touched.
+if [ -f "$HOME/.coffee-paladin/settings_wire.py" ]; then
+  case "$(/usr/bin/python3 "$HOME/.coffee-paladin/settings_wire.py" unwire 2>/dev/null)" in
+    ok) echo "  🗑  statusline removed from Claude Code settings" ;;
+  esac
+fi
+rm -f "$HOME/.coffee-paladin/statusline.sh" "$HOME/.coffee-paladin/settings_wire.py"
 # old names from versions <=2.1.0 (compatibility symlinks, no longer created)
 rm -f "$BIN/thermal-guard" "$BIN/heatbar"
 rm -f "$BIN/coffee-paladin" "$BIN/coffee-paladin-bar" "$BIN/heat" "$BIN/safe-run" "$BIN/thermal-report" "$BIN/fleet" "$BIN/thermalstate"

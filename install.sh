@@ -334,6 +334,26 @@ if [ -f "$SRC/skills/coffee-paladin/SKILL.md" ] && [ -d "$HOME/.claude" ]; then
   echo "  ✅ Claude Code skill installed (the agent will cooperate with the guard)"
 fi
 
+# 3d. Claude Code statusline: one line with the thermal state inside the coding
+# session. The script is always copied (harmless without Claude Code); the
+# user's ~/.claude/settings.json is touched ONLY when it has no statusLine of
+# its own - somebody else's statusline is never overwritten without --replace.
+if [ -f "$SRC/integrations/claude-code/statusline.sh" ]; then
+  cp "$SRC/integrations/claude-code/statusline.sh" "$BASE/statusline.sh"
+  cp "$SRC/integrations/claude-code/settings_wire.py" "$BASE/settings_wire.py"
+  chmod 0755 "$BASE/statusline.sh" "$BASE/settings_wire.py"
+  if [ -d "$HOME/.claude" ]; then
+    REPLACE_FLAG=""
+    for a in "$@"; do [ "$a" = "--replace" ] && REPLACE_FLAG="--replace"; done
+    case "$(/usr/bin/python3 "$BASE/settings_wire.py" wire "$BASE/statusline.sh" $REPLACE_FLAG)" in
+      ok)      echo "  ✅ Claude Code statusline wired (thermal state inside the session)" ;;
+      foreign) echo "  ℹ️  Claude Code already has its own statusline - left untouched."
+               echo "     To use the paladin's instead:  bash install.sh --replace" ;;
+      skip)    echo "  ℹ️  ~/.claude/settings.json is not valid JSON - statusline not wired" ;;
+    esac
+  fi
+fi
+
 # a service counts as running ONLY with a PID - "loaded" is not enough
 # (found in the field: the bar was listed without a PID while the installer
 # reported success)
