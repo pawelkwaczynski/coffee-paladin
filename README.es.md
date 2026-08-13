@@ -164,7 +164,7 @@ sincronizadas con iCloud. Esta última regla salió de un incidente real: un `gr
 `fileproviderd` y `cloudd` a materializar archivos desde la nube.
 
 **Statusline en Claude Code.** El instalador puede escribir el estado térmico
-justo bajo la sesión del agente: `🛡 55° 🌀 2.4k 🧠 50% 💾 94% ☕`. El escudo
+justo bajo la sesión del agente: `🛡  🌡 55°  🌀 2.4k  🧠 50%  💾 94%  ☕`. El escudo
 se convierte en un ojo en modo observación y en un `OFF` rojo y ruidoso cuando
 la instantánea del demonio caduca - exactamente la avería en la que el guardián
 está desconectado y nadie lo nota. Tu statusline existente nunca se toca

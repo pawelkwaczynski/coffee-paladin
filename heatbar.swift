@@ -2739,6 +2739,26 @@ final class LangRow: NSView {
 }
 
 final class Bar: NSObject, NSMenuDelegate {
+    /// Menu-facing cache of the live rows. The tail read and JSON parse run on
+    /// a background queue; the menu only ever reads the last snapshot, so a
+    /// slow disk cannot stall menuNeedsUpdate (same discipline as the fleet).
+    private var liveRowsCache: [String] = []
+    private var liveRowsBusy = false
+
+    func recorderLiveCached() -> [String] {
+        if !liveRowsBusy {
+            liveRowsBusy = true
+            DispatchQueue.global(qos: .utility).async { [weak self] in
+                let rows = self?.recorderLiveRows() ?? []
+                DispatchQueue.main.async {
+                    self?.liveRowsCache = rows
+                    self?.liveRowsBusy = false
+                }
+            }
+        }
+        return liveRowsCache
+    }
+
     /// Freshest recorder event per session, "project · tool · Ns ago" rows.
     func recorderLiveRows() -> [String] {
         let fmt = DateFormatter()
@@ -2776,10 +2796,17 @@ final class Bar: NSObject, NSMenuDelegate {
               let j = try? JSONSerialization.jsonObject(with: d) as? [String: Any],
               let epoch = j["epoch"] as? Double,
               let text = j["text"] as? String, !text.isEmpty else { return nil }
-        if Date().timeIntervalSince1970 - epoch > 24 * 3600 { return nil }
+        // "Today" must mean today: a stale cache from a removed ccusage would
+        // otherwise present yesterday's cost as current, forever.
+        let fmt = DateFormatter()
+        fmt.dateFormat = "yyyyMMdd"
+        if (j["day"] as? String) != fmt.string(from: Date()) { return nil }
+        if Date().timeIntervalSince1970 - epoch > 600 { return nil }
         return String(format: T("Agents today: %@ (ccusage)"), text)
     }
 
+    // Touched from the main thread only; the background task hands completion
+    // back to main, so the flag needs no lock.
     private static var ccusageRefreshing = false
 
     func refreshCcusageCache() {
@@ -2790,7 +2817,7 @@ final class Bar: NSObject, NSMenuDelegate {
         if Bar.ccusageRefreshing { return }
         Bar.ccusageRefreshing = true
         DispatchQueue.global(qos: .utility).async {
-            defer { Bar.ccusageRefreshing = false }
+            defer { DispatchQueue.main.async { Bar.ccusageRefreshing = false } }
             let home = NSHomeDirectory()
             let candidates = ["/opt/homebrew/bin/ccusage", "/usr/local/bin/ccusage",
                               home + "/.local/bin/ccusage", home + "/.bun/bin/ccusage",
@@ -2799,6 +2826,14 @@ final class Bar: NSObject, NSMenuDelegate {
             else { return }                       // no ccusage = the row simply does not exist
             let proc = Process()
             proc.executableURL = URL(fileURLWithPath: bin)
+            // npm/bun shims start with `env node`; a LaunchAgent's inherited
+            // environment may lack the runtime. Hand the child an explicit PATH.
+            var env = ProcessInfo.processInfo.environment
+            env["PATH"] = ["/opt/homebrew/bin", "/usr/local/bin",
+                           home + "/.local/bin", home + "/.bun/bin",
+                           home + "/.npm-global/bin",
+                           "/usr/bin", "/bin", "/usr/sbin", "/sbin"].joined(separator: ":")
+            proc.environment = env
             let fmt = DateFormatter()
             fmt.dateFormat = "yyyyMMdd"
             proc.arguments = ["daily", "--json", "--since", fmt.string(from: Date())]
@@ -2815,6 +2850,13 @@ final class Bar: NSObject, NSMenuDelegate {
                   let j = try? JSONSerialization.jsonObject(with: out) else { return }
             // Defensive: find the first plausible total without pinning the
             // exact schema of an external tool.
+            // Prefer the documented totals before any recursive guessing.
+            if let top = j as? [String: Any],
+               let totals = top["totals"] as? [String: Any],
+               let known = totals["totalCost"] as? Double {
+                self.writeCcusageCache(cost: known)
+                return
+            }
             func findCost(_ any: Any) -> Double? {
                 if let dict = any as? [String: Any] {
                     for key in ["totalCost", "total_cost", "costUSD", "cost"] {
@@ -2831,11 +2873,18 @@ final class Bar: NSObject, NSMenuDelegate {
                 return nil
             }
             guard let cost = findCost(j) else { return }
-            let cache: [String: Any] = ["epoch": Date().timeIntervalSince1970,
-                                        "text": String(format: "$%.2f", cost)]
-            if let data = try? JSONSerialization.data(withJSONObject: cache) {
-                try? data.write(to: URL(fileURLWithPath: ccusageCachePath), options: .atomic)
-            }
+            self.writeCcusageCache(cost: cost)
+        }
+    }
+
+    private func writeCcusageCache(cost: Double) {
+        let fmt = DateFormatter()
+        fmt.dateFormat = "yyyyMMdd"
+        let cache: [String: Any] = ["epoch": Date().timeIntervalSince1970,
+                                    "day": fmt.string(from: Date()),
+                                    "text": String(format: "$%.2f", cost)]
+        if let data = try? JSONSerialization.data(withJSONObject: cache) {
+            try? data.write(to: URL(fileURLWithPath: ccusageCachePath), options: .atomic)
         }
     }
 
@@ -4080,7 +4129,7 @@ final class Bar: NSObject, NSMenuDelegate {
         // pids, and nothing links them - so this is its own honest block, not a
         // fake per-branch annotation. Only the file's tail is read: a busy day
         // grows the log, and a menu open must stay instant.
-        let live = recorderLiveRows()
+        let live = recorderLiveCached()
         if !live.isEmpty {
             amenu.addItem(NSMenuItem.separator())
             amenu.addItem(NSMenuItem(title: T("Live (from hooks):"), action: nil, keyEquivalent: ""))
