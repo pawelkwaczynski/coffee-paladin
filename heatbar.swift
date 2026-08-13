@@ -3915,7 +3915,15 @@ final class Bar: NSObject, NSMenuDelegate {
         }
         var actRows: [(String, String, Int)] = []
         var actTotal = 0
-        if let d = FileManager.default.contents(atPath: activityPath),
+        // The same 180 s stale gate as the bar marker: after a daemon stop the
+        // file freezes, and a menu listing yesterday's sessions as alive lies.
+        let actFresh: Bool = {
+            guard let attrs = try? FileManager.default.attributesOfItem(atPath: activityPath),
+                  let mtime = attrs[.modificationDate] as? Date else { return false }
+            return Date().timeIntervalSince(mtime) <= 180
+        }()
+        if actFresh,
+           let d = FileManager.default.contents(atPath: activityPath),
            let j = try? JSONSerialization.jsonObject(with: d) as? [String: Any],
            let agents = j["agents"] as? [[String: Any]], !agents.isEmpty {
             func walk(_ nodes: [[String: Any]], indent: Int) {

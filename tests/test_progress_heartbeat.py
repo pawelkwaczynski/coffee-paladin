@@ -142,6 +142,17 @@ out = subprocess.run([sys.executable, os.path.join(SRC, "guard.py"), "status"],
 test("10. 'stalled?' line with minutes and the declared interval",
      "stalled? hb-reg" in out and "declared every 2 s" in out, out[-300:])
 
+print("=== the sweeper: orphans go, living heartbeats stay ===")
+pdir = os.path.join(BASE, "progress")
+orphan = os.path.join(pdir, "999999.progress")
+mine = os.path.join(pdir, "%d.progress" % os.getpid())
+open(orphan, "w").close()
+open(mine, "w").close()
+g.sweep_progress()
+test("11. dead supervisor's file is swept, a live one survives",
+     not os.path.exists(orphan) and os.path.exists(mine))
+os.unlink(mine)
+
 try:
     os.killpg(os.getpgid(p.pid), 15)
 except Exception:

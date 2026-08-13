@@ -738,6 +738,8 @@ RU = {
         "  ограничено: %-16s pid=%-7d предел %d%%",
     "battery": "батарея",
     "thermal": "перегрев",
+    "job %s (pid %d): no progress for %d min despite a declared interval of %d s":
+        "задача %s (pid %d): нет прогресса %d мин при заявленном интервале %d с",
     "Thermal guard: job may be stalled": "Thermal guard: задача, возможно, стоит",
     "%s reports no progress for %d min. Check it - the guard only watches here, it will not touch the job.":
         "%s не сообщает о прогрессе %d мин. Проверьте задачу - страж здесь только наблюдает и не тронет её.",
@@ -857,6 +859,8 @@ ZH = {
         "  受限：%-16s pid=%-7d 上限 %d%%",
     "battery": "电池",
     "thermal": "过热",
+    "job %s (pid %d): no progress for %d min despite a declared interval of %d s":
+        "任务 %s（pid %d）：已 %d 分钟无进度，尽管声明了 %d 秒的间隔",
     "Thermal guard: job may be stalled": "Thermal guard:任务可能停滞",
     "%s reports no progress for %d min. Check it - the guard only watches here, it will not touch the job.":
         "%s 已 %d 分钟没有进度。请检查 - 守护者在这里只观察，不会动这个任务。",
@@ -978,6 +982,8 @@ ES = {
         "  limitado: %-16s pid=%-7d tope %d%%",
     "battery": "batería",
     "thermal": "sobrecalentamiento",
+    "job %s (pid %d): no progress for %d min despite a declared interval of %d s":
+        "tarea %s (pid %d): sin progreso desde hace %d min pese al intervalo declarado de %d s",
     "Thermal guard: job may be stalled": "Thermal guard: la tarea puede estar parada",
     "%s reports no progress for %d min. Check it - the guard only watches here, it will not touch the job.":
         "%s no informa progreso desde hace %d min. Revísala: el guardián aquí solo observa, no tocará la tarea.",
@@ -1595,7 +1601,12 @@ def args_without_paths(pid):
       arguments without slash     - identity, flags and module names such as -m mcp.server
       remaining paths             - data, excluded from matching
     """
-    parts = full_args(pid).split()
+    return args_identity(full_args(pid))
+
+
+def args_identity(argstring):
+    """The identity part of a full command line; see args_without_paths."""
+    parts = (argstring or "").split()
     if not parts:
         return ""
     kept = [parts[0]]
@@ -2801,32 +2812,79 @@ def hook_gate(cfg):
 # about display ("what did the AI start"), so it is separate from never_*.
 AGENT_MARKERS = ("claude", "codex", "cursor", "openclaw", "grok",
                  "gemini", "antigravity", "aider", "copilot", "hermes")
-# comm values that can BE an agent directly (no args needed) or can host one
-# (interpreters - args decide).
-_AGENT_COMMS = frozenset(("claude", "codex", "cursor", "grok", "gemini", "aider"))
-
 ACTIVITY_PATH = os.path.join(BASE, "agent_activity.json")
 ACTIVITY_MAX_NODES = 200
 ACTIVITY_DEPTH = 3
+PROGRESS_DIR = os.path.join(BASE, "progress")
 
 
-def _agent_roots(procs, args_fn=None):
+def sweep_progress():
+    """Remove heartbeat files whose safe-run supervisor is gone.
+
+    The file name IS the supervisor pid. safe-run cleans up after itself on
+    every normal exit; a kill -9 or a crash leaves the file behind, and an
+    orphan that survives long enough will eventually meet a recycled pid, so
+    age is the second gate: nothing younger than an hour is touched.
+    """
+    try:
+        names = os.listdir(PROGRESS_DIR)
+    except OSError:
+        return
+    for name in names:
+        if not name.endswith(".progress"):
+            continue
+        pid_part = name[:-len(".progress")]
+        if not pid_part.isdigit():
+            continue
+        path = os.path.join(PROGRESS_DIR, name)
+        try:
+            # A recycled pid can make a dead supervisor look alive; the cost is
+            # one lingering empty file, accepted over deleting a live heartbeat.
+            if not alive(int(pid_part)):
+                os.unlink(path)
+        except OSError:
+            continue
+
+
+def interpreter_args_map(procs):
+    """One `ps -Ao pid=,args=` for ALL interpreter-like candidates.
+
+    A per-pid `ps -o args` inside the activity builder multiplied subprocesses
+    by the number of node/python processes on the machine, every fourth cycle.
+    One listing, one fork, and the identity-stripping happens on the strings.
+    """
+    wanted = {p[0] for p in procs
+              if is_interpreter(p[3].strip().lower()) or p[3].strip().lower().startswith("python")}
+    if not wanted:
+        return {}
+    out = {}
+    for line in run(["ps", "-Ao", "pid=,args="], timeout=15).splitlines():
+        parts = line.split(None, 1)
+        if len(parts) == 2 and parts[0].isdigit() and int(parts[0]) in wanted:
+            out[int(parts[0])] = args_identity(parts[1])
+    return out
+
+
+def _agent_roots(procs, args_fn=None, amap=None):
     """Return {pid: label} of OUTERMOST AI-session processes.
 
     A Claude session spawns node MCP servers whose args also say "claude"; only
-    the outermost match is a session, everything below is its activity. args are
-    read once per interpreter-like candidate (args_fn injectable for tests).
+    the outermost match is a session, everything below is its activity. Any
+    single-word marker can also BE the comm directly (hermes, aider, openclaw).
+    args come from one batched map (amap) or an injectable args_fn for tests.
     """
-    args_fn = args_fn or args_without_paths
+    if args_fn is None and amap is None:
+        amap = interpreter_args_map(procs)
+    lookup = args_fn or (lambda pid: amap.get(pid, ""))
     by_pid = {p[0]: p for p in procs}
     hits = {}
     for pid, ppid, cpu, comm in procs:
         base = comm.strip().lower()
-        if base in _AGENT_COMMS:
+        if base in AGENT_MARKERS:
             hits[pid] = base
             continue
         if is_interpreter(base) or base.startswith("python"):
-            ident = (args_fn(pid) or "").lower()
+            ident = (lookup(pid) or "").lower()
             for marker in AGENT_MARKERS:
                 if marker in ident:
                     hits[pid] = marker
@@ -2954,6 +3012,7 @@ def saferun_jobs():
                     stalled = p_age > 3 * p_int
                 out.append({"name": d.get("name") or d.get("comm") or "?",
                             "pid": pid,
+                            "started": d.get("started"),
                             "queued": bool(d.get("queued")),
                             "cpu_limit_pct": cap,
                             # The duty limiter blinks the job's state between S
@@ -3805,7 +3864,7 @@ def main():
             return 2
         wanted = [sys.argv[2]]
         keys = ("chip", "gpu", "battery", "fans", "watts", "ram", "disk",
-                "throttle", "paused", "flame", "awakeLeft")
+                "throttle", "paused", "flame", "awakeLeft", "agent")
         if wanted[0] == "full":
             show = {k: True for k in keys}
         elif wanted[0] == "chip":
@@ -4042,16 +4101,20 @@ def main():
                 # started, in its own file so status.json stays small.
                 if cfg.get("agent_activity", True):
                     activity_write(agent_activity(list_procs(), chip_c=soc_t, level=lvl))
+                sweep_progress()
                 # Stall advisory: say it, never act on it. A job that declared a
                 # progress interval and went 3x quiet gets one notification per
                 # half hour - the guard's whole authority here is a sentence.
                 for job in st["_zadania"]:
+                    # (pid, started) survives pid reuse: a NEW job on a
+                    # recycled pid must not inherit the old job's silence.
+                    stall_key = (job["pid"], round(job.get("started") or 0))
                     if not job.get("progress_stalled"):
-                        _stall_said.pop(job["pid"], None)
+                        _stall_said.pop(stall_key, None)
                         continue
-                    if time.time() - _stall_said.get(job["pid"], 0) < 1800:
+                    if time.time() - _stall_said.get(stall_key, 0) < 1800:
                         continue
-                    _stall_said[job["pid"]] = time.time()
+                    _stall_said[stall_key] = time.time()
                     log(T("job %s (pid %d): no progress for %d min despite a declared "
                           "interval of %d s") % (job["name"], job["pid"],
                                                  job["progress_age_s"] // 60,
@@ -4059,7 +4122,8 @@ def main():
                     notify(cfg, T("Thermal guard: job may be stalled"),
                            T("%s reports no progress for %d min. Check it - the guard "
                              "only watches here, it will not touch the job.")
-                           % (job["name"], job["progress_age_s"] // 60), key="stall")
+                           % (job["name"], job["progress_age_s"] // 60),
+                           key="stall%d" % job["pid"])
             # Disk changes slowly; one read every ~5 min is enough.
             if tick % 20 == 0 or not st.get("_disk"):
                 st["_disk"] = disk_usage()

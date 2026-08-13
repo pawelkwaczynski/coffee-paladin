@@ -112,10 +112,14 @@ data = json.load(open(g.ACTIVITY_PATH))
 test("12. atomic write, 0600, valid JSON", mode == 0o600 and len(data["agents"]) == 2,
      oct(mode))
 
-print("=== the real machine smoke test (this session should be visible) ===")
-real = g.agent_activity(g.list_procs())
-test("13. live scan finds at least one agent session (claude is running this test)",
-     any(a["agent"] == "claude" for a in real["agents"]), str([a["agent"] for a in real["agents"]]))
+if os.environ.get("TG_LIVE_SMOKE") == "1":
+    # Opt-in: assumes a claude session runs on THIS machine. CI and plain
+    # terminals have none, so the default battery stays purely synthetic.
+    print("=== the real machine smoke test (TG_LIVE_SMOKE=1) ===")
+    real = g.agent_activity(g.list_procs())
+    test("13. live scan finds at least one agent session",
+         any(a["agent"] == "claude" for a in real["agents"]),
+         str([a["agent"] for a in real["agents"]]))
 
 print("\nRESULT: %d/%d" % (passed, total))
 sys.exit(0 if passed == total else 1)

@@ -1132,6 +1132,13 @@ def main():
         proc = subprocess.Popen(wrapped, preexec_fn=os.setsid, env=env)
     except Exception as e:
         print(T("safe-run: cannot start: %r") % (e,))
+        # The heartbeat file was created before the fork; a failed start must
+        # not leave an orphan for the daemon's sweeper to explain.
+        if progress_path:
+            try:
+                os.unlink(progress_path)
+            except OSError:
+                pass
         return 4
 
     # Sleep in the middle of a job leaves it stuck until morning.

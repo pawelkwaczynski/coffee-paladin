@@ -296,7 +296,7 @@ else
   "show": {
     "chip": true, "gpu": true, "battery": true, "fans": true, "watts": true,
     "ram": true, "disk": true, "throttle": true, "paused": true,
-    "flame": true, "awakeLeft": true
+    "flame": true, "awakeLeft": true, "agent": true
   }
 }
 JSON
