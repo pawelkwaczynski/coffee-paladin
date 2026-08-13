@@ -163,6 +163,37 @@ sincronizadas con iCloud. Esta última regla salió de un incidente real: un `gr
 13 segundos de CPU en 1 h 42 min mantuvo un Mac sin ventilador a 90 °C, porque obligaba a
 `fileproviderd` y `cloudd` a materializar archivos desde la nube.
 
+**Statusline en Claude Code.** El instalador puede escribir el estado térmico
+justo bajo la sesión del agente: `🛡 55° 🌀 2.4k 🧠 50% 💾 94% ☕`. El escudo
+se convierte en un ojo en modo observación y en un `OFF` rojo y ruidoso cuando
+la instantánea del demonio caduca - exactamente la avería en la que el guardián
+está desconectado y nadie lo nota. Tu statusline existente nunca se toca
+(`--replace` es una elección consciente) y el desinstalador borra solo su
+propia entrada.
+
+**Actividad de agentes.** El demonio escribe `agent_activity.json`: qué
+sesiones de IA corren en este Mac y qué árbol de procesos arrancó cada una,
+con el contexto térmico. El menú tiene un submenú con iconos por tipo de
+proceso, y un marcador ✨ luce en la barra mientras viva alguna sesión: la
+mera presencia del marcador responde a «¿está trabajando una IA ahora?».
+La barra además se volvió más silenciosa: fijos solo el chip y la RAM; el
+resto (ventiladores, batería desde 40 °C, marcador IA, pausa) aparece solo
+cuando trae noticia, con histéresis de 60 s.
+
+**Una puerta para todos los hosts de agentes.** `coffee-paladin hook-gate`
+implementa el contrato pre-exec que comparten Claude Code, Codex CLI,
+Gemini CLI y Grok Build (JSON por stdin, salida 2 = bloqueo): una herramienta
+pesada lanzada a pelo - `ffmpeg`, un solver, `ollama run` - recibe un rechazo
+con la línea `safe-run` exacta a usar. La puerta comprueba disciplina de
+proceso, no temperatura; responde en milisegundos y ante cualquier
+imprevisto deja pasar.
+
+**Latido de progreso.** `safe-run` entrega a cada tarea una ruta en
+`$PALADIN_PROGRESS`; la tarea toca el archivo tras cada unidad de trabajo y,
+declarado su ritmo (`--progress-interval 300`), el guardián dirá con honradez
+«¿parada?» cuando calle el triple de lo prometido - siempre con palabras,
+nunca con señales.
+
 ---
 
 ## Instalación
@@ -224,7 +255,8 @@ horas sin límite de tiempo.
 
 **La barra de menús y el «notch».** La fila completa de lecturas no cabe junto al notch
 de un MacBook Pro, y en ese caso macOS directamente no dibuja el elemento - sin avisar.
-Por eso una instalación nueva muestra solo el icono y la temperatura del chip; en el menú
+Por eso una instalación nueva mantiene fijos solo el chip y la RAM (el resto
+es condicional, aparece cuando trae noticia); en el menú
 hay tres preajustes («Solo el icono», «Icono y temperatura del chip», «Mostrar todo») y los mismos
 preajustes funcionan desde el terminal, para cuando el icono no se ve y no hay menú que abrir:
 
