@@ -83,7 +83,7 @@ if [ -f "$HOME/.coffee-paladin/settings_wire.py" ]; then
     ok) echo "  🗑  hook-gate removed from Claude Code settings" ;;
   esac
 fi
-rm -f "$HOME/.coffee-paladin/statusline.sh" "$HOME/.coffee-paladin/settings_wire.py"
+rm -f "$HOME/.coffee-paladin/statusline.sh" "$HOME/.coffee-paladin/settings_wire.py" "$HOME/.coffee-paladin/agent_hook.py"
 # old names from versions <=2.1.0 (compatibility symlinks, no longer created)
 rm -f "$BIN/thermal-guard" "$BIN/heatbar"
 rm -f "$BIN/coffee-paladin" "$BIN/coffee-paladin-bar" "$BIN/heat" "$BIN/safe-run" "$BIN/thermal-report" "$BIN/fleet" "$BIN/thermalstate"

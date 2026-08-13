@@ -341,7 +341,8 @@ fi
 if [ -f "$SRC/integrations/claude-code/statusline.sh" ]; then
   cp "$SRC/integrations/claude-code/statusline.sh" "$BASE/statusline.sh"
   cp "$SRC/integrations/claude-code/settings_wire.py" "$BASE/settings_wire.py"
-  chmod 0755 "$BASE/statusline.sh" "$BASE/settings_wire.py"
+  cp "$SRC/integrations/claude-code/agent_hook.py" "$BASE/agent_hook.py"
+  chmod 0755 "$BASE/statusline.sh" "$BASE/settings_wire.py" "$BASE/agent_hook.py"
   if [ -d "$HOME/.claude" ]; then
     REPLACE_FLAG=""
     for a in "$@"; do [ "$a" = "--replace" ] && REPLACE_FLAG="--replace"; done

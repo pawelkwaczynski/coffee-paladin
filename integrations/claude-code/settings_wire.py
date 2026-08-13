@@ -117,10 +117,18 @@ def unwire():
 
 
 HOOK_COMMAND = "~/.local/bin/coffee-paladin hook-gate"
+RECORDER_COMMAND = "~/.coffee-paladin/agent_hook.py"
+RECORDER_EVENTS = ("SessionStart", "PreToolUse", "PostToolUse",
+                   "SubagentStart", "SubagentStop", "Stop", "SessionEnd")
 
 
 def _is_our_hook(hook):
-    return isinstance(hook, dict) and "coffee-paladin hook-gate" in str(hook.get("command", ""))
+    if not isinstance(hook, dict):
+        return False
+    command = str(hook.get("command", ""))
+    return ("coffee-paladin hook-gate" in command
+            or "/.coffee-paladin/agent_hook.py" in command
+            or command.startswith(RECORDER_COMMAND))
 
 
 def hook_wire():
@@ -161,8 +169,50 @@ def hook_wire():
     print("ok")
 
 
+def record_wire():
+    """Register the event recorder under every lifecycle event it needs.
+
+    Same list discipline as the gate: append one entry per event, recognise it
+    later by its command string, never touch a foreign entry. Tool events get
+    a "*" matcher; lifecycle events take none.
+    """
+    if not os.path.isdir(os.path.dirname(SETTINGS)):
+        print("skip")
+        return
+    settings = load()
+    if settings is None:
+        print("skip")
+        return
+    hooks = settings.get("hooks")
+    if hooks is None:
+        hooks = {}
+    if not isinstance(hooks, dict):
+        print("foreign")
+        return
+    changed = False
+    for event in RECORDER_EVENTS:
+        groups = hooks.get(event)
+        if groups is None:
+            groups = []
+        if not isinstance(groups, list):
+            continue              # a shape we do not understand is not ours to fix
+        if any(isinstance(g, dict) and any(_is_our_hook(h) for h in g.get("hooks") or [])
+               for g in groups):
+            continue
+        entry = {"hooks": [{"type": "command", "command": RECORDER_COMMAND, "timeout": 10}]}
+        if event in ("PreToolUse", "PostToolUse"):
+            entry["matcher"] = "*"
+        groups.append(entry)
+        hooks[event] = groups
+        changed = True
+    if changed:
+        settings["hooks"] = hooks
+        save(settings)
+    print("ok")
+
+
 def hook_unwire():
-    """Remove ONLY our gate entry; foreign hooks stay untouched.
+    """Remove ONLY our entries (gate and recorder) from EVERY event section.
 
     A dangling entry would run a deleted binary at every tool call, and
     removing a stranger's hook would silently change how their agent behaves -
@@ -172,34 +222,35 @@ def hook_unwire():
     if not settings or not isinstance(settings.get("hooks"), dict):
         print("none")
         return
-    pre = settings["hooks"].get("PreToolUse")
-    if not isinstance(pre, list):
-        print("none")
-        return
     changed = False
-    kept_groups = []
-    for group in pre:
-        if not isinstance(group, dict):
-            kept_groups.append(group)
+    hooks = settings["hooks"]
+    for event in list(hooks):
+        groups = hooks.get(event)
+        if not isinstance(groups, list):
             continue
-        inner = group.get("hooks") or []
-        kept = [h for h in inner if not _is_our_hook(h)]
-        if len(kept) != len(inner):
-            changed = True
-            if kept:
-                group = dict(group, hooks=kept)
+        kept_groups = []
+        for group in groups:
+            if not isinstance(group, dict):
                 kept_groups.append(group)
-            # a group we emptied entirely was ours; drop it
-        else:
-            kept_groups.append(group)
+                continue
+            inner = group.get("hooks") or []
+            kept = [h for h in inner if not _is_our_hook(h)]
+            if len(kept) != len(inner):
+                changed = True
+                if kept:
+                    kept_groups.append(dict(group, hooks=kept))
+                # a group we emptied entirely was ours; drop it
+            else:
+                kept_groups.append(group)
+        if kept_groups:
+            hooks[event] = kept_groups
+        elif groups:
+            changed = True
+            hooks.pop(event, None)
     if not changed:
         print("none")
         return
-    if kept_groups:
-        settings["hooks"]["PreToolUse"] = kept_groups
-    else:
-        settings["hooks"].pop("PreToolUse", None)
-    if not settings["hooks"]:
+    if not hooks:
         settings.pop("hooks", None)
     save(settings)
     print("ok")
@@ -222,6 +273,8 @@ if __name__ == "__main__":
         locked(unwire)
     elif len(sys.argv) >= 2 and sys.argv[1] == "hook":
         locked(hook_wire)
+    elif len(sys.argv) >= 2 and sys.argv[1] == "record":
+        locked(record_wire)
     elif len(sys.argv) >= 2 and sys.argv[1] == "unhook":
         locked(hook_unwire)
     else:
