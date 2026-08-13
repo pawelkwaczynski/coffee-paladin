@@ -116,6 +116,95 @@ def unwire():
     print("ok")
 
 
+HOOK_COMMAND = "~/.local/bin/coffee-paladin hook-gate"
+
+
+def _is_our_hook(hook):
+    return isinstance(hook, dict) and "coffee-paladin hook-gate" in str(hook.get("command", ""))
+
+
+def hook_wire():
+    """Add the thermal pre-exec gate to hooks.PreToolUse.
+
+    The hooks section is a LIST users curate by hand; the only safe operation
+    is appending our one entry and never reordering or rewriting theirs. Ours
+    is recognised by its command string, so wiring twice stays idempotent.
+    """
+    if not os.path.isdir(os.path.dirname(SETTINGS)):
+        print("skip")
+        return
+    settings = load()
+    if settings is None:
+        print("skip")
+        return
+    hooks = settings.get("hooks")
+    if hooks is None:
+        hooks = {}
+    if not isinstance(hooks, dict):
+        print("foreign")       # a shape we do not understand is not ours to fix
+        return
+    pre = hooks.get("PreToolUse")
+    if pre is None:
+        pre = []
+    if not isinstance(pre, list):
+        print("foreign")
+        return
+    for group in pre:
+        if isinstance(group, dict) and any(_is_our_hook(h) for h in group.get("hooks") or []):
+            print("ok")
+            return
+    pre.append({"matcher": "Bash",
+                "hooks": [{"type": "command", "command": HOOK_COMMAND, "timeout": 10}]})
+    hooks["PreToolUse"] = pre
+    settings["hooks"] = hooks
+    save(settings)
+    print("ok")
+
+
+def hook_unwire():
+    """Remove ONLY our gate entry; foreign hooks stay untouched.
+
+    A dangling entry would run a deleted binary at every tool call, and
+    removing a stranger's hook would silently change how their agent behaves -
+    both are the Iro class of field failure.
+    """
+    settings = load()
+    if not settings or not isinstance(settings.get("hooks"), dict):
+        print("none")
+        return
+    pre = settings["hooks"].get("PreToolUse")
+    if not isinstance(pre, list):
+        print("none")
+        return
+    changed = False
+    kept_groups = []
+    for group in pre:
+        if not isinstance(group, dict):
+            kept_groups.append(group)
+            continue
+        inner = group.get("hooks") or []
+        kept = [h for h in inner if not _is_our_hook(h)]
+        if len(kept) != len(inner):
+            changed = True
+            if kept:
+                group = dict(group, hooks=kept)
+                kept_groups.append(group)
+            # a group we emptied entirely was ours; drop it
+        else:
+            kept_groups.append(group)
+    if not changed:
+        print("none")
+        return
+    if kept_groups:
+        settings["hooks"]["PreToolUse"] = kept_groups
+    else:
+        settings["hooks"].pop("PreToolUse", None)
+    if not settings["hooks"]:
+        settings.pop("hooks", None)
+    save(settings)
+    print("ok")
+
+
 def locked(action):
     """Serialise wire/unwire: two installers racing on the same settings.json
     could clobber each other's tmp file or lose a concurrent statusLine edit."""
@@ -131,6 +220,10 @@ if __name__ == "__main__":
         locked(lambda: wire(sys.argv[2], "--replace" in sys.argv[3:]))
     elif len(sys.argv) >= 2 and sys.argv[1] == "unwire":
         locked(unwire)
+    elif len(sys.argv) >= 2 and sys.argv[1] == "hook":
+        locked(hook_wire)
+    elif len(sys.argv) >= 2 and sys.argv[1] == "unhook":
+        locked(hook_unwire)
     else:
         print(__doc__)
         sys.exit(2)

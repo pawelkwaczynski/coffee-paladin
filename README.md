@@ -460,6 +460,24 @@ to emoji, which every Mac renders; a patched font is opt-in:
 `COFFEE_PALADIN_STATUSLINE_ICONS=nerd` (or `ascii` for plain terminals) in
 the command line stored in settings.
 
+**One gate for every agent host.** `coffee-paladin hook-gate` implements the
+pre-execution hook contract that Claude Code, Codex CLI, Gemini CLI and Grok
+Build all share (tool-call JSON on stdin; exit 2 with the reason on stderr
+blocks the call). It checks process discipline, not temperature: a heavy tool
+started bare - `ffmpeg`, an encoder, a SAT solver, `ollama run` - is refused
+with the exact `safe-run` line to use instead, in milliseconds and fail-open
+on anything unexpected, because a broken gate must never hold a coding
+session hostage. `PALADIN_HOOK=off` disables it for one deliberate command;
+`hook_heavy_patterns` in config.json replaces the built-in list. Registration
+into each host's settings is manual for now (one JSON entry per tool's docs).
+
+**Agent activity.** The daemon also writes `~/.coffee-paladin/
+agent_activity.json`: which AI sessions run on this Mac and the process tree
+each one started, with the thermal context. The menu bar shows it under
+*Agent activity*, and a ✨ marker appears on the bar while any session is
+alive - the marker's presence is the answer to "is an AI working right now".
+Off switch: `"agent_activity": false`.
+
 
 ## Fleets: every Mac in one table
 
@@ -832,6 +850,17 @@ Since v2.4.0:
   and left children running, they are cleaned up (`SIGCONT` + `SIGTERM`, grace, `SIGKILL`) -
   a leftover child used to survive its supervisor and burn for hours with no time budget.
   After a clean exit, surviving children are only reported, not touched.
+
+Progress heartbeat (optional, advisory): `safe-run` hands every job a file path
+in `$PALADIN_PROGRESS` and touches it once at start. A job (or the shell around
+it) that touches the file after each finished unit of work - one `touch
+"$PALADIN_PROGRESS"` in a loop - gets an honest answer to "is it stalled?".
+Declare the expected rhythm with `--progress-interval 300` and the guard will
+say so - in `status`, and as a notification - when the job goes 3x quiet. It
+never acts on it: monitors used to guess stall thresholds by eye (15, then 5,
+then 20 minutes against 21-84 minute encodes) and produced three false alarms
+in a day; a declared rhythm replaces the guessing, and no declaration means no
+verdict at all.
 
 Admission control (optional, `"admission_control": true` in config.json): jobs declare how
 many cores they will chew (`--cores 6`, default: this machine's performance-core count) and
@@ -1621,7 +1650,26 @@ nie wstrzymuje, dopóki sam nie włączysz ochrony - jednym kliknięciem w pasku
   `--queue-priority` ustawia kolejność, `--after NAZWA` startuje po końcu innego zadania,
   kolejka przeżywa restart demona, `heat` pokazuje czekających, `fleet` ma kolumnę Q;
   arbiter tylko opóźnia starty - nigdy niczego nie pauzuje ani nie ubija, a przy
-  własnym błędzie wpuszcza wszystkich
+  własnym błędzie wpuszcza wszystkich; do tego heartbeat postępu (doradczy):
+  safe-run daje zadaniu ścieżkę w `$PALADIN_PROGRESS`, zadanie dotyka pliku po
+  każdej skończonej jednostce pracy, a po zadeklarowaniu rytmu
+  (`--progress-interval 300`) bezpiecznik POWIE - w `status` i powiadomieniem -
+  gdy zadanie milczy 3x dłużej; nigdy na tym nie działa, bo zgadywane progi
+  „stoi?" dały kiedyś trzy fałszywe alarmy w jeden dzień, a brak deklaracji
+  oznacza brak werdyktu
+- `coffee-paladin hook-gate` - jedna bramka pre-exec dla hostów agentowych
+  (Claude Code, Codex CLI, Gemini CLI, Grok Build dzielą ten sam kontrakt:
+  JSON na stdin, exit 2 + powód na stderr = blokada): ciężkie narzędzie
+  odpalone goło dostaje odmowę z gotową linią `safe-run` do użycia; bramka
+  sprawdza dyscyplinę procesu, nie temperaturę (odpowiada w milisekundy,
+  fail-open na wszystko nieoczekiwane); `PALADIN_HOOK=off` wyłącza na jedną
+  świadomą komendę, `hook_heavy_patterns` w config.json podmienia listę
+- **Aktywność agentów**: demon pisze też `agent_activity.json` - które sesje
+  AI działają na tym Macu i jakie drzewo procesów każda z nich odpaliła, z
+  kontekstem termicznym; pasek pokazuje to w podmenu „Aktywność agentów AI",
+  a znacznik ✨ na pasku świeci, póki jakakolwiek sesja żyje (sama obecność
+  znacznika = odpowiedź na „czy AI teraz coś robi"); wyłącznik:
+  `"agent_activity": false`
 - `heatbar` - pasek menu: świeża instalacja pokazuje sam chip, bo na Macu z notchem pełny
   odczyt się nie mieści i macOS nie rysuje wtedy NIC; trzy gotowe układy („Sama ikona",
   „Ikona i temperatura chipa", „Pokaż wszystko") są w „Pokaż na pasku", a gdy ikony nie widać,
