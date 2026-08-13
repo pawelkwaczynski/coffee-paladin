@@ -35,6 +35,8 @@ let commandPath = base + "/command"
 let configPath = base + "/config.json"
 let prefsPath = base + "/heatbar.json"
 let activityPath = base + "/agent_activity.json"
+let agentEventsDir = base + "/agent_events"
+let ccusageCachePath = base + "/ccusage_cache.json"
 let reportBin = NSString(string: "~/.local/bin/thermal-report").expandingTildeInPath
 
 // MARK: - language
@@ -143,6 +145,8 @@ let PL: [String: String] = [
     "Buy me a double espresso…": "Postaw mi podwójne espresso...",
     "Apple fleet": "Flota Apple",
     "Agent activity": "Aktywnosc agentow AI",
+    "Live (from hooks):": "Na zywo (z hookow):",
+    "Agents today: %@ (ccusage)": "Agenci dzisiaj: %@ (ccusage)",
     "no AI session is running right now": "zadna sesja AI teraz nie dziala",
     "… %d more": "… jeszcze %d",
     "%@ session — %.0f%% CPU in its tree": "sesja %@ — %.0f%% CPU w jej drzewie",
@@ -485,6 +489,8 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
     "Buy me a double espresso…": "Угостить двойным эспрессо...",
     "Apple fleet": "Парк Apple",
     "Agent activity": "Активность ИИ-агентов",
+    "Live (from hooks):": "Вживую (из хуков):",
+    "Agents today: %@ (ccusage)": "Агенты сегодня: %@ (ccusage)",
     "no AI session is running right now": "сейчас не работает ни одна сессия ИИ",
     "… %d more": "… ещё %d",
     "%@ session — %.0f%% CPU in its tree": "сессия %@ — %.0f%% CPU в её дереве",
@@ -766,6 +772,8 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
     "Buy me a double espresso…": "请我喝双份浓缩咖啡...",
     "Apple fleet": "Apple 机群",
     "Agent activity": "AI 代理活动",
+    "Live (from hooks):": "实时（来自 hooks）：",
+    "Agents today: %@ (ccusage)": "今日代理消耗：%@（ccusage）",
     "no AI session is running right now": "当前没有运行中的 AI 会话",
     "… %d more": "… 还有 %d 个",
     "%@ session — %.0f%% CPU in its tree": "%@ 会话 — 其进程树占 %.0f%% CPU",
@@ -1048,6 +1056,8 @@ Vuelve a activarlo cuando termines.
         "Con cinco MacBooks idénticos el nombre del sistema no dice nada. Este nombre aparece en la tabla de flota y el menú de cada máquina. Vacío = nombre del sistema.",
     "Apple fleet": "Flota Apple",
     "Agent activity": "Actividad de agentes IA",
+    "Live (from hooks):": "En vivo (desde hooks):",
+    "Agents today: %@ (ccusage)": "Agentes hoy: %@ (ccusage)",
     "no AI session is running right now": "ninguna sesión de IA está activa ahora",
     "… %d more": "… %d más",
     "%@ session — %.0f%% CPU in its tree": "sesión %@ — %.0f%% CPU en su árbol",
@@ -2729,6 +2739,106 @@ final class LangRow: NSView {
 }
 
 final class Bar: NSObject, NSMenuDelegate {
+    /// Freshest recorder event per session, "project · tool · Ns ago" rows.
+    func recorderLiveRows() -> [String] {
+        let fmt = DateFormatter()
+        fmt.dateFormat = "yyyy-MM-dd"
+        let path = agentEventsDir + "/" + fmt.string(from: Date()) + ".jsonl"
+        guard let handle = FileHandle(forReadingAtPath: path) else { return [] }
+        defer { try? handle.close() }
+        let size = (try? handle.seekToEnd()) ?? 0
+        let want: UInt64 = 64 * 1024
+        try? handle.seek(toOffset: size > want ? size - want : 0)
+        guard let data = try? handle.readToEnd(),
+              let text = String(data: data, encoding: .utf8) else { return [] }
+        var freshest: [String: (Double, String, String)] = [:]   // sid -> (epoch, tool, project)
+        for line in text.split(separator: "\n") {
+            guard let d = line.data(using: .utf8),
+                  let j = try? JSONSerialization.jsonObject(with: d) as? [String: Any],
+                  let sid = j["session_id"] as? String,
+                  let epoch = j["epoch"] as? Double else { continue }
+            let tool = (j["tool_name"] as? String) ?? (j["hook_event_name"] as? String) ?? "?"
+            let project = (j["project"] as? String) ?? "?"
+            if epoch > (freshest[sid]?.0 ?? 0) { freshest[sid] = (epoch, tool, project) }
+        }
+        let now = Date().timeIntervalSince1970
+        return freshest.values
+            .filter { now - $0.0 < 120 }
+            .sorted { $0.0 > $1.0 }
+            .map { String(format: "%@ · %@ · %.0f s", $0.2, $0.1, now - $0.0) }
+    }
+
+    /// Cached "cost today" from the external `ccusage` CLI. The cache file is
+    /// the contract: the menu NEVER waits for the tool, it shows what the last
+    /// background refresh wrote (10 min TTL) or nothing at all.
+    func ccusageTodayText() -> String? {
+        guard let d = FileManager.default.contents(atPath: ccusageCachePath),
+              let j = try? JSONSerialization.jsonObject(with: d) as? [String: Any],
+              let epoch = j["epoch"] as? Double,
+              let text = j["text"] as? String, !text.isEmpty else { return nil }
+        if Date().timeIntervalSince1970 - epoch > 24 * 3600 { return nil }
+        return String(format: T("Agents today: %@ (ccusage)"), text)
+    }
+
+    private static var ccusageRefreshing = false
+
+    func refreshCcusageCache() {
+        if let d = FileManager.default.contents(atPath: ccusageCachePath),
+           let j = try? JSONSerialization.jsonObject(with: d) as? [String: Any],
+           let epoch = j["epoch"] as? Double,
+           Date().timeIntervalSince1970 - epoch < 600 { return }
+        if Bar.ccusageRefreshing { return }
+        Bar.ccusageRefreshing = true
+        DispatchQueue.global(qos: .utility).async {
+            defer { Bar.ccusageRefreshing = false }
+            let home = NSHomeDirectory()
+            let candidates = ["/opt/homebrew/bin/ccusage", "/usr/local/bin/ccusage",
+                              home + "/.local/bin/ccusage", home + "/.bun/bin/ccusage",
+                              home + "/.npm-global/bin/ccusage"]
+            guard let bin = candidates.first(where: { FileManager.default.isExecutableFile(atPath: $0) })
+            else { return }                       // no ccusage = the row simply does not exist
+            let proc = Process()
+            proc.executableURL = URL(fileURLWithPath: bin)
+            let fmt = DateFormatter()
+            fmt.dateFormat = "yyyyMMdd"
+            proc.arguments = ["daily", "--json", "--since", fmt.string(from: Date())]
+            let pipe = Pipe()
+            proc.standardOutput = pipe
+            proc.standardError = FileHandle.nullDevice
+            guard (try? proc.run()) != nil else { return }
+            DispatchQueue.global().asyncAfter(deadline: .now() + 5) {
+                if proc.isRunning { proc.terminate() }
+            }
+            proc.waitUntilExit()
+            let out = pipe.fileHandleForReading.readDataToEndOfFile()
+            guard proc.terminationStatus == 0,
+                  let j = try? JSONSerialization.jsonObject(with: out) else { return }
+            // Defensive: find the first plausible total without pinning the
+            // exact schema of an external tool.
+            func findCost(_ any: Any) -> Double? {
+                if let dict = any as? [String: Any] {
+                    for key in ["totalCost", "total_cost", "costUSD", "cost"] {
+                        if let v = dict[key] as? Double { return v }
+                    }
+                    for v in dict.values { if let c = findCost(v) { return c } }
+                }
+                if let arr = any as? [Any] {
+                    var sum = 0.0
+                    var found = false
+                    for v in arr { if let c = findCost(v) { sum += c; found = true } }
+                    return found ? sum : nil
+                }
+                return nil
+            }
+            guard let cost = findCost(j) else { return }
+            let cache: [String: Any] = ["epoch": Date().timeIntervalSince1970,
+                                        "text": String(format: "$%.2f", cost)]
+            if let data = try? JSONSerialization.data(withJSONObject: cache) {
+                try? data.write(to: URL(fileURLWithPath: ccusageCachePath), options: .atomic)
+            }
+        }
+    }
+
     /// Keep the single menu bar instance.
     /// The paladin panel needs it to know which icon to anchor under.
     static weak var shared: Bar?
@@ -3965,6 +4075,29 @@ final class Bar: NSObject, NSMenuDelegate {
                                          action: nil, keyEquivalent: ""))
             }
         }
+        // LIVE from the recorder's daily JSONL (when the hooks are wired): the
+        // freshest event per session. Events carry session ids, processes carry
+        // pids, and nothing links them - so this is its own honest block, not a
+        // fake per-branch annotation. Only the file's tail is read: a busy day
+        // grows the log, and a menu open must stay instant.
+        let live = recorderLiveRows()
+        if !live.isEmpty {
+            amenu.addItem(NSMenuItem.separator())
+            amenu.addItem(NSMenuItem(title: T("Live (from hooks):"), action: nil, keyEquivalent: ""))
+            for row in live.prefix(8) {
+                let it = NSMenuItem(title: row, action: nil, keyEquivalent: "")
+                it.indentationLevel = 1
+                it.image = img("dot.radiowaves.left.and.right")
+                amenu.addItem(it)
+            }
+        }
+        if let cost = ccusageTodayText() {
+            amenu.addItem(NSMenuItem.separator())
+            let it = NSMenuItem(title: cost, action: nil, keyEquivalent: "")
+            it.image = img("dollarsign.circle")
+            amenu.addItem(it)
+        }
+        refreshCcusageCache()
         actIt.submenu = amenu
         m.addItem(actIt)
 
