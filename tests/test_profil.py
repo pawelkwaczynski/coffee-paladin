@@ -58,7 +58,11 @@ def busy(chip, n, **kw):
 
 
 def quiet(chip, n):
-    return [row(1 + (i % 10), i % 24, chip, watts=4.0, top_cpu=5) for i in range(n)]
+    # Minute-spaced runs on days AFTER every busy() row: settled idle must
+    # observe stability over consecutive minutes, and a quiet row stamped
+    # earlier than the last work row counts as "just after work" and is skipped.
+    return [row(11 + (i // 60) % 10, 12 + (i // 600) % 12, chip, watts=4.0, top_cpu=5,
+                minute=i % 60) for i in range(n)]
 
 
 CFG = {"soc_pause_c": 95.0, "soc_resume_c": 86.0, "soc_kill_c": 100.0}

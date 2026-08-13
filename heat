@@ -118,8 +118,8 @@ PL = {
         '   dane: %d probek z %.1f dni (%s ... %s)',
     '   too little to judge yet - the profile needs at least %d samples on %d days':
         '   za malo, zeby cokolwiek orzec - profil potrzebuje co najmniej %d probek z %.1f dni',
-    '   idle:            %5.1f °C   (median of %d samples, 90%% below %.1f °C)':
-        '   bezczynnie:      %5.1f °C   (mediana z %d probek, 90%% ponizej %.1f °C)',
+    '   idle:            %5.1f °C   (settled median of %d samples, 90%% below %.1f °C; %d quiet samples not settled yet)':
+        '   bezczynnie:      %5.1f °C   (mediana %d probek w stanie ustalonym, 90%% ponizej %.1f °C; %d cichych probek jeszcze nieustabilizowanych)',
     '   under load:      %5.1f °C   (plateau of %d samples, median %.1f °C, peak %.1f °C)':
         '   pod obciazeniem: %5.1f °C   (plateau z %d probek, mediana %.1f °C, szczyt %.1f °C)',
     '   under load:      no heavy work in this history, so there is no plateau to read':
@@ -206,8 +206,8 @@ RU = {
         '   данные: %d замеров за %.1f дней (%s ... %s)',
     '   too little to judge yet - the profile needs at least %d samples on %d days':
         '   пока слишком мало для выводов - профилю нужно минимум %d замеров за %.1f дней',
-    '   idle:            %5.1f °C   (median of %d samples, 90%% below %.1f °C)':
-        '   в покое:         %5.1f °C   (медиана из %d замеров, 90%% ниже %.1f °C)',
+    '   idle:            %5.1f °C   (settled median of %d samples, 90%% below %.1f °C; %d quiet samples not settled yet)':
+        '   в покое:         %5.1f °C   (медиана %d установившихся замеров, 90%% ниже %.1f °C; %d тихих замеров ещё не установились)',
     '   under load:      %5.1f °C   (plateau of %d samples, median %.1f °C, peak %.1f °C)':
         '   под нагрузкой:   %5.1f °C   (плато по %d замерам, медиана %.1f °C, пик %.1f °C)',
     '   under load:      no heavy work in this history, so there is no plateau to read':
@@ -294,8 +294,8 @@ ZH = {
         '   数据：%d 个样本，跨 %.1f 天（%s ... %s）',
     '   too little to judge yet - the profile needs at least %d samples on %d days':
         '   数据还不足以下结论 - 档案至少需要 %d 个样本、跨 %.1f 天',
-    '   idle:            %5.1f °C   (median of %d samples, 90%% below %.1f °C)':
-        '   空闲：           %5.1f °C   （%d 个样本的中位数，90%% 低于 %.1f °C）',
+    '   idle:            %5.1f °C   (settled median of %d samples, 90%% below %.1f °C; %d quiet samples not settled yet)':
+        '   空闲：           %5.1f °C   （稳态样本 %d 个的中位数，90%% 低于 %.1f °C；尚未稳定的安静样本 %d 个）',
     '   under load:      %5.1f °C   (plateau of %d samples, median %.1f °C, peak %.1f °C)':
         '   负载下：         %5.1f °C   （%d 个样本的平台值，中位数 %.1f °C，峰值 %.1f °C）',
     '   under load:      no heavy work in this history, so there is no plateau to read':
@@ -382,8 +382,8 @@ ES = {
         '   datos: %d muestras en %.1f dias (%s ... %s)',
     '   too little to judge yet - the profile needs at least %d samples on %d days':
         '   aun es poco para juzgar - el perfil necesita al menos %d muestras en %.1f dias',
-    '   idle:            %5.1f °C   (median of %d samples, 90%% below %.1f °C)':
-        '   en reposo:       %5.1f °C   (mediana de %d muestras, 90%% por debajo de %.1f °C)',
+    '   idle:            %5.1f °C   (settled median of %d samples, 90%% below %.1f °C; %d quiet samples not settled yet)':
+        '   en reposo:       %5.1f °C   (mediana de %d muestras estables, 90%% por debajo de %.1f °C; %d muestras en calma aún sin asentar)',
     '   under load:      %5.1f °C   (plateau of %d samples, median %.1f °C, peak %.1f °C)':
         '   bajo carga:      %5.1f °C   (meseta de %d muestras, mediana %.1f °C, pico %.1f °C)',
     '   under load:      no heavy work in this history, so there is no plateau to read':
@@ -745,6 +745,14 @@ LOAD_WATTS = 15.0          # the package draw says "working" even when no single
                            # scattering short children shows almost no CPU
 IDLE_TOP_CPU = 30.0
 IDLE_WATTS = 8.0
+# "CPU looks idle" is not "the chip is idle": a fanless chassis cools for many
+# minutes after work ends, and those hot quiet samples inflated the idle band
+# (a fanless field profile reported idle at 81 °C), which the resume-threshold
+# rail then leans on. A sample is settled only when work is far enough behind
+# and the recent quiet temperature has stopped moving.
+IDLE_SETTLE_AFTER_WORK_S = 900
+IDLE_STABLE_WINDOW_S = 600
+IDLE_STABLE_RANGE_C = 2.0
 MAX_GENERATIONS = 12       # the guard keeps far fewer; this only bounds the reader
 MAX_ROWS = 500000          # ~7 years of samples: a stop, not a policy
 # The same window the daemon accepts (guard.py restores defaults outside it).
@@ -863,6 +871,58 @@ def _working(row):
             or (cell(row, "watts") or 0) >= LOAD_WATTS)
 
 
+def settled_idle(rows):
+    """Idle samples that describe a machine at rest, not one still cooling.
+
+    Returns (settled_chip_temps, skipped_quiet_samples). A quiet sample is
+    skipped while work is less than IDLE_SETTLE_AFTER_WORK_S behind (negative
+    gaps from clock corrections count as "just after work" too) or while the
+    quiet temperatures of the last IDLE_STABLE_WINDOW_S still span more than
+    IDLE_STABLE_RANGE_C. Rows with no usable timestamp cannot prove distance
+    from work, so they are skipped rather than trusted.
+    """
+    settled, skipped = [], 0
+    last_busy = None
+    window = []
+    for row in rows:
+        chip = cell(row, "chip_C")
+        if chip is None:
+            continue
+        when = abs_epoch(row.get("time", ""))
+        if _working(row) or (cell(row, "level") or 0) >= 2:
+            if when:
+                last_busy = when
+            window = []
+            continue
+        quiet = ((cell(row, "top_cpu") or 0) < IDLE_TOP_CPU
+                 and (cell(row, "watts") or 0) < IDLE_WATTS)
+        if not quiet:
+            # Medium activity is neither work nor rest; it breaks stability.
+            window = []
+            continue
+        if not when:
+            # abs_epoch returns 0.0 for junk, never None; a row that cannot
+            # prove its distance from work is skipped, not trusted.
+            skipped += 1
+            continue
+        window = [(t, c) for (t, c) in window if 0 < when - t <= IDLE_STABLE_WINDOW_S]
+        window.append((when, chip))
+        if last_busy is not None and when - last_busy < IDLE_SETTLE_AFTER_WORK_S:
+            skipped += 1
+            continue
+        # Stability must be OBSERVED, not vacuous: a single quiet sample spans
+        # zero seconds and would pass any range check while still cooling.
+        if when - window[0][0] < IDLE_STABLE_WINDOW_S * 0.8:
+            skipped += 1
+            continue
+        temps = [c for (_, c) in window]
+        if max(temps) - min(temps) > IDLE_STABLE_RANGE_C:
+            skipped += 1
+            continue
+        settled.append(chip)
+    return settled, skipped
+
+
 def thermal_profile(rows):
     """What this Mac does thermally: idle band, working plateau, fans, throttling."""
     stamps = [t for t in (abs_epoch(r.get("time", "")) for r in rows) if t]
@@ -878,9 +938,7 @@ def thermal_profile(rows):
     days = sum(1 for n in per_day.values() if n >= MIN_SAMPLES_PER_DAY)
     chips = [c for c in (cell(r, "chip_C") for r in rows) if c]
     load = [cell(r, "chip_C") for r in rows if _working(r) and cell(r, "chip_C")]
-    idle = [cell(r, "chip_C") for r in rows
-            if (cell(r, "top_cpu") or 0) < IDLE_TOP_CPU
-            and (cell(r, "watts") or 0) < IDLE_WATTS and cell(r, "chip_C")]
+    idle, idle_skipped = settled_idle(rows)
     throttled = [cell(r, "chip_C") for r in rows
                  if (cell(r, "cpu_limit") or 100) < 100 and cell(r, "chip_C")]
     # An unreadable cpu_limit is NOT evidence of no throttling. Counting unknown
@@ -901,6 +959,7 @@ def thermal_profile(rows):
         # resume threshold has to clear the floor even then.
         "baseline_c": round(pct(chips, 0.05), 1) if chips else None,
         "idle_samples": len(idle),
+        "idle_not_settled": idle_skipped,
         "idle_median_c": round(pct(idle, 0.5), 1) if idle else None,
         "idle_p90_c": round(pct(idle, 0.9), 1) if idle else None,
         "load_samples": len(load),
@@ -987,8 +1046,9 @@ def print_profile(prof, sug, cfg):
         print(T("   too little to judge yet - the profile needs at least %d samples on %d days")
               % (MIN_SAMPLES, MIN_DAYS))
     if prof["idle_median_c"]:
-        print(T("   idle:            %5.1f °C   (median of %d samples, 90%% below %.1f °C)")
-              % (prof["idle_median_c"], prof["idle_samples"], prof["idle_p90_c"]))
+        print(T("   idle:            %5.1f °C   (settled median of %d samples, 90%% below %.1f °C; %d quiet samples not settled yet)")
+              % (prof["idle_median_c"], prof["idle_samples"], prof["idle_p90_c"],
+                 prof.get("idle_not_settled", 0)))
     if prof["plateau_c"]:
         print(T("   under load:      %5.1f °C   (plateau of %d samples, median %.1f °C, peak %.1f °C)")
               % (prof["plateau_c"], prof["load_samples"], prof["load_median_c"], prof["peak_c"]))
