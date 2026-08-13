@@ -2733,6 +2733,69 @@ def trend_and_forecast(cfg, soc_t):
     return round(slope, 1), round((threshold - soc_t) / slope, 1)
 
 
+# Heavy tools an AI agent must not start bare: each one can hold every core for
+# hours. Deliberately NOT including bare "python": the false-deny rate would
+# make agents (and their humans) disable the gate, which protects nobody.
+HOOK_HEAVY_DEFAULT = ("ffmpeg", "x265", "x264", "ab-av1", "handbrakecli",
+                      "kissat", "cadical", "ollama run", "mlx_lm.lora", "whisper")
+# Command position: start of line or after a separator, an optional path
+# prefix, then the pattern as a whole word. `cat /tmp/cadical.log` must not
+# match; `nice /opt/bin/ffmpeg -i x` must.
+_HOOK_CMD_POS = r"(?:^|[;|&\n`]|\|\||&&|\$\()\s*(?:[a-z]+\s+)*(?:\S*/)?%s(?=\s|$)"
+
+
+def hook_gate(cfg):
+    """Pre-exec gate for AI coding agents (the PreToolUse/BeforeTool contract).
+
+    stdin carries the agent's tool-call JSON; exit 0 allows, exit 2 blocks with
+    the reason on stderr - the contract Claude Code, Codex CLI, Gemini CLI and
+    Grok Build all share, which is why this one command can serve them all.
+
+    The gate checks PROCESS DISCIPLINE, not temperature: heavy work belongs
+    under safe-run, which measures, registers and supervises. No measurement
+    happens here on purpose - some hosts run hooks fail-open with tight
+    timeouts, so the answer must take milliseconds, and exactly one process
+    (the daemon) keeps deciding thermally. Fail-open on anything unexpected:
+    a broken gate must never take a coding session hostage. PALADIN_HOOK=off
+    disables it; the reason text tells the agent both outs.
+    """
+    if os.environ.get("PALADIN_HOOK", "").lower() in ("off", "0", "false"):
+        return 0
+    try:
+        data = json.loads(sys.stdin.read() or "{}")
+    except (ValueError, OSError):
+        return 0
+    if not isinstance(data, dict):
+        return 0
+    tool = str(data.get("tool_name") or data.get("tool") or "").lower()
+    if tool not in ("bash", "shell", "run_shell_command", "exec_command", "local_shell"):
+        return 0
+    ti = data.get("tool_input")
+    cmd = str((ti.get("command") if isinstance(ti, dict) else "") or "")
+    if not cmd.strip() or "safe-run" in cmd:
+        return 0
+    patterns = cfg.get("hook_heavy_patterns") or HOOK_HEAVY_DEFAULT
+    low = cmd.lower()
+    hit = None
+    for pat in (str(p).lower() for p in patterns):
+        for m in re.finditer(_HOOK_CMD_POS % re.escape(pat), low):
+            # Asking a tool about itself is not heavy work.
+            if re.match(r"\s+-{1,2}(version|help|h)\b", low[m.end():m.end() + 40]):
+                continue
+            hit = pat
+            break
+        if hit:
+            break
+    if not hit:
+        return 0
+    sys.stderr.write(
+        "coffee-paladin: '%s' is heavy and would run unsupervised. Start it under "
+        "the thermal guard instead:\n  safe-run -- %s\nDetails: "
+        "~/.claude/skills/coffee-paladin/SKILL.md. If the human explicitly wants "
+        "it bare, set PALADIN_HOOK=off for that one command.\n" % (hit, cmd[:200]))
+    return 2
+
+
 # AI coding sessions, recognised the same way agent PROTECTION recognises them:
 # by the identity part of the command line, never by data paths. This list is
 # about display ("what did the AI start"), so it is separate from never_*.
@@ -3710,7 +3773,7 @@ def main():
 
     # `coffee-paladin status` was a trap: exit code 0 with no output looked successful. It
     # is now an alias for --once, and every unknown argument prints what is supported.
-    known = {"--once", "status", "--version", "panel", "bar"}
+    known = {"--once", "status", "--version", "panel", "bar", "hook-gate"}
     # `bar` takes a value, so it is the one form that is two words long. Checking
     # it here keeps the preset name out of the set of standalone commands, where
     # a bare `coffee-paladin chip` would have been accepted.
@@ -3721,6 +3784,9 @@ def main():
         print(T("usage: coffee-paladin [--once | status | --version | panel | bar icon-only|chip|full]   (no arguments = run the daemon)"),
               file=sys.stderr)
         return 2
+
+    if "hook-gate" in sys.argv:
+        return hook_gate(cfg)
 
     # A status item that does not fit in the menu bar is not drawn at all, and
     # macOS offers no way to ask whether that happened. On a 14-inch Mac with a
