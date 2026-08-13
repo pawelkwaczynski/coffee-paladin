@@ -63,6 +63,15 @@ test("1. claude by comm and codex by args are roots",
 test("2. the MCP server inside the session is NOT a second root", 112 not in roots, str(roots))
 test("3. ffmpeg with a claude data path is NOT an agent", 300 not in roots, str(roots))
 
+# Field catch from the first live run: the video queue's supervisor was
+# classified as a "hermes" session because its script lives under
+# ~/HermesWorkspace/. A directory is location, not identity.
+path_trap = [(600, 1, 5.0, "python3"), (610, 1, 1.0, "hermes")]
+trap_args = {600: "python3 /users/x/hermesworkspace/kompresja/kompresor.sh run"}
+r = g._agent_roots(path_trap, args_fn=lambda pid: trap_args.get(pid, ""))
+test("3b. a marker inside the script's DIRECTORY does not make an agent",
+     600 not in r and 610 in r, str(r))
+
 print("=== the tree ===")
 act = g.agent_activity(PROCS, chip_c=71.5, level=1, args_fn=fake_args)
 agents = {a["pid"]: a for a in act["agents"]}

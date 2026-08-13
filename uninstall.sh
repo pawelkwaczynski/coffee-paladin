@@ -77,6 +77,11 @@ if [ -f "$HOME/.coffee-paladin/settings_wire.py" ]; then
   case "$(/usr/bin/python3 "$HOME/.coffee-paladin/settings_wire.py" unwire 2>/dev/null)" in
     ok) echo "  🗑  statusline removed from Claude Code settings" ;;
   esac
+  # The pre-exec gate too: a dangling PreToolUse entry would run a deleted
+  # binary at every tool call of every future session.
+  case "$(/usr/bin/python3 "$HOME/.coffee-paladin/settings_wire.py" unhook 2>/dev/null)" in
+    ok) echo "  🗑  hook-gate removed from Claude Code settings" ;;
+  esac
 fi
 rm -f "$HOME/.coffee-paladin/statusline.sh" "$HOME/.coffee-paladin/settings_wire.py"
 # old names from versions <=2.1.0 (compatibility symlinks, no longer created)

@@ -300,7 +300,7 @@ else
   }
 }
 JSON
-    echo "  ℹ️  bar layout kept as it was (a new install now starts with the chip alone)"
+    echo "  ℹ️  bar layout kept as it was (a new install now starts with chip + RAM and conditional markers)"
   fi
 fi
 

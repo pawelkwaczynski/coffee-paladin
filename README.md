@@ -913,8 +913,10 @@ hot; a RAM warning means memory is 62 % used **and** the machine has started swa
 
 Everything on the bar is optional - **Show in the bar** gives you a checkbox per element and the
 choice is remembered in `~/.coffee-paladin/heatbar.json`, and three presets sit above the
-checkboxes: **Icon only**, **Icon and chip temperature** (what a new install starts with) and
-**Show all**. On a Mac with a notch the full readout does not fit, and macOS then draws no status
+checkboxes: **Icon only**, **Icon and chip temperature** and **Show all**. A new install
+starts with the chip temperature and RAM as the fixed core, plus elements that
+appear only while they carry news (spinning fans, a battery from 40 °C up, an
+AI-session marker, throttle and pause) with a 60 s hysteresis against flicker. On a Mac with a notch the full readout does not fit, and macOS then draws no status
 item at all - no warning, and no way to ask why. If that happens you cannot open the menu either,
 so the same three presets work from a terminal:
 
@@ -1670,7 +1672,10 @@ nie wstrzymuje, dopóki sam nie włączysz ochrony - jednym kliknięciem w pasku
   a znacznik ✨ na pasku świeci, póki jakakolwiek sesja żyje (sama obecność
   znacznika = odpowiedź na „czy AI teraz coś robi"); wyłącznik:
   `"agent_activity": false`
-- `heatbar` - pasek menu: świeża instalacja pokazuje sam chip, bo na Macu z notchem pełny
+- `heatbar` - pasek menu: świeża instalacja pokazuje stały rdzeń chip+RAM oraz
+  elementy warunkowe, które świecą tylko gdy niosą wiadomość (wentylator gdy się
+  kręci, bateria od 40 °C, znacznik sesji AI, dławienie, pauza; histereza 60 s) -
+  bo na Macu z notchem pełny
   odczyt się nie mieści i macOS nie rysuje wtedy NIC; trzy gotowe układy („Sama ikona",
   „Ikona i temperatura chipa", „Pokaż wszystko") są w „Pokaż na pasku", a gdy ikony nie widać,
   te same układy ustawisz z terminala: `coffee-paladin bar icon-only|chip|full`, a

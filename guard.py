@@ -2749,10 +2749,59 @@ def trend_and_forecast(cfg, soc_t):
 # make agents (and their humans) disable the gate, which protects nobody.
 HOOK_HEAVY_DEFAULT = ("ffmpeg", "x265", "x264", "ab-av1", "handbrakecli",
                       "kissat", "cadical", "ollama run", "mlx_lm.lora", "whisper")
-# Command position: start of line or after a separator, an optional path
-# prefix, then the pattern as a whole word. `cat /tmp/cadical.log` must not
-# match; `nice /opt/bin/ffmpeg -i x` must.
-_HOOK_CMD_POS = r"(?:^|[;|&\n`]|\|\||&&|\$\()\s*(?:[a-z]+\s+)*(?:\S*/)?%s(?=\s|$)"
+# Wrappers that pass execution through to their argument: skipping them finds
+# the real argv[0]. Anything NOT on this list (grep, cat, echo...) is itself
+# the command, and a heavy name in its arguments is data, not execution.
+_HOOK_WRAPPERS = frozenset(("nice", "env", "taskpolicy", "caffeinate", "timeout",
+                            "time", "command", "exec", "nohup", "stdbuf", "arch"))
+
+
+def _hook_command_hit(cmd, patterns):
+    """Return the heavy pattern a shell command would EXECUTE bare, or None.
+
+    The command is split into simple segments (;, &&, ||, |, newlines,
+    backticks, $( ). Per segment: leading VAR=value assignments and known
+    pass-through wrappers (with their flags and numeric arguments) are
+    skipped, and the decision is made on the real argv[0] basename - so
+    `grep ffmpeg README.md` is grep, not ffmpeg, and `echo safe-run; ffmpeg`
+    does not borrow supervision from a word in a neighbouring segment. A
+    segment whose argv[0] is safe-run is supervised as a whole, and a matched
+    tool followed by a version/help flag is a question, not work.
+    """
+    import shlex
+    for segment in re.split(r"[;|&\n`]+|\$\(", cmd):
+        try:
+            tokens = shlex.split(segment)
+        except ValueError:
+            tokens = segment.split()
+        i = 0
+        while i < len(tokens):
+            tok = tokens[i]
+            base = os.path.basename(tok.strip("\"'")).lower()
+            if re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", tok):
+                i += 1
+                continue
+            if base in _HOOK_WRAPPERS or tok.startswith("-") or tok.replace(".", "").isdigit():
+                i += 1
+                continue
+            break
+        if i >= len(tokens):
+            continue
+        argv0 = os.path.basename(tokens[i].strip("\"'")).lower()
+        if argv0 == "safe-run":
+            continue
+        rest = [t.lower() for t in tokens[i + 1:]]
+        for pat in patterns:
+            words = pat.split()
+            if argv0 != words[0]:
+                continue
+            if words[1:] and rest[:len(words) - 1] != words[1:]:
+                continue
+            after = rest[len(words) - 1:] if words[1:] else rest
+            if after and re.match(r"^-{1,2}(version|help|h)$", after[0]):
+                continue
+            return pat
+    return None
 
 
 def hook_gate(cfg):
@@ -2783,20 +2832,13 @@ def hook_gate(cfg):
         return 0
     ti = data.get("tool_input")
     cmd = str((ti.get("command") if isinstance(ti, dict) else "") or "")
-    if not cmd.strip() or "safe-run" in cmd:
+    if not cmd.strip():
         return 0
-    patterns = cfg.get("hook_heavy_patterns") or HOOK_HEAVY_DEFAULT
-    low = cmd.lower()
-    hit = None
-    for pat in (str(p).lower() for p in patterns):
-        for m in re.finditer(_HOOK_CMD_POS % re.escape(pat), low):
-            # Asking a tool about itself is not heavy work.
-            if re.match(r"\s+-{1,2}(version|help|h)\b", low[m.end():m.end() + 40]):
-                continue
-            hit = pat
-            break
-        if hit:
-            break
+    patterns = [str(p).lower() for p in (cfg.get("hook_heavy_patterns") or HOOK_HEAVY_DEFAULT)]
+    try:
+        hit = _hook_command_hit(cmd, patterns)
+    except Exception:
+        return 0                  # fail-open: see the docstring
     if not hit:
         return 0
     sys.stderr.write(
@@ -2885,8 +2927,13 @@ def _agent_roots(procs, args_fn=None, amap=None):
             continue
         if is_interpreter(base) or base.startswith("python"):
             ident = (lookup(pid) or "").lower()
+            # Markers match BASENAMES of the identity tokens, never full paths:
+            # a live run classified the video queue's supervisor as a "hermes"
+            # session because its script lives under ~/HermesWorkspace/. The
+            # directory a script sits in is location, not identity.
+            bases = " ".join(os.path.basename(t.strip("\"'")) for t in ident.split())
             for marker in AGENT_MARKERS:
-                if marker in ident:
+                if marker in bases:
                     hits[pid] = marker
                     break
     roots = {}

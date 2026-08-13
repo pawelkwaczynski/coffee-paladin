@@ -71,6 +71,22 @@ for name, cmd in [
 
 r = gate({"tool_name": "Read", "tool_input": {"file_path": "/tmp/ffmpeg"}})
 test("10. non-shell tools pass untouched", r.returncode == 0)
+
+print("=== the adversarial round's catches stay caught ===")
+r = gate(bash("grep ffmpeg README.md | head -5"))
+test("10b. a heavy NAME as an argument to grep is data, not execution",
+     r.returncode == 0, "rc=%s %r" % (r.returncode, r.stderr[:100]))
+r = gate(bash("echo safe-run; ffmpeg -i a.mov b.mp4"))
+test("10c. 'safe-run' in a NEIGHBOURING segment lends no supervision",
+     r.returncode == 2, "rc=%s" % r.returncode)
+r = gate(bash("FOO=bar ffmpeg -i a.mov b.mp4"))
+test("10d. an env assignment prefix does not hide the tool",
+     r.returncode == 2, "rc=%s" % r.returncode)
+r = gate(bash("env LC_ALL=C nice -n 10 ffmpeg -i a.mov b.mp4"))
+test("10e. wrapper chains are skipped down to the real argv0",
+     r.returncode == 2, "rc=%s" % r.returncode)
+r = gate(bash("git log && x265 --input in.y4m -o out.hevc"))
+test("10f. heavy after && is caught", r.returncode == 2, "rc=%s" % r.returncode)
 r = gate(bash("ffmpeg -i a.mov b.mp4"), env_extra={"PALADIN_HOOK": "off"})
 test("11. PALADIN_HOOK=off disables the gate", r.returncode == 0)
 
