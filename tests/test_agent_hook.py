@@ -132,5 +132,39 @@ test("14. unhook clears recorder AND gate entries everywhere, foreign stays",
      wire("hook") == "ok" and wire("unhook") == "ok"
      and json.load(open(SET))["hooks"] == FOREIGN["hooks"], json.dumps(json.load(open(SET))))
 
+print("=== the review round's catches stay caught ===")
+
+
+def pre_count():
+    return sum(1 for g in json.load(open(SET))["hooks"]["PreToolUse"]
+               for h in g.get("hooks", [])
+               if "coffee-paladin" in str(h.get("command", ""))
+               or "agent_hook" in str(h.get("command", "")))
+
+
+json.dump({}, open(SET, "w"))
+wire("hook"); wire("record")
+test("15. hook then record: BOTH live on PreToolUse", pre_count() == 2,
+     json.dumps(json.load(open(SET))["hooks"]["PreToolUse"]))
+json.dump({}, open(SET, "w"))
+wire("record"); wire("hook")
+test("16. record then hook: BOTH live on PreToolUse", pre_count() == 2,
+     json.dumps(json.load(open(SET))["hooks"]["PreToolUse"]))
+
+fire({"hook_event_name": "SessionEnd", "session_id": "s2",
+      "reason": "/Users/x/very-private-prompt.txt"})
+e = events()[-1]
+test("17. a free-text reason collapses to the enum's 'other'",
+     e.get("reason") == "other" and "very-private" not in json.dumps(e), str(e))
+
+json.dump({"agent_obsidian_vault_path": vault}, open(os.path.join(BASE, "config.json"), "w"))
+fire({"hook_event_name": "SessionEnd", "session_id": "../../evil", "reason": "clear"})
+pages = os.listdir(pages_dir)
+test("18. a traversal session id still lands INSIDE the vault folder",
+     all(os.path.dirname(os.path.abspath(os.path.join(pages_dir, p))) == os.path.abspath(pages_dir)
+         for p in pages)
+     and any(p.startswith("%s evil-" % time.strftime("%Y-%m-%d")) for p in pages),
+     str(pages))
+
 print("\nRESULT: %d/%d" % (passed, total))
 sys.exit(0 if passed == total else 1)

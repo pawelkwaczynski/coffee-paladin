@@ -122,13 +122,22 @@ RECORDER_EVENTS = ("SessionStart", "PreToolUse", "PostToolUse",
                    "SubagentStart", "SubagentStop", "Stop", "SessionEnd")
 
 
-def _is_our_hook(hook):
+def _is_gate_hook(hook):
+    return isinstance(hook, dict) and "coffee-paladin hook-gate" in str(hook.get("command", ""))
+
+
+def _is_recorder_hook(hook):
     if not isinstance(hook, dict):
         return False
     command = str(hook.get("command", ""))
-    return ("coffee-paladin hook-gate" in command
-            or "/.coffee-paladin/agent_hook.py" in command
-            or command.startswith(RECORDER_COMMAND))
+    return "/.coffee-paladin/agent_hook.py" in command or command.startswith(RECORDER_COMMAND)
+
+
+def _is_our_hook(hook):
+    # The gate and the recorder BOTH live on PreToolUse; a shared predicate in
+    # the wire checks made them mutually exclusive (whichever was added first
+    # blocked the other). Wiring checks its own kind; unwire removes both.
+    return _is_gate_hook(hook) or _is_recorder_hook(hook)
 
 
 def hook_wire():
@@ -158,7 +167,7 @@ def hook_wire():
         print("foreign")
         return
     for group in pre:
-        if isinstance(group, dict) and any(_is_our_hook(h) for h in group.get("hooks") or []):
+        if isinstance(group, dict) and any(_is_gate_hook(h) for h in group.get("hooks") or []):
             print("ok")
             return
     pre.append({"matcher": "Bash",
@@ -196,7 +205,7 @@ def record_wire():
             groups = []
         if not isinstance(groups, list):
             continue              # a shape we do not understand is not ours to fix
-        if any(isinstance(g, dict) and any(_is_our_hook(h) for h in g.get("hooks") or [])
+        if any(isinstance(g, dict) and any(_is_recorder_hook(h) for h in g.get("hooks") or [])
                for g in groups):
             continue
         entry = {"hooks": [{"type": "command", "command": RECORDER_COMMAND, "timeout": 10}]}

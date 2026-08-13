@@ -26,7 +26,12 @@ KEEP_DAYS = 7
 
 # Everything else in the payload is somebody's data, not telemetry.
 FIELDS = ("hook_event_name", "session_id", "tool_name", "tool_use_id",
-          "agent_id", "agent_type", "duration_ms", "reason", "stop_hook_active")
+          "agent_id", "agent_type", "duration_ms", "stop_hook_active")
+# `reason` is an enum ONLY on SessionEnd per the docs; recording it as free
+# text would let an adapter smuggle a path or prompt fragment into the JSONL
+# and the vault. Anything unknown collapses to "other".
+END_REASONS = frozenset(("clear", "resume", "logout", "prompt_input_exit",
+                         "bypass_permissions_disabled", "other"))
 
 
 def thermal_context():
@@ -62,8 +67,13 @@ def session_markdown(rec, payload):
     try:
         target = os.path.join(os.path.expanduser(vault), "Coffee Paladin", "Agent Activity")
         os.makedirs(target, exist_ok=True)
-        sid = "".join(ch for ch in str(rec.get("session_id") or "session")
-                      if ch.isalnum() or ch in "-_")[:40]
+        import hashlib
+        raw_sid = str(rec.get("session_id") or "session")
+        sid = "".join(ch for ch in raw_sid
+                      if ch.isascii() and (ch.isalnum() or ch in "-_"))[:40]
+        # A session id made of "../" sanitises to nothing, and 12 characters
+        # can collide; the hash of the RAW id keeps names unique and safe.
+        sid = (sid or "session") + "-" + hashlib.sha256(raw_sid.encode()).hexdigest()[:8]
         day = time.strftime("%Y-%m-%d")
         tools = {}
         events = 0
@@ -102,9 +112,14 @@ def session_markdown(rec, payload):
             lines.append("## Tools used")
             for t, n in sorted(tools.items(), key=lambda kv: -kv[1]):
                 lines.append("- %s: %d" % (t, n))
-        path = os.path.join(target, "%s %s.md" % (day, sid[:12]))
-        with open(path, "w") as f:
+        # tmp + replace: never write THROUGH a symlink somebody planted in
+        # the vault, and never leave a half-written page on a crash.
+        path = os.path.join(target, "%s %s.md" % (day, sid[:21]))
+        tmp = path + ".tmp.%d" % os.getpid()
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, "w") as f:
             f.write("\n".join(lines) + "\n")
+        os.replace(tmp, path)
     except OSError:
         pass
 
@@ -122,6 +137,9 @@ def main():
         value = payload.get(key)
         if isinstance(value, (str, int, float, bool)) and value != "":
             rec[key] = value if not isinstance(value, str) else value[:120]
+    if rec.get("hook_event_name") == "SessionEnd":
+        raw_reason = payload.get("reason")
+        rec["reason"] = raw_reason if raw_reason in END_REASONS else "other"
     cwd = payload.get("cwd") or (payload.get("workspace") or {}).get("current_dir")
     if isinstance(cwd, str) and cwd:
         rec["project"] = os.path.basename(cwd)[:60]
