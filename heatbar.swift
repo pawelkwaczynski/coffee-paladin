@@ -34,6 +34,7 @@ let logPath = base + "/guard.log"
 let commandPath = base + "/command"
 let configPath = base + "/config.json"
 let prefsPath = base + "/heatbar.json"
+let activityPath = base + "/agent_activity.json"
 let reportBin = NSString(string: "~/.local/bin/thermal-report").expandingTildeInPath
 
 // MARK: - language
@@ -141,6 +142,13 @@ let PL: [String: String] = [
         "Przy pięciu identycznych Macach nazwa systemowa nic nie mówi. Ta nazwa pokazuje się w tabeli floty i w menu na każdej maszynie. Puste = nazwa systemowa.",
     "Buy me a double espresso…": "Postaw mi podwójne espresso...",
     "Apple fleet": "Flota Apple",
+    "Agent activity": "Aktywnosc agentow AI",
+    "no AI session is running right now": "zadna sesja AI teraz nie dziala",
+    "… %d more": "… jeszcze %d",
+    "%@ session — %.0f%% CPU in its tree": "sesja %@ — %.0f%% CPU w jej drzewie",
+    "AI session marker": "Znacznik sesji AI",
+    "Battery temperature (from 40 °C)": "Temperatura baterii (od 40 °C)",
+    "Fan rpm (when spinning)": "Obroty wentylatorow (gdy sie kreca)",
     "battery": "bateria",
     "paused": "wstrzymane",
     "STALE - not reporting": "NIE RAPORTUJE",
@@ -476,6 +484,13 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
         "Когда MacBook пять одинаковых, системное имя ничего не говорит. Это имя видно в таблице парка и в меню на каждой машине. Пустое = системное имя.",
     "Buy me a double espresso…": "Угостить двойным эспрессо...",
     "Apple fleet": "Парк Apple",
+    "Agent activity": "Активность ИИ-агентов",
+    "no AI session is running right now": "сейчас не работает ни одна сессия ИИ",
+    "… %d more": "… ещё %d",
+    "%@ session — %.0f%% CPU in its tree": "сессия %@ — %.0f%% CPU в её дереве",
+    "AI session marker": "Маркер сессии ИИ",
+    "Battery temperature (from 40 °C)": "Температура батареи (от 40 °C)",
+    "Fan rpm (when spinning)": "Обороты вентиляторов (когда крутятся)",
     "battery": "батарея",
     "paused": "приостановлено",
     "STALE - not reporting": "НЕ ОТЧИТЫВАЕТСЯ",
@@ -750,6 +765,13 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
         "五台一样的 MacBook,系统主机名毫无意义。此名称会显示在每台机器的机群表和菜单中。留空 = 系统主机名。",
     "Buy me a double espresso…": "请我喝双份浓缩咖啡...",
     "Apple fleet": "Apple 机群",
+    "Agent activity": "AI 代理活动",
+    "no AI session is running right now": "当前没有运行中的 AI 会话",
+    "… %d more": "… 还有 %d 个",
+    "%@ session — %.0f%% CPU in its tree": "%@ 会话 — 其进程树占 %.0f%% CPU",
+    "AI session marker": "AI 会话标记",
+    "Battery temperature (from 40 °C)": "电池温度（40 °C 起）",
+    "Fan rpm (when spinning)": "风扇转速（旋转时）",
     "battery": "电池",
     "paused": "已暂停",
     "STALE - not reporting": "未上报",
@@ -1025,6 +1047,13 @@ Vuelve a activarlo cuando termines.
     "With five identical MacBooks the system hostname says nothing. This name shows in the fleet table and menu on every machine. Empty = system hostname.":
         "Con cinco MacBooks idénticos el nombre del sistema no dice nada. Este nombre aparece en la tabla de flota y el menú de cada máquina. Vacío = nombre del sistema.",
     "Apple fleet": "Flota Apple",
+    "Agent activity": "Actividad de agentes IA",
+    "no AI session is running right now": "ninguna sesión de IA está activa ahora",
+    "… %d more": "… %d más",
+    "%@ session — %.0f%% CPU in its tree": "sesión %@ — %.0f%% CPU en su árbol",
+    "AI session marker": "Marcador de sesión IA",
+    "Battery temperature (from 40 °C)": "Temperatura de la batería (desde 40 °C)",
+    "Fan rpm (when spinning)": "Rpm de ventiladores (cuando giran)",
     "battery": "batería",
     "paused": "en pausa",
     "STALE - not reporting": "SIN REPORTAR",
@@ -1988,14 +2017,14 @@ func icon(_ name: String, fallback: String, size: CGFloat = 12) -> NSAttributedS
 /// Every bar element can be switched on and off: the menu bar is scarce space and everyone
 /// wants something different there. The choice lives in heatbar.json, so it survives a restart.
 enum Item: String, CaseIterable {
-    case chip, gpu, battery, fans, watts, ram, disk, throttle, paused, flame, awakeLeft
+    case chip, gpu, battery, fans, watts, ram, disk, throttle, paused, flame, awakeLeft, agent
 
     var label: String {
         switch self {
         case .chip: return T("Chip temperature")
         case .gpu: return T("GPU temperature")
-        case .battery: return T("Battery temperature")
-        case .fans: return T("Fan rpm")
+        case .battery: return T("Battery temperature (from 40 °C)")
+        case .fans: return T("Fan rpm (when spinning)")
         case .watts: return T("Power draw (W)")
         case .ram: return T("RAM used")
         case .disk: return T("Disk used")
@@ -2003,21 +2032,23 @@ enum Item: String, CaseIterable {
         case .paused: return T("Pause marker")
         case .flame: return T("Flame at critical")
         case .awakeLeft: return T("Keep-awake time left")
+        case .agent: return T("AI session marker")
         }
     }
 
-    /// A fresh bar shows the chip temperature and nothing else that costs width.
-    /// Every MacBook Pro since 2021 has a notch, and the space left of it is small:
-    /// a full readout (chip, GPU, battery, fans, watts, RAM, disk) runs to about
-    /// thirty characters, and macOS does not draw a status item that does not fit.
-    /// It appears at login, then vanishes as the other menu extras load, which
-    /// reads as a broken app (field report: 14-inch M1 Pro, the item was attached
-    /// and reported visible the whole time). The markers stay on because they are
-    /// silent until something happens, and when it happens the user must see it.
+    /// A fresh bar shows a small FIXED core (chip and RAM) plus CONDITIONAL
+    /// elements that stay invisible until they carry news: fans only while they
+    /// spin, battery only from 40 °C up (the cell-degradation line), an AI
+    /// marker only while an agent session runs, throttle and pause markers only
+    /// when active. Every MacBook Pro since 2021 has a notch and macOS silently
+    /// drops a status item that does not fit (field report: 14-inch M1 Pro),
+    /// so width is spent only when something happens - and a 60 s hysteresis
+    /// keeps elements from flickering in and out at a boundary.
     var byDefault: Bool {
         switch self {
-        case .chip, .throttle, .paused, .flame, .awakeLeft: return true
-        case .gpu, .battery, .fans, .watts, .ram, .disk: return false
+        case .chip, .ram, .fans, .battery, .agent,
+             .throttle, .paused, .flame: return true
+        case .gpu, .watts, .disk, .awakeLeft: return false
         }
     }
 }
@@ -2888,6 +2919,41 @@ final class Bar: NSObject, NSMenuDelegate {
     // rule as the flame: short, with a 60 s pause.
     private var lastFanAt = Date.distantPast
     private var lastFanRpm = -1
+    /// Conditional bar elements hold for 60 s after their trigger clears, so a
+    /// reading dancing on a boundary (fans 0/300 rpm, battery 39.8/40.1 °C)
+    /// cannot make the bar flicker and shift width every couple of seconds.
+    private var stickyUntil: [Item: Date] = [:]
+
+    private func sticky(_ i: Item, _ active: Bool) -> Bool {
+        if active {
+            stickyUntil[i] = Date().addingTimeInterval(60)
+            return true
+        }
+        if let hold = stickyUntil[i], hold > Date() { return true }
+        stickyUntil[i] = nil
+        return false
+    }
+
+    /// Live AI sessions from agent_activity.json, cached by mtime: the title
+    /// refreshes every couple of seconds and must not parse JSON each time.
+    private var activityCacheMtime: Date = .distantPast
+    private var activityCacheCount = 0
+
+    func agentSessionCount() -> Int {
+        guard let attrs = try? FileManager.default.attributesOfItem(atPath: activityPath),
+              let mtime = attrs[.modificationDate] as? Date else { return 0 }
+        // Stale file = daemon stopped writing; a marker based on old data lies.
+        if Date().timeIntervalSince(mtime) > 180 { return 0 }
+        if mtime == activityCacheMtime { return activityCacheCount }
+        activityCacheMtime = mtime
+        activityCacheCount = 0
+        if let d = FileManager.default.contents(atPath: activityPath),
+           let j = try? JSONSerialization.jsonObject(with: d) as? [String: Any],
+           let agents = j["agents"] as? [[String: Any]] {
+            activityCacheCount = agents.count
+        }
+        return activityCacheCount
+    }
     // Last good chip reading. Under full load, a single macmon read can fail (null in
     // the snapshot for ~1 cycle) and the bar flashed blank even though the daemon had
     // a good temperature moments earlier. Hold the last value for max. 2 daemon cycles
@@ -3066,7 +3132,12 @@ final class Bar: NSObject, NSMenuDelegate {
         var temps: [String] = []
         if prefs.enabled(.chip) { temps.append(s.chip.map { String(format: "%.0f°", $0) } ?? "—") }
         if prefs.enabled(.gpu), let g = s.gpu { temps.append(String(format: "%.0f°", g)) }
-        if prefs.enabled(.battery), let b = s.batt { temps.append(String(format: "%.0f°", b)) }
+        // Battery temperature earns bar width only near the line that matters:
+        // lithium cells degrade above ~45 °C and the guard pauses at 40. A cool
+        // battery is the normal state and says nothing.
+        if prefs.enabled(.battery), let b = s.batt, sticky(.battery, b >= 40) {
+            temps.append(String(format: "%.0f°", b))
+        }
         var chipRange: NSRange?
         if !temps.isEmpty {
             let start = out.length + 1                       // after the space following the icon
@@ -3077,13 +3148,27 @@ final class Bar: NSObject, NSMenuDelegate {
         }
 
         if prefs.enabled(.fans), let f = s.fans.max() {
-            gap()
+            // Stopped fans on a hot chip are an ALARM and always shown; spinning
+            // fans carry news; stopped fans on a cool machine are the normal
+            // state and would only spend notch width (60 s hysteresis on hide).
             if f == 0 && (s.chip ?? 0) >= 70 {
+                gap()
                 out.append(icon("exclamationmark.triangle.fill", fallback: "!"))
                 text(" 0")
-            } else {
+            } else if sticky(.fans, f > 0) {
+                gap()
                 out.append(icon("fan", fallback: "fan"))
                 text(" " + (f >= 1000 ? String(format: "%.1fk", Double(f) / 1000.0) : "\(f)"))
+            }
+        }
+        // One glance answers "is an AI working on this Mac right now": the
+        // marker's mere presence is the answer, the number counts sessions.
+        if prefs.enabled(.agent) {
+            let n = agentSessionCount()
+            if sticky(.agent, n > 0) {
+                gap()
+                out.append(icon("sparkles", fallback: "AI"))
+                if n > 1 { text(" \(n)") }
             }
         }
         if prefs.enabled(.watts), let w = s.watts {
@@ -3806,6 +3891,74 @@ final class Bar: NSObject, NSMenuDelegate {
             m.addItem(loadIt)
         }
 
+
+        // AGENT ACTIVITY: what the AI sessions on THIS Mac started, from the
+        // daemon's agent_activity.json. The file is local and tiny, so it is
+        // read on open; the fleet-style background cache exists for slow
+        // network folders, not for this.
+        let actIt = NSMenuItem(title: T("Agent activity"), action: nil, keyEquivalent: "")
+        actIt.image = img("sparkles")
+        let amenu = NSMenu()
+        amenu.autoenablesItems = false
+        func actIcon(_ comm: String) -> String {
+            let c = comm.lowercased()
+            if c.hasPrefix("python") { return "chevron.left.forwardslash.chevron.right" }
+            if c == "ffmpeg" || c.hasPrefix("x26") || c == "ab-av1" { return "film" }
+            if c.contains("ollama") || c.contains("mlx") { return "cpu" }
+            if c == "brew" { return "shippingbox" }
+            if c == "sh" || c == "bash" || c == "zsh" { return "terminal" }
+            if ["make", "cmake", "swiftc", "clang", "cargo", "xcodebuild", "ninja"].contains(c) {
+                return "hammer"
+            }
+            if c == "node" || c == "bun" || c == "deno" { return "gearshape.2" }
+            return "gearshape"
+        }
+        var actRows: [(String, String, Int)] = []
+        var actTotal = 0
+        if let d = FileManager.default.contents(atPath: activityPath),
+           let j = try? JSONSerialization.jsonObject(with: d) as? [String: Any],
+           let agents = j["agents"] as? [[String: Any]], !agents.isEmpty {
+            func walk(_ nodes: [[String: Any]], indent: Int) {
+                for n in nodes {
+                    actTotal += 1
+                    let comm = (n["comm"] as? String) ?? "?"
+                    let cpu = (n["cpu"] as? Double) ?? 0
+                    if actRows.count < 40 {
+                        let cpuTxt = cpu >= 1 ? String(format: " — %.0f%% CPU", cpu) : ""
+                        actRows.append((comm + cpuTxt, actIcon(comm), indent))
+                    }
+                    walk((n["kids"] as? [[String: Any]]) ?? [], indent: indent + 1)
+                }
+            }
+            for a in agents {
+                actTotal += 1
+                let label = (a["agent"] as? String ?? "?").capitalized
+                let tree = (a["cpu_tree"] as? Double) ?? 0
+                if actRows.count < 40 {
+                    actRows.append((String(format: T("%@ session — %.0f%% CPU in its tree"),
+                                          label, tree), "sparkles", 0))
+                }
+                walk((a["children"] as? [[String: Any]]) ?? [], indent: 1)
+            }
+        }
+        if actRows.isEmpty {
+            amenu.addItem(NSMenuItem(title: T("no AI session is running right now"),
+                                     action: nil, keyEquivalent: ""))
+        } else {
+            for (title, ic, indent) in actRows {
+                let it = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+                it.indentationLevel = indent
+                it.image = img(ic)
+                amenu.addItem(it)
+            }
+            if actTotal > actRows.count {
+                amenu.addItem(NSMenuItem(title: String(format: T("… %d more"),
+                                                       actTotal - actRows.count),
+                                         action: nil, keyEquivalent: ""))
+            }
+        }
+        actIt.submenu = amenu
+        m.addItem(actIt)
 
         // APPLE FLEET: all Macs publishing to the shared folder, using the same files
         // read by CLI `fleet`. "Live" updates at ~1 min cadence (agent tick + folder sync).
