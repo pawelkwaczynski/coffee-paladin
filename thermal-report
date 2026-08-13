@@ -27,7 +27,7 @@ import time
 
 MAX_TIMELINE_ROWS = 5000   # timeline row cap, see the comment at the truncation site
 
-VERSION = "2.6.5"   # FIVE places, not three: guard_version, heatbar VERSION,
+VERSION = "2.6.6"   # FIVE places, not three: guard_version, heatbar VERSION,
                     # README, .claude-plugin/plugin.json and this one.
                     # `test_spojnosc` guards it, because this copy once fell
                     # behind when the release checklist said "three".
