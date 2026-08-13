@@ -114,10 +114,6 @@ PL = {
     "\nA process stopped by something else is usually the SIGTTIN trap: a background\njob touched the terminal and the kernel stopped it. Nothing will resume it.\nBring it to the foreground (fg) or resume it: kill -CONT <pid>": "\nProces zatrzymany przez cos innego to zwykle pulapka SIGTTIN: zadanie w tle\ndotknelo terminala i jadro je zatrzymalo. Nikt go nie wznowi.\nPrzenies je na pierwszy plan (fg) albo wznow: kill -CONT <pid>",
     'THERMAL PROFILE OF THIS MAC':
         'PROFIL TERMICZNY TEGO MACA',
-    '   data: %d samples on %d days with measurements (%s ... %s)':
-        '   dane: %d probek z %.1f dni (%s ... %s)',
-    '   too little to judge yet - the profile needs at least %d samples on %d days':
-        '   za malo, zeby cokolwiek orzec - profil potrzebuje co najmniej %d probek z %.1f dni',
     '   idle:            %5.1f °C   (settled median of %d samples, 90%% below %.1f °C; %d quiet samples not settled yet)':
         '   bezczynnie:      %5.1f °C   (mediana %d probek w stanie ustalonym, 90%% ponizej %.1f °C; %d cichych probek jeszcze nieustabilizowanych)',
     '   under load:      %5.1f °C   (plateau of %d samples, median %.1f °C, peak %.1f °C)':
@@ -202,10 +198,6 @@ RU = {
     "\nA process stopped by something else is usually the SIGTTIN trap: a background\njob touched the terminal and the kernel stopped it. Nothing will resume it.\nBring it to the foreground (fg) or resume it: kill -CONT <pid>": "\nПроцесс, остановленный чем-то другим, - обычно ловушка SIGTTIN: фоновая задача\nобратилась к терминалу, и ядро её остановило. Сама она не продолжится.\nВерните её на передний план (fg) или возобновите: kill -CONT <pid>",
     'THERMAL PROFILE OF THIS MAC':
         'ТЕПЛОВОЙ ПРОФИЛЬ ЭТОГО MAC',
-    '   data: %d samples on %d days with measurements (%s ... %s)':
-        '   данные: %d замеров за %.1f дней (%s ... %s)',
-    '   too little to judge yet - the profile needs at least %d samples on %d days':
-        '   пока слишком мало для выводов - профилю нужно минимум %d замеров за %.1f дней',
     '   idle:            %5.1f °C   (settled median of %d samples, 90%% below %.1f °C; %d quiet samples not settled yet)':
         '   в покое:         %5.1f °C   (медиана %d установившихся замеров, 90%% ниже %.1f °C; %d тихих замеров ещё не установились)',
     '   under load:      %5.1f °C   (plateau of %d samples, median %.1f °C, peak %.1f °C)':
@@ -290,10 +282,6 @@ ZH = {
     "\nA process stopped by something else is usually the SIGTTIN trap: a background\njob touched the terminal and the kernel stopped it. Nothing will resume it.\nBring it to the foreground (fg) or resume it: kill -CONT <pid>": "\n被其他东西停止的进程通常是 SIGTTIN 陷阱:后台任务碰了终端,内核把它停住了,\n没有人会恢复它。把它调到前台(fg),或者手动恢复:kill -CONT <pid>",
     'THERMAL PROFILE OF THIS MAC':
         '这台 Mac 的热档案',
-    '   data: %d samples on %d days with measurements (%s ... %s)':
-        '   数据：%d 个样本，跨 %.1f 天（%s ... %s）',
-    '   too little to judge yet - the profile needs at least %d samples on %d days':
-        '   数据还不足以下结论 - 档案至少需要 %d 个样本、跨 %.1f 天',
     '   idle:            %5.1f °C   (settled median of %d samples, 90%% below %.1f °C; %d quiet samples not settled yet)':
         '   空闲：           %5.1f °C   （稳态样本 %d 个的中位数，90%% 低于 %.1f °C；尚未稳定的安静样本 %d 个）',
     '   under load:      %5.1f °C   (plateau of %d samples, median %.1f °C, peak %.1f °C)':
@@ -378,10 +366,6 @@ ES = {
     "\nA process stopped by something else is usually the SIGTTIN trap: a background\njob touched the terminal and the kernel stopped it. Nothing will resume it.\nBring it to the foreground (fg) or resume it: kill -CONT <pid>": "\nUn proceso detenido por otra cosa suele ser la trampa SIGTTIN: una tarea en segundo\nplano tocó el terminal y el kernel la detuvo. Nadie la reanudará.\nTráela al primer plano (fg) o reanúdala: kill -CONT <pid>",
     'THERMAL PROFILE OF THIS MAC':
         'PERFIL TERMICO DE ESTE MAC',
-    '   data: %d samples on %d days with measurements (%s ... %s)':
-        '   datos: %d muestras en %.1f dias (%s ... %s)',
-    '   too little to judge yet - the profile needs at least %d samples on %d days':
-        '   aun es poco para juzgar - el perfil necesita al menos %d muestras en %.1f dias',
     '   idle:            %5.1f °C   (settled median of %d samples, 90%% below %.1f °C; %d quiet samples not settled yet)':
         '   en reposo:       %5.1f °C   (mediana de %d muestras estables, 90%% por debajo de %.1f °C; %d muestras en calma aún sin asentar)',
     '   under load:      %5.1f °C   (plateau of %d samples, median %.1f °C, peak %.1f °C)':
