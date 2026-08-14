@@ -37,7 +37,7 @@ import subprocess
 import sys
 import time
 
-GUARD_VERSION = "3.1.0"   # bump together with heatbar VERSION, thermal-report VERSION, README
+GUARD_VERSION = "3.1.1"   # bump together with heatbar VERSION, thermal-report VERSION, README
 
 HOME = os.path.expanduser("~")
 BASE = os.environ.get("TG_BASE") or os.path.join(HOME, ".coffee-paladin")
@@ -144,7 +144,10 @@ DEFAULTS = {
     # "efficiency" = E-cores only (cooler, slower), "all" = every core (faster, warmer;
     # the guard still watches temperature). The percent limit uses micro-pauses for the
     # whole process group, like cpulimit. 95 is almost full speed with some room for UI.
-    "job_cores_mode": "all",   # default to all cores; temperature stays under guard control
+    # "efficiency" everywhere: safe-run and the menu bar both fall back to E-cores
+    # when the key is absent, so this default must agree with them or the effective
+    # config would claim "all" while jobs actually run on E-cores.
+    "job_cores_mode": "efficiency",
     "job_cpu_percent": 95,
     # Network activity threshold for "keep awake while downloading" in KB/s.
     "download_kbps": 500,
@@ -4059,6 +4062,17 @@ def main():
     st["reczna_pauza"] = False
     # New daemon session means new session counters. The all-time total ("stats") remains.
     st["stats_sesja"] = {"since": now()}
+    # Totals carried over from pre-3.x versions have counters but no start date, and
+    # waiting for the next event would stamp today's date under years-old counts.
+    # NOT the state file's birth time: save_state() goes through os.replace, so that
+    # file is reborn on every write. The base directory is created once at install
+    # and never swapped - its birth is the honest floor for when counting could begin.
+    tot = st.get("stats")
+    if isinstance(tot, dict) and tot and not tot.get("since"):
+        try:
+            tot["since"] = os.stat(BASE).st_birthtime
+        except Exception:
+            tot["since"] = now()
     try:
         if os.path.exists(CLEAN_STOP_PATH):
             os.remove(CLEAN_STOP_PATH)

@@ -1,4 +1,4 @@
-# coffee-paladin v3.1.0
+# coffee-paladin v3.1.1
 
 <p align="center">
   <img src="branding/paladin.gif" alt="coffee-paladin - the project mascot" width="260">
@@ -278,7 +278,7 @@ thresholds you set yourself**.
 
 ### 5. It escalates so you cannot miss it
 
-Notification with a distinct sound at pause, resume and kill - and at the **critical** level
+Notification at pause, resume and kill (each with its own system sound, once you flip sounds on in Settings) - and at the **critical** level
 additionally a **system alert on top of everything** (`critical_banner`, its own 3-minute gap,
 self-dismissing). A notification is easy to miss under Focus or a full-screen app; the critical
 banner is not. And when you are not at the machine at all: set a secret topic under **Settings >
@@ -439,6 +439,11 @@ Claude Code's status bar - one line under every session, refreshed live:
 ```
 🛡  🌡 55°  🌀 2.4k  🧠 50%  💾 94%  ☕  Opus  my-project
 ```
+
+<p align="center">
+  <img src="docs/screens/statusline.webp" alt="The statusline under a live Claude Code session, here with Nerd Font icons" width="740">
+</p>
+<p align="center"><sub>Under a real session: shield, chip 70°, fans, RAM, a red disk at 90%, keep-awake - then model and directory.</sub></p>
 
 The shield turns into an eye in watch-only mode and into a loud red `OFF`
 when the daemon's snapshot goes stale - the exact failure where the guard is
@@ -703,8 +708,8 @@ York). It runs in one command against an isolated HOME and never touches your re
 
 ```bash
 T=$(mktemp -d) && python3 tests/test_wykryj_twardy_pad.py "$T"; rm -rf "$T"
-python3 tests/test_paladin.py          # 21 checks: CLI, menu bar, artwork, translations
-python3 tests/test_config_odporny.py   # 24 checks: a config must not blind the guard
+python3 tests/test_paladin.py          # 22 checks: CLI, menu bar, artwork, translations
+python3 tests/test_config_odporny.py   # 33 checks: a config must not blind the guard
 python3 tests/test_safe_run_hot.py     #  8 checks: safe-run refuses to start when hot
 python3 tests/test_demote_promote.py   # 20 checks: demotion to E-cores and back
 python3 tests/test_b2_node.py          # 17 checks: node is judged by its command line
@@ -782,7 +787,7 @@ so it stays out of the Dock and out of Cmd+Tab. Nothing is downloaded pre-built:
 compiled on your machine from the sources you just fetched, so Gatekeeper has nothing to quarantine
 and you never see the "unidentified developer" warning.
 
-**A fresh install starts in watch-only mode.** It measures, logs and alerts - with sound - but
+**A fresh install starts in watch-only mode.** It measures, logs and alerts, but
 pauses nothing, until you enable protection yourself: one click in the menu bar (*Enable
 protection*) or `"dry_run": false` in the config. A tool that touches your processes should earn
 that right by first showing you what it *would* have done. The menu bar shows an eye icon while
@@ -914,7 +919,7 @@ C67°  G64°  B33°  ·  3.3k rpm  ·  42W  ·  throttled  ·  paused
 
 chip / GPU / battery / fan rpm / power draw / RAM used / disk used, plus a throttling marker when macOS is
 limiting the CPU and a pause marker when something is frozen. a fan reading of 0 with a warning mark means the fans are stopped while the chip is
-hot; a RAM warning means memory is 62 % used **and** the machine has started swapping.
+hot; RAM is shown as a plain percentage - swap details live in the RAM row of the menu.
 
 Everything on the bar is optional - **Show in the bar** gives you a checkbox per element and the
 choice is remembered in `~/.coffee-paladin/heatbar.json`, and three presets sit above the
@@ -931,6 +936,11 @@ coffee-paladin bar chip          # the icon and one number
 coffee-paladin bar full          # everything
 coffee-paladin panel             # open a window without going through the bar
 ```
+
+<p align="center">
+  <img src="docs/screens/bar_icons.webp" alt="The icon-only preset in a real menu bar, with two conditional markers lit" width="150">
+</p>
+<p align="center"><sub>Icon-only, with two conditional markers lit: 4 AI sessions and the keep-awake cup.</sub></p>
 
 An upgrade keeps the layout you already had.
 The language switch (EN · PL · RU · 中文 · ES) sits as a row of buttons right on the main menu,
@@ -1005,7 +1015,7 @@ set. That is exactly what the slider is for.
 | `soc_pause_c` | 85 | freeze heavy jobs at this chip temperature |
 | `soc_resume_c` | 76 | resume below this (hysteresis) |
 | `soc_kill_c` | 90 | terminate, but only after `kill_after_polls` consecutive readings |
-| `batt_pause_c` / `batt_kill_c` | 40 / 45 | **battery** temperature - lithium cells degrade above ~45 °C |
+| `batt_pause_c` / `batt_kill_c` | 40 / 45 | **battery** temperature - lithium cells degrade above ~40 °C |
 | `batt_pct_pause` | 10 | pause when on battery at or below this charge |
 | `fan_alert_temp_c` | 70 | above this the fans must be spinning |
 | `max_pause_minutes` | 45 | a job paused longer than this is **terminated with `SIGTERM`** - for an encoder without checkpoints that means losing all progress, so give long jobs `safe-run --hours N` and headroom here |
@@ -1027,7 +1037,7 @@ set. That is exactly what the slider is for.
 | `ntfy_topic` | `""` | secret ntfy.sh topic for phone push (empty = off) |
 | `download_kbps` | `500` | network-activity threshold for the *while downloading* keep-awake mode |
 | `calibrated_for` | set by the daemon | hardware tag; delete it to re-run auto-calibration |
-| `sound` | `true` | distinct system sound per event (pause / resume / kill) |
+| `sound` | `false` | system sounds per event (pause / resume / kill); off until you enable them in Settings |
 | `fleet_dir` | `""` | shared folder for fleet snapshots (see the fleet section) |
 
 ### A note on numbers, because this trips people up
@@ -1084,7 +1094,7 @@ claim was checked against the running code first.
 
 ## Buy me a double espresso ☕︎
 
-This project literally runs on coffee - the release codename is "Ristretto" and the
+This project literally runs on coffee - the release codename is "Doppio" and the
 keep-awake fuse is my answer to Caffeine. If coffee-paladin saved your Mac (or your render),
 buy me a coffee: **https://suppi.pl/panbookovsky**
 
@@ -1313,8 +1323,8 @@ to osobna warstwa); gdy TELEFON jest chwilowo offline, ntfy.sh buforuje wiadomo�
 i dowozi po powrocie zasięgu. Przełącznik **Uruchamiaj przy starcie komputera** (domyślnie włączony)
 i wybór języka guzikami wprost na głównej karcie menu.
 
-**Alarmuje tak, że nie da się przeoczyć.** Powiadomienie z osobnym dźwiękiem przy pauzie,
-wznowieniu i ubiciu - a przy poziomie **krytycznym** dodatkowo **modalny alert systemowy na
+**Alarmuje tak, że nie da się przeoczyć.** Powiadomienie przy pauzie, wznowieniu i ubiciu
+(każde z własnym dźwiękiem systemowym, gdy włączysz dźwięki w Ustawieniach) - a przy poziomie **krytycznym** dodatkowo **modalny alert systemowy na
 wierzchu wszystkiego** (`critical_banner`, własny odstęp 3 min, sam znika). Powiadomienie łatwo
 zginie pod Skupieniem albo aplikacją na pełnym ekranie; ten baner nie zginie.
 
@@ -1471,6 +1481,11 @@ statusu Claude Code - jedna linia pod każdą sesją, odświeżana na żywo:
 🛡  🌡 55°  🌀 2.4k  🧠 50%  💾 94%  ☕  Opus  moj-projekt
 ```
 
+<p align="center">
+  <img src="docs/screens/statusline.webp" alt="Statusline pod żywą sesją Claude Code, tu z ikonami Nerd Font" width="740">
+</p>
+<p align="center"><sub>Pod prawdziwą sesją: tarcza, chip 70°, wentylatory, RAM, czerwony dysk przy 90%, czuwanie - na końcu model i katalog.</sub></p>
+
 Tarcza zamienia się w oko w trybie obserwacji, a w głośne czerwone `OFF`, gdy
 migawka demona przestaje być świeża - dokładnie ta awaria, w której strażnik
 jest wypięty i nikt tego nie widzi. Elementy pojawiają się tylko wtedy, gdy
@@ -1520,7 +1535,7 @@ Konkretnie daje to: wgląd w całą flotę bez wdrażania infrastruktury, dłuż
 pracującego pod pełnym obciążeniem, szybkie wykrycie maszyn, które przestały raportować,
 i dowody dla serwisu po twardym padzie.
 
-Świeża instalacja startuje w **trybie obserwacji**: mierzy, loguje i alarmuje (też dźwiękiem),
+Świeża instalacja startuje w **trybie obserwacji**: mierzy, loguje i alarmuje,
 ale niczego nie wstrzymuje, dopóki nie włączysz ochrony - jednym kliknięciem w menu paska.
 Na pasku widać wtedy ikonę oka. Odinstalowanie: `bash uninstall.sh`.
 
@@ -1574,8 +1589,9 @@ Detektor twardego padu (kod piszący dowody gwarancyjne) ma własną matrycę 16
 łącznie ze zmianami stref czasowych i artefaktami z backupów. Jedno polecenie, izolowany HOME,
 prawdziwa czarna skrzynka nietknięta:
 `T=$(mktemp -d) && python3 tests/test_wykryj_twardy_pad.py "$T"; rm -rf "$T"`
-`python3 tests/test_paladin.py` - 21 sprawdzeń: CLI, pasek menu, grafika, tłumaczenia.
-`python3 tests/test_config_odporny.py` - 24 sprawdzenia: config nie może oślepić strażnika.
+`python3 tests/test_paladin.py` - 22 sprawdzenia: CLI, pasek menu, grafika, tłumaczenia.
+`python3 tests/test_config_odporny.py` - 33 sprawdzenia: config nie może oślepić strażnika.
+`python3 tests/test_wznowienie.py` - 41 sprawdzeń: co wolno wznowić, a czego nie wolno ubić.
 `python3 tests/test_safe_run_hot.py` - 8 sprawdzeń: safe-run odmawia startu na gorącej maszynie.
 `python3 tests/test_demote_promote.py` - 20 sprawdzeń: degradacja na E-cores i powrót.
 `python3 tests/test_b2_node.py` - 17 sprawdzeń: node oceniany po linii poleceń, nie po nazwie.
@@ -1702,6 +1718,11 @@ nie wstrzymuje, dopóki sam nie włączysz ochrony - jednym kliknięciem w pasku
   „NIE RAPORTUJE" (cache w tle, otwarcie menu nigdy nie czeka na iCloud/SMB)
 - `thermal-report --days 14` - raport dowodowy dla serwisu
 
+<p align="center">
+  <img src="docs/screens/bar_icons.webp" alt="Układ „Sama ikona" na prawdziwym pasku, z dwoma zapalonymi znacznikami" width="150">
+</p>
+<p align="center"><sub>„Sama ikona" z dwoma znacznikami warunkowymi: 4 sesje AI i filiżanka czuwania.</sub></p>
+
 Progi w `~/.coffee-paladin/config.json`. **Nie ustawiaj progu chipa na 45 °C** - bezczynny M4 Pro
 ma 40-55 °C, a Apple Silicon dławi się dopiero koło 100-108 °C. 45 °C to właściwa liczba dla
 *baterii* i tam jest używana.
@@ -1732,7 +1753,7 @@ najpierw sprawdzana w działającym kodzie.
 
 ## Postaw mi podwójne espresso ☕︎
 
-Ten projekt dosłownie opiera się na kawie - kodowa nazwa wydania to „Ristretto",
+Ten projekt dosłownie opiera się na kawie - kodowa nazwa wydania to „Doppio",
 a bezpiecznik keep-awake to moja odpowiedź na Caffeine. Jeśli coffee-paladin uratował Ci Maca
 (albo render), postaw mi kawę: **https://suppi.pl/panbookovsky**
 

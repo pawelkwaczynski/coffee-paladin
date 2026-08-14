@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Verify 21 coffee-paladin rebrand checks: eggs, animation, translations, art, regression.
+"""Verify 22 coffee-paladin rebrand checks: eggs, animation, translations, art, regression.
 
 Does not touch user processes or the real ~/.coffee-paladin. It only reads source files
 and runs the CLI in read-only mode. Run with:  python3 tests/test_paladin.py
@@ -27,7 +27,7 @@ def cli(args):
     return p.returncode, p.stdout
 
 
-print("=== coffee-paladin: 21 tests (strengthened after review rounds) ===")
+print("=== coffee-paladin: 22 tests (strengthened after review rounds) ===")
 
 # 0. Installed CLI == source; otherwise the rest tests an old binary.
 import filecmp

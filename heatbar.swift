@@ -16,9 +16,9 @@
 
 import Cocoa
 
-let VERSION = "3.1.0"
+let VERSION = "3.1.1"
 let APPNAME = "coffee-paladin"
-let CODENAME = "Ristretto"
+let CODENAME = "Doppio"
 let SIGNATURE = "\(APPNAME) v\(VERSION) \u{201E}\(CODENAME)\u{201D}  ·  by panbookovsky"
 
 // Workspace directory. TG_BASE lets the menu bar run isolated (UI tests, demos)
@@ -144,15 +144,15 @@ let PL: [String: String] = [
         "Przy pięciu identycznych Macach nazwa systemowa nic nie mówi. Ta nazwa pokazuje się w tabeli floty i w menu na każdej maszynie. Puste = nazwa systemowa.",
     "Buy me a double espresso…": "Postaw mi podwójne espresso...",
     "Apple fleet": "Flota Apple",
-    "Agent activity": "Aktywnosc agentow AI",
-    "Live (from hooks):": "Na zywo (z hookow):",
+    "Agent activity": "Aktywność agentów AI",
+    "Live (from hooks):": "Na żywo (z hooków):",
     "Agents today: %@ (ccusage)": "Agenci dzisiaj: %@ (ccusage)",
-    "no AI session is running right now": "zadna sesja AI teraz nie dziala",
+    "no AI session is running right now": "żadna sesja AI teraz nie działa",
     "… %d more": "… jeszcze %d",
     "%@ session — %.0f%% CPU in its tree": "sesja %@ — %.0f%% CPU w jej drzewie",
     "AI session marker": "Znacznik sesji AI",
     "Battery temperature (from 40 °C)": "Temperatura baterii (od 40 °C)",
-    "Fan rpm (when spinning)": "Obroty wentylatorow (gdy sie kreca)",
+    "Fan rpm (when spinning)": "Obroty wentylatorów (gdy się kręcą)",
     "battery": "bateria",
     "paused": "wstrzymane",
     "STALE - not reporting": "NIE RAPORTUJE",
@@ -182,8 +182,8 @@ let PL: [String: String] = [
     "Included: hardware, battery, sudden shutdowns, interventions, measurement timeline.":
         "W raporcie: sprzęt, bateria, nagłe wyłączenia, interwencje, oś pomiarów.",
     "From:": "Od:",
-    "This topic will not work": "Ten temat nie zadziala",
-    "Use only letters, digits, _ and -, up to 64 characters. A space stops the push silently, and # or ? publish to a shorter topic than the one you typed.": "Uzywaj tylko liter, cyfr, _ i -, do 64 znakow. Spacja cicho blokuje push, a # albo ? publikuja na krotszy temat niz ten, ktory wpisales.",
+    "This topic will not work": "Ten temat nie zadziała",
+    "Use only letters, digits, _ and -, up to 64 characters. A space stops the push silently, and # or ? publish to a shorter topic than the one you typed.": "Używaj tylko liter, cyfr, _ i -, do 64 znaków. Spacja cicho blokuje push, a # albo ? publikują na krótszy temat niż ten, który wpisałeś.",
     "First steps with the paladin": "Pierwsze kroki z paladynem",
     "First steps…": "Pierwsze kroki...",
     "WHAT IT CAN DO\n• The paladin watches the chip, the battery, the fans and the power source - by default a reading every 15 seconds.\n• When things get too hot, it FREEZES heavy processes instead of letting the Mac cook itself. The pause destroys nothing: the process stops mid-instruction and continues once the chip cools. Example? Measured: 89 °C → 60 °C in 19 seconds, no loss.\n• It finds the real culprit: CPU is counted across the whole process tree, so it also sees a script that spawns hundreds of short jobs while using almost nothing itself.\n• On battery below 10% it pauses long jobs - they resume when you plug in.\n• It keeps a black box: after a hard failure the last 8 readings survive. One click turns them into a report for a repair shop (should you ever need it).\n• Keep-awake - works like the well-known Caffeine or Amphetamine, but unlike them it comes with a fuse: the sleep lock is released the moment things run hot. Sleep is the fastest cooling there is.": "CO POTRAFI\n• Paladyn pilnuje chipa, baterii, wentylatorów i zasilania – domyślny pomiar co 15 sekund.\n• Gdy robi się za gorąco, ZAMRAŻA ciężkie procesy zamiast pozwolić Macowi się ugotować. Pauza niczego nie niszczy: proces staje w miejscu i rusza dalej, gdy chip ostygnie. Przykład? Zmierzone: 89 °C → 60 °C w 19 sekund, obliczenia bez strat.\n• Znajduje prawdziwego winowajcę: liczy CPU całego drzewa procesów, więc widzi też skrypt, który odpala setki krótkich zadań i sam prawie nic nie zużywa.\n• Na baterii poniżej 10% wstrzymuje długie obliczenia - wznowi po podpięciu ładowarki.\n• Prowadzi czarną skrzynkę: po twardej awarii zostaje 8 ostatnich pomiarów. Jednym kliknięciem złożysz z tego raport dla serwisu (w razie potrzeby).\n• „Nie usypiaj Maca\" – działa jak znane programy Caffeine czy Amphetamine, ale w odróżnieniu od nich robi to z bezpiecznikiem: blokada snu puszcza w momencie, gdy robi się gorąco. Sen chłodzi najszybciej.",
@@ -1260,7 +1260,7 @@ final class Welcome: NSObject {
 
     func maybeShow() {
         guard !FileManager.default.fileExists(atPath: flagPath) else { return }
-        playPaladinSound()
+        playPaladinSound(force: true)
         let W: CGFloat = 440, H: CGFloat = 470
         let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: W, height: H),
                            styleMask: [.titled, .fullSizeContentView], backing: .buffered, defer: false)
@@ -1414,7 +1414,9 @@ func fleetStats() -> [(host: String, ses: [String: Int], sum: [String: Int], age
         func readCounts(_ key: String) -> [String: Int] {
             var w: [String: Int] = [:]
             if let t = j[key] as? [String: Any] {
-                for (k, v) in t { if let n = v as? Int { w[k] = n } }
+                // "since" arrives as a fractional epoch (Python time.time()); `as? Int`
+                // rejects it and the date silently vanishes, so go through NSNumber.
+                for (k, v) in t { if let n = v as? NSNumber { w[k] = n.intValue } }
             }
             return w
         }
@@ -1540,8 +1542,10 @@ func shareLink() -> String {
 
 /// Play the optional paladin armor sound when showing paladin art.
 /// The same Sounds switch controls it; missing file means silence, not an error.
-func playPaladinSound() {
-    guard GuardCfg.bool("sound", true) else { return }
+/// `force` is for the one-time welcome chime: it plays before the user has ever
+/// seen the Sounds switch, so the daemon's silent default must not mute it.
+func playPaladinSound(force: Bool = false) {
+    guard force || GuardCfg.bool("sound", false) else { return }
     let p = base + "/sounds/paladin.wav"
     guard FileManager.default.fileExists(atPath: p) else { return }
     let pr = Process()
@@ -2472,11 +2476,13 @@ func readSnap() -> Snap? {
         s.pausesToday = (st["pauses"] as? Int) ?? 0
         s.killsToday = (st["kills"] as? Int) ?? 0
     }
+    // NSNumber, not `as? Int`: "since" is a fractional epoch from Python's time.time()
+    // and a plain Int cast drops it, which showed up as "total since ?" in the menu.
     if let t = j["stats_total"] as? [String: Any] {
-        for (k, v) in t { if let n = v as? Int { s.statsTotal[k] = n } }
+        for (k, v) in t { if let n = v as? NSNumber { s.statsTotal[k] = n.intValue } }
     }
     if let t = j["stats_session"] as? [String: Any] {
-        for (k, v) in t { if let n = v as? Int { s.statsSession[k] = n } }
+        for (k, v) in t { if let n = v as? NSNumber { s.statsSession[k] = n.intValue } }
     }
     if let p = j["last_hard_shutdown"] as? [String: Any] { s.lastCrash = p["time"] as? String }
     if let t = j["thresholds"] as? [String: Any] {
@@ -3292,7 +3298,7 @@ final class Bar: NSObject, NSMenuDelegate {
         if prefs.enabled(.chip) { temps.append(s.chip.map { String(format: "%.0f°", $0) } ?? "—") }
         if prefs.enabled(.gpu), let g = s.gpu { temps.append(String(format: "%.0f°", g)) }
         // Battery temperature earns bar width only near the line that matters:
-        // lithium cells degrade above ~45 °C and the guard pauses at 40. A cool
+        // lithium cells degrade above ~40 °C and the guard pauses there. A cool
         // battery is the normal state and says nothing.
         if prefs.enabled(.battery), let b = s.batt, sticky(.battery, b >= 40) {
             temps.append(String(format: "%.0f°", b))
@@ -3878,7 +3884,7 @@ final class Bar: NSObject, NSMenuDelegate {
         // Notifications / Sounds / Push form one compact section.
 
         let snd = NSMenuItem()
-        snd.view = SwitchRow(T("Sounds"), on: GuardCfg.bool("sound", true),
+        snd.view = SwitchRow(T("Sounds"), on: GuardCfg.bool("sound", false),
                              target: self, action: #selector(toggleSound), color: .systemBlue)
         ss.addItem(snd)
         infoLine(T("Exception: the critical banner shouts regardless."))
@@ -4615,7 +4621,7 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
         if watchOnlyNow { showModally { self.explainDry() } }
     }
 
-    @objc func toggleSound() { GuardCfg.set(["sound": !GuardCfg.bool("sound", true)]) }
+    @objc func toggleSound() { GuardCfg.set(["sound": !GuardCfg.bool("sound", false)]) }
     @objc func toggleAwake() {
         GuardCfg.set(["keep_awake_auto": !GuardCfg.bool("keep_awake_auto", false)])
         refreshAfterAction()
