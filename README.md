@@ -478,6 +478,11 @@ each one started, with the thermal context. The menu bar shows it under
 alive - the marker's presence is the answer to "is an AI working right now".
 Off switch: `"agent_activity": false`.
 
+<p align="center">
+  <img src="docs/screens/agent_activity.webp" alt="Agent activity: live process trees of AI sessions, with thermal context" width="640">
+</p>
+<p align="center"><sub>Agent sessions and what each of them started - straight from the menu bar.</sub></p>
+
 
 ## Fleets: every Mac in one table
 
@@ -953,6 +958,11 @@ about 4 minutes to pause"), **what is heating the machine right now** (top 3 by 
 per-process proxy for heat there is) and **what is eating the RAM** (top 3 by resident memory),
 running `safe-run` jobs, today's intervention count, a manual **Freeze / Resume** control, and
 **Export report**.
+
+<p align="center">
+  <img src="docs/screens/session_stats.webp" alt="Session statistics: pauses, resumes, terminations, across the fleet" width="480">
+</p>
+<p align="center"><sub>The guard's own scoreboard: 570 pauses, 557 resumes after cooling, 2 terminations - across the fleet.</sub></p>
 
 The bar measures nothing itself - it reads `~/.coffee-paladin/status.json`, which the daemon writes
 every cycle. It therefore costs no CPU and can never disagree with the guard. Manual commands are
@@ -1672,6 +1682,11 @@ nie wstrzymuje, dopóki sam nie włączysz ochrony - jednym kliknięciem w pasku
   a znacznik ✨ na pasku świeci, póki jakakolwiek sesja żyje (sama obecność
   znacznika = odpowiedź na „czy AI teraz coś robi"); wyłącznik:
   `"agent_activity": false`
+
+<p align="center">
+  <img src="docs/screens/agent_activity.webp" alt="Aktywność agentów: żywe drzewa procesów sesji AI z kontekstem termicznym" width="640">
+</p>
+<p align="center"><sub>Sesje agentów i co każda z nich odpaliła - prosto z paska menu.</sub></p>
 - `heatbar` - pasek menu: świeża instalacja pokazuje stały rdzeń chip+RAM oraz
   elementy warunkowe, które świecą tylko gdy niosą wiadomość (wentylator gdy się
   kręci, bateria od 40 °C, znacznik sesji AI, dławienie, pauza; histereza 60 s) -
