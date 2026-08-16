@@ -1,4 +1,4 @@
-# coffee-paladin v3.1.1
+# coffee-paladin v3.2.0
 
 <p align="center">
   <img src="branding/paladin.gif" alt="coffee-paladin - the project mascot" width="260">
@@ -398,9 +398,12 @@ getting hot. That is the failure this project was written for, and it deserves a
 answer than "the guard will pause it eventually".
 
 So coffee-paladin ships a **skill for AI agents**. `install.sh` drops it into
-`~/.claude/skills/coffee-paladin/` (Claude Code picks it up automatically; the file is plain
-Markdown, so any agent that reads skills can use it). It is not documentation *about* the
-tool - it is instructions *for the agent*, and it teaches four things:
+`~/.claude/skills/coffee-paladin/` for Claude Code, and into `~/.agents/skills/`
+(OpenClaw and everything else that reads the AgentSkills layout) and
+`~/.grok/skills/` where those trees already exist - the same plain-Markdown
+file everywhere, never planting a config tree for a tool you don't have. It is
+not documentation *about* the tool - it is instructions *for the agent*, and it
+teaches four things:
 
 - **Look before you start.** `~/.coffee-paladin/status.json` is machine-readable and refreshed
   every ~15 s. One field decides everything: `level` - `0` start the job, `1` start but do not
@@ -434,11 +437,24 @@ cat ~/.claude/skills/coffee-paladin/SKILL.md    # what your agent was told
 ```
 
 **Claude Code statusline.** The installer can also put the thermal state into
-Claude Code's status bar - one line under every session, refreshed live:
+Claude Code's status bar - refreshed live under every session, machine truth
+on the first line and the AI session on the second:
 
 ```
-🛡  🌡 55°  🌀 2.4k  🧠 50%  💾 94%  ☕  Opus  my-project
+🛡  🌡 55°  🌀 2.4k  🧠 50%  💾 94%  ☕
+🤖 Fable 5  5h 86% ↺14:30  7d 41% ↺Thu  ctx 62%  my-project
 ```
+
+The second line carries the model, **your account's rate limits** - the same
+5-hour and weekly percentages the `/usage` screen shows, straight from the
+session JSON Claude Code hands to statuslines (subscription logins; the fields
+appear after the session's first response) - plus context usage and the
+directory. Percentages turn yellow at 75 and red at 90. No limits in the JSON
+means none are shown: the line never invents a number. The same whitelisted
+snapshot lands in `~/.coffee-paladin/claude_usage_cache.json`, where the menu
+bar reads it - *Agent activity* shows the limits row while a session is alive
+(and drops it five minutes after the last refresh), so the answer to "how much
+Claude do I have left" is on the bar, not behind a slash command.
 
 <p align="center">
   <img src="docs/screens/statusline.webp" alt="The statusline under a live Claude Code session, here with Nerd Font icons" width="740">
@@ -450,9 +466,9 @@ when the daemon's snapshot goes stale - the exact failure where the guard is
 unloaded and nobody notices. Elements appear only when they carry an action:
 paused jobs, jobs demoted to E-cores (running up to several times slower),
 the admission queue, a missing chip sensor, a hard shutdown within the last
-24 hours, and at hot levels the name of the process about to be paused. The
-model and directory come back at the end of the line, because this line
-replaces the default one that showed them.
+24 hours, and at hot levels the name of the process about to be paused. On a
+narrow terminal the AI line gives ground first, element by element from the
+right, and disappears entirely before a single thermal fact is dropped.
 
 The wiring is deliberately conservative: `install.sh` copies the script and
 touches `~/.claude/settings.json` only when no `statusLine` is configured
@@ -466,15 +482,43 @@ to emoji, which every Mac renders; a patched font is opt-in:
 the command line stored in settings.
 
 **One gate for every agent host.** `coffee-paladin hook-gate` implements the
-pre-execution hook contract that Claude Code, Codex CLI, Gemini CLI and Grok
-Build all share (tool-call JSON on stdin; exit 2 with the reason on stderr
-blocks the call). It checks process discipline, not temperature: a heavy tool
-started bare - `ffmpeg`, an encoder, a SAT solver, `ollama run` - is refused
-with the exact `safe-run` line to use instead, in milliseconds and fail-open
-on anything unexpected, because a broken gate must never hold a coding
-session hostage. `PALADIN_HOOK=off` disables it for one deliberate command;
-`hook_heavy_patterns` in config.json replaces the built-in list. Registration
-into each host's settings is manual for now (one JSON entry per tool's docs).
+pre-execution hook contract shared - with dialect differences - by Claude
+Code, Codex CLI, Gemini CLI, Grok Build and Antigravity. It reads the
+tool-call JSON on stdin in whichever spelling the host speaks (snake_case
+`tool_input`, Grok's camelCase `toolInput`, Antigravity's
+`toolCall.args.CommandLine`) and answers the way that host listens: exit 2 with the reason
+on stderr, plus an explicit stdout `{"decision": "deny"}` for the two hosts
+that only trust that (Grok is fail-open on anything else; Antigravity has no
+exit-code contract at all). It checks process discipline, not temperature: a
+heavy tool started bare - `ffmpeg`, an encoder, a SAT solver, `ollama run` -
+is refused with the exact `safe-run` line to use instead, in milliseconds and
+fail-open on anything unexpected, because a broken gate must never hold a
+coding session hostage. `PALADIN_HOOK=off` disables it for one deliberate
+command; `hook_heavy_patterns` in config.json replaces the built-in list.
+
+Wiring stays **opt-in per host**, one adapter each, every one with the same
+manners as the Claude wiring (own entry appended under a file lock, foreign
+entries never touched, timestamped backup before every write, unwire removes
+exactly ours):
+
+```bash
+python3 ~/.coffee-paladin/settings_wire.py hook          # Claude Code
+python3 ~/.coffee-paladin/codex_hooks_wire.py hook       # Codex CLI (trust the hook on first run)
+python3 ~/.coffee-paladin/gemini_hooks_wire.py hook      # Gemini CLI
+python3 ~/.coffee-paladin/grok_hooks_wire.py hook        # Grok Build
+python3 ~/.coffee-paladin/antigravity_hooks_wire.py hook # Antigravity
+```
+
+(`unhook` reverses each one; `uninstall.sh` runs them all.) Grok additionally
+scans `~/.claude/settings.json` for hooks by default, so a Claude-wired gate
+already covers it - the native file only matters when that compatibility is
+switched off. Gemini's timeout field is in milliseconds where everyone else
+uses seconds; the adapter knows.
+
+**Terminals.** The same thermal line works outside agent sessions:
+`integrations/terminals/` ships a tmux `status-right` snippet, a WezTerm
+`update-status` handler and an iTerm2 status bar component, each a
+copy-paste-sized file with install notes inside.
 
 **Agent activity.** The daemon also writes `~/.coffee-paladin/
 agent_activity.json`: which AI sessions run on this Mac and the process tree
@@ -1094,7 +1138,7 @@ claim was checked against the running code first.
 
 ## Buy me a double espresso ☕︎
 
-This project literally runs on coffee - the release codename is "Doppio" and the
+This project literally runs on coffee - the release codename is "Cold Brew" and the
 keep-awake fuse is my answer to Caffeine. If coffee-paladin saved your Mac (or your render),
 buy me a coffee: **https://suppi.pl/panbookovsky**
 
@@ -1438,8 +1482,10 @@ słyszy wentylatora i nie zauważa, że maszyna się grzeje. To jest dokładnie 
 którą ten projekt powstał, i zasługuje na lepszą odpowiedź niż „guard w końcu to wstrzyma".
 
 Dlatego coffee-paladin dowozi **skill dla agentów AI**. `install.sh` wykłada go do
-`~/.claude/skills/coffee-paladin/` (Claude Code podnosi go sam; to zwykły Markdown, więc
-poradzi sobie każdy agent, który czyta skille). To nie jest dokumentacja *o* narzędziu — to
+`~/.claude/skills/coffee-paladin/` dla Claude Code, a tam, gdzie te drzewa już istnieją,
+także do `~/.agents/skills/` (OpenClaw i wszystko, co czyta układ AgentSkills) i
+`~/.grok/skills/` - wszędzie ten sam zwykły Markdown, nigdy nie zakładamy konfiguracji
+narzędzia, którego nie masz. To nie jest dokumentacja *o* narzędziu — to
 instrukcja *dla agenta*, i uczy czterech rzeczy:
 
 - **Popatrz, zanim odpalisz.** `~/.coffee-paladin/status.json` jest do czytania przez program
@@ -1475,11 +1521,24 @@ cat ~/.claude/skills/coffee-paladin/SKILL.md    # co dostał Twój agent
 ```
 
 **Statusline w Claude Code.** Instalator potrafi też wpiąć stan termiczny w pasek
-statusu Claude Code - jedna linia pod każdą sesją, odświeżana na żywo:
+statusu Claude Code - odświeżany na żywo pod każdą sesją, prawda o maszynie w
+pierwszej linii, sesja AI w drugiej:
 
 ```
-🛡  🌡 55°  🌀 2.4k  🧠 50%  💾 94%  ☕  Opus  moj-projekt
+🛡  🌡 55°  🌀 2.4k  🧠 50%  💾 94%  ☕
+🤖 Fable 5  5h 86% ↺14:30  7d 41% ↺czw  ctx 62%  moj-projekt
 ```
+
+Druga linia niesie model i **limity Twojego konta** - te same procenty okna
+5-godzinnego i tygodniowego, które pokazuje ekran `/usage`, prosto z JSON-a
+sesji, który Claude Code podaje statusline'om (logowania subskrypcyjne; pola
+pojawiają się po pierwszej odpowiedzi sesji) - do tego zużycie kontekstu
+i katalog. Procenty żółkną od 75 i czerwienieją od 90. Brak limitów w JSON-ie
+= brak procentów na linii: ta linia nigdy nie zmyśla liczby. Ta sama
+odfiltrowana migawka ląduje w `~/.coffee-paladin/claude_usage_cache.json`,
+skąd czyta ją pasek menu - *Aktywność agentów AI* pokazuje wiersz z limitami,
+póki sesja żyje (i zdejmuje go pięć minut po ostatnim odświeżeniu), więc
+odpowiedź na „ile mi zostało Claude'a" wisi na pasku, nie za komendą.
 
 <p align="center">
   <img src="docs/screens/statusline.webp" alt="Statusline pod żywą sesją Claude Code, tu z ikonami Nerd Font" width="740">
@@ -1492,8 +1551,9 @@ jest wypięty i nikt tego nie widzi. Elementy pojawiają się tylko wtedy, gdy
 niosą akcję: wstrzymane zadania, zadania zdegradowane na rdzenie E (potrafią
 działać kilkukrotnie wolniej), kolejka admission, brak czujnika chipa, nagłe
 wyłączenie z ostatnich 24 godzin, a przy gorących poziomach nazwa procesu,
-który zaraz dostanie pauzę. Model i katalog sesji wracają na końcu linii, bo
-ta linia zastępuje domyślną, która je pokazywała.
+który zaraz dostanie pauzę. Na wąskim terminalu pierwsza ustępuje linia AI,
+element po elemencie od prawej - i znika w całości, zanim spadnie choć jeden
+fakt termiczny.
 
 Wpięcie jest celowo zachowawcze: `install.sh` kopiuje skrypt, a
 `~/.claude/settings.json` dotyka wyłącznie wtedy, gdy klucz `statusLine` jest
@@ -1505,6 +1565,45 @@ istnieje, ma pierwszeństwo zgodnie z zasadami zakresów Claude Code. Ikony domy
 emoji, które renderuje każdy Mac; łatany font jest świadomym wyborem:
 `COFFEE_PALADIN_STATUSLINE_ICONS=nerd` (albo `ascii` dla prostych terminali)
 w komendzie zapisanej w ustawieniach.
+
+**Jedna bramka dla każdego hosta agentowego.** `coffee-paladin hook-gate`
+implementuje kontrakt hooka pre-exec, który - z różnicami dialektu - dzielą
+Claude Code, Codex CLI, Gemini CLI, Grok Build i Antigravity. Czyta JSON
+wywołania narzędzia ze stdin w pisowni danego hosta (snake_case `tool_input`,
+camelCase `toolInput` Groka, `toolCall.args.CommandLine` Antigravity)
+i odpowiada tak, jak dany host słucha: exit 2 z powodem na stderr, a dla
+dwóch hostów, które ufają wyłącznie temu - jawna decyzja
+`{"decision": "deny"}` na stdout (Grok jest fail-open na wszystko inne;
+Antigravity w ogóle nie ma kontraktu kodów wyjścia). Bramka sprawdza
+dyscyplinę procesu, nie temperaturę: ciężkie narzędzie odpalone goło -
+`ffmpeg`, enkoder, solver SAT, `ollama run` - dostaje odmowę z gotową linią
+`safe-run`, w milisekundy i fail-open na wszystko nieoczekiwane, bo zepsuta
+bramka nie może brać sesji kodowania w niewolę. `PALADIN_HOOK=off` wyłącza ją
+dla jednej świadomej komendy; `hook_heavy_patterns` w config.json podmienia
+wbudowaną listę.
+
+Wpinanie pozostaje **opt-in per host**, po jednym adapterze, każdy z manierami
+wpięcia Claude (własny wpis dopisany pod blokadą pliku, cudze wpisy nietykalne,
+kopia zapasowa z datą przed każdym zapisem, unhook zdejmuje dokładnie nasze):
+
+```bash
+python3 ~/.coffee-paladin/settings_wire.py hook          # Claude Code
+python3 ~/.coffee-paladin/codex_hooks_wire.py hook       # Codex CLI (zaufaj hookowi przy 1. starcie)
+python3 ~/.coffee-paladin/gemini_hooks_wire.py hook      # Gemini CLI
+python3 ~/.coffee-paladin/grok_hooks_wire.py hook        # Grok Build
+python3 ~/.coffee-paladin/antigravity_hooks_wire.py hook # Antigravity
+```
+
+(`unhook` odwraca każde; `uninstall.sh` uruchamia wszystkie.) Grok domyślnie
+skanuje też hooki z `~/.claude/settings.json`, więc bramka wpięta w Claude
+już go obejmuje - własny plik ma znaczenie dopiero, gdy tę kompatybilność
+ktoś wyłączył. U Gemini pole timeout jest w milisekundach, gdy wszyscy inni
+liczą sekundy; adapter o tym wie.
+
+**Terminale.** Ta sama linia termiczna działa poza sesjami agentów:
+`integrations/terminals/` zawiera wstawkę `status-right` dla tmuksa, handler
+`update-status` dla WezTerma i komponent paska statusu iTerm2 - każdy to plik
+wielkości jednego wklejenia, z notką instalacyjną w środku.
 
 
 ## Flota: wszystkie Maki w jednej tabeli
@@ -1753,7 +1852,7 @@ najpierw sprawdzana w działającym kodzie.
 
 ## Postaw mi podwójne espresso ☕︎
 
-Ten projekt dosłownie opiera się na kawie - kodowa nazwa wydania to „Doppio",
+Ten projekt dosłownie opiera się na kawie - kodowa nazwa wydania to „Cold Brew",
 a bezpiecznik keep-awake to moja odpowiedź na Caffeine. Jeśli coffee-paladin uratował Ci Maca
 (albo render), postaw mi kawę: **https://suppi.pl/panbookovsky**
 
