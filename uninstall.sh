@@ -70,6 +70,7 @@ PY
 # AI-agent skill: install.sh creates it, so uninstall must take it away -
 # otherwise Claude Code keeps invoking a `safe-run` that no longer exists
 rm -rf "$HOME/.claude/skills/coffee-paladin"
+rm -rf "$HOME/.agents/skills/coffee-paladin" "$HOME/.grok/skills/coffee-paladin"
 # Claude Code statusline: remove OUR entry from settings.json before deleting
 # the script it points at - a dangling entry would break somebody's Claude Code
 # on every session start. A foreign statusLine is never touched.
@@ -83,7 +84,17 @@ if [ -f "$HOME/.coffee-paladin/settings_wire.py" ]; then
     ok) echo "  🗑  hook-gate removed from Claude Code settings" ;;
   esac
 fi
+# The other hosts' gate registrations: same dangling-entry logic, one adapter
+# per dialect. Each prints none/skip harmlessly where it was never wired.
+for AGENT_WIRE in codex gemini grok antigravity; do
+  if [ -f "$HOME/.coffee-paladin/${AGENT_WIRE}_hooks_wire.py" ]; then
+    case "$(/usr/bin/python3 "$HOME/.coffee-paladin/${AGENT_WIRE}_hooks_wire.py" unhook 2>/dev/null)" in
+      ok) echo "  🗑  hook-gate removed from $AGENT_WIRE" ;;
+    esac
+  fi
+done
 rm -f "$HOME/.coffee-paladin/statusline.sh" "$HOME/.coffee-paladin/settings_wire.py" "$HOME/.coffee-paladin/agent_hook.py"
+rm -f "$HOME/.coffee-paladin/"*_hooks_wire.py
 # old names from versions <=2.1.0 (compatibility symlinks, no longer created)
 rm -f "$BIN/thermal-guard" "$BIN/heatbar"
 rm -f "$BIN/coffee-paladin" "$BIN/coffee-paladin-bar" "$BIN/heat" "$BIN/safe-run" "$BIN/thermal-report" "$BIN/fleet" "$BIN/thermalstate"

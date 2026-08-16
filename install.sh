@@ -334,6 +334,18 @@ if [ -f "$SRC/skills/coffee-paladin/SKILL.md" ] && [ -d "$HOME/.claude" ]; then
   echo "  ✅ Claude Code skill installed (the agent will cooperate with the guard)"
 fi
 
+# The same skill, same AgentSkills format, for the other hosts that read it.
+# Only into trees that already exist: an absent ~/.agents or ~/.grok means the
+# user never installed that tool, and planting its config is not our call.
+if [ -f "$SRC/skills/coffee-paladin/SKILL.md" ]; then
+  for SKILL_ROOT in "$HOME/.agents/skills" "$HOME/.grok/skills"; do
+    [ -d "$(dirname "$SKILL_ROOT")" ] || continue
+    mkdir -p "$SKILL_ROOT/coffee-paladin"
+    cp "$SRC/skills/coffee-paladin/SKILL.md" "$SKILL_ROOT/coffee-paladin/SKILL.md"
+    echo "  ✅ agent skill installed in $SKILL_ROOT"
+  done
+fi
+
 # 3d. Claude Code statusline: one line with the thermal state inside the coding
 # session. The script is always copied (harmless without Claude Code); the
 # user's ~/.claude/settings.json is touched ONLY when it has no statusLine of
@@ -343,6 +355,15 @@ if [ -f "$SRC/integrations/claude-code/statusline.sh" ]; then
   cp "$SRC/integrations/claude-code/settings_wire.py" "$BASE/settings_wire.py"
   cp "$SRC/integrations/claude-code/agent_hook.py" "$BASE/agent_hook.py"
   chmod 0755 "$BASE/statusline.sh" "$BASE/settings_wire.py" "$BASE/agent_hook.py"
+  # Gate adapters for the other agent CLIs (Codex, Gemini, Grok, Antigravity).
+  # Copied so `coffee-paladin-wire` and uninstall.sh can run them later; the
+  # gate itself stays OPT-IN everywhere - nothing is wired here.
+  for AGENT_WIRE in codex gemini grok antigravity; do
+    if [ -f "$SRC/integrations/$AGENT_WIRE/hooks_wire.py" ]; then
+      cp "$SRC/integrations/$AGENT_WIRE/hooks_wire.py" "$BASE/${AGENT_WIRE}_hooks_wire.py"
+      chmod 0755 "$BASE/${AGENT_WIRE}_hooks_wire.py"
+    fi
+  done
   if [ -d "$HOME/.claude" ]; then
     REPLACE_FLAG=""
     for a in "$@"; do [ "$a" = "--replace" ] && REPLACE_FLAG="--replace"; done

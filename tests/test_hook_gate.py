@@ -101,6 +101,53 @@ for name, payload in [
     r = gate(payload)
     test(name + " -> allow", r.returncode == 0, "rc=%s" % r.returncode)
 
+print("=== the Grok Build dialect (camelCase + stdout decision) ===")
+r = gate({"toolName": "run_terminal_command", "toolInput": {"command": "ffmpeg -i a.mov b.mp4"}})
+test("18. camelCase fields are understood (a wired gate must never be blind)",
+     r.returncode == 2, "rc=%s" % r.returncode)
+r = gate({"toolName": "run_terminal_command", "toolInput": {"command": "git status"}})
+test("18b. ...and a light command still passes", r.returncode == 0, "rc=%s" % r.returncode)
+r = gate({"toolName": "run_terminal_command",
+          "toolInput": {"command": "ffmpeg -i a.mov b.mp4"}},
+         env_extra={"GROK_HOOK_EVENT": "pre_tool_use"})
+try:
+    decision = json.loads(r.stdout)
+except ValueError:
+    decision = {}
+test("19. under Grok's env marker the deny is an explicit stdout decision",
+     r.returncode == 2 and decision.get("decision") == "deny"
+     and "safe-run" in str(decision.get("reason", "")), repr(r.stdout[:120]))
+r = gate(bash("ffmpeg -i a.mov b.mp4"))
+test("19b. without the marker stdout stays CLEAN (Claude parses its own schema there)",
+     r.returncode == 2 and r.stdout.strip() == "", repr(r.stdout[:120]))
+r = gate({"toolName": "read_file", "toolInput": {"command": "ffmpeg fake"}})
+test("20. non-shell camelCase tools pass untouched", r.returncode == 0)
+
+print("=== the Antigravity dialect (toolCall + mandatory stdout decision) ===")
+r = gate({"toolCall": {"name": "run_command",
+                       "args": {"CommandLine": "ffmpeg -i a.mov b.mp4"}}})
+try:
+    decision = json.loads(r.stdout)
+except ValueError:
+    decision = {}
+test("21. a heavy toolCall is denied via the stdout decision, exit 0 (no exit "
+     "contract there - nonzero could read as 'hook crashed', not 'deny')",
+     r.returncode == 0 and decision.get("decision") == "deny"
+     and "safe-run" in str(decision.get("reason", "")),
+     "rc=%s %s" % (r.returncode, repr(r.stdout[:120])))
+r = gate({"toolCall": {"name": "run_command", "args": {"CommandLine": "git status"}}})
+try:
+    decision = json.loads(r.stdout)
+except ValueError:
+    decision = {}
+test("22. a light toolCall gets an EXPLICIT allow (no exit-code contract there)",
+     r.returncode == 0 and decision.get("decision") == "allow", repr(r.stdout[:120]))
+r = gate({"toolCall": {"name": "view_file", "args": {"CommandLine": "x"}}})
+test("23. non-shell toolCall passes silently", r.returncode == 0)
+r = gate(bash("git status"))
+test("24. outside Antigravity a light command keeps stdout CLEAN",
+     r.returncode == 0 and r.stdout.strip() == "", repr(r.stdout[:60]))
+
 print("=== config override ===")
 json.dump({"hook_heavy_patterns": ["sleep"]}, open(os.path.join(BASE, "config.json"), "w"))
 r = gate(bash("sleep 999"))

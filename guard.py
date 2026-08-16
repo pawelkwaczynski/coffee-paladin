@@ -37,7 +37,7 @@ import subprocess
 import sys
 import time
 
-GUARD_VERSION = "3.1.1"   # bump together with heatbar VERSION, thermal-report VERSION, README
+GUARD_VERSION = "3.2.0"   # bump together with heatbar VERSION, thermal-report VERSION, README
 
 HOME = os.path.expanduser("~")
 BASE = os.environ.get("TG_BASE") or os.path.join(HOME, ".coffee-paladin")
@@ -2830,11 +2830,29 @@ def hook_gate(cfg):
         return 0
     if not isinstance(data, dict):
         return 0
-    tool = str(data.get("tool_name") or data.get("tool") or "").lower()
-    if tool not in ("bash", "shell", "run_shell_command", "exec_command", "local_shell"):
+    # Field names differ per host: Claude Code, Codex CLI and Gemini CLI speak
+    # snake_case (tool_name/tool_input), Grok Build speaks camelCase
+    # (toolName/toolInput) and Antigravity wraps everything in toolCall with
+    # the command at args.CommandLine - each shape verified against that
+    # host's own docs. Reading only one spelling means the other host's gate
+    # silently allows everything - the worst failure mode, because it LOOKS
+    # wired.
+    call = data.get("toolCall")
+    antigravity = isinstance(call, dict)
+    if antigravity:
+        tool = str(call.get("name") or "").lower()
+        args = call.get("args")
+        cmd = str((args.get("CommandLine") if isinstance(args, dict) else "") or "")
+    else:
+        tool = str(data.get("tool_name") or data.get("toolName")
+                   or data.get("tool") or "").lower()
+        ti = data.get("tool_input")
+        if not isinstance(ti, dict):
+            ti = data.get("toolInput")
+        cmd = str((ti.get("command") if isinstance(ti, dict) else "") or "")
+    if tool not in ("bash", "shell", "run_shell_command", "run_terminal_command",
+                    "run_command", "exec_command", "local_shell"):
         return 0
-    ti = data.get("tool_input")
-    cmd = str((ti.get("command") if isinstance(ti, dict) else "") or "")
     if not cmd.strip():
         return 0
     patterns = [str(p).lower() for p in (cfg.get("hook_heavy_patterns") or HOOK_HEAVY_DEFAULT)]
@@ -2843,13 +2861,28 @@ def hook_gate(cfg):
     except Exception:
         return 0                  # fail-open: see the docstring
     if not hit:
+        # Antigravity documents no exit-code contract at all: the decision
+        # field on stdout is the ONLY channel, for allow as much as for deny.
+        if antigravity:
+            sys.stdout.write(json.dumps({"decision": "allow"}) + "\n")
         return 0
-    sys.stderr.write(
+    reason = (
         "coffee-paladin: '%s' is heavy and would run unsupervised. Start it under "
         "the thermal guard instead:\n  safe-run -- %s\nDetails: "
         "~/.claude/skills/coffee-paladin/SKILL.md. If the human explicitly wants "
-        "it bare, set PALADIN_HOOK=off for that one command.\n" % (hit, cmd[:200]))
-    return 2
+        "it bare, set PALADIN_HOOK=off for that one command." % (hit, cmd[:200]))
+    if antigravity or os.environ.get("GROK_HOOK_EVENT"):
+        # Grok is fail-open on anything but an explicit decision, and
+        # Antigravity blocks ONLY on a stdout decision; Claude Code, on the
+        # other hand, may parse stdout as its own (different) decision schema -
+        # so the JSON is emitted ONLY for hosts positively identified by their
+        # payload shape or env marker, never speculatively.
+        sys.stdout.write(json.dumps({"decision": "deny", "reason": reason}) + "\n")
+    sys.stderr.write(reason + "\n")
+    # Antigravity documents NO exit-code contract: the stdout decision is the
+    # whole answer, and a nonzero exit could read as "hook crashed" rather
+    # than "deny" (caught by the Codex review round before release).
+    return 0 if antigravity else 2
 
 
 # AI coding sessions, recognised the same way agent PROTECTION recognises them:
