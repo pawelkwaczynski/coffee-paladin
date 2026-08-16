@@ -43,14 +43,15 @@ RED, YEL, ORG, GRN, DIM, RST = ("", "", "", "", "", "") if PLAIN else (
 ICONS = {
     "emoji": {"temp": "\U0001f321", "fan": "\U0001f300", "ram": "\U0001f9e0",
               "disk": "\U0001f4be", "coffee": "☕", "pause": "⏸", "slow": "\U0001f422",
-              "warn": "⚠", "shield": "\U0001f6e1", "eye": "\U0001f441"},
+              "warn": "⚠", "shield": "\U0001f6e1", "eye": "\U0001f441",
+              "ai": "\U0001f916"},
     "nerd": {"temp": chr(0xF050F), "fan": chr(0xF0210), "ram": chr(0xF035B),
              "disk": chr(0xF02CA), "coffee": chr(0xF0176), "pause": chr(0xF03E4),
              "slow": "\U0001f422", "warn": "⚠", "shield": chr(0xF0565),
-             "eye": chr(0xF0208)},
+             "eye": chr(0xF0208), "ai": chr(0xF06A9)},
     "ascii": {"temp": "chip", "fan": "fan", "ram": "RAM", "disk": "disk",
               "coffee": "coffee", "pause": "paused", "slow": "slow",
-              "warn": "!", "shield": "ON", "eye": "WATCH"},
+              "warn": "!", "shield": "ON", "eye": "WATCH", "ai": "AI"},
 }
 I = ICONS.get(STYLE, ICONS["emoji"])
 
@@ -189,10 +190,37 @@ if disk is not None:
 if s.get("keep_awake"):
     body.append(f"{DIM}{I['coffee']}{RST}")
 
-# Session tail from Claude Code's stdin JSON. Our line REPLACES the default
-# statusline, so the model and directory the user had there come back here -
-# and they are the first to go when the terminal is narrow.
-tail = []
+# Second line: the AI session, from Claude Code's stdin JSON. Our command
+# REPLACES the default statusline, so the model and directory the user had
+# there come back here, together with the account limits Claude Code started
+# publishing to statuslines (rate_limits.*, subscription logins only, present
+# after the first API response of a session - every field may be absent).
+def pct(value):
+    v = num(value)
+    return None if v is None or not (0 <= v <= 100) else round(v)
+
+
+def reset_txt(value, fmt):
+    """resets_at is documented as unix epoch seconds; tolerate ISO strings from
+    other Claude Code versions and print nothing rather than a wrong time."""
+    v = num(value)
+    if v is None and isinstance(value, str):
+        try:
+            import datetime
+            v = datetime.datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
+        except ValueError:
+            v = None
+    if v is None or not (0 < v < 4102444800):
+        return ""
+    return time.strftime(fmt, time.localtime(v))
+
+
+def limit_color(value):
+    return RED if value >= 90 else (YEL if value >= 75 else DIM)
+
+
+ai = []
+usage = {}
 try:
     session = json.loads(os.environ.get("SESSION_JSON") or "{}")
     if not isinstance(session, dict):
@@ -200,24 +228,65 @@ try:
     model = clean((session.get("model") or {}).get("display_name"), 16)
     cwd = clean(os.path.basename((session.get("workspace") or {}).get("current_dir")
                                  or session.get("cwd") or ""), 20)
+    limits = session.get("rate_limits") or {}
+    five = limits.get("five_hour") or {} if isinstance(limits, dict) else {}
+    week = limits.get("seven_day") or {} if isinstance(limits, dict) else {}
+    ctx = session.get("context_window") or {}
+    five_pct = pct(five.get("used_percentage"))
+    week_pct = pct(week.get("used_percentage"))
+    ctx_pct = pct(ctx.get("used_percentage") if isinstance(ctx, dict) else None)
     if model:
-        tail.append(f"{DIM}{model}{RST}")
+        ai.append(f"{DIM}{I['ai']} {model}{RST}")
+        usage["model"] = model
+    if five_pct is not None:
+        when = reset_txt(five.get("resets_at"), "%H:%M")
+        ai.append(f"{limit_color(five_pct)}5h {five_pct}%{RST}"
+                  + (f"{DIM} ↺{when}{RST}" if when else ""))
+        usage["five_hour_pct"] = five_pct
+        usage["five_hour_reset"] = when
+    if week_pct is not None:
+        when = reset_txt(week.get("resets_at"), "%a")
+        ai.append(f"{limit_color(week_pct)}7d {week_pct}%{RST}"
+                  + (f"{DIM} ↺{when}{RST}" if when else ""))
+        usage["seven_day_pct"] = week_pct
+        usage["seven_day_reset"] = when
+    if ctx_pct is not None:
+        ai.append(f"{limit_color(ctx_pct)}ctx {ctx_pct}%{RST}")
+        usage["context_pct"] = ctx_pct
     if cwd:
-        tail.append(f"{DIM}{cwd}{RST}")
+        ai.append(f"{DIM}{cwd}{RST}")
 except Exception:
-    pass
+    ai, usage = [], {}
 
-parts = head + alarms + body + tail
+# Snapshot for the menu bar: the statusline is the only process that ever sees
+# this JSON, so it leaves a whitelisted copy the bar can read (same contract as
+# the ccusage cache: a file, never a query). Only the fields printed above are
+# written - no paths, no session ids, no transcript locations.
+if usage:
+    try:
+        usage["epoch"] = time.time()
+        cache = os.path.join(BASE, "claude_usage_cache.json")
+        tmp = "%s.tmp.%d" % (cache, os.getpid())
+        with open(tmp, "w") as f:
+            json.dump(usage, f)
+        os.replace(tmp, cache)
+    except OSError:
+        pass
+
 try:
     width = int(os.environ.get("COLUMNS", "100"))
 except ValueError:
     width = 100
 def plain_len(items):
     return len(re.sub(r"\x1b\[[0-9;]*[A-Za-z]", "", "  ".join(items)))
-# The tail is decoration; thermal truth is never dropped to make room for it.
-while tail and plain_len(parts) > width:
-    tail.pop()
-    parts = head + alarms + body + tail
+parts = head + alarms + body
+# Thermal truth is never trimmed; the AI line degrades from its tail (the
+# directory goes first, the model last) and vanishes entirely when it cannot
+# fit, because a wrapped statusline is worse than a shorter one.
+while ai and plain_len(ai) > width:
+    ai.pop()
 
 print("  ".join(parts))
+if ai:
+    print("  ".join(ai))
 PY

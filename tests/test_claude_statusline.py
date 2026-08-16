@@ -108,9 +108,12 @@ session = json.dumps({"model": {"display_name": "Opus"},
 r = run_line(dict(FRESH), stdin=session, env={"COLUMNS": "200"})
 test("12. wide terminal: model and dir appear", "Opus" in r.stdout
      and "projekt" in r.stdout, repr(r.stdout))
-r = run_line(dict(FRESH, paused=["a"]), stdin=session, env={"COLUMNS": "40"})
-test("13. narrow terminal: tail drops first, alarms survive",
-     "Opus" not in r.stdout and "⏸" in r.stdout, repr(r.stdout))
+r = run_line(dict(FRESH, paused=["a"]), stdin=session, env={"COLUMNS": "12"})
+test("13. narrow terminal: the AI line degrades from its tail, alarms survive",
+     "projekt" not in r.stdout and "⏸" in r.stdout, repr(r.stdout))
+r = run_line(dict(FRESH, paused=["a"]), stdin=session, env={"COLUMNS": "3"})
+test("13b. too narrow for any AI info: the second line vanishes entirely",
+     r.stdout.count("\n") == 1 and "⏸" in r.stdout, repr(r.stdout))
 hostile = json.dumps({"model": {"display_name": "x\x1b[31mB\x01AD"},
                       "workspace": {"current_dir": "/a/b\nc"}})
 r = run_line(dict(FRESH, top_proc="bad\x1b[0mname", level=2), stdin=hostile,
@@ -121,6 +124,61 @@ test("14. ANSI and control bytes are stripped from names",
 r = run_line(dict(FRESH), stdin="not json at all")
 test("15. garbage stdin does not break the line", r.returncode == 0
      and r.stdout.count("\n") == 1, repr(r.stdout))
+
+print("=== the line: account limits from the session JSON ===")
+CACHE = os.path.join(SANDBOX, "claude_usage_cache.json")
+limits = json.dumps({"model": {"display_name": "Fable 5"},
+                     "workspace": {"current_dir": "/u/projekt"},
+                     "context_window": {"used_percentage": 62.4},
+                     "rate_limits": {
+                         "five_hour": {"used_percentage": 86.2,
+                                       "resets_at": time.time() + 3600},
+                         "seven_day": {"used_percentage": 41.0,
+                                       "resets_at": time.time() + 86400}}})
+r = run_line(dict(FRESH), stdin=limits, env={"COLUMNS": "200"})
+test("36. both windows and context land on the second line",
+     r.stdout.count("\n") == 2 and "5h 86%" in r.stdout and "7d 41%" in r.stdout
+     and "ctx 62%" in r.stdout and "Fable 5" in r.stdout, repr(r.stdout))
+test("37. line one stays purely thermal (no model there)",
+     "Fable" not in r.stdout.split("\n")[0], repr(r.stdout))
+cache = json.load(open(CACHE))
+test("38. the bar cache holds the whitelisted fields",
+     cache.get("five_hour_pct") == 86 and cache.get("seven_day_pct") == 41
+     and cache.get("context_pct") == 62 and cache.get("model") == "Fable 5"
+     and abs(cache.get("epoch", 0) - time.time()) < 60, repr(cache))
+test("39. and NOTHING else: no ids, no paths, no resets beyond text",
+     set(cache) <= {"model", "five_hour_pct", "five_hour_reset",
+                    "seven_day_pct", "seven_day_reset", "context_pct", "epoch"},
+     repr(sorted(cache)))
+os.remove(CACHE)
+r = run_line(dict(FRESH), stdin=json.dumps({"model": {"display_name": "Fable 5"}}),
+             env={"COLUMNS": "200"})
+test("40. no rate_limits (API-key login): model shown, no invented percentages",
+     "5h" not in r.stdout and "7d" not in r.stdout and "Fable 5" in r.stdout,
+     repr(r.stdout))
+test("40b. the cache still records the model", json.load(open(CACHE)).get("model") == "Fable 5")
+hostile_limits = json.dumps({"rate_limits": {"five_hour": {"used_percentage": 250,
+                                                           "resets_at": "junk"},
+                                             "seven_day": {"used_percentage": -3}},
+                             "context_window": {"used_percentage": "NaN"}})
+r = run_line(dict(FRESH), stdin=hostile_limits, env={"COLUMNS": "200"})
+test("41. out-of-range or junk percentages are dropped, not printed",
+     "250" not in r.stdout and "-3" not in r.stdout and r.returncode == 0,
+     repr(r.stdout))
+iso = json.dumps({"model": {"display_name": "M"},
+                  "rate_limits": {"five_hour": {"used_percentage": 10,
+                                                "resets_at": "2033-01-02T15:04:05+00:00"}}})
+r = run_line(dict(FRESH), stdin=iso, env={"COLUMNS": "200"})
+test("42. an ISO resets_at is tolerated (older/newer Claude Code)",
+     "5h 10%" in r.stdout and "↺" in r.stdout, repr(r.stdout))
+
+SWIFT = os.path.join(SRC, "heatbar.swift")
+swift_src = open(SWIFT, encoding="utf-8").read()
+test("43. the bar knows the cache: 'Claude limits' key in all four translation "
+     "dicts plus its one T() call site (EN is the key itself)",
+     swift_src.count('"Claude limits: %@"') == 5
+     and "claude_usage_cache.json" in swift_src,
+     "count=%d" % swift_src.count('"Claude limits: %@"'))
 
 print("=== the line: icons, color, language ===")
 r = run_line(dict(FRESH), env={"COFFEE_PALADIN_STATUSLINE_ICONS": "ascii"})

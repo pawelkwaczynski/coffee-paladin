@@ -16,9 +16,9 @@
 
 import Cocoa
 
-let VERSION = "3.1.1"
+let VERSION = "3.2.0"
 let APPNAME = "coffee-paladin"
-let CODENAME = "Doppio"
+let CODENAME = "Cold Brew"
 let SIGNATURE = "\(APPNAME) v\(VERSION) \u{201E}\(CODENAME)\u{201D}  ·  by panbookovsky"
 
 // Workspace directory. TG_BASE lets the menu bar run isolated (UI tests, demos)
@@ -147,6 +147,7 @@ let PL: [String: String] = [
     "Agent activity": "Aktywność agentów AI",
     "Live (from hooks):": "Na żywo (z hooków):",
     "Agents today: %@ (ccusage)": "Agenci dzisiaj: %@ (ccusage)",
+    "Claude limits: %@": "Limity Claude: %@",
     "no AI session is running right now": "żadna sesja AI teraz nie działa",
     "… %d more": "… jeszcze %d",
     "%@ session — %.0f%% CPU in its tree": "sesja %@ — %.0f%% CPU w jej drzewie",
@@ -491,6 +492,7 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
     "Agent activity": "Активность ИИ-агентов",
     "Live (from hooks):": "Вживую (из хуков):",
     "Agents today: %@ (ccusage)": "Агенты сегодня: %@ (ccusage)",
+    "Claude limits: %@": "Лимиты Claude: %@",
     "no AI session is running right now": "сейчас не работает ни одна сессия ИИ",
     "… %d more": "… ещё %d",
     "%@ session — %.0f%% CPU in its tree": "сессия %@ — %.0f%% CPU в её дереве",
@@ -774,6 +776,7 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
     "Agent activity": "AI 代理活动",
     "Live (from hooks):": "实时（来自 hooks）：",
     "Agents today: %@ (ccusage)": "今日代理消耗：%@（ccusage）",
+    "Claude limits: %@": "Claude 限额：%@",
     "no AI session is running right now": "当前没有运行中的 AI 会话",
     "… %d more": "… 还有 %d 个",
     "%@ session — %.0f%% CPU in its tree": "%@ 会话 — 其进程树占 %.0f%% CPU",
@@ -1058,6 +1061,7 @@ Vuelve a activarlo cuando termines.
     "Agent activity": "Actividad de agentes IA",
     "Live (from hooks):": "En vivo (desde hooks):",
     "Agents today: %@ (ccusage)": "Agentes hoy: %@ (ccusage)",
+    "Claude limits: %@": "Límites de Claude: %@",
     "no AI session is running right now": "ninguna sesión de IA está activa ahora",
     "… %d more": "… %d más",
     "%@ session — %.0f%% CPU in its tree": "sesión %@ — %.0f%% CPU en su árbol",
@@ -2794,6 +2798,31 @@ final class Bar: NSObject, NSMenuDelegate {
             .map { String(format: "%@ · %@ · %.0f s", $0.2, $0.1, now - $0.0) }
     }
 
+    /// Account limits of the active Claude Code session, read from the cache
+    /// the paladin statusline writes on every render (whitelisted fields only,
+    /// no session ids or paths). The bar never queries anything: no statusline
+    /// running = no fresh file = the row simply does not exist.
+    func claudeUsageText() -> String? {
+        guard let d = FileManager.default.contents(atPath: base + "/claude_usage_cache.json"),
+              let j = try? JSONSerialization.jsonObject(with: d) as? [String: Any],
+              let epoch = (j["epoch"] as? NSNumber)?.doubleValue else { return nil }
+        // Statuslines refresh every 15 s while a session is open; five minutes
+        // of silence means the session is gone and the numbers are history.
+        if Date().timeIntervalSince1970 - epoch > 300 { return nil }
+        var bits: [String] = []
+        if let m = j["model"] as? String, !m.isEmpty { bits.append(m) }
+        func window(_ key: String, _ label: String, _ resetKey: String) {
+            guard let p = (j[key] as? NSNumber)?.intValue else { return }
+            let reset = (j[resetKey] as? String) ?? ""
+            bits.append("\(label) \(p)%" + (reset.isEmpty ? "" : " ↺\(reset)"))
+        }
+        window("five_hour_pct", "5h", "five_hour_reset")
+        window("seven_day_pct", "7d", "seven_day_reset")
+        if let c = (j["context_pct"] as? NSNumber)?.intValue { bits.append("ctx \(c)%") }
+        guard bits.count > 1 else { return nil }
+        return String(format: T("Claude limits: %@"), bits.joined(separator: " · "))
+    }
+
     /// Cached "cost today" from the external `ccusage` CLI. The cache file is
     /// the contract: the menu NEVER waits for the tool, it shows what the last
     /// background refresh wrote (10 min TTL) or nothing at all.
@@ -4146,8 +4175,17 @@ final class Bar: NSObject, NSMenuDelegate {
                 amenu.addItem(it)
             }
         }
-        if let cost = ccusageTodayText() {
+        let usageRow = claudeUsageText()
+        let costRow = ccusageTodayText()
+        if usageRow != nil || costRow != nil {
             amenu.addItem(NSMenuItem.separator())
+        }
+        if let usage = usageRow {
+            let it = NSMenuItem(title: usage, action: nil, keyEquivalent: "")
+            it.image = img("gauge.with.needle")
+            amenu.addItem(it)
+        }
+        if let cost = costRow {
             let it = NSMenuItem(title: cost, action: nil, keyEquivalent: "")
             it.image = img("dollarsign.circle")
             amenu.addItem(it)
