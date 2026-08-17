@@ -200,9 +200,9 @@ def pct(value):
     return None if v is None or not (0 <= v <= 100) else round(v)
 
 
-def reset_txt(value, fmt):
+def reset_epoch(value):
     """resets_at is documented as unix epoch seconds; tolerate ISO strings from
-    other Claude Code versions and print nothing rather than a wrong time."""
+    other Claude Code versions and return nothing rather than a wrong time."""
     v = num(value)
     if v is None and isinstance(value, str):
         try:
@@ -210,9 +210,28 @@ def reset_txt(value, fmt):
             v = datetime.datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
         except ValueError:
             v = None
-    if v is None or not (0 < v < 4102444800):
+    return v if v is not None and 0 < v < 4102444800 else None
+
+
+# Weekday names in the product's five languages: strftime %a answers in the
+# machine's locale (usually English), and "Wed" inside a Polish menu reads
+# as a bug, because it is one.
+DAYS = {
+    "en": ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+    "pl": ["pon", "wt", "śr", "czw", "pt", "sob", "nd"],
+    "ru": ["пн", "вт", "ср", "чт", "пт", "сб", "вс"],
+    "zh": ["周一", "周二", "周三", "周四", "周五", "周六", "周日"],
+    "es": ["lun", "mar", "mié", "jue", "vie", "sáb", "dom"],
+}
+
+
+def reset_txt(value, kind):
+    v = reset_epoch(value)
+    if v is None:
         return ""
-    return time.strftime(fmt, time.localtime(v))
+    if kind == "time":
+        return time.strftime("%H:%M", time.localtime(v))
+    return DAYS[lang()][time.localtime(v).tm_wday]
 
 
 def limit_color(value):
@@ -239,17 +258,22 @@ try:
         ai.append(f"{DIM}{I['ai']} {model}{RST}")
         usage["model"] = model
     if five_pct is not None:
-        when = reset_txt(five.get("resets_at"), "%H:%M")
+        when = reset_txt(five.get("resets_at"), "time")
         ai.append(f"{limit_color(five_pct)}5h {five_pct}%{RST}"
                   + (f"{DIM} ↺{when}{RST}" if when else ""))
         usage["five_hour_pct"] = five_pct
         usage["five_hour_reset"] = when
     if week_pct is not None:
-        when = reset_txt(week.get("resets_at"), "%a")
+        when = reset_txt(week.get("resets_at"), "day")
         ai.append(f"{limit_color(week_pct)}7d {week_pct}%{RST}"
                   + (f"{DIM} ↺{when}{RST}" if when else ""))
         usage["seven_day_pct"] = week_pct
         usage["seven_day_reset"] = when
+        # The bar renders in ITS language, which may differ from this
+        # session's; the epoch lets it format the weekday itself.
+        epoch = reset_epoch(week.get("resets_at"))
+        if epoch is not None:
+            usage["seven_day_reset_epoch"] = int(epoch)
     if ctx_pct is not None:
         ai.append(f"{limit_color(ctx_pct)}ctx {ctx_pct}%{RST}")
         usage["context_pct"] = ctx_pct

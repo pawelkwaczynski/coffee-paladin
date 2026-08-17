@@ -16,7 +16,7 @@
 
 import Cocoa
 
-let VERSION = "3.2.0"
+let VERSION = "3.2.1"
 let APPNAME = "coffee-paladin"
 let CODENAME = "Cold Brew"
 let SIGNATURE = "\(APPNAME) v\(VERSION) \u{201E}\(CODENAME)\u{201D}  ·  by panbookovsky"
@@ -76,8 +76,8 @@ let PL: [String: String] = [
     "rising %.1f C/min - about %.0f min to pause": "rośnie %.1f C/min - do pauzy ok. %.0f min",
     "rising %.1f C/min": "rośnie %.1f C/min",
     "Supervised jobs (safe-run):": "Zadania pod opieką (safe-run):",
-    "Heating the most now (CPU ≈ heat):": "Najbardziej grzeją teraz (CPU ≈ ciepło):",
-    "Eating the most RAM:": "Najwięcej RAM zjadają:",
+    "Heating the most now (CPU ≈ heat):": "Największe źródła ciepła teraz (wg CPU):",
+    "Eating the most RAM:": "Najwięcej RAM używają:",
     "Top CPU:  %@ (%d%%)": "Najwięcej CPU:  %@ (%d%%)",
     "Paused: %@": "Wstrzymane: %@",
     "  (manual)": "  (ręcznie)",
@@ -166,7 +166,7 @@ let PL: [String: String] = [
     "The paladin stands guard. Choose how to begin:": "Paladyn staje na straży. Wybierz, jak zaczynamy:",
     "Enable protection": "Włącz ochronę",
     "Watch only for now": "Na razie tylko obserwuj",
-    "Load info": "Informacje o obciążeniu",
+    "Load info": "Co obciąża Maca",
     "Keep awake": "Nie usypiaj Maca",
     "Off": "Wyłącz",
     "%d min": "%d min",
@@ -177,7 +177,7 @@ let PL: [String: String] = [
     "released automatically when the Mac gets hot": "zwalniane samo, gdy Mac się grzeje",
     "Keep-awake: %@ left": "Czuwanie: zostało %@",
     "caffeinate holds for another %@": "caffeinate trzyma jeszcze %@",
-    "Heavy processes right now: %d": "Ilość ciężkich procesów: %d",
+    "Heavy processes right now: %d": "Ciężkie procesy teraz: %d",
     "Measurement interval": "Częstotliwość pomiarów",
     "Pick the report period.": "Wybierz okres raportu.",
     "Included: hardware, battery, sudden shutdowns, interventions, measurement timeline.":
@@ -256,7 +256,7 @@ let PL: [String: String] = [
     "yes": "tak",
     "no": "nie",
     "Keep the Mac awake while heavy jobs run": "Trzymaj caffeinate na ciężkie zadania",
-    "Keeping the Mac awake (heavy job running)": "Trzymam Maca w czuwaniu (działa ciężkie zadanie)",
+    "Keeping the Mac awake (heavy job running)": "Nie usypiam Maca, bo działa ciężkie zadanie",
     "Right now: keeping the Mac awake": "Teraz: czuwanie trzymane",
     "Keep the screen on too (uses more power)": "Nie gaś też ekranu (więcej prądu i ciepła)",
     "Keep-awake time left": "Ile zostało czuwania",
@@ -268,10 +268,20 @@ let PL: [String: String] = [
     "in this session (since %@)": "w tej sesji (od %@)",
     "total since %@": "łącznie od %@",
     "Nothing here - and that is good news: your Mac has not been overheating.": "Nic tu nie ma - to dobrze, znaczy, że twoja maszyna się nie przegrzewała.",
+    "In this session: no interventions yet.": "W tej sesji: jeszcze bez interwencji.",
+    "Pause ended another way (manual resume, job exited, daemon restart): %d": "Pauza zakończona inaczej (ręczne wznowienie, proces sam się skończył, restart demona): %d",
+    "Hardware details": "Szczegóły sprzętu",
+    "All safe - the paladin is on watch": "Bezpiecznie - paladyn czuwa",
+    "Hot - the guard is on it": "Gorąco - strażnik reaguje",
+    "Getting warm - watching closely": "Ciepło - obserwuję uważnie",
+    "Hot - %d job(s) paused": "Gorąco - wstrzymane zadania: %d",
+    "Watch-only mode - measuring, pausing nothing": "Tryb obserwacji - mierzę, niczego nie wstrzymuję",
+    "%@ session — idle": "sesja %@ — bez obciążenia",
+    "Process tree details": "Szczegóły drzew procesów",
     "Heavy jobs paused": "Wstrzymane ciężkie zadania",
     "Jobs resumed after cooling": "Wznowione po ostygnięciu",
-    "Jobs terminated at the kill threshold": "Ubite przy progu krytycznym",
-    "Times keep-awake gave way to heat": "Czuwanie ustąpiło przed ciepłem",
+    "Jobs terminated at the kill threshold": "Zakończone awaryjnie przy progu krytycznym",
+    "Sleep-lock releases due to heat": "Zwolnienia blokady snu z powodu ciepła",
     "counting since %@": "liczone od %@",
     "Nothing yet - the machine has not been hot enough.": "Jeszcze nic - maszyna nie była dość gorąca.",
     "Until a set hour": "Do konkretnej godziny",
@@ -351,10 +361,20 @@ let RU: [String: String] = [
     "in this session (since %@)": "в этой сессии (с %@)",
     "total since %@": "всего с %@",
     "Nothing here - and that is good news: your Mac has not been overheating.": "Здесь пусто - и это хорошо: ваш Mac не перегревался.",
+    "In this session: no interventions yet.": "В этой сессии: вмешательств пока нет.",
+    "Pause ended another way (manual resume, job exited, daemon restart): %d": "Пауза завершилась иначе (ручное возобновление, процесс сам завершился, перезапуск демона): %d",
+    "Hardware details": "Сведения об оборудовании",
+    "All safe - the paladin is on watch": "Безопасно - паладин на страже",
+    "Hot - the guard is on it": "Жарко - страж действует",
+    "Getting warm - watching closely": "Теплеет - слежу внимательно",
+    "Hot - %d job(s) paused": "Горячо - приостановлено задач: %d",
+    "Watch-only mode - measuring, pausing nothing": "Режим наблюдения - измеряю, ничего не останавливаю",
+    "%@ session — idle": "сессия %@ — без нагрузки",
+    "Process tree details": "Деревья процессов подробно",
     "Heavy jobs paused": "Приостановлено тяжёлых задач",
     "Jobs resumed after cooling": "Возобновлено после остывания",
     "Jobs terminated at the kill threshold": "Завершено на критическом пороге",
-    "Times keep-awake gave way to heat": "Бодрствование уступило нагреву",
+    "Sleep-lock releases due to heat": "Снятия блокировки сна из-за нагрева",
     "counting since %@": "считаем с %@",
     "Nothing yet - the machine has not been hot enough.": "Пока ничего - машина не была достаточно горячей.",
     "Until a set hour": "До определённого часа",
@@ -637,10 +657,20 @@ let ZH: [String: String] = [
     "in this session (since %@)": "本次会话（自 %@）",
     "total since %@": "累计自 %@",
     "Nothing here - and that is good news: your Mac has not been overheating.": "这里是空的 - 这是好消息：你的 Mac 没有过热。",
+    "In this session: no interventions yet.": "本次会话:尚无干预。",
+    "Pause ended another way (manual resume, job exited, daemon restart): %d": "暂停以其他方式结束(手动恢复、进程自行退出、守护进程重启):%d",
+    "Hardware details": "硬件详情",
+    "All safe - the paladin is on watch": "一切安全 - 圣骑士在值守",
+    "Hot - the guard is on it": "过热 - 守卫正在处理",
+    "Getting warm - watching closely": "变热了 - 正在密切关注",
+    "Hot - %d job(s) paused": "过热 - 已暂停任务:%d",
+    "Watch-only mode - measuring, pausing nothing": "仅观察模式 - 只测量,不暂停",
+    "%@ session — idle": "%@ 会话 — 空闲",
+    "Process tree details": "进程树详情",
     "Heavy jobs paused": "已暂停的繁重任务",
     "Jobs resumed after cooling": "降温后已恢复",
     "Jobs terminated at the kill threshold": "在临界阈值终止",
-    "Times keep-awake gave way to heat": "唤醒因高温让步次数",
+    "Sleep-lock releases due to heat": "因过热解除防睡眠锁定的次数",
     "counting since %@": "自 %@ 起统计",
     "Nothing yet - the machine has not been hot enough.": "暂无 - 机器还不够热。",
     "Until a set hour": "到指定时刻",
@@ -921,10 +951,20 @@ let ES: [String: String] = [
     "in this session (since %@)": "en esta sesión (desde %@)",
     "total since %@": "total desde %@",
     "Nothing here - and that is good news: your Mac has not been overheating.": "Aquí no hay nada, y es buena noticia: tu Mac no se ha sobrecalentado.",
+    "In this session: no interventions yet.": "En esta sesión: aún sin intervenciones.",
+    "Pause ended another way (manual resume, job exited, daemon restart): %d": "La pausa terminó de otra forma (reanudación manual, el proceso terminó solo, reinicio del demonio): %d",
+    "Hardware details": "Detalles del hardware",
+    "All safe - the paladin is on watch": "Todo seguro: el paladín vigila",
+    "Hot - the guard is on it": "Caliente: el guardián actúa",
+    "Getting warm - watching closely": "Se calienta: vigilando de cerca",
+    "Hot - %d job(s) paused": "Caliente: tareas en pausa: %d",
+    "Watch-only mode - measuring, pausing nothing": "Modo observación: mido, no pauso nada",
+    "%@ session — idle": "sesión %@ — sin carga",
+    "Process tree details": "Detalles de árboles de procesos",
     "Heavy jobs paused": "Tareas pesadas pausadas",
     "Jobs resumed after cooling": "Reanudadas tras enfriarse",
     "Jobs terminated at the kill threshold": "Terminadas en el umbral crítico",
-    "Times keep-awake gave way to heat": "Veces que la vigilia cedió al calor",
+    "Sleep-lock releases due to heat": "Bloqueos de sueño liberados por calor",
     "counting since %@": "contando desde %@",
     "Nothing yet - the machine has not been hot enough.": "Nada aún: la máquina no se ha calentado lo suficiente.",
     "Until a set hour": "Hasta una hora concreta",
@@ -2817,7 +2857,20 @@ final class Bar: NSObject, NSMenuDelegate {
             bits.append("\(label) \(p)%" + (reset.isEmpty ? "" : " ↺\(reset)"))
         }
         window("five_hour_pct", "5h", "five_hour_reset")
-        window("seven_day_pct", "7d", "seven_day_reset")
+        // The weekly reset day is formatted HERE, from the epoch, in the
+        // BAR's language: the statusline wrote its text in the session's
+        // language, and "Wed" inside a Polish menu is a localization bug.
+        if let p = (j["seven_day_pct"] as? NSNumber)?.intValue {
+            var reset = (j["seven_day_reset"] as? String) ?? ""
+            if let epoch = (j["seven_day_reset_epoch"] as? NSNumber)?.doubleValue, epoch > 0 {
+                let f = DateFormatter()
+                f.locale = Locale(identifier: ["en": "en_US", "pl": "pl_PL", "ru": "ru_RU",
+                                               "zh": "zh_CN", "es": "es_ES"][lang] ?? "en_US")
+                f.setLocalizedDateFormatFromTemplate("EEE")
+                reset = f.string(from: Date(timeIntervalSince1970: epoch))
+            }
+            bits.append("7d \(p)%" + (reset.isEmpty ? "" : " ↺\(reset)"))
+        }
         if let c = (j["context_pct"] as? NSNumber)?.intValue { bits.append("ctx \(c)%") }
         guard bits.count > 1 else { return nil }
         return String(format: T("Claude limits: %@"), bits.joined(separator: " · "))
@@ -3471,16 +3524,43 @@ final class Bar: NSObject, NSMenuDelegate {
         // Leading icons match the bar exactly (thermometer/fan/bolt/memorychip/internaldrive),
         // so the bar readout and card readout use the same visual language.
         // Icons inside a line (fan, bolt) are NSTextAttachment values from icon().
-        func rowI(_ symbol: String, _ body: NSAttributedString) {
+        func rowI(_ symbol: String, _ body: NSAttributedString, into menu: NSMenu? = nil) {
             let it = NSMenuItem(title: "", action: nil, keyEquivalent: "")
             it.image = img(symbol)
             let a = NSMutableAttributedString(attributedString: body)
             a.addAttribute(.font, value: NSFont.menuFont(ofSize: 0),
                            range: NSRange(location: 0, length: a.length))
             it.attributedTitle = a
-            m.addItem(it)
+            (menu ?? m).addItem(it)
         }
         func txt(_ s: String) -> NSAttributedString { NSAttributedString(string: s) }
+
+        // THE ANSWER, before any numbers: is it safe, and what is the guard
+        // doing about it. Every reading below is evidence; this line is the
+        // verdict, and the card was hard to read with the verdict missing.
+        if !s.stale {
+            let verdict: (String, String)
+            // Order matters: frozen jobs are a fact regardless of mode, so
+            // they outrank the dry-run line; a hot level without pauses
+            // (nothing pausable, or a pause failed) must still say HOT, not
+            // "warm" - understating the state is the one lie this line can
+            // tell (caught by the Codex review round).
+            if !s.paused.isEmpty {
+                verdict = ("flame", String(format: T("Hot - %d job(s) paused"), s.paused.count))
+            } else if s.dryRun {
+                verdict = ("eye", T("Watch-only mode - measuring, pausing nothing"))
+            } else if s.level >= 2 {
+                verdict = ("flame", T("Hot - the guard is on it"))
+            } else if s.level == 1 {
+                verdict = ("thermometer.high", T("Getting warm - watching closely"))
+            } else {
+                verdict = ("checkmark.shield", T("All safe - the paladin is on watch"))
+            }
+            let head = NSMutableAttributedString(string: verdict.1)
+            head.addAttribute(.font, value: NSFont.boldSystemFont(ofSize: NSFont.systemFontSize),
+                              range: NSRange(location: 0, length: head.length))
+            rowI(verdict.0, head)
+        }
 
         rowI("thermometer.medium",
              txt("Chip:  " + (s.chip.map { String(format: "%.1f °C", $0) } ?? na)
@@ -3496,6 +3576,13 @@ final class Bar: NSObject, NSMenuDelegate {
         // CONSTANT.
         rowI("gauge", txt(String(format: T("Load:  %.2f / %d cores"),
                                  s.load, ProcessInfo.processInfo.processorCount)))
+        // Fans, RAM, disk and power moved off the main card into "Hardware
+        // details": they are context, not verdict, and eight dense lines were
+        // exactly why the owner could not tell what mattered. A reading comes
+        // BACK to the main card only while it is alarming - a value worth
+        // interrupting for must not hide in a submenu.
+        let hw = NSMenu()
+        hw.autoenablesItems = false
         if !s.fans.isEmpty {
             // Unit once at the end, but show ALL values. Filtering zeros would hide a fan
             // that stopped while another runs, exactly the symptom the cooling-failure
@@ -3503,18 +3590,22 @@ final class Bar: NSObject, NSMenuDelegate {
             let fanTxt = s.fans.allSatisfy { $0 == 0 }
                 ? T("stopped")
                 : String(format: T("%@ rpm"), s.fans.map(String.init).joined(separator: ", "))
-            // Fan icon is now LEADING. It used to sit inside the line as a separator
-            // between load and fans; after splitting rows it stayed there, leaving two
-            // icons in one row: "gauge" in front and fan in the text.
-            rowI("fan", txt(String(format: T("Fans:  %@"), fanTxt)))
+            rowI("fan", txt(String(format: T("Fans:  %@"), fanTxt)), into: hw)
         }
         if let u = s.ramUsed, let t = s.ramTotal, t > 0 {
             var line = String(format: T("RAM:  %.1f / %.1f GB (%d%%)"), u, t, Int(100 * u / t))
             if let sw = s.swap, sw > 0.01 { line += "     " + String(format: T("swap %.2f GB"), sw) }
-            rowI("memorychip", txt(line))
+            rowI("memorychip", txt(line), into: hw)
+            if Int(100 * u / t) >= 75 {
+                rowI("memorychip", txt(line))
+            }
         }
         if let du = s.diskUsed, let dt = s.diskTotal, let dp = s.diskPct {
-            rowI("internaldrive", txt(String(format: T("Disk:  %d / %d GB used (%d%%)"), du, dt, dp)))
+            let line = String(format: T("Disk:  %d / %d GB used (%d%%)"), du, dt, dp)
+            rowI("internaldrive", txt(line), into: hw)
+            if dp >= 85 {
+                rowI("internaldrive", txt(line))
+            }
         }
         // No battery percentage here; macOS already shows it in the system bar. Keep
         // AC/battery itself because it changes guard behavior (battery gate). Percentage
@@ -3527,7 +3618,13 @@ final class Bar: NSObject, NSMenuDelegate {
             pw.append(icon("bolt.fill", fallback: ""))
             pw.append(txt(" " + String(format: T("Draw:  %.1f W"), w)))
         }
-        rowI(s.onAC ? "powerplug" : "battery.100", pw)
+        rowI(s.onAC ? "powerplug" : "battery.100", pw, into: hw)
+        if hw.items.isEmpty == false {
+            let hwIt = NSMenuItem(title: T("Hardware details"), action: nil, keyEquivalent: "")
+            hwIt.image = img("cpu")
+            hwIt.submenu = hw
+            m.addItem(hwIt)
+        }
         // "CPU available: 100%" was misleading: this is CPU_Speed_Limit from pmset
         // (clock throttling), not free capacity. Show the row ONLY when throttling is
         // real; at 100% it is noise, and the label now states the meaning directly.
@@ -4116,6 +4213,12 @@ final class Bar: NSObject, NSMenuDelegate {
                   let mtime = attrs[.modificationDate] as? Date else { return false }
             return Date().timeIntervalSince(mtime) <= 180
         }()
+        // Sessions get ONE honest line each; the full process trees moved to
+        // their own "Process tree details" submenu. Three identical
+        // zsh > bash > sleep chains on the first screen said nothing except
+        // "there is a lot here" - which is the opposite of what a glance is
+        // for. An idle session says "idle", not "0% CPU in its tree".
+        var sessionRows: [String] = []
         if actFresh,
            let d = FileManager.default.contents(atPath: activityPath),
            let j = try? JSONSerialization.jsonObject(with: d) as? [String: Any],
@@ -4136,28 +4239,42 @@ final class Bar: NSObject, NSMenuDelegate {
                 actTotal += 1
                 let label = (a["agent"] as? String ?? "?").capitalized
                 let tree = (a["cpu_tree"] as? Double) ?? 0
+                let line = tree < 1
+                    ? String(format: T("%@ session — idle"), label)
+                    : String(format: T("%@ session — %.0f%% CPU in its tree"), label, tree)
+                sessionRows.append(line)
                 if actRows.count < 40 {
-                    actRows.append((String(format: T("%@ session — %.0f%% CPU in its tree"),
-                                          label, tree), "sparkles", 0))
+                    actRows.append((line, "sparkles", 0))
                 }
                 walk((a["children"] as? [[String: Any]]) ?? [], indent: 1)
             }
         }
-        if actRows.isEmpty {
+        if sessionRows.isEmpty {
             amenu.addItem(NSMenuItem(title: T("no AI session is running right now"),
                                      action: nil, keyEquivalent: ""))
         } else {
+            for title in sessionRows {
+                let it = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+                it.image = img("sparkles")
+                amenu.addItem(it)
+            }
+            let tmenu = NSMenu()
+            tmenu.autoenablesItems = false
             for (title, ic, indent) in actRows {
                 let it = NSMenuItem(title: title, action: nil, keyEquivalent: "")
                 it.indentationLevel = indent
                 it.image = img(ic)
-                amenu.addItem(it)
+                tmenu.addItem(it)
             }
             if actTotal > actRows.count {
-                amenu.addItem(NSMenuItem(title: String(format: T("… %d more"),
+                tmenu.addItem(NSMenuItem(title: String(format: T("… %d more"),
                                                        actTotal - actRows.count),
                                          action: nil, keyEquivalent: ""))
             }
+            let treesIt = NSMenuItem(title: T("Process tree details"), action: nil, keyEquivalent: "")
+            treesIt.image = img("list.bullet.indent")
+            treesIt.submenu = tmenu
+            amenu.addItem(treesIt)
         }
         // LIVE from the recorder's daily JSONL (when the hooks are wired): the
         // freshest event per session. Events carry session ids, processes carry
@@ -4998,7 +5115,7 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
             lines.append(T("Heavy jobs paused") + ": " + counts[0])
             lines.append(T("Jobs resumed after cooling") + ": " + counts[1])
             lines.append(T("Jobs terminated at the kill threshold") + ": " + counts[2])
-            lines.append(T("Times keep-awake gave way to heat") + ": " + counts[3])
+            lines.append(T("Sleep-lock releases due to heat") + ": " + counts[3])
         }
 
         let windowWidth: CGFloat = 240
@@ -5147,7 +5264,7 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
             (T("Heavy jobs paused"), "pauses"),
             (T("Jobs resumed after cooling"), "resumes"),
             (T("Jobs terminated at the kill threshold"), "kills"),
-            (T("Times keep-awake gave way to heat"), "awake_released_hot"),
+            (T("Sleep-lock releases due to heat"), "awake_released_hot"),
         ]
         func dateText(_ epoch: Int?) -> String {
             guard let e = epoch, e > 0 else { return "?" }
@@ -5161,18 +5278,34 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
         let ses = snap?.statsSession ?? [:]
         let sum = snap?.statsTotal ?? [:]
 
-        if labels.allSatisfy({ (ses[$0.1] ?? 0) == 0 }) {
+        let sessionEmpty = labels.allSatisfy { (ses[$0.1] ?? 0) == 0 }
+        let totalEmpty = !labels.contains { (sum[$0.1] ?? 0) > 0 }
+        // "Nothing here" is TRUE only when history agrees. A fresh daemon
+        // session over months of counters used to print the good news right
+        // above 584 interventions - a dialog contradicting itself two lines
+        // apart (caught by the owner on a screenshot).
+        if sessionEmpty && totalEmpty {
             lines.append(T("Nothing here - and that is good news: your Mac has not been overheating."))
+        } else if sessionEmpty {
+            lines.append(T("In this session: no interventions yet."))
         } else {
             lines.append(String(format: T("in this session (since %@)"), dateText(ses["since"])))
             lines.append("")
             lines.append(contentsOf: labels.map { "\($0.0):  \(ses[$0.1] ?? 0)" })
         }
-        if labels.contains(where: { (sum[$0.1] ?? 0) > 0 }) {
+        if !totalEmpty {
             lines.append("")
             lines.append(String(format: T("total since %@"), dateText(sum["since"])))
             lines.append("")
             lines.append(contentsOf: labels.map { "\($0.0):  \(sum[$0.1] ?? 0)" })
+            // The books must balance: paused minus resumed minus killed leaves
+            // pauses that ended some other way, and an unexplained 12 reads
+            // like a bug even when it is not one.
+            let other = (sum["pauses"] ?? 0) - (sum["resumes"] ?? 0) - (sum["kills"] ?? 0)
+            if other > 0 {
+                lines.append(String(format:
+                    T("Pause ended another way (manual resume, job exited, daemon restart): %d"), other))
+            }
         }
 
         // FLEET: ONE number per category. Per-machine breakdown lives in the "Apple

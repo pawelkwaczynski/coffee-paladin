@@ -127,6 +127,7 @@ test("15. garbage stdin does not break the line", r.returncode == 0
 
 print("=== the line: account limits from the session JSON ===")
 CACHE = os.path.join(SANDBOX, "claude_usage_cache.json")
+week_reset = time.time() + 86400
 limits = json.dumps({"model": {"display_name": "Fable 5"},
                      "workspace": {"current_dir": "/u/projekt"},
                      "context_window": {"used_percentage": 62.4},
@@ -134,7 +135,7 @@ limits = json.dumps({"model": {"display_name": "Fable 5"},
                          "five_hour": {"used_percentage": 86.2,
                                        "resets_at": time.time() + 3600},
                          "seven_day": {"used_percentage": 41.0,
-                                       "resets_at": time.time() + 86400}}})
+                                       "resets_at": week_reset}}})
 r = run_line(dict(FRESH), stdin=limits, env={"COLUMNS": "200"})
 test("36. both windows and context land on the second line",
      r.stdout.count("\n") == 2 and "5h 86%" in r.stdout and "7d 41%" in r.stdout
@@ -148,8 +149,17 @@ test("38. the bar cache holds the whitelisted fields",
      and abs(cache.get("epoch", 0) - time.time()) < 60, repr(cache))
 test("39. and NOTHING else: no ids, no paths, no resets beyond text",
      set(cache) <= {"model", "five_hour_pct", "five_hour_reset",
-                    "seven_day_pct", "seven_day_reset", "context_pct", "epoch"},
+                    "seven_day_pct", "seven_day_reset", "seven_day_reset_epoch",
+                    "context_pct", "epoch"},
      repr(sorted(cache)))
+test("39b. the weekly reset epoch is in the cache for the bar to localize",
+     isinstance(cache.get("seven_day_reset_epoch"), int))
+r = run_line(dict(FRESH), stdin=limits, env={"COLUMNS": "200", "TG_LANG": "pl"})
+import datetime
+weekday = datetime.datetime.fromtimestamp(week_reset).weekday()
+pl_days = ["pon", "wt", "śr", "czw", "pt", "sob", "nd"]
+test("39c. the weekday speaks the session's language, never bare strftime",
+     pl_days[weekday] in r.stdout, repr(r.stdout))
 os.remove(CACHE)
 r = run_line(dict(FRESH), stdin=json.dumps({"model": {"display_name": "Fable 5"}}),
              env={"COLUMNS": "200"})
