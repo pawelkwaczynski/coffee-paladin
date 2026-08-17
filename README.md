@@ -515,6 +515,17 @@ already covers it - the native file only matters when that compatibility is
 switched off. Gemini's timeout field is in milliseconds where everyone else
 uses seconds; the adapter knows.
 
+**Running an agent swarm? You are already covered.** Multi-agent
+orchestrators that spawn their workers as regular CLI sessions -
+oh-my-claudecode teams, claude-squad, workmux, dmux panes and friends -
+inherit the gate for free: each worker is a `claude` (or codex/gemini/grok)
+process, reads the same user-level settings, and hits the same PreToolUse
+gate before starting anything heavy. No orchestrator-side configuration,
+nothing to install twice. What no orchestrator sees yet is the machine
+itself - how hot it runs and how many heavy jobs it can carry - which is
+exactly the layer the guard keeps: one `status.json` any scheduler can read
+before scaling up.
+
 **Terminals.** The same thermal line works outside agent sessions:
 `integrations/terminals/` ships a tmux `status-right` snippet, a WezTerm
 `update-status` handler and an iTerm2 status bar component, each a
@@ -1599,6 +1610,17 @@ skanuje też hooki z `~/.claude/settings.json`, więc bramka wpięta w Claude
 już go obejmuje - własny plik ma znaczenie dopiero, gdy tę kompatybilność
 ktoś wyłączył. U Gemini pole timeout jest w milisekundach, gdy wszyscy inni
 liczą sekundy; adapter o tym wie.
+
+**Prowadzisz rój agentów? Już jesteś pod ochroną.** Orkiestratory
+multi-agent, które spawnują workerów jako zwykłe sesje CLI - zespoły
+oh-my-claudecode, claude-squad, workmux, panele dmux i podobne - dziedziczą
+bramkę za darmo: każdy worker to proces `claude` (albo codex/gemini/grok),
+czyta te same ustawienia użytkownika i trafia na tę samą bramkę PreToolUse,
+zanim odpali cokolwiek ciężkiego. Zero konfiguracji po stronie orkiestratora,
+niczego nie instalujesz drugi raz. Czego żaden orkiestrator jeszcze nie
+widzi, to sama maszyna - jak gorąco pracuje i ile ciężkich zadań uniesie -
+a to jest dokładnie warstwa strażnika: jeden `status.json`, który każdy
+scheduler może przeczytać, zanim doskaluje.
 
 **Terminale.** Ta sama linia termiczna działa poza sesjami agentów:
 `integrations/terminals/` zawiera wstawkę `status-right` dla tmuksa, handler
