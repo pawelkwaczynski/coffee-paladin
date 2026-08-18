@@ -1,4 +1,4 @@
-# coffee-paladin v3.2.1
+# coffee-paladin v3.2.2
 
 <p align="center">
   <img src="branding/paladin.gif" alt="coffee-paladin - the project mascot" width="260">
@@ -530,6 +530,12 @@ before scaling up.
 `integrations/terminals/` ships a tmux `status-right` snippet, a WezTerm
 `update-status` handler and an iTerm2 status bar component, each a
 copy-paste-sized file with install notes inside.
+
+**What today cost.** If the external [`ccusage`](https://github.com/ccusage/ccusage)
+is installed, *Agent activity* gains a line with today's spend across every
+agent CLI it knows. We call the binary and cache its answer for 10 minutes
+rather than vendoring anyone's code or writing a second token counter; no
+`ccusage`, no line, and nothing else changes. `brew install ccusage`.
 
 **Agent activity.** The daemon also writes `~/.coffee-paladin/
 agent_activity.json`: which AI sessions run on this Mac and the process tree
@@ -1550,6 +1556,14 @@ odfiltrowana migawka ląduje w `~/.coffee-paladin/claude_usage_cache.json`,
 skąd czyta ją pasek menu - *Aktywność agentów AI* pokazuje wiersz z limitami,
 póki sesja żyje (i zdejmuje go pięć minut po ostatnim odświeżeniu), więc
 odpowiedź na „ile mi zostało Claude'a" wisi na pasku, nie za komendą.
+
+**Ile poszło dzisiaj.** Jeśli w systemie jest zewnętrzny
+[`ccusage`](https://github.com/ccusage/ccusage), w *Aktywności agentów AI*
+dochodzi wiersz z dzisiejszym kosztem ze wszystkich CLI agentów, które to
+narzędzie zna. Wołamy cudzą binarkę i trzymamy odpowiedź 10 minut w podręcznej
+pamięci, zamiast wciągać cudzy kod do repozytorium albo pisać drugi licznik
+tokenów. Nie ma `ccusage` - nie ma wiersza, reszta działa jak działała.
+Instalacja: `brew install ccusage`.
 
 <p align="center">
   <img src="docs/screens/statusline.webp" alt="Statusline pod żywą sesją Claude Code, tu z ikonami Nerd Font" width="740">
