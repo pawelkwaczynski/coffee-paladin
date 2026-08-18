@@ -1,4 +1,4 @@
-# coffee-paladin v3.2.2
+# coffee-paladin v3.2.3
 
 <p align="center">
   <img src="branding/paladin.gif" alt="coffee-paladin - the project mascot" width="260">
@@ -531,11 +531,25 @@ before scaling up.
 `update-status` handler and an iTerm2 status bar component, each a
 copy-paste-sized file with install notes inside.
 
-**What today cost.** If the external [`ccusage`](https://github.com/ccusage/ccusage)
-is installed, *Agent activity* gains a line with today's spend across every
-agent CLI it knows. We call the binary and cache its answer for 10 minutes
-rather than vendoring anyone's code or writing a second token counter; no
-`ccusage`, no line, and nothing else changes. `brew install ccusage`.
+**What today burned.** If the external [`ccusage`](https://github.com/ccusage/ccusage)
+is installed, *Agent activity* gains a line with today's usage across every
+agent CLI it knows: `322M tokens · ~$312`. Tokens come first on purpose. On a
+subscription the dollar figure is not money anyone spent - it is what the same
+work would have cost through the API - so it is prefixed with `~` and can be
+dropped entirely with `"ccusage_cost": false`. The real budget on a plan is the
+5-hour and weekly percentage, which is already on the line above. We call the
+binary and cache its answer for 10 minutes rather than vendoring anyone's code
+or writing a second token counter; no `ccusage`, no line, and nothing else
+changes. `brew install ccusage`.
+
+Expanding that line breaks the day down **per agent** and **per model** - which
+CLI and which model actually spent the tokens - and shows the **active
+five-hour block** with its rate: `47M tokens · 283k/min · 94 min left`. That
+block is counted by ccusage from local logs and is deliberately labelled as
+such: it is not your account's official 5-hour limit, which has its own row
+straight from Claude Code. And one line no usage dashboard can produce, because
+it needs both halves: when the guard's own forecast says the chip will force a
+pause before the block ends, it says so.
 
 **Agent activity.** The daemon also writes `~/.coffee-paladin/
 agent_activity.json`: which AI sessions run on this Mac and the process tree
@@ -1559,11 +1573,24 @@ odpowiedź na „ile mi zostało Claude'a" wisi na pasku, nie za komendą.
 
 **Ile poszło dzisiaj.** Jeśli w systemie jest zewnętrzny
 [`ccusage`](https://github.com/ccusage/ccusage), w *Aktywności agentów AI*
-dochodzi wiersz z dzisiejszym kosztem ze wszystkich CLI agentów, które to
-narzędzie zna. Wołamy cudzą binarkę i trzymamy odpowiedź 10 minut w podręcznej
-pamięci, zamiast wciągać cudzy kod do repozytorium albo pisać drugi licznik
-tokenów. Nie ma `ccusage` - nie ma wiersza, reszta działa jak działała.
-Instalacja: `brew install ccusage`.
+dochodzi wiersz z dzisiejszym zużyciem ze wszystkich CLI agentów, które to
+narzędzie zna: `322M tokenów · ~$312`. Tokeny są pierwsze nie bez powodu.
+Na abonamencie kwota nie jest wydatkiem, tylko równowartością tej samej pracy
+wyliczoną z cennika API, dlatego stoi przy niej `~`, a `"ccusage_cost": false`
+usuwa ją zupełnie. Realny budżet na abonamencie to procenty z okna 5-godzinnego
+i tygodniowego, a te są linijkę wyżej. Wołamy cudzą binarkę i trzymamy odpowiedź
+10 minut w podręcznej pamięci, zamiast wciągać cudzy kod do repozytorium albo
+pisać drugi licznik tokenów. Nie ma `ccusage` - nie ma wiersza, reszta działa
+jak działała. Instalacja: `brew install ccusage`.
+
+Po rozwinięciu tego wiersza dzień rozkłada się **na agenty** i **na modele**,
+czyli widać, które CLI i który model naprawdę zjadły tokeny, a pod spodem stoi
+**aktywny blok pięciogodzinny** z tempem: `47M tokenów · 283k/min · zostało
+94 min`. Ten blok liczy ccusage z lokalnych plików i jest tak podpisany celowo:
+to nie jest oficjalny limit 5 h Twojego konta, ten ma osobny wiersz prosto
+z Claude Code. Jest tam też jedna linia, której nie wyprodukuje żaden licznik
+zużycia, bo potrzebuje obu połówek naraz: jeśli własna prognoza strażnika mówi,
+że chip wymusi pauzę przed końcem bloku, mówi to wprost.
 
 <p align="center">
   <img src="docs/screens/statusline.webp" alt="Statusline pod żywą sesją Claude Code, tu z ikonami Nerd Font" width="740">

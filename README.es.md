@@ -193,11 +193,25 @@ que el guardián está desconectado y nadie lo nota. Tu statusline existente
 nunca se toca (`--replace` es una elección consciente) y el desinstalador borra
 solo su propia entrada.
 
-**Cuánto llevas gastado hoy.** Si existe el `ccusage` externo, el submenú
-*Actividad de agentes* añade una línea con el coste del día. Llamamos al
-binario ajeno y guardamos su respuesta 10 minutos en caché, en vez de meter
-código ajeno en el repositorio; sin `ccusage` esa línea sencillamente no
-aparece y todo lo demás sigue igual.
+**Cuánto llevas consumido hoy.** Si existe el `ccusage` externo, el submenú
+*Actividad de agentes* añade una línea con el consumo del día en todas las CLI
+de agentes que conoce: `322M tokens · ~$312`. Los tokens van primero a
+propósito: con una suscripción, la cifra en dólares no es dinero que nadie
+gastó, sino lo que ese mismo trabajo habría costado por API, así que lleva `~`
+delante y `"ccusage_cost": false` la quita del todo. El presupuesto real de una
+suscripción son los porcentajes de la ventana de 5 horas y de la semana, que
+están en la línea de arriba. Llamamos al binario ajeno y guardamos su respuesta
+10 minutos en caché, en vez de meter código ajeno en el repositorio; sin
+`ccusage` esa línea sencillamente no aparece y todo lo demás sigue igual.
+Al desplegarla, el día se reparte **por agente** y **por modelo** - se ve qué
+CLI y qué modelo gastaron los tokens de verdad - y debajo aparece el **bloque
+activo de cinco horas** con su ritmo: `47M tokens · 283k/min · quedan 94 min`.
+Ese bloque lo cuenta ccusage a partir de archivos locales y está etiquetado así
+a propósito: no es el límite oficial de 5 horas de tu cuenta, que tiene su
+propia línea directa de Claude Code. Y hay una línea que ningún panel de
+consumo puede dar, porque necesita las dos mitades a la vez: si la previsión
+del propio guardián dice que el chip forzará una pausa antes de que acabe el
+bloque, lo dice sin rodeos.
 
 **Actividad de agentes.** El demonio escribe `agent_activity.json`: qué
 sesiones de IA corren en este Mac y qué árbol de procesos arrancó cada una,

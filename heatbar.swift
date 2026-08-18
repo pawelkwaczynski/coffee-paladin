@@ -16,7 +16,7 @@
 
 import Cocoa
 
-let VERSION = "3.2.2"
+let VERSION = "3.2.3"
 let APPNAME = "coffee-paladin"
 let CODENAME = "Cold Brew"
 let SIGNATURE = "\(APPNAME) v\(VERSION) \u{201E}\(CODENAME)\u{201D}  ·  by panbookovsky"
@@ -148,6 +148,13 @@ let PL: [String: String] = [
     "Agent activity": "Aktywność agentów AI",
     "Live (from hooks):": "Na żywo (z hooków):",
     "Agents today: %@ (ccusage)": "Agenci dzisiaj: %@ (ccusage)",
+    "Per agent": "Na agenta",
+    "Per model": "Na model",
+    "Active block (counted by ccusage, not your account limit)": "Aktywny blok (liczy go ccusage, to nie limit konta)",
+    "%@ tokens · %@/min · %.0f min left": "%@ tokenów · %@/min · zostało %.0f min",
+    "%@ tokens · %.0f min left": "%@ tokenów · zostało %.0f min",
+    "at this rate the guard pauses in ~%.0f min, before the block ends": "w tym tempie strażnik wstrzyma pracę za ~%.0f min, przed końcem bloku",
+    "%@ tokens": "%@ tokenów",
     "Claude limits: %@": "Limity Claude: %@",
     "no AI session is running right now": "żadna sesja AI teraz nie działa",
     "… %d more": "… jeszcze %d",
@@ -272,7 +279,6 @@ let PL: [String: String] = [
     "In this session: no interventions yet.": "W tej sesji: jeszcze bez interwencji.",
     "Pause ended another way (manual resume, job exited, daemon restart): %d": "Pauza zakończona inaczej (ręczne wznowienie, proces sam się skończył, restart demona): %d",
     "Hardware details": "Szczegóły sprzętu",
-    "All safe - the paladin is on watch": "Bezpiecznie - paladyn czuwa",
     "Hot - the guard is on it": "Gorąco - strażnik reaguje",
     "Getting warm - watching closely": "Ciepło - obserwuję uważnie",
     "Hot - %d job(s) paused": "Gorąco - wstrzymane zadania: %d",
@@ -365,7 +371,6 @@ let RU: [String: String] = [
     "In this session: no interventions yet.": "В этой сессии: вмешательств пока нет.",
     "Pause ended another way (manual resume, job exited, daemon restart): %d": "Пауза завершилась иначе (ручное возобновление, процесс сам завершился, перезапуск демона): %d",
     "Hardware details": "Сведения об оборудовании",
-    "All safe - the paladin is on watch": "Безопасно - паладин на страже",
     "Hot - the guard is on it": "Жарко - страж действует",
     "Getting warm - watching closely": "Теплеет - слежу внимательно",
     "Hot - %d job(s) paused": "Горячо - приостановлено задач: %d",
@@ -514,6 +519,13 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
     "Agent activity": "Активность ИИ-агентов",
     "Live (from hooks):": "Вживую (из хуков):",
     "Agents today: %@ (ccusage)": "Агенты сегодня: %@ (ccusage)",
+    "Per agent": "По агенту",
+    "Per model": "По модели",
+    "Active block (counted by ccusage, not your account limit)": "Активный блок (его считает ccusage, это не лимит аккаунта)",
+    "%@ tokens · %@/min · %.0f min left": "%@ токенов · %@/мин · осталось %.0f мин",
+    "%@ tokens · %.0f min left": "%@ токенов · осталось %.0f мин",
+    "at this rate the guard pauses in ~%.0f min, before the block ends": "при таком темпе страж остановит работу через ~%.0f мин, до конца блока",
+    "%@ tokens": "%@ токенов",
     "Claude limits: %@": "Лимиты Claude: %@",
     "no AI session is running right now": "сейчас не работает ни одна сессия ИИ",
     "… %d more": "… ещё %d",
@@ -662,7 +674,6 @@ let ZH: [String: String] = [
     "In this session: no interventions yet.": "本次会话:尚无干预。",
     "Pause ended another way (manual resume, job exited, daemon restart): %d": "暂停以其他方式结束(手动恢复、进程自行退出、守护进程重启):%d",
     "Hardware details": "硬件详情",
-    "All safe - the paladin is on watch": "一切安全 - 圣骑士在值守",
     "Hot - the guard is on it": "过热 - 守卫正在处理",
     "Getting warm - watching closely": "变热了 - 正在密切关注",
     "Hot - %d job(s) paused": "过热 - 已暂停任务:%d",
@@ -809,6 +820,13 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
     "Agent activity": "AI 代理活动",
     "Live (from hooks):": "实时（来自 hooks）：",
     "Agents today: %@ (ccusage)": "今日代理消耗：%@（ccusage）",
+    "Per agent": "按代理",
+    "Per model": "按模型",
+    "Active block (counted by ccusage, not your account limit)": "当前区块（由 ccusage 统计，不是你的账号额度）",
+    "%@ tokens · %@/min · %.0f min left": "%@ 个 token · %@/分钟 · 还剩 %.0f 分钟",
+    "%@ tokens · %.0f min left": "%@ 个 token · 还剩 %.0f 分钟",
+    "at this rate the guard pauses in ~%.0f min, before the block ends": "按此速度守卫将在约 %.0f 分钟后暂停工作，早于区块结束",
+    "%@ tokens": "%@ 个 token",
     "Claude limits: %@": "Claude 限额：%@",
     "no AI session is running right now": "当前没有运行中的 AI 会话",
     "… %d more": "… 还有 %d 个",
@@ -957,7 +975,6 @@ let ES: [String: String] = [
     "In this session: no interventions yet.": "En esta sesión: aún sin intervenciones.",
     "Pause ended another way (manual resume, job exited, daemon restart): %d": "La pausa terminó de otra forma (reanudación manual, el proceso terminó solo, reinicio del demonio): %d",
     "Hardware details": "Detalles del hardware",
-    "All safe - the paladin is on watch": "Todo seguro: el paladín vigila",
     "Hot - the guard is on it": "Caliente: el guardián actúa",
     "Getting warm - watching closely": "Se calienta: vigilando de cerca",
     "Hot - %d job(s) paused": "Caliente: tareas en pausa: %d",
@@ -1105,6 +1122,13 @@ Vuelve a activarlo cuando termines.
     "Agent activity": "Actividad de agentes IA",
     "Live (from hooks):": "En vivo (desde hooks):",
     "Agents today: %@ (ccusage)": "Agentes hoy: %@ (ccusage)",
+    "Per agent": "Por agente",
+    "Per model": "Por modelo",
+    "Active block (counted by ccusage, not your account limit)": "Bloque activo (lo cuenta ccusage, no es el límite de tu cuenta)",
+    "%@ tokens · %@/min · %.0f min left": "%@ tokens · %@/min · quedan %.0f min",
+    "%@ tokens · %.0f min left": "%@ tokens · quedan %.0f min",
+    "at this rate the guard pauses in ~%.0f min, before the block ends": "a este ritmo el guardián pausará en ~%.0f min, antes de que acabe el bloque",
+    "%@ tokens": "%@ tokens",
     "Claude limits: %@": "Límites de Claude: %@",
     "no AI session is running right now": "ninguna sesión de IA está activa ahora",
     "… %d more": "… %d más",
@@ -2894,8 +2918,19 @@ final class Bar: NSObject, NSMenuDelegate {
     func ccusageTodayText() -> String? {
         guard let d = FileManager.default.contents(atPath: ccusageCachePath),
               let j = try? JSONSerialization.jsonObject(with: d) as? [String: Any],
-              let epoch = j["epoch"] as? Double,
-              let text = j["text"] as? String, !text.isEmpty else { return nil }
+              let epoch = j["epoch"] as? Double else { return nil }
+        // Tokens lead, money follows. On a subscription the dollar figure is not money
+        // anyone spent - it is what the same work would have cost through the API - so
+        // presenting it as THE number of the day misreads the bill for most users.
+        var parts: [String] = []
+        if let tok = num(j["tokens"]), tok > 0, let t = tokenText(tok) {
+            parts.append(String(format: T("%@ tokens"), t))
+        }
+        if GuardCfg.bool("ccusage_cost", true), let c = num(j["cost"]), c > 0 {
+            parts.append(String(format: "~$%.2f", c))
+        }
+        let text = parts.joined(separator: " · ")
+        if text.isEmpty { return nil }
         // "Today" must mean today: a stale cache from a removed ccusage would
         // otherwise present yesterday's cost as current, forever.
         let fmt = DateFormatter()
@@ -2903,6 +2938,57 @@ final class Bar: NSObject, NSMenuDelegate {
         if (j["day"] as? String) != fmt.string(from: Date()) { return nil }
         if Date().timeIntervalSince1970 - epoch > 600 { return nil }
         return String(format: T("Agents today: %@ (ccusage)"), text)
+    }
+
+    /// Rows for the expanded breakdown: per agent, then per model, then the active block.
+    /// Everything here is display-only text built from the cache the background refresh
+    /// wrote; the menu never waits for the tool.
+    func ccusageDetailRows(etaPauseMin: Double?) -> [(String, String)] {
+        guard let d = FileManager.default.contents(atPath: ccusageCachePath),
+              let j = try? JSONSerialization.jsonObject(with: d) as? [String: Any],
+              let epoch = j["epoch"] as? Double,
+              Date().timeIntervalSince1970 - epoch <= 600 else { return [] }
+        let showCost = GuardCfg.bool("ccusage_cost", true)
+        func line(_ e: [String: Any]) -> String? {
+            guard let name = e["name"] as? String,
+                  let tok = num(e["tokens"]), tok > 0,
+                  let t0 = tokenText(tok) else { return nil }
+            var t = String(format: T("%@ tokens"), t0)
+            if showCost, let c = num(e["cost"]), c > 0 { t += String(format: " · ~$%.2f", c) }
+            return modelLabel(name) + "   " + t
+        }
+        var rows: [(String, String)] = []
+        // Heading first, rows second was backwards: a section whose entries all fail the
+        // filter left a title standing over nothing.
+        func section(_ title: String, _ entries: [[String: Any]], icon: String) {
+            let lines = entries.prefix(6).compactMap(line)
+            guard !lines.isEmpty else { return }
+            rows.append(("", title))
+            for l in lines { rows.append((icon, l)) }
+        }
+        section(T("Per agent"), (j["agents"] as? [[String: Any]]) ?? [], icon: "terminal")
+        section(T("Per model"), (j["models"] as? [[String: Any]]) ?? [], icon: "cpu")
+        if let b = j["block"] as? [String: Any], let tok = num(b["tokens"]), tok > 0,
+           let tokTxt = tokenText(tok),
+           let endEpoch = num(b["endEpoch"]),
+           case let left = (endEpoch - Date().timeIntervalSince1970) / 60.0, left > 0 {
+            rows.append(("", T("Active block (counted by ccusage, not your account limit)")))
+            // The rate is optional: a block one minute old has no meaningful pace, and an
+            // invented one would be worse than a shorter row.
+            if let perMin = num(b["perMinute"]), let rate = tokenText(perMin) {
+                rows.append(("clock", String(format: T("%@ tokens · %@/min · %.0f min left"),
+                                             tokTxt, rate, left)))
+            } else {
+                rows.append(("clock", String(format: T("%@ tokens · %.0f min left"), tokTxt, left)))
+            }
+            // The one thing no usage dashboard can say: this machine may stop the work
+            // before the block runs out. Only claimed when the guard itself forecasts it.
+            if let eta = etaPauseMin, eta > 0, left > 0, eta < left {
+                rows.append(("exclamationmark.triangle",
+                             String(format: T("at this rate the guard pauses in ~%.0f min, before the block ends"), eta)))
+            }
+        }
+        return rows
     }
 
     // Touched from the main thread only; the background task hands completion
@@ -2924,6 +3010,9 @@ final class Bar: NSObject, NSMenuDelegate {
                               home + "/.npm-global/bin/ccusage"]
             guard let bin = candidates.first(where: { FileManager.default.isExecutableFile(atPath: $0) })
             else { return }                       // no ccusage = the row simply does not exist
+            // Two calls, one refresh: the daily totals (~1.5 s) and the active block
+            // (~0.4 s). Both land in the same cache file, both are best-effort.
+            let blockInfo = self.readActiveBlock(bin: bin, home: home)
             let proc = Process()
             proc.executableURL = URL(fileURLWithPath: bin)
             // npm/bun shims start with `env node`; a LaunchAgent's inherited
@@ -2936,7 +3025,7 @@ final class Bar: NSObject, NSMenuDelegate {
             proc.environment = env
             let fmt = DateFormatter()
             fmt.dateFormat = "yyyyMMdd"
-            proc.arguments = ["daily", "--json", "--since", fmt.string(from: Date())]
+            proc.arguments = ["daily", "--json", "--by-agent", "--since", fmt.string(from: Date())]
             let pipe = Pipe()
             proc.standardOutput = pipe
             proc.standardError = FileHandle.nullDevice
@@ -2954,7 +3043,31 @@ final class Bar: NSObject, NSMenuDelegate {
             if let top = j as? [String: Any],
                let totals = top["totals"] as? [String: Any],
                let known = totals["totalCost"] as? Double {
-                self.writeCcusageCache(cost: known)
+                // The breakdown is best-effort: totals alone still produce a useful row,
+                // so a schema change in the per-agent part must not cost us the headline.
+                var agents: [[String: Any]] = []
+                var models: [[String: Any]] = []
+                if let days = top["daily"] as? [[String: Any]], let day = days.first {
+                    func entries(_ raw: Any?, nameKey: String) -> [[String: Any]] {
+                        guard let list = raw as? [[String: Any]] else { return [] }
+                        return list.compactMap { e in
+                            guard let n = e[nameKey] as? String else { return nil }
+                            // A missing set of token fields is not "zero tokens": summing
+                            // absent keys used to manufacture a 0 that looked measured.
+                            let parts = ["inputTokens", "outputTokens",
+                                         "cacheCreationTokens", "cacheReadTokens"]
+                                .compactMap { num(e[$0]) }
+                            guard let tok = num(e["totalTokens"])
+                                    ?? (parts.isEmpty ? nil : parts.reduce(0, +)) else { return nil }
+                            let c = num(e["totalCost"]) ?? num(e["cost"]) ?? 0
+                            return ["name": n, "tokens": tok, "cost": c]
+                        }
+                    }
+                    agents = entries(day["agents"], nameKey: "agent")
+                    models = entries(day["modelBreakdowns"], nameKey: "modelName")
+                }
+                self.writeCcusageCache(cost: known, tokens: num(totals["totalTokens"]),
+                                       agents: agents, models: models, block: blockInfo)
                 return
             }
             func findCost(_ any: Any) -> Double? {
@@ -2973,16 +3086,109 @@ final class Bar: NSObject, NSMenuDelegate {
                 return nil
             }
             guard let cost = findCost(j) else { return }
-            self.writeCcusageCache(cost: cost)
+            self.writeCcusageCache(cost: cost, tokens: nil, agents: [], models: [],
+                                   block: blockInfo)
         }
     }
 
-    private func writeCcusageCache(cost: Double) {
+    /// Format a token count the way people say it: 322M, 1.2B, 45k.
+    private func tokenText(_ n: Double) -> String? {
+        // A corrupt cache or a schema change must produce NO row, not "nanM" or "-2k".
+        guard n.isFinite, n >= 0 else { return nil }
+        if n >= 1e9 { return String(format: "%.1fB", n / 1e9) }
+        if n >= 1e6 { return String(format: "%.0fM", n / 1e6) }
+        if n >= 1e3 { return String(format: "%.0fk", n / 1e3) }
+        return String(format: "%.0f", n)
+    }
+
+    /// Model identifiers are display labels. On Bedrock and similar providers the raw name
+    /// can be a full ARN carrying an account id, and this text ends up in screenshots.
+    private func modelLabel(_ raw: String) -> String {
+        let tail = raw.split(whereSeparator: { $0 == "/" }).last.map(String.init) ?? raw
+        let short = tail.split(separator: ":").first.map(String.init) ?? tail
+        return short.count > 40 ? String(short.prefix(39)) + "…" : short
+    }
+
+    /// The ACTIVE five-hour block as ccusage counts it from local logs. This is NOT the
+    /// account's official 5h limit - that one comes from Claude Code's session JSON and
+    /// lives on its own row. Two different numbers, and the UI must never merge them.
+    private func readActiveBlock(bin: String, home: String) -> [String: Any] {
+        let proc = Process()
+        proc.executableURL = URL(fileURLWithPath: bin)
+        proc.arguments = ["blocks", "--active", "--json"]
+        var env = ProcessInfo.processInfo.environment
+        env["PATH"] = ["/opt/homebrew/bin", "/usr/local/bin", home + "/.local/bin",
+                       home + "/.bun/bin", home + "/.npm-global/bin",
+                       "/usr/bin", "/bin", "/usr/sbin", "/sbin"].joined(separator: ":")
+        proc.environment = env
+        let pipe = Pipe()
+        proc.standardOutput = pipe
+        proc.standardError = FileHandle.nullDevice
+        guard (try? proc.run()) != nil else { return [:] }
+        DispatchQueue.global().asyncAfter(deadline: .now() + 5) {
+            if proc.isRunning { proc.terminate() }
+        }
+        proc.waitUntilExit()
+        let out = pipe.fileHandleForReading.readDataToEndOfFile()
+        guard proc.terminationStatus == 0,
+              let j = try? JSONSerialization.jsonObject(with: out) as? [String: Any],
+              let blocks = j["blocks"] as? [[String: Any]],
+              let b = blocks.first(where: { ($0["isActive"] as? Bool) == true })
+        else { return [:] }
+        let projection = b["projection"] as? [String: Any] ?? [:]
+        var info: [String: Any] = [:]
+        let tokens = num(b["totalTokens"]) ?? 0
+        info["tokens"] = tokens
+        // The rate is computed from the SAME tokens the row shows, over the time the block
+        // has been running. ccusage exports two burn-rate fields whose values differ by
+        // three orders of magnitude (tokensPerMinute counts cache reads, the indicator
+        // variant does not); picking either would make the row disagree with its own
+        // total. Elapsed comes from the block's own start and end, not a wall clock.
+        var elapsed = 0.0
+        let iso = ISO8601DateFormatter()
+        // ccusage stamps milliseconds ("...T09:00:00.000Z"), which the default option set
+        // refuses. Without this the rate was silently never computed - the row rendered
+        // fine, just permanently without its most useful number.
+        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let plain = ISO8601DateFormatter()
+        func parse(_ v: Any?) -> Date? {
+            guard let str = v as? String else { return nil }
+            return iso.date(from: str) ?? plain.date(from: str)
+        }
+        let end = parse(b["endTime"])
+        if let st = parse(b["startTime"]) {
+            elapsed = Date().timeIntervalSince(st) / 60.0
+        } else if let et = end {
+            elapsed = 300.0 - (et.timeIntervalSince(Date()) / 60.0)
+        }
+        if elapsed >= 1, tokens > 0 { info["perMinute"] = tokens / elapsed }
+        // Store WHEN the block ends, never how many minutes are left. A countdown written
+        // into a 10-minute cache is wrong the moment it is written: it kept counting from
+        // the refresh, so the menu could show minutes that had already passed and, at the
+        // end of a block, present a finished one as active. A timestamp cannot go stale.
+        if let et = end {
+            info["endEpoch"] = et.timeIntervalSince1970
+        } else if let r = num(projection["remainingMinutes"]) {
+            info["endEpoch"] = Date().timeIntervalSince1970 + r * 60
+        }
+        // Models are display-only labels, capped: the point is "what dominates the block",
+        // not a full inventory.
+        info["models"] = ((b["models"] as? [String]) ?? []).prefix(3).map { $0 }
+        return info
+    }
+
+    private func writeCcusageCache(cost: Double, tokens: Double?,
+                                   agents: [[String: Any]], models: [[String: Any]],
+                                   block: [String: Any]) {
         let fmt = DateFormatter()
         fmt.dateFormat = "yyyyMMdd"
+        // The cache holds NUMBERS, not a finished sentence. Storing the rendered text
+        // meant `ccusage_cost: false` did nothing until the 10-minute TTL expired: the
+        // config decides how the row reads, so the config has to be read when it is drawn.
         let cache: [String: Any] = ["epoch": Date().timeIntervalSince1970,
                                     "day": fmt.string(from: Date()),
-                                    "text": String(format: "$%.2f", cost)]
+                                    "cost": cost, "tokens": tokens ?? 0,
+                                    "agents": agents, "models": models, "block": block]
         if let data = try? JSONSerialization.data(withJSONObject: cache) {
             try? data.write(to: URL(fileURLWithPath: ccusageCachePath), options: .atomic)
         }
@@ -3578,12 +3784,18 @@ final class Bar: NSObject, NSMenuDelegate {
             } else if s.level == 1 {
                 verdict = ("thermometer.high", T("Getting warm - watching closely"))
             } else {
-                verdict = ("checkmark.shield", T("All safe - the paladin is on watch"))
+                // Calm needs no headline. The verdict earns its row when there is a
+                // verdict to give - paused jobs, watch-only mode, heat - and "all safe"
+                // was a line whose only content was that nothing was happening, in a menu
+                // built on the rule that an element appears when it carries news.
+                verdict = ("", "")
             }
-            let head = NSMutableAttributedString(string: verdict.1)
-            head.addAttribute(.font, value: NSFont.boldSystemFont(ofSize: NSFont.systemFontSize),
-                              range: NSRange(location: 0, length: head.length))
-            rowI(verdict.0, head)
+            if !verdict.1.isEmpty {
+                let head = NSMutableAttributedString(string: verdict.1)
+                head.addAttribute(.font, value: NSFont.boldSystemFont(ofSize: NSFont.systemFontSize),
+                                  range: NSRange(location: 0, length: head.length))
+                rowI(verdict.0, head)
+            }
         }
 
         rowI("thermometer.medium",
@@ -4329,6 +4541,26 @@ final class Bar: NSObject, NSMenuDelegate {
         if let cost = costRow {
             let it = NSMenuItem(title: cost, action: nil, keyEquivalent: "")
             it.image = img("dollarsign.circle")
+            // The headline stays one line; the breakdown lives one level down, so the
+            // menu does not grow for people who only want the number.
+            let rows = ccusageDetailRows(etaPauseMin: readSnap()?.eta)
+            if !rows.isEmpty {
+                let sub = NSMenu()
+                sub.autoenablesItems = false
+                for (icon, text) in rows {
+                    let r = NSMenuItem(title: text, action: nil, keyEquivalent: "")
+                    if icon.isEmpty {
+                        r.attributedTitle = NSAttributedString(
+                            string: text,
+                            attributes: [.font: NSFont.boldSystemFont(ofSize: NSFont.smallSystemFontSize)])
+                    } else {
+                        r.image = img(icon)
+                        r.indentationLevel = 1
+                    }
+                    sub.addItem(r)
+                }
+                it.submenu = sub
+            }
             amenu.addItem(it)
         }
         refreshCcusageCache()
