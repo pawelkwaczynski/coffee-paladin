@@ -37,7 +37,7 @@ import subprocess
 import sys
 import time
 
-GUARD_VERSION = "3.2.1"   # bump together with heatbar VERSION, thermal-report VERSION, README
+GUARD_VERSION = "3.2.2"   # bump together with heatbar VERSION, thermal-report VERSION, README
 
 HOME = os.path.expanduser("~")
 BASE = os.environ.get("TG_BASE") or os.path.join(HOME, ".coffee-paladin")
@@ -603,6 +603,7 @@ PL = {
     "guard is shutting down": "guard konczy prace",
     "CRITICAL: ": "KRYTYCZNIE: ",
     "chip %.1f C": "chip %.1f C",
+    "chip %.1f C (remembered reading)": "chip %.1f C (zapamietany odczyt)",
     "battery %.1f C": "bateria %.1f C",
     "thermal state=%s": "stan termiczny=%s",
     "thermal state=critical": "stan termiczny=critical",
@@ -694,6 +695,7 @@ RU = {
     "COOLING FAILURE? chip %.1f C while both fans report 0 rpm":
         "ОТКАЗ ОХЛАЖДЕНИЯ? чип %.1f C, а оба вентилятора 0 об/мин",
     "chip %.1f C": "чип %.1f C",
+    "chip %.1f C (remembered reading)": "чип %.1f C (запомненный отсчёт)",
     "battery %.1f C": "батарея %.1f C",
     "thermal state=%s": "термосостояние=%s",
     "thermal state=critical": "термосостояние=critical",
@@ -816,6 +818,7 @@ ZH = {
     "COOLING FAILURE? chip %.1f C while both fans report 0 rpm":
         "散热故障?芯片 %.1f C,而两个风扇均为 0 转/分",
     "chip %.1f C": "芯片 %.1f C",
+    "chip %.1f C (remembered reading)": "芯片 %.1f C（记忆中的读数）",
     "battery %.1f C": "电池 %.1f C",
     "thermal state=%s": "热状态=%s",
     "thermal state=critical": "热状态=critical",
@@ -938,6 +941,7 @@ ES = {
     "COOLING FAILURE? chip %.1f C while both fans report 0 rpm":
         "¿FALLO DE REFRIGERACIÓN? chip a %.1f C y ambos ventiladores a 0 rpm",
     "chip %.1f C": "chip %.1f C",
+    "chip %.1f C (remembered reading)": "chip %.1f C (lectura recordada)",
     "battery %.1f C": "batería %.1f C",
     "thermal state=%s": "estado térmico=%s",
     "thermal state=critical": "estado térmico=critical",
@@ -1413,24 +1417,49 @@ def battery_temp_c():
 # initial None without calling macmon once. The guard reported "no chip sensor" and watched
 # only the battery for the first cycle. None means "not read yet" regardless of where this
 # Python starts counting.
-_soc_cache = {"t": None, "val": None}
+_soc_cache = {"t": None, "val": None, "good": None, "good_t": None, "stale_logged": False}
+
+# How long a last known good chip reading may stand in for a failed one. Under full load a
+# single `macmon pipe` sample can fail, and a miss used to mean "no chip sensor" for that
+# cycle: the daemon then watched the battery alone, which reacts minutes late, and
+# `resume_gate` treated an unknown chip as a cool chip.
+#
+# The window has to cover the WORST cycle, not the average one. A failing read is not
+# instant: it costs up to SOC_READ_TIMEOUT_S per macmon path, two paths, on top of the
+# 15 s poll interval. A 45 s window looked generous and would have expired exactly in the
+# case it was written for - a machine too busy to answer. Budget: 15 s poll + 2 x 10 s
+# timeout + margin. Long is safe here only because stale readings may TIGHTEN protection
+# and never relax it: see soc_temp_c(fresh_only=True) at the promote call site.
+SOC_STALE_GRACE_S = 120.0
+
+# Per-path budget for one `macmon pipe -s 1` sample. The sample itself takes about a
+# second; the timeout only bounds a hang. It used to be 20 s, which meant a failed read
+# could burn 40 s of a 15 s cycle before the daemon learned anything.
+SOC_READ_TIMEOUT_S = 10
 
 
-def soc_sensors(max_age=10.0):
+def soc_sensors(max_age=10.0, allow_stale=True):
     """Return chip temperature, fans, and power draw from `macmon`.
 
     Uses IOReport without sudo. Returns dict {"cpu": C, "gpu": C, "fans": [rpm],
     "watts": W}, or None when macmon is unavailable. The result is cached because one
     sample costs ~1 s, while the guard loop runs every 15 s and asks in several places.
 
+    A failed sample falls back to the last good one for SOC_STALE_GRACE_S, marked with
+    "stale": True, so callers that must not decide on old numbers can refuse it. Pass
+    allow_stale=False when the answer means "does this machine have a sensor at all".
+
     On macOS 26, sensors through IOHIDEventSystem are blocked for unprivileged processes,
     which made the custom Swift sensor return zero. IOReport still works.
     """
     if _soc_cache["t"] is not None and 0 <= time.monotonic() - _soc_cache["t"] < max_age:
-        return _soc_cache["val"]
+        cached = _soc_cache["val"]
+        if cached is not None and cached.get("stale") and not allow_stale:
+            return None
+        return cached
     val = None
     for exe in ("/opt/homebrew/bin/macmon", "macmon"):
-        out = run([exe, "pipe", "-s", "1"], timeout=20)
+        out = run([exe, "pipe", "-s", "1"], timeout=SOC_READ_TIMEOUT_S)
         line = out.strip().split("\n")[0] if out.strip() else ""
         if not line.startswith("{"):
             continue
@@ -1458,14 +1487,37 @@ def soc_sensors(max_age=10.0):
             "watts": float(d.get("all_power") or 0.0),
         }
         break
-    _soc_cache["t"] = time.monotonic()
+    now = time.monotonic()
+    if val is not None:
+        _soc_cache["good"] = val
+        _soc_cache["good_t"] = now
+        if _soc_cache["stale_logged"]:
+            log("SENSOR: macmon answers again")
+            _soc_cache["stale_logged"] = False
+    elif (_soc_cache["good"] is not None and _soc_cache["good_t"] is not None
+            and 0 <= now - _soc_cache["good_t"] < SOC_STALE_GRACE_S):
+        age = now - _soc_cache["good_t"]
+        val = dict(_soc_cache["good"])
+        val["stale"] = True
+        val["stale_age_s"] = round(age, 1)
+        if not _soc_cache["stale_logged"]:
+            log("SENSOR STALE: macmon did not answer, using the last good reading "
+                "(%.0f s old, chip %s C)" % (age, val.get("cpu")))
+            _soc_cache["stale_logged"] = True
+    _soc_cache["t"] = now
     _soc_cache["val"] = val
+    if val is not None and val.get("stale") and not allow_stale:
+        return None
     return val
 
 
-def soc_temp_c():
-    """Return the hottest SoC point, CPU or GPU, in C, or None."""
-    s = soc_sensors()
+def soc_temp_c(fresh_only=False):
+    """Return the hottest SoC point, CPU or GPU, in C, or None.
+
+    fresh_only=True refuses a last known good fallback: use it where an old number would
+    RELAX protection, never where it would tighten it.
+    """
+    s = soc_sensors(allow_stale=not fresh_only)
     if not s:
         return None
     vals = [v for v in (s.get("cpu"), s.get("gpu")) if v is not None]
@@ -1854,6 +1906,9 @@ def resume_gate(cfg, st, temp, soc_t, state):
     """
     battery_holds = sensor_latch(st, "_batt_hot", temp,
                                     cfg["batt_pause_c"], cfg["batt_resume_c"])
+    # soc_t may be a last known good reading (see soc_sensors). The asymmetry is deliberate
+    # and safe in both directions: a remembered HOT chip keeps jobs frozen a little longer,
+    # while a remembered COOL one only ever behaves as an unknown chip did before it existed.
     chip_holds = soc_t is not None and soc_t > cfg.get("soc_resume_c", 87.0)
     return not battery_holds and not chip_holds and LEVELS.get(state, 1) <= 1
 
@@ -2462,22 +2517,33 @@ def do_promote(cfg, st, cpu_hist, soc_t):
 
 # ---------------------------------------------------------------- severity
 
-def severity(cfg, state, temp, speed, soc=None, ac=True, pct=None):
+def severity(cfg, state, temp, speed, soc=None, ac=True, pct=None, soc_stale=False):
     """Return severity level 0 cool, 1 warm, 2 hot (pause), or 3 critical (terminate).
 
     `temp` is battery temperature, slow and inertial. `soc` is chip temperature, fast.
     Use the stricter of the two: the chip catches load spikes within seconds, while the
     battery confirms that the whole chassis has warmed.
+
+    `soc_stale` says the chip number is a remembered reading, not a measured one (see
+    soc_sensors). Such a reading may pause work - freezing costs nothing and reverses
+    itself - but it may NEVER reach level 3, because level 3 escalates to SIGTERM after
+    four polls, and killing a job on the strength of a two-minute-old number is a real
+    loss: this same chip has been measured dropping 89 C to 60 C in 19 seconds.
     """
     lvl = 0
     why = []
     if soc is not None:
+        # One reason string for every band: a number the user reads in a notification, on
+        # ntfy or in the critical banner has to carry how it was obtained, not only when it
+        # happens to be critical.
+        chip_why = (T("chip %.1f C (remembered reading)") if soc_stale
+                    else T("chip %.1f C")) % soc
         if soc >= cfg.get("soc_kill_c", 100.0):
-            lvl = max(lvl, 3); why.append(T("chip %.1f C") % soc)
+            lvl = max(lvl, 2 if soc_stale else 3); why.append(chip_why)
         elif soc >= cfg.get("soc_pause_c", 92.0):
-            lvl = max(lvl, 2); why.append(T("chip %.1f C") % soc)
+            lvl = max(lvl, 2); why.append(chip_why)
         elif soc >= cfg.get("soc_pause_c", 92.0) - 7:
-            lvl = max(lvl, 1); why.append(T("chip %.1f C") % soc)
+            lvl = max(lvl, 1); why.append(chip_why)
     # Battery gate: on battery power below the threshold, pause so a long computation does
     # not die with the laptop mid-block. Wait for AC.
     if not ac and pct is not None and pct <= cfg.get("batt_pct_pause", 10):
@@ -2991,7 +3057,7 @@ def _agent_roots(procs, args_fn=None, amap=None):
     return roots
 
 
-def agent_activity(procs, chip_c=None, level=0, args_fn=None):
+def agent_activity(procs, chip_c=None, level=0, args_fn=None, chip_stale=False):
     """Build the "what did the AI start on this Mac" snapshot.
 
     Display only: no signals, no full command lines (args_without_paths already
@@ -3037,8 +3103,12 @@ def agent_activity(procs, chip_c=None, level=0, args_fn=None):
                        "cpu_own": round(own[2], 1) if own else 0.0,
                        "cpu_tree": round(subtree_cpu(pid) + (own[2] if own else 0), 1),
                        "children": subtree(pid, 0)})
+    # chip_stale travels with the number here too: this file is read back as a record of
+    # the conditions an AI session ran under, and a remembered value must not pass for a
+    # measurement taken at that moment.
     return {"time": ts(), "epoch": round(time.time(), 1),
-            "chip_c": chip_c, "level": level, "agents": agents}
+            "chip_c": chip_c, "chip_stale": bool(chip_stale),
+            "level": level, "agents": agents}
 
 
 def activity_write(data):
@@ -3279,11 +3349,14 @@ def hardware_info():
     # None. Use a BUDGET, not a retry count: `run()` gives macmon 20 s per path and
     # soc_sensors tries two paths. Blind retries could delay daemon start by two minutes,
     # with nobody watching temperature.
-    s = soc_sensors()
+    # allow_stale=False: "does this Mac have a chip sensor" must be answered by a reading
+    # taken now. A last known good value would let calibration tag a machine as sensored
+    # on the strength of a sample it did not take.
+    s = soc_sensors(allow_stale=False)
     probe_deadline = time.monotonic() + 8.0
     while not s and time.monotonic() < probe_deadline:
         time.sleep(2.0)
-        s = soc_sensors(max_age=0)
+        s = soc_sensors(max_age=0, allow_stale=False)
     hw["fan_count"] = len((s or {}).get("fans") or [])
     hw["chip_sensor"] = bool(s)
     try:
@@ -3667,6 +3740,9 @@ def status_write(state, temp, soc, soc_t, ac, pct, speed, load, lvl, why, target
     data = {
         "time": ts(), "thermal_state": state, "level": lvl, "reason": why,
         "chip_c": round(soc_t, 1) if soc_t else None,
+        # True when chip_c comes from the last known good sample instead of a fresh one.
+        # Readers must be able to tell a measurement from a memory of one.
+        "chip_stale": bool(soc and soc.get("stale")),
         "gpu_c": round(soc["gpu"], 1) if soc and soc.get("gpu") else None,
         "battery_c": round(temp, 1) if temp else None,
         "fans": (soc.get("fans") if soc else []) or [],
@@ -3748,6 +3824,30 @@ HIST_HEADER = ("time,thermal_state,chip_C,gpu_C,battery_C,fan_rpm,watts,"
                "battery_pct,on_ac,cpu_limit,load1,level,top_proc,top_cpu\n")
 
 
+def hist_row(state, soc, soc_t, temp, fans, pct, ac, speed, load, lvl, top):
+    """Build one history.csv row from the current cycle.
+
+    A remembered reading is not a measurement and has no place in the black box.
+    history.csv feeds the hard-shutdown evidence window, the thermal profile and the
+    repair-shop report's "peak measured chip temperature"; writing memories there would
+    invent readings the machine never took. Empty means "not measured", which every reader
+    of this file already understands. Battery temperature comes from its own sensor and is
+    unaffected.
+
+    This lives in a function so the test can call what the daemon calls.
+    """
+    measured = soc if not (soc and soc.get("stale")) else None
+    return [ts(), state,
+            "%.1f" % soc_t if soc_t and measured else "",
+            "%.1f" % measured["gpu"] if measured and measured.get("gpu") else "",
+            "%.1f" % temp if temp else "",
+            max(fans) if fans and measured else "",
+            "%.1f" % measured["watts"] if measured else "",
+            pct if pct is not None else "", 1 if ac else 0,
+            speed, "%.2f" % load, lvl,
+            top[2] if top else "", "%.0f" % top[1] if top else ""]
+
+
 def hist_write(row):
     rotate(HIST_PATH)
     # When columns change, set aside the old file instead of mixing formats.
@@ -3784,7 +3884,8 @@ def snapshot(cfg):
     procs = list_procs()
     saferun, saferun_normal = managed_pids_from_saferun()
     targets = pick_targets(cfg, procs, saferun)
-    lvl, why = severity(cfg, state, temp, speed, soc_t, ac, pct)
+    lvl, why = severity(cfg, state, temp, speed, soc_t, ac, pct,
+                        soc_stale=bool(soc and soc.get("stale")))
     # `display_targets` is separate from `targets`: signals go to the FULL list, otherwise
     # children do not receive SIGSTOP. The counter and confirmation window show the list
     # without descendants, otherwise the same processor is counted twice.
@@ -3805,6 +3906,13 @@ def fan_alarm(cfg, soc, soc_t, st):
     # This counter MUST NOT survive missing data or daemon restart. Otherwise "three
     # consecutive readings" means "three readings ever", and after restart with counter 2
     # the first fan spin-up alarms immediately. It lives in the module, not state.json.
+    #
+    # A remembered reading counts as missing data here. Cooling failure is an accusation
+    # against the hardware that lands in events.log and then in the repair-shop report;
+    # it has to rest on fan rpm somebody actually measured, three times in a row.
+    if soc and soc.get("stale"):
+        _fan_zero["n"] = 0
+        return
     if not cfg.get("fan_check", True) or not soc or soc_t is None:
         _fan_zero["n"] = 0
         return
@@ -4194,7 +4302,8 @@ def main():
                 # Agent activity: display-only snapshot of what AI sessions
                 # started, in its own file so status.json stays small.
                 if cfg.get("agent_activity", True):
-                    activity_write(agent_activity(list_procs(), chip_c=soc_t, level=lvl))
+                    activity_write(agent_activity(list_procs(), chip_c=soc_t, level=lvl,
+                                                  chip_stale=bool(soc and soc.get("stale"))))
                 sweep_progress()
                 # Stall advisory: say it, never act on it. A job that declared a
                 # progress interval and went 3x quiet gets one notification per
@@ -4238,15 +4347,8 @@ def main():
             top = targets[0] if targets else None
             if tick % max(1, int(300 / cfg["poll_seconds"])) == 0 or lvl >= 2:
                 fans = soc.get("fans") if soc else []
-                hist_write([ts(), state,
-                            "%.1f" % soc_t if soc_t else "",
-                            "%.1f" % soc["gpu"] if soc and soc.get("gpu") else "",
-                            "%.1f" % temp if temp else "",
-                            max(fans) if fans else "",
-                            "%.1f" % soc["watts"] if soc else "",
-                            pct if pct is not None else "", 1 if ac else 0,
-                            speed, "%.2f" % load, lvl,
-                            top[2] if top else "", "%.0f" % top[1] if top else ""])
+                hist_write(hist_row(state, soc, soc_t, temp, fans, pct, ac,
+                                    speed, load, lvl, top))
 
             # Repeat SIGSTOP for everything considered paused. Between freeze and
             # state.json write, the safe-run duty limiter or a manual kill -CONT can wake a
@@ -4348,10 +4450,22 @@ def main():
                 if ready_keys and cool:
                     do_resume(cfg, st, T("conditions are back to normal"), only_keys=ready_keys,
                               after_cooling=True)
-                do_promote(cfg, st, cpu_hist, soc_t)
+                # Promotion is the one decision here that RELAXES protection, so it may not
+                # run on a remembered reading: a cool last known good value plus a failing
+                # sensor would put a job back on P-cores exactly while the daemon is blind.
+                # Before last-known-good existed, an unknown chip blocked promotion; passing
+                # the fresh-only value keeps that behaviour intact.
+                do_promote(cfg, st, cpu_hist, soc_temp_c(fresh_only=True))
                 # System indexing daemons are added ONLY here: demotion yes, pause/terminate
                 # never. See system_demote_patterns.
-                do_demote(cfg, st, targets + demote_only, cpu_hist, soc_t, saferun_normal)
+                #
+                # Demotion takes the fresh-only reading for the same reason promotion does,
+                # only from the other side: a pause is free and undoes itself, but E-cores
+                # can run a job several times slower, and with promotion refusing to act on
+                # a remembered number, a demotion triggered by one would outlive the heat
+                # that justified it.
+                do_demote(cfg, st, targets + demote_only, cpu_hist,
+                          soc_temp_c(fresh_only=True), saferun_normal)
 
             # Nothing may stay paused forever. BUT waiting for AC is not a failure. When
             # chip and battery are cool and low battery is the only pause reason, give much
@@ -4372,6 +4486,16 @@ def main():
             # mid-work. The clock starts at the FIRST stop, as intended; proof that the
             # process is running saves it, not rewinding the stopwatch.
             expired_keys = expired_entries(st["paused"], limit_min * 60, stopped)
+            # Never end a job while the chip reading is a memory. The kill counter already
+            # refuses remembered readings, but this second road to SIGTERM does not go
+            # through it: a pause entered on a remembered number could age out and be
+            # terminated with the sensor still silent. Waiting costs one poll; the sensor
+            # comes back within SOC_STALE_GRACE_S or the reading turns into an honest
+            # "unknown", and the decision is then made on something real.
+            if expired_keys and soc and soc.get("stale"):
+                log("KILL DEFERRED: pause expired while the chip reading is remembered, "
+                    "waiting for a measured one")
+                expired_keys = []
             if expired_keys:
                 for k in expired_keys:
                     log(T("PAUSE >%d min - terminating job %s (pid %s)")

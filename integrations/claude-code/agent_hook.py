@@ -37,7 +37,11 @@ END_REASONS = frozenset(("clear", "resume", "logout", "prompt_input_exit",
 def thermal_context():
     try:
         s = json.load(open(os.path.join(BASE, "status.json")))
-        return {"level": s.get("level"), "chip_c": s.get("chip_c")}
+        # chip_stale travels with the number. These records are read back later as
+        # evidence of what the machine was doing while a tool ran; a remembered reading
+        # kept without its qualifier would pass for a measurement taken at that moment.
+        return {"level": s.get("level"), "chip_c": s.get("chip_c"),
+                "chip_stale": bool(s.get("chip_stale"))}
     except Exception:
         return {}
 

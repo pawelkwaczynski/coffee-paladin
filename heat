@@ -11,6 +11,10 @@ Usage:
                     idle band, working plateau, when the fans spin up, and
                     whether the thresholds fit. Reports only, changes nothing.
                     Add --json for the same as data.
+                    --suggest-thresholds is the same command under the name it
+                    carries in the backlog. There is deliberately no flag that
+                    writes thresholds for you: the advice can say "leave it
+                    alone", and a fuse this simple should not edit itself.
   heat --help       this text
 
 Language: TG_LANG=en|pl, or "lang" in ~/.coffee-paladin/config.json. Default: en.
@@ -87,6 +91,7 @@ PL = {
     "stopped": "stoi",
     "%d rpm": "%d obr/min",
     "   fans: %s%s": "   wentylatory: %s%s",
+    " (remembered)": " (zapamietany)",
     "   ⚠️ CHIP IS HOT BUT THE FANS ARE STOPPED - check the cooling!":
         "   ⚠️ CHIP GORACY, A WENTYLATORY STOJA - sprawdz chlodzenie!",
     "AC adapter": "zasilacz",
@@ -171,6 +176,7 @@ RU = {
     "stopped": "стоит",
     "%d rpm": "%d об/мин",
     "   fans: %s%s": "   вентиляторы: %s%s",
+    " (remembered)": " (запомнено)",
     "   ⚠️ CHIP IS HOT BUT THE FANS ARE STOPPED - check the cooling!":
         "   ⚠️ ЧИП ГОРЯЧИЙ, А ВЕНТИЛЯТОРЫ СТОЯТ - проверьте охлаждение!",
     "AC adapter": "адаптер питания",
@@ -255,6 +261,7 @@ ZH = {
     "stopped": "停转",
     "%d rpm": "%d 转/分",
     "   fans: %s%s": "   风扇: %s%s",
+    " (remembered)": "（记忆值）",
     "   ⚠️ CHIP IS HOT BUT THE FANS ARE STOPPED - check the cooling!":
         "   ⚠️ 芯片过热但风扇停转 - 请检查散热!",
     "AC adapter": "电源适配器",
@@ -339,6 +346,7 @@ ES = {
     "stopped": "parado",
     "%d rpm": "%d rpm",
     "   fans: %s%s": "   ventiladores: %s%s",
+    " (remembered)": " (recordado)",
     "   ⚠️ CHIP IS HOT BUT THE FANS ARE STOPPED - check the cooling!":
         "   ⚠️ CHIP CALIENTE CON VENTILADORES PARADOS - ¡revisa la refrigeración!",
     "AC adapter": "adaptador de corriente",
@@ -1116,7 +1124,7 @@ def main():
     if "--help" in sys.argv or "-h" in sys.argv:
         print(__doc__)
         return 0
-    if "--profile" in sys.argv:
+    if "--profile" in sys.argv or "--suggest-thresholds" in sys.argv:
         return profile_command()
     # Easter egg: one command, `heat --paladin` - the drawing and the full
     # watch report. (There used to be three near-identical flags; one that
@@ -1130,6 +1138,9 @@ def main():
             with open(os.path.join(BASE, "status.json")) as f:
                 s = json.load(f)
             chip = float(s.get("chip_c")) if s.get("chip_c") else None
+            # The paladin does not stand watch AT a number it only remembers.
+            if s.get("chip_stale") is True:
+                chip = None
             stat = s.get("stats") or {}
             guard_summary = (("Dzis odparte ataki: %d pauz, %d ubic." if LANG == "pl"
                       else "Today's watch: %d pauses, %d terminations.")
@@ -1164,6 +1175,10 @@ def main():
         except (TypeError, ValueError):
             return None
     chip = _num(snap.get("chip_c"))
+    # The daemon marks a reading it remembered instead of measured (its sensor did not
+    # answer that cycle). Printing it as the current temperature - and worse, accusing the
+    # fans on the strength of it - would be the tool lying with a straight face.
+    chip_stale = snap.get("chip_stale") is True
     fans_raw = snap.get("fans")
     fans = [int(f) for f in fans_raw if _num(f) is not None] if isinstance(fans_raw, list) else []
 
@@ -1185,13 +1200,14 @@ def main():
 
     print(T("%s thermal state: %s   chip: %s   battery: %s   CPU available: %d%%   load: %.2f / %.2f (%d cores)")
           % (ICON.get(state, "⚪️"), state,
-             ("%.1f °C" % chip) if chip else T("n/a"),
+             (("%.1f °C" % chip) + (T(" (remembered)") if chip_stale else "")) if chip
+             else T("n/a"),
              ("%.1f °C" % temp) if temp else T("n/a"), speed, l1, l15, ncpu))
 
     if fans:
         description = ", ".join(T("stopped") if f == 0 else T("%d rpm") % f for f in fans)
         warning = ""
-        if chip and chip >= 75.0 and max(fans) == 0:
+        if chip and chip >= 75.0 and max(fans) == 0 and not chip_stale:
             warning = T("   ⚠️ CHIP IS HOT BUT THE FANS ARE STOPPED - check the cooling!")
         print(T("   fans: %s%s") % (description, warning))
 

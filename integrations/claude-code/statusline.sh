@@ -146,7 +146,11 @@ chip = num(s.get("chip_c"))
 head = [f"{YEL}{I['eye']} {W['watch']}{RST}" if dry else f"{GRN}{I['shield']}{RST}"]
 
 if chip is not None and sensor:
-    head.append(f"{color}{I['temp']} {round(chip)}°{RST}")
+    # "~" means the daemon remembered this value instead of measuring it (its sensor did
+    # not answer that cycle). One character, because the line is fighting for width, but
+    # the session must not read a memory as the current temperature.
+    mark = "~" if s.get("chip_stale") is True else ""
+    head.append(f"{color}{I['temp']} {mark}{round(chip)}°{RST}")
 else:
     batt = num(s.get("battery_c"))
     label = f"B{round(batt)}°" if batt is not None else "?"

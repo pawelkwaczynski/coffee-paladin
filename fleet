@@ -455,7 +455,10 @@ def issues_for(h):
     level = h.get("level") or 0
     if isinstance(level, (int, float)) and level >= 2:
         chip = h.get("chip_c")
-        out.append(T("HOT - %.0f C") % chip if isinstance(chip, (int, float))
+        # A remembered chip value drops the number, not the warning: the host really is at
+        # level 2 and really is intervening, but the degree is not something it measured.
+        out.append(T("HOT - %.0f C") % chip
+                   if isinstance(chip, (int, float)) and h.get("chip_stale") is not True
                    else T("HOT - guard is intervening"))
     crash = h.get("last_hard_shutdown") or {}
     if crash.get("time"):
@@ -464,7 +467,10 @@ def issues_for(h):
         out.append(T("throttled to %d%%") % h["cpu_limit"])
     fans = h.get("fans") or []
     chip = h.get("chip_c")
-    if fans and chip and max(fans) == 0 and chip >= 70:
+    # `chip_stale` means the host published a remembered reading because its sensor did not
+    # answer. Accusing a machine of dead fans on those numbers puts a hardware fault in
+    # front of a fleet operator on the strength of a value nobody measured.
+    if fans and chip and max(fans) == 0 and chip >= 70 and h.get("chip_stale") is not True:
         out.append(T("fans dead at %.0f C") % chip)
     if not h.get("on_ac", True) and h.get("battery_pct") is not None and h["battery_pct"] <= 20:
         out.append(T("battery %d%% unplugged") % h["battery_pct"])
@@ -503,8 +509,12 @@ def render(d):
         rows.append((
             h["host"][:18],
             (h.get("model") or "-")[:22],
-            "-" if stale or h.get("chip_c") is None else "%.0fC" % h["chip_c"],
+            # "~" marks a chip value the host remembered instead of measured, so an
+            # operator scanning the column can tell a reading from a recollection.
+            "-" if stale or h.get("chip_c") is None
+            else ("~%.0fC" if h.get("chip_stale") is True else "%.0fC") % h["chip_c"],
             "-" if stale or not fans else ("0!" if max(fans) == 0 and (h.get("chip_c") or 0) >= 70
+                                          and h.get("chip_stale") is not True
                                           else "%.1fk" % (max(fans) / 1000.0) if max(fans) >= 1000
                                           else str(max(fans))),
             "-" if stale or h.get("watts") is None else "%.0fW" % h["watts"],

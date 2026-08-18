@@ -112,6 +112,27 @@ rc, out, err = run_tool("--dir", FLEET_DATA_DIR)
 test("9. --dir with a valid path works", rc in (0, 2) and "OK" in out,
      "rc=%d" % rc)
 
+# ------------------------------------------------- remembered readings (chip_stale)
+# A host whose sensor did not answer publishes its last good chip value with
+# chip_stale=true. The fleet table must not turn a remembered number into a hardware
+# accusation ("fans dead at 95 C") or quote it as this machine's temperature.
+print("\n=== remembered chip readings must not accuse hardware ===")
+clean()
+snapshot("MEASURED", chip_c=95.0, fans=[0, 0], level=2)
+rc, out, err = run_tool("--dir", FLEET_DATA_DIR)
+test("10. a measured hot chip with dead fans is still reported",
+     "fans dead" in out and "95" in out, out[:200])
+
+clean()
+snapshot("REMEMBERED", chip_c=95.0, fans=[0, 0], level=2, chip_stale=True)
+rc, out, err = run_tool("--dir", FLEET_DATA_DIR)
+row = " | ".join(l for l in out.splitlines() if "REMEMBERED" in l)
+test("11. a remembered one never says the fans are dead", "fans dead" not in out, row)
+test("12. the ISSUES text keeps the warning without quoting the number",
+     "HOT - guard is intervening" in row and "HOT - 95" not in row, row)
+test("13. the CHIP column marks it as remembered rather than hiding it",
+     "~95C" in row, row)
+
 shutil.rmtree(BASE, ignore_errors=True)
 ok = sum(results)
 print("\nRESULT: %d/%d" % (ok, len(results)))

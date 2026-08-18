@@ -16,7 +16,7 @@
 
 import Cocoa
 
-let VERSION = "3.2.1"
+let VERSION = "3.2.2"
 let APPNAME = "coffee-paladin"
 let CODENAME = "Cold Brew"
 let SIGNATURE = "\(APPNAME) v\(VERSION) \u{201E}\(CODENAME)\u{201D}  ·  by panbookovsky"
@@ -60,6 +60,7 @@ let PL: [String: String] = [
     "!": "!",
     "no data - is coffee-paladin running?": "brak danych - czy coffee-paladin działa?",
     "data is stale (%@) - the guard may have died": "dane nieświeże (%@) - guard mógł paść",
+    " (remembered)": " (zapamiętany)",
     "the Mac shut down without warning: %@": "Mac zgasł bez ostrzeżenia: %@",
     "Battery:  %@": "Bateria:  %@",
     "Fans:  %@": "Wentylatory:  %@",
@@ -384,6 +385,7 @@ let RU: [String: String] = [
     "Right now: NOT keeping the Mac awake": "Сейчас: бодрствование не удерживается",
     "no data - is coffee-paladin running?": "нет данных - работает ли coffee-paladin?",
     "data is stale (%@) - the guard may have died": "данные устарели (%@) - демон мог упасть",
+    " (remembered)": " (запомнено)",
     "the Mac shut down without warning: %@": "Mac выключился без предупреждения: %@",
     "Battery:  %@": "Батарея:  %@",
     "Fans:  %@": "Вентиляторы:  %@",
@@ -680,6 +682,7 @@ let ZH: [String: String] = [
     "Right now: NOT keeping the Mac awake": "当前：未保持唤醒",
     "no data - is coffee-paladin running?": "没有数据 - coffee-paladin 在运行吗？",
     "data is stale (%@) - the guard may have died": "数据已过期（%@）- 守护进程可能已停止",
+    " (remembered)": "（记忆值）",
     "the Mac shut down without warning: %@": "Mac 毫无预警地关机了：%@",
     "Battery:  %@": "电池：  %@",
     "Fans:  %@": "风扇：  %@",
@@ -974,6 +977,7 @@ let ES: [String: String] = [
     "Right now: NOT keeping the Mac awake": "Ahora: sin mantener el Mac despierto",
     "no data - is coffee-paladin running?": "sin datos - ¿está funcionando coffee-paladin?",
     "data is stale (%@) - the guard may have died": "datos obsoletos (%@) - el guardián pudo detenerse",
+    " (remembered)": " (recordado)",
     "the Mac shut down without warning: %@": "el Mac se apagó sin aviso: %@",
     "Battery:  %@": "Batería:  %@",
     "Fans:  %@": "Ventiladores:  %@",
@@ -1424,6 +1428,9 @@ struct FleetHost {
     var serial: String = ""
     let age: TimeInterval
     let chip: Double?
+    /// The host published a remembered reading, not a measured one. Rendered with "~"
+    /// so a fleet operator reading the menu sees the same qualifier the CLI shows.
+    var chipStale: Bool = false
     let fans: Int?
     let watts: Double?
     let ramPct: Int?
@@ -1504,6 +1511,7 @@ func fleetHosts() -> [FleetHost]? {
             // negative age, or the host would look forever fresh.
             age: mtime.map { max(0, Date().timeIntervalSince($0)) } ?? 1e9,
             chip: num(j["chip_c"]),
+            chipStale: (j["chip_stale"] as? Bool) ?? false,
             fans: (j["fans"] as? [Any])?.compactMap { numInt($0) }.max(),
             watts: num(j["watts"]),
             ramPct: (ru != nil && (rt ?? 0) > 0) ? Int(100 * ru! / rt!) : nil,
@@ -2439,6 +2447,9 @@ struct FreezeCandidate {
 
 struct Snap {
     var chip: Double?, gpu: Double?, batt: Double?, watts: Double?
+    /// The daemon remembered this chip value instead of measuring it (its sensor did not
+    /// answer). Shown with a qualifier, and never used to accuse the fans.
+    var chipStale = false
     var fans: [Int] = []
     var ramUsed: Double?, ramTotal: Double?, swap: Double?
     var diskUsed: Int?, diskTotal: Int?, diskPct: Int?
@@ -2472,6 +2483,7 @@ func readSnap() -> Snap? {
           let j = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
     var s = Snap()
     s.chip = num(j["chip_c"])
+    s.chipStale = (j["chip_stale"] as? Bool) ?? false
     s.gpu = num(j["gpu_c"])
     s.batt = num(j["battery_c"])
     s.watts = num(j["watts"])
@@ -3025,6 +3037,12 @@ final class Bar: NSObject, NSMenuDelegate {
             self.refresh()
             self.tick += 1
             if self.tick % 6 == 0 { self.refreshFleet() }   // fleet every ~30 s, in background
+            // ccusage every ~60 s (its own 10 min TTL decides when the tool actually runs).
+            // Refreshing ONLY while building the menu meant the cost row appeared on the
+            // SECOND opening at the earliest: the first opening started the background
+            // refresh and drew a menu that did not have the answer yet. Someone who had
+            // just installed ccusage saw nothing and concluded the integration was missing.
+            if self.tick % 12 == 1 { self.refreshCcusageCache() }
         }
         if let t = timer { RunLoop.main.add(t, forMode: .common) }
     }
@@ -3334,15 +3352,21 @@ final class Bar: NSObject, NSMenuDelegate {
         // for max. 45 s (2 daemon cycles at ~15 s plus margin), show the last good value
         // in gray. A stale snapshot is different: then the daemon is likely dead and no
         // "last value" is truth about NOW.
-        var chipFromMemory = false
-        if !s.stale, let c = s.chip {
+        // A value the DAEMON remembered is shown the same way as one this bar remembered:
+        // grayed out. Anything else would draw a recollection in the color of a reading.
+        var chipFromMemory = s.chipStale && s.chip != nil
+        if !s.stale, !s.chipStale, let c = s.chip {
             // Remember ONLY from a fresh snapshot. A value from a dead daemon's file
             // would refresh the timestamp on every cycle and pretend to be current
             // after the daemon restarts.
             lastChip = c
             lastChipAt = Date()
-        } else if !s.stale, let c = lastChip,
+        } else if !s.stale, s.chip == nil, let c = lastChip,
                   Date().timeIntervalSince(lastChipAt) <= 45 {
+            // s.chip == nil is now explicit. It used to be implied by the branch above
+            // catching every non-nil value; since that branch also refuses remembered
+            // ones, without this the bar would overwrite the daemon's remembered value
+            // with its own older memory.
             s.chip = c
             chipFromMemory = true
         }
@@ -3398,7 +3422,7 @@ final class Bar: NSObject, NSMenuDelegate {
             // Stopped fans on a hot chip are an ALARM and always shown; spinning
             // fans carry news; stopped fans on a cool machine are the normal
             // state and would only spend notch width (60 s hysteresis on hide).
-            if f == 0 && (s.chip ?? 0) >= 70 {
+            if f == 0 && (s.chip ?? 0) >= 70 && !s.chipStale {
                 gap()
                 out.append(icon("exclamationmark.triangle.fill", fallback: "!"))
                 text(" 0")
@@ -3563,7 +3587,7 @@ final class Bar: NSObject, NSMenuDelegate {
         }
 
         rowI("thermometer.medium",
-             txt("Chip:  " + (s.chip.map { String(format: "%.1f °C", $0) } ?? na)
+             txt("Chip:  " + (s.chip.map { String(format: "%.1f °C", $0) + (s.chipStale ? T(" (remembered)") : "") } ?? na)
                  + (s.gpu != nil ? String(format: "     GPU: %.1f °C", s.gpu!) : "")
                  + "     " + String(format: T("Battery:  %@"),
                                     s.batt.map { String(format: "%.1f °C", $0) } ?? na)))
@@ -4334,6 +4358,7 @@ final class Bar: NSObject, NSMenuDelegate {
             for h0 in hosts {
                 let h = FleetHost(name: h0.name, model: h0.model, serial: h0.serial,
                                   age: h0.age + cacheDrift, chip: h0.chip,
+                                  chipStale: h0.chipStale,
                                   fans: h0.fans, watts: h0.watts, ramPct: h0.ramPct,
                                   level: h0.level, paused: h0.paused, onAC: h0.onAC,
                                   battPct: h0.battPct, battC: h0.battC)
@@ -4352,7 +4377,9 @@ final class Bar: NSObject, NSMenuDelegate {
                 // COMPACT row: marker + name + highest temperature + battery temperature.
                 // Full details appear on CLICK.
                 var bits: [String] = []
-                if let c = h.chip { bits.append(String(format: "%.0f °C", c)) }
+                if let c = h.chip {
+                    bits.append(String(format: h.chipStale ? "~%.0f °C" : "%.0f °C", c))
+                }
                 if let b = h.battC { bits.append(T("Battery") + String(format: " %.0f °C", b)) }
                 let a = NSMutableAttributedString()
                 a.append(icon(h.level >= 3 ? "flame.fill"
@@ -4377,7 +4404,7 @@ final class Bar: NSObject, NSMenuDelegate {
                     "stat_awake": String(st["awake_released_hot"] ?? 0),
                     "name": h.name, "model": h.model, "serial": h.serial,
                     "age": fleetAge(h.age),
-                    "chip": h.chip.map { String(format: "%.1f °C", $0) } ?? "-",
+                    "chip": h.chip.map { String(format: h.chipStale ? "~%.1f °C" : "%.1f °C", $0) } ?? "-",
                     "batt": h.battC.map { String(format: "%.1f °C", $0) } ?? "-",
                     "fans": h.fans.map { "\($0) rpm" } ?? "-",
                     "watts": h.watts.map { String(format: "%.1f W", $0) } ?? "-",
