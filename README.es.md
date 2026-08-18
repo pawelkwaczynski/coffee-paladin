@@ -151,8 +151,10 @@ dejado de reportar (la marca STALE aparece a los cinco minutos de silencio).
 Los agentes de programación son hoy una fuente normal de carga en un portátil y, en la
 práctica, la peor: un agente no oye el ventilador ni nota que la máquina se está calentando.
 Por eso el proyecto incluye un **skill para agentes de IA**; `install.sh` lo coloca en
-`~/.claude/skills/coffee-paladin/` (Claude Code lo detecta solo, y al ser Markdown plano
-sirve para cualquier agente que lea skills).
+`~/.claude/skills/coffee-paladin/` para Claude Code, y también en `~/.agents/skills/`
+(OpenClaw y todo lo que lee la disposición AgentSkills) y `~/.grok/skills/`, pero solo
+donde ese árbol ya existe: no plantamos configuración para una herramienta que no tienes.
+Es el mismo archivo Markdown en todas partes.
 
 Le enseña cuatro cosas: mirar antes de empezar leyendo `~/.coffee-paladin/status.json`
 (el campo `level` lo decide todo: `0` adelante, `1` no paralelices, `2` no empieces nada
@@ -164,12 +166,38 @@ sincronizadas con iCloud. Esta última regla salió de un incidente real: un `gr
 `fileproviderd` y `cloudd` a materializar archivos desde la nube.
 
 **Statusline en Claude Code.** El instalador puede escribir el estado térmico
-justo bajo la sesión del agente: `🛡  🌡 55°  🌀 2.4k  🧠 50%  💾 94%  ☕`. El escudo
-se convierte en un ojo en modo observación y en un `OFF` rojo y ruidoso cuando
-la instantánea del demonio caduca - exactamente la avería en la que el guardián
-está desconectado y nadie lo nota. Tu statusline existente nunca se toca
-(`--replace` es una elección consciente) y el desinstalador borra solo su
-propia entrada.
+justo bajo la sesión del agente, en dos líneas: la verdad de la máquina arriba
+y la sesión de IA abajo.
+
+```
+🛡  🌡 55°  🌀 2.4k  🧠 50%  💾 94%  ☕
+🤖 Fable 5  5h 86% ↺14:30  7d 41% ↺Thu  ctx 62%  my-project
+```
+
+La segunda línea lleva el modelo, **los límites de tu cuenta** (los mismos
+porcentajes de 5 horas y 7 días que muestra la pantalla `/usage`, directos del
+JSON de sesión que Claude Code entrega a las statuslines; cuentas de
+suscripción, los campos aparecen tras la primera respuesta de la sesión), más
+el uso de contexto y el directorio. Los porcentajes se ponen amarillos en 75 y
+rojos en 90. Si el JSON no trae límites, no se muestra ninguno: la línea nunca
+se inventa un número. Esa misma instantánea filtrada se guarda en
+`~/.coffee-paladin/claude_usage_cache.json`, de donde la lee la barra de menús,
+así que la respuesta a «cuánto Claude me queda» está en la barra y no detrás de
+un comando con barra. En un terminal estrecho es la línea de IA la que cede
+primero, elemento a elemento desde la derecha, y desaparece entera antes de
+soltar un solo dato térmico.
+
+El escudo se convierte en un ojo en modo observación y en un `OFF` rojo y
+ruidoso cuando la instantánea del demonio caduca - exactamente la avería en la
+que el guardián está desconectado y nadie lo nota. Tu statusline existente
+nunca se toca (`--replace` es una elección consciente) y el desinstalador borra
+solo su propia entrada.
+
+**Cuánto llevas gastado hoy.** Si existe el `ccusage` externo, el submenú
+*Actividad de agentes* añade una línea con el coste del día. Llamamos al
+binario ajeno y guardamos su respuesta 10 minutos en caché, en vez de meter
+código ajeno en el repositorio; sin `ccusage` esa línea sencillamente no
+aparece y todo lo demás sigue igual.
 
 **Actividad de agentes.** El demonio escribe `agent_activity.json`: qué
 sesiones de IA corren en este Mac y qué árbol de procesos arrancó cada una,
@@ -181,12 +209,54 @@ resto (ventiladores, batería desde 40 °C, marcador IA, pausa) aparece solo
 cuando trae noticia, con histéresis de 60 s.
 
 **Una puerta para todos los hosts de agentes.** `coffee-paladin hook-gate`
-implementa el contrato pre-exec que comparten Claude Code, Codex CLI,
-Gemini CLI y Grok Build (JSON por stdin, salida 2 = bloqueo): una herramienta
-pesada lanzada a pelo - `ffmpeg`, un solver, `ollama run` - recibe un rechazo
-con la línea `safe-run` exacta a usar. La puerta comprueba disciplina de
-proceso, no temperatura; responde en milisegundos y ante cualquier
-imprevisto deja pasar.
+implementa el contrato pre-exec que comparten, con diferencias de dialecto,
+Claude Code, Codex CLI, Gemini CLI, Grok Build y Antigravity. Lee el JSON de
+la llamada a herramienta en la grafía que hable cada host (`tool_input` en
+snake_case, el `toolInput` en camelCase de Grok, el
+`toolCall.args.CommandLine` de Antigravity) y responde como ese host escucha:
+salida 2 con el motivo en stderr, más un `{"decision": "deny"}` explícito por
+stdout para los dos hosts que solo se fían de eso (Grok deja pasar ante
+cualquier otra respuesta; Antigravity no tiene contrato de códigos de salida).
+Una herramienta pesada lanzada a pelo - `ffmpeg`, un solver, `ollama run` -
+recibe un rechazo con la línea `safe-run` exacta a usar. La puerta comprueba
+disciplina de proceso, no temperatura; responde en milisegundos y ante
+cualquier imprevisto deja pasar, porque una puerta rota jamás debe secuestrar
+una sesión de trabajo. `PALADIN_HOOK=off` la desactiva para un comando
+deliberado y `hook_heavy_patterns` en config.json sustituye la lista interna.
+
+El cableado es **voluntario host por host**, un adaptador para cada uno, todos
+con los mismos modales que el cableado de Claude: la entrada propia se añade
+bajo un bloqueo de archivo, las ajenas no se tocan, cada escritura deja copia
+con marca de tiempo y el desconectado quita exactamente la nuestra.
+
+```bash
+python3 ~/.coffee-paladin/settings_wire.py hook          # Claude Code
+python3 ~/.coffee-paladin/codex_hooks_wire.py hook       # Codex CLI (confirma la confianza en la primera ejecución)
+python3 ~/.coffee-paladin/gemini_hooks_wire.py hook      # Gemini CLI
+python3 ~/.coffee-paladin/grok_hooks_wire.py hook        # Grok Build
+python3 ~/.coffee-paladin/antigravity_hooks_wire.py hook # Antigravity
+```
+
+(`unhook` deshace cada uno; `uninstall.sh` los recorre todos.) Grok además lee
+por defecto los hooks de `~/.claude/settings.json`, así que una puerta cableada
+en Claude ya lo cubre. El campo de tiempo límite de Gemini va en milisegundos
+donde los demás usan segundos: el adaptador lo sabe.
+
+**¿Trabajas con un enjambre de agentes? Ya estás cubierto.** Los orquestadores
+que lanzan sus workers como sesiones CLI normales (equipos de
+oh-my-claudecode, claude-squad, workmux, paneles de dmux) heredan la puerta
+gratis: cada worker es un proceso `claude`, `codex`, `gemini` o `grok`, lee los
+mismos ajustes de usuario y choca con el mismo PreToolUse. No hay nada que
+configurar del lado del orquestador. Lo que ningún orquestador ve todavía es la
+máquina misma: cuánto calienta y cuántos trabajos pesados aguanta. Justo esa es
+la capa que sostiene el guardián: un `status.json` que cualquier planificador
+puede leer antes de escalar.
+
+**Terminales.** La misma línea térmica sirve fuera de las sesiones de agente:
+en `integrations/terminals/` hay un fragmento `status-right` para tmux, un
+manejador `update-status` para WezTerm y un componente de barra de estado para
+iTerm2, cada uno del tamaño de un copiar y pegar y con las instrucciones
+dentro del archivo.
 
 **Latido de progreso.** `safe-run` entrega a cada tarea una ruta en
 `$PALADIN_PROGRESS`; la tarea toca el archivo tras cada unidad de trabajo y,

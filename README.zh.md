@@ -127,8 +127,10 @@ coffee-paladin 是**保险丝**，它会自己动手。
 
 编码助手如今是笔记本上正常的负载来源，而且往往是最糟糕的那个，因为助手听不见风扇，
 也感觉不到机器在发烫。所以本项目附带一份**给 AI 助手的 skill**，
-`install.sh` 会把它放进 `~/.claude/skills/coffee-paladin/`（Claude Code 会自动读取；
-它是纯 Markdown，任何能读 skill 的助手都能用）。
+`install.sh` 会把它放进 `~/.claude/skills/coffee-paladin/` 供 Claude Code 使用，
+也会放进 `~/.agents/skills/`（OpenClaw 以及一切按 AgentSkills 布局读取的工具）
+和 `~/.grok/skills/` - 但只放进已经存在的目录树：我们不会为你没装的工具凭空
+建配置。各处都是同一份纯 Markdown 文件。
 
 它教助手四件事：动手前先读 `~/.coffee-paladin/status.json`（`level` 字段说了算：
 `0` 开工、`1` 别并行、`2` 别开新的、`3` 停下并告诉人类）；繁重任务通过 `safe-run` 启动；
@@ -137,11 +139,30 @@ coffee-paladin 是**保险丝**，它会自己动手。
 在 1 小时 42 分钟里只用了 13 秒 CPU，却让一台无风扇 Mac 稳在 90 °C，
 因为它一直逼着 `fileproviderd` 和 `cloudd` 从云端拉取文件。
 
-**Claude Code 状态栏。** 安装器可以把热状态直接写进代理会话下方的状态行：
-`🛡  🌡 55°  🌀 2.4k  🧠 50%  💾 94%  ☕`。观察模式下盾牌变成眼睛；守护进程的快照
-过期时变成醒目的红色 `OFF` - 正是"守护进程停了、心跳丢了而无人察觉"的那种故障。
-你已有的状态行安装器绝不触碰（`--replace` 是人的自觉选择），卸载器只删除
-自己的条目。
+**Claude Code 状态栏。** 安装器可以把热状态直接写进代理会话下方的状态行，
+共两行：第一行是机器的实况，第二行是这个 AI 会话。
+
+```
+🛡  🌡 55°  🌀 2.4k  🧠 50%  💾 94%  ☕
+🤖 Fable 5  5h 86% ↺14:30  7d 41% ↺Thu  ctx 62%  my-project
+```
+
+第二行给出模型、**你账号的用量上限** - 与 `/usage` 界面相同的 5 小时和 7 天
+百分比，直接来自 Claude Code 交给状态行的 session JSON（订阅账号；字段在会话
+first response 之后出现）- 再加上上下文占用和当前目录。百分比在 75 变黄、
+在 90 变红。JSON 里没有上限，行里就不显示：它绝不编造数字。同一份经过白名单
+过滤的快照会写入 `~/.coffee-paladin/claude_usage_cache.json`，供菜单栏读取，
+于是"我还剩多少 Claude 额度"的答案就在菜单栏上，而不必去敲斜杠命令。终端变窄
+时先让位的正是这条 AI 行，从右侧逐个元素退让，并且在丢掉任何一个热学事实之前
+就整行消失。
+
+观察模式下盾牌变成眼睛；守护进程的快照过期时变成醒目的红色 `OFF` - 正是
+"守护进程停了、心跳丢了而无人察觉"的那种故障。你已有的状态行安装器绝不触碰
+（`--replace` 是人的自觉选择），卸载器只删除自己的条目。
+
+**今天花了多少。** 如果系统里装了外部的 `ccusage`，"代理活动"子菜单里会多出
+一行今日花费。我们调用别人的可执行文件并把结果缓存 10 分钟，而不是把别人的
+代码搬进仓库；没有 `ccusage` 就没有这一行，其余一切照常。
 
 **代理活动。** 守护进程写入 `agent_activity.json`：这台 Mac 上有哪些 AI
 会话在运行、每个会话启动了怎样的进程树，并附带热上下文。菜单里有按进程
@@ -151,10 +172,44 @@ coffee-paladin 是**保险丝**，它会自己动手。
 并带 60 秒滞回。
 
 **给所有代理宿主的同一道闸门。** `coffee-paladin hook-gate` 实现了
-Claude Code、Codex CLI、Gemini CLI 和 Grok Build 共享的 pre-exec 钩子
-契约（stdin 收 JSON，退出码 2 = 拦截）：裸启动的重型工具 - `ffmpeg`、
-求解器、`ollama run` - 会被拒绝，并附上应改用的 `safe-run` 命令行。
-闸门检查的是进程纪律而非温度，毫秒级响应，任何意外一律放行。
+Claude Code、Codex CLI、Gemini CLI、Grok Build 和 Antigravity 共享的
+pre-exec 钩子契约 - 尽管各家方言不同。闸门按宿主说话的拼法读取工具调用
+JSON（snake_case 的 `tool_input`、Grok 的 camelCase `toolInput`、
+Antigravity 的 `toolCall.args.CommandLine`），再按该宿主听得懂的方式回答：
+退出码 2 并把理由写到 stderr，另外为只认这一种答复的两个宿主在 stdout 明确
+输出 `{"decision": "deny"}`（Grok 对其他任何回答都放行，Antigravity 根本
+没有退出码契约）。裸启动的重型工具 - `ffmpeg`、求解器、`ollama run` - 会被
+拒绝，并附上应改用的 `safe-run` 命令行。闸门检查的是进程纪律而非温度，
+毫秒级响应，任何意外一律放行：坏掉的闸门绝不能把编码会话扣作人质。
+`PALADIN_HOOK=off` 可为一条自觉的命令临时关闭它，config.json 里的
+`hook_heavy_patterns` 可替换内置清单。
+
+接线**按宿主自愿启用**，一个宿主一个适配器，每个都守着与 Claude 接线相同的
+规矩：自己的条目在文件锁下追加，别人的条目一律不碰，每次写入前留一份带时间戳
+的备份，解除时只删掉我们那一条。
+
+```bash
+python3 ~/.coffee-paladin/settings_wire.py hook          # Claude Code
+python3 ~/.coffee-paladin/codex_hooks_wire.py hook       # Codex CLI（首次运行时确认信任）
+python3 ~/.coffee-paladin/gemini_hooks_wire.py hook      # Gemini CLI
+python3 ~/.coffee-paladin/grok_hooks_wire.py hook        # Grok Build
+python3 ~/.coffee-paladin/antigravity_hooks_wire.py hook # Antigravity
+```
+
+（`unhook` 逐个撤销；`uninstall.sh` 会全部跑一遍。）Grok 默认还会扫描
+`~/.claude/settings.json` 里的钩子，所以接到 Claude 上的闸门已经把它一并覆盖。
+Gemini 的超时字段用的是毫秒，而别家都用秒 - 适配器知道这件事。
+
+**在跑代理集群？你已经被覆盖了。** 那些把 worker 当作普通 CLI 会话拉起来的
+编排器（oh-my-claudecode 的 team、claude-squad、workmux、dmux 的窗格）天然
+继承这道闸门：每个 worker 都是一个 `claude`、`codex`、`gemini` 或 `grok`
+进程，读同一份用户级设置，撞上同一个 PreToolUse。编排器那边什么都不用配。
+目前没有任何编排器看得见的，是机器本身：它有多热、还扛得住几个重活。而这
+恰恰是守护者守住的那一层：一份任何调度器在扩容前都能读的 `status.json`。
+
+**终端。** 同一条热状态行在代理会话之外也能用：`integrations/terminals/`
+提供了 tmux 的 `status-right` 片段、WezTerm 的 `update-status` 处理函数和
+iTerm2 的状态栏组件，每个都只有复制粘贴的大小，安装说明就写在文件里。
 
 **进度心跳。** `safe-run` 通过 `$PALADIN_PROGRESS` 递给任务一个文件路径；
 任务每完成一个工作单元就触碰它，声明了节奏（`--progress-interval 300`）
