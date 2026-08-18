@@ -16,7 +16,7 @@
 
 import Cocoa
 
-let VERSION = "3.2.3"
+let VERSION = "3.2.4"
 let APPNAME = "coffee-paladin"
 let CODENAME = "Cold Brew"
 let SIGNATURE = "\(APPNAME) v\(VERSION) \u{201E}\(CODENAME)\u{201D}  ·  by panbookovsky"
@@ -95,7 +95,6 @@ let PL: [String: String] = [
     "Freeze heavy jobs now?": "Wstrzymać teraz ciężkie zadania?",
     "Nothing heavy is running right now. Anything that gets heavy will be frozen until you switch this back off.": "Nic ciężkiego teraz nie chodzi. Cokolwiek się rozpędzi, zostanie wstrzymane, dopóki nie przesuniesz przełącznika z powrotem.",
     "Freeze": "Wstrzymaj",
-    "Pause jobs when the Mac overheats": "Włącz pauzowanie przy przegrzaniu",
     "OFF - the Mac is only being watched": "WYŁĄCZONE — Mac jest tylko obserwowany",
     "Show in the bar": "Pokaż na pasku",
     "Show all": "Pokaż wszystko",
@@ -156,6 +155,12 @@ let PL: [String: String] = [
     "at this rate the guard pauses in ~%.0f min, before the block ends": "w tym tempie strażnik wstrzyma pracę za ~%.0f min, przed końcem bloku",
     "%@ tokens": "%@ tokenów",
     "Claude limits: %@": "Limity Claude: %@",
+    "Thermal protection": "Ochrona termiczna",
+    "%@: %d%%": "%@: %d%%",
+    "(resets %@)": "(reset %@)",
+    "5h limit": "limit 5 h",
+    "7d limit": "limit 7 dni",
+    "context": "kontekst",
     "no AI session is running right now": "żadna sesja AI teraz nie działa",
     "… %d more": "… jeszcze %d",
     "%@ session — %.0f%% CPU in its tree": "sesja %@ — %.0f%% CPU w jej drzewie",
@@ -194,11 +199,11 @@ let PL: [String: String] = [
     "This topic will not work": "Ten temat nie zadziała",
     "Use only letters, digits, _ and -, up to 64 characters. A space stops the push silently, and # or ? publish to a shorter topic than the one you typed.": "Używaj tylko liter, cyfr, _ i -, do 64 znaków. Spacja cicho blokuje push, a # albo ? publikują na krótszy temat niż ten, który wpisałeś.",
     "First steps with the paladin": "Pierwsze kroki z paladynem",
+    "Phone notifications…": "Powiadomienia na telefon…",
     "First steps…": "Pierwsze kroki...",
     "WHAT IT CAN DO\n• The paladin watches the chip, the battery, the fans and the power source - by default a reading every 15 seconds.\n• When things get too hot, it FREEZES heavy processes instead of letting the Mac cook itself. The pause destroys nothing: the process stops mid-instruction and continues once the chip cools. Example? Measured: 89 °C → 60 °C in 19 seconds, no loss.\n• It finds the real culprit: CPU is counted across the whole process tree, so it also sees a script that spawns hundreds of short jobs while using almost nothing itself.\n• On battery below 10% it pauses long jobs - they resume when you plug in.\n• It keeps a black box: after a hard failure the last 8 readings survive. One click turns them into a report for a repair shop (should you ever need it).\n• Keep-awake - works like the well-known Caffeine or Amphetamine, but unlike them it comes with a fuse: the sleep lock is released the moment things run hot. Sleep is the fastest cooling there is.": "CO POTRAFI\n• Paladyn pilnuje chipa, baterii, wentylatorów i zasilania – domyślny pomiar co 15 sekund.\n• Gdy robi się za gorąco, ZAMRAŻA ciężkie procesy zamiast pozwolić Macowi się ugotować. Pauza niczego nie niszczy: proces staje w miejscu i rusza dalej, gdy chip ostygnie. Przykład? Zmierzone: 89 °C → 60 °C w 19 sekund, obliczenia bez strat.\n• Znajduje prawdziwego winowajcę: liczy CPU całego drzewa procesów, więc widzi też skrypt, który odpala setki krótkich zadań i sam prawie nic nie zużywa.\n• Na baterii poniżej 10% wstrzymuje długie obliczenia - wznowi po podpięciu ładowarki.\n• Prowadzi czarną skrzynkę: po twardej awarii zostaje 8 ostatnich pomiarów. Jednym kliknięciem złożysz z tego raport dla serwisu (w razie potrzeby).\n• „Nie usypiaj Maca\" – działa jak znane programy Caffeine czy Amphetamine, ale w odróżnieniu od nich robi to z bezpiecznikiem: blokada snu puszcza w momencie, gdy robi się gorąco. Sen chłodzi najszybciej.",
     "WHAT WILL HAPPEN\n• Your choice in the welcome window decides how you start.\n\n\"Watch only\" mode: the paladin measures, logs and alerts, but PAUSES NOTHING.\n\n\"Enable protection\" mode: it pauses at the defined thresholds.\n\nSwitching is easy - one switch at the top of the menu.\n\n• Default thresholds: pause at 85 °C, resume at 76 °C, gentle closing of processes at 90 °C - and only after 4 critical readings in a row. Above 90 °C for over a minute is an emergency: despite the pauses the chip still holds critical (something we could not pause is heating, or pausing was not enough to cool the chip). The process is then woken up and gets SIGTERM - a polite \"shut down\": it has a chance to save its state, close its files, clean up. That is why we call this termination \"gentle\".\n\nA fanless Mac (e.g. an Air or Neo) gets more careful parameters. The thresholds are always picked for YOUR machine: see menu > \"About my Mac\".\n\n• Notifications: on. Sounds: off (enable them in Settings). At the critical level a system banner breaks through everything - Focus and full-screen included.\n• The system, Finder, your terminal and your AI agent are on the never-touch list. The guard will not freeze the session working next to it.": "CO SIĘ BĘDZIE DZIAŁO\n• Twój wybór z okna powitalnego decyduje o starcie.\n\nTryb „Tylko obserwuj\": paladyn mierzy, loguje i alarmuje, ale NICZEGO NIE WSTRZYMUJE.\n\nTryb „Włącz ochronę\": pauzuje na zdefiniowanych progach.\n\nTryby przełączysz łatwo – to jeden switch na górze menu.\n\n• Domyślne progi: pauza przy 85 °C, wznowienie przy 76 °C, łagodne zamknięcie procesów przy 90 °C - i to dopiero po 4 krytycznych odczytach z rzędu. Ponad 90 °C przez ponad 1 minutę to sytuacja awaryjna: mimo pauzowania chip dalej trzyma poziom krytyczny (czyli grzeje coś, czego nie mogliśmy zapauzować, albo pauza nie wystarczyła do chłodzenia chipa). Wtedy proces jest budzony i dostaje SIGTERM — grzeczne „zamknij się\": ma szansę zapisać stan, domknąć pliki, posprzątać. Dlatego ubicie go traktujemy jako „łagodne\".\n\nMac bez wentylatora (np. Air lub Neo) dostaje ostrożniejsze parametry. Progi zawsze są dobrane dla TWOJEJ maszyny: zobacz w menu > „O moim Macu\".\n\n• Powiadomienia: włączone. Dźwięki: wyłączone (włączysz w Ustawieniach). Przy poziomie krytycznym baner systemowy przebija się zawsze - nawet przez Skupienie i pełny ekran.\n• System, Finder, terminal i Twój agent AI są na liście nietykalnych. Strażnik nie zamrozi sesji, która przy nim pracuje.",
     "WHAT YOU CAN SET\n• Chip pause threshold - a slider; resume and terminate recalculate themselves.\n• Measurement interval 5-30 s: more often = faster reaction, but costlier in CPU use.\n• Heavy jobs (safe-run): all cores (fast) or efficiency cores only (cool and quiet), plus a CPU limit of 50-100%.\n• Battery gate, signals, keep-awake, this Mac's name in the fleet.": "CO MOŻESZ USTAWIĆ\n• Próg pauzy chipa - suwak; wznowienie i ubicie przeliczają się same.\n• Interwał pomiaru 5-30 s: częściej = szybsza reakcja, ale drożej w użyciu CPU.\n• Ciężkie zadania (safe-run): wszystkie rdzenie (szybko) albo tylko E-cores (chłodno i cicho), do tego limit CPU 50-100%.\n• Bramka baterii, sygnały, „Nie usypiaj\", nazwa tego Maca we flocie.",
-    "PHONE PUSH (ntfy)\n• Settings → \"Phone push (ntfy.sh)...\". The topic name is the ONLY protection: anyone who knows or guesses it can read your alerts and send fake ones. Click \"Generate\" - you get a random, unguessable one.\n• On your phone install the ntfy app from ntfy.sh - mind the lookalike apps - and subscribe to the same topic.\n• No account, no server of ours. It works over the internet, not WiFi: the 90 °C pause reaches your phone on a train, over LTE.": "PUSH NA TELEFON (ntfy)\n• Ustawienia → „Push na telefon (ntfy.sh)...\". Nazwa tematu to JEDYNE zabezpieczenie: kto ją zna albo zgadnie, czyta Twoje alerty i może wysyłać fałszywe. Kliknij „Wygeneruj\" - dostaniesz losową, niezgadywalną.\n• Na telefonie zainstaluj aplikację ntfy ze strony ntfy.sh - uwaga na podszywające się apki - i zasubskrybuj ten sam temat.\n• Bez konta i bez naszego serwera. Działa przez internet, nie po WiFi: pauza przy 90 °C dojdzie na telefon w pociągu, na LTE.",
     "Enjoy your work!\nPaweł": "Przyjemnej pracy!\nPaweł",
     "Is your Mac heating up with AI and renders? coffee-paladin watches battery, chip and GPU temperatures. It pauses heavy jobs and resumes them by itself once the temperature drops.\n\nOpen source, free, for you:\n%@\n\n#panbookovsky #macbook #protect #temperature #guard":
         "Twój Mac grzeje się przy AI i renderach? coffee-paladin pilnuje temperatur baterii, chipa i GPU. Pauzuje ciężkie zadania i sam je wznawia, gdy temperatura spadnie.\n\nOpen source, za darmo, dla Ciebie:\n%@\n\n#panbookovsky #macbook #protect #temperature #guard",
@@ -223,8 +228,8 @@ let PL: [String: String] = [
         "Wyłącza dymki, dźwięki przy nich i push na telefon — jedna bramka dla wszystkich.",
     "Exception: the critical banner shouts regardless.":
         "Wyjątek: baner krytyczny krzyczy niezależnie.",
-    "It is the ‹Pause jobs when the Mac overheats› switch: OFF = watch-only.":
-        "To stan przełącznika ‹Włącz pauzowanie przy przegrzaniu›: wyłączony = tylko obserwacja.",
+    "It is the ‹Thermal protection› switch: OFF = watch-only.":
+        "To stan przełącznika ‹Ochrona termiczna›: wyłączony = tylko obserwacja.",
     "fastest reaction - the guard itself burns ~3.5% of one core all the time":
         "najszybsza reakcja, ale strażnik sam pali ~3,5% jednego rdzenia bez przerwy",
     "reacts up to 5 s sooner than default, costs ~1.8% of one core":
@@ -432,7 +437,6 @@ let RU: [String: String] = [
     "Freeze heavy jobs now?": "Приостановить тяжёлые задачи сейчас?",
     "Nothing heavy is running right now. Anything that gets heavy will be frozen until you switch this back off.": "Сейчас ничего тяжёлого не работает. Всё, что станет тяжёлым, будет приостановлено, пока вы не выключите этот переключатель.",
     "Freeze": "Приостановить",
-    "Pause jobs when the Mac overheats": "Приостанавливать задачи при перегреве",
     "OFF - the Mac is only being watched": "ВЫКЛЮЧЕНО — Mac только под наблюдением",
     "Show in the bar": "Показывать в строке меню",
     "Show all": "Показать всё",
@@ -527,6 +531,12 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
     "at this rate the guard pauses in ~%.0f min, before the block ends": "при таком темпе страж остановит работу через ~%.0f мин, до конца блока",
     "%@ tokens": "%@ токенов",
     "Claude limits: %@": "Лимиты Claude: %@",
+    "Thermal protection": "Тепловая защита",
+    "%@: %d%%": "%@: %d%%",
+    "(resets %@)": "(сброс %@)",
+    "5h limit": "лимит 5 ч",
+    "7d limit": "лимит 7 дней",
+    "context": "контекст",
     "no AI session is running right now": "сейчас не работает ни одна сессия ИИ",
     "… %d more": "… ещё %d",
     "%@ session — %.0f%% CPU in its tree": "сессия %@ — %.0f%% CPU в её дереве",
@@ -565,11 +575,11 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
     "This topic will not work": "Эта тема не сработает",
     "Use only letters, digits, _ and -, up to 64 characters. A space stops the push silently, and # or ? publish to a shorter topic than the one you typed.": "Используйте только буквы, цифры, _ и -, до 64 символов. Пробел молча блокирует push, а # или ? публикуют в более короткую тему, чем введённая.",
     "First steps with the paladin": "Первые шаги с паладином",
+    "Phone notifications…": "Уведомления на телефон…",
     "First steps…": "Первые шаги...",
     "WHAT IT CAN DO\n• The paladin watches the chip, the battery, the fans and the power source - by default a reading every 15 seconds.\n• When things get too hot, it FREEZES heavy processes instead of letting the Mac cook itself. The pause destroys nothing: the process stops mid-instruction and continues once the chip cools. Example? Measured: 89 °C → 60 °C in 19 seconds, no loss.\n• It finds the real culprit: CPU is counted across the whole process tree, so it also sees a script that spawns hundreds of short jobs while using almost nothing itself.\n• On battery below 10% it pauses long jobs - they resume when you plug in.\n• It keeps a black box: after a hard failure the last 8 readings survive. One click turns them into a report for a repair shop (should you ever need it).\n• Keep-awake - works like the well-known Caffeine or Amphetamine, but unlike them it comes with a fuse: the sleep lock is released the moment things run hot. Sleep is the fastest cooling there is.": "ЧТО ОН УМЕЕТ\n• Паладин следит за чипом, батареей, вентиляторами и питанием - по умолчанию замер каждые 15 секунд.\n• Когда становится слишком горячо, ЗАМОРАЖИВАЕТ тяжёлые процессы, вместо того чтобы дать Mac свариться. Пауза ничего не разрушает: процесс замирает и продолжает с того же места, когда чип остынет. Пример? Измерено: 89 °C → 60 °C за 19 секунд, без потерь.\n• Находит настоящего виновника: CPU считается по всему дереву процессов, поэтому виден и скрипт, порождающий сотни коротких задач.\n• На батарее ниже 10% длинные задачи ставятся на паузу - возобновятся после подключения зарядки.\n• Ведёт чёрный ящик: после жёсткого сбоя остаются 8 последних замеров. Один клик - и из них готов отчёт для сервиса (если понадобится).\n• «Не усыплять Mac» - работает как известные Caffeine или Amphetamine, но в отличие от них с предохранителем: блокировка сна снимается, как только становится горячо. Сон охлаждает быстрее всего.",
     "WHAT WILL HAPPEN\n• Your choice in the welcome window decides how you start.\n\n\"Watch only\" mode: the paladin measures, logs and alerts, but PAUSES NOTHING.\n\n\"Enable protection\" mode: it pauses at the defined thresholds.\n\nSwitching is easy - one switch at the top of the menu.\n\n• Default thresholds: pause at 85 °C, resume at 76 °C, gentle closing of processes at 90 °C - and only after 4 critical readings in a row. Above 90 °C for over a minute is an emergency: despite the pauses the chip still holds critical (something we could not pause is heating, or pausing was not enough to cool the chip). The process is then woken up and gets SIGTERM - a polite \"shut down\": it has a chance to save its state, close its files, clean up. That is why we call this termination \"gentle\".\n\nA fanless Mac (e.g. an Air or Neo) gets more careful parameters. The thresholds are always picked for YOUR machine: see menu > \"About my Mac\".\n\n• Notifications: on. Sounds: off (enable them in Settings). At the critical level a system banner breaks through everything - Focus and full-screen included.\n• The system, Finder, your terminal and your AI agent are on the never-touch list. The guard will not freeze the session working next to it.": "ЧТО БУДЕТ ПРОИСХОДИТЬ\n• Ваш выбор в окне приветствия определяет старт.\n\nРежим «Только наблюдать»: паладин измеряет, ведёт журнал и предупреждает, но НИЧЕГО НЕ ОСТАНАВЛИВАЕТ.\n\nРежим «Включить защиту»: ставит на паузу по заданным порогам.\n\nПереключиться легко - один переключатель вверху меню.\n\n• Пороги по умолчанию: пауза при 85 °C, возобновление при 76 °C, мягкое закрытие процессов при 90 °C - и только после 4 критических замеров подряд. Выше 90 °C дольше минуты - аварийная ситуация: несмотря на паузы чип держит критический уровень (греет то, что мы не могли поставить на паузу, или паузы не хватило для охлаждения). Тогда процесс будят, и он получает SIGTERM - вежливое «завершись»: есть шанс сохранить состояние, закрыть файлы, прибраться. Поэтому такое завершение мы называем «мягким».\n\nMac без вентилятора (например, Air или Neo) получает более осторожные параметры. Пороги всегда подобраны для ВАШЕЙ машины: см. меню > «Об этом Mac».\n\n• Уведомления: включены. Звуки: выключены (включаются в Настройках). На критическом уровне системный баннер пробивается всегда - даже через Фокусирование и полный экран.\n• Система, Finder, терминал и ваш ИИ-агент - в списке неприкасаемых. Страж не заморозит сессию, которая работает рядом с ним.",
     "WHAT YOU CAN SET\n• Chip pause threshold - a slider; resume and terminate recalculate themselves.\n• Measurement interval 5-30 s: more often = faster reaction, but costlier in CPU use.\n• Heavy jobs (safe-run): all cores (fast) or efficiency cores only (cool and quiet), plus a CPU limit of 50-100%.\n• Battery gate, signals, keep-awake, this Mac's name in the fleet.": "ЧТО МОЖНО НАСТРОИТЬ\n• Порог паузы чипа - ползунок; возобновление и завершение пересчитываются сами.\n• Интервал замеров 5-30 с: чаще = быстрее реакция, но дороже по CPU.\n• Тяжёлые задачи (safe-run): все ядра (быстро) или только E-ядра (тихо), плюс лимит CPU 50-100%.\n• Порог батареи, сигналы, keep-awake, имя этого Mac в парке.",
-    "PHONE PUSH (ntfy)\n• Settings → \"Phone push (ntfy.sh)...\". The topic name is the ONLY protection: anyone who knows or guesses it can read your alerts and send fake ones. Click \"Generate\" - you get a random, unguessable one.\n• On your phone install the ntfy app from ntfy.sh - mind the lookalike apps - and subscribe to the same topic.\n• No account, no server of ours. It works over the internet, not WiFi: the 90 °C pause reaches your phone on a train, over LTE.": "PUSH НА ТЕЛЕФОН (ntfy)\n• Настройки → «Push на телефон (ntfy.sh)...». Имя темы - ЕДИНСТВЕННАЯ защита: кто его знает или угадает, читает ваши оповещения и может слать поддельные. Нажмите «Сгенерировать» - получите случайное.\n• На телефон установите приложение ntfy с сайта ntfy.sh - остерегайтесь подражателей - и подпишитесь на ту же тему.\n• Без аккаунта и без нашего сервера. Работает через интернет: пауза при 90 °C дойдёт на телефон в поезде, по LTE.",
     "Enjoy your work!\nPaweł": "Приятной работы!\nПавел",
     "Sponsor on GitHub…": "Поддержать на GitHub...",
     "Is your Mac heating up with AI and renders? coffee-paladin watches battery, chip and GPU temperatures. It pauses heavy jobs and resumes them by itself once the temperature drops.\n\nOpen source, free, for you:\n%@\n\n#panbookovsky #macbook #protect #temperature #guard":
@@ -595,8 +605,8 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
         "Отключает уведомления, их звуки и push — один шлюз для всего.",
     "Exception: the critical banner shouts regardless.":
         "Исключение: критический баннер кричит независимо.",
-    "It is the ‹Pause jobs when the Mac overheats› switch: OFF = watch-only.":
-        "Это состояние переключателя ‹Пауза при перегреве›: выключен = только наблюдение.",
+    "It is the ‹Thermal protection› switch: OFF = watch-only.":
+        "Это состояние переключателя ‹Тепловая защита›: выключен = только наблюдение.",
     "fastest reaction - the guard itself burns ~3.5% of one core all the time":
         "самая быстрая реакция, но страж сам жжёт ~3,5% ядра постоянно",
     "reacts up to 5 s sooner than default, costs ~1.8% of one core":
@@ -735,7 +745,6 @@ let ZH: [String: String] = [
     "Freeze heavy jobs now?": "现在暂停繁重任务？",
     "Nothing heavy is running right now. Anything that gets heavy will be frozen until you switch this back off.": "目前没有繁重任务在运行。之后出现的繁重任务都会被暂停，直到你关掉这个开关。",
     "Freeze": "暂停",
-    "Pause jobs when the Mac overheats": "过热时暂停任务",
     "OFF - the Mac is only being watched": "已关闭 —— 仅在观察这台 Mac",
     "Show in the bar": "菜单栏显示内容",
     "Show all": "全部显示",
@@ -828,6 +837,12 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
     "at this rate the guard pauses in ~%.0f min, before the block ends": "按此速度守卫将在约 %.0f 分钟后暂停工作，早于区块结束",
     "%@ tokens": "%@ 个 token",
     "Claude limits: %@": "Claude 限额：%@",
+    "Thermal protection": "过热保护",
+    "%@: %d%%": "%@：%d%%",
+    "(resets %@)": "（%@ 重置）",
+    "5h limit": "5 小时额度",
+    "7d limit": "7 天额度",
+    "context": "上下文",
     "no AI session is running right now": "当前没有运行中的 AI 会话",
     "… %d more": "… 还有 %d 个",
     "%@ session — %.0f%% CPU in its tree": "%@ 会话 — 其进程树占 %.0f%% CPU",
@@ -866,11 +881,11 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
     "This topic will not work": "这个主题无法使用",
     "Use only letters, digits, _ and -, up to 64 characters. A space stops the push silently, and # or ? publish to a shorter topic than the one you typed.": "只能使用字母、数字、_ 和 -,最多 64 个字符。空格会让推送静默失败,而 # 或 ? 会发布到比你输入的更短的主题。",
     "First steps with the paladin": "圣骑士入门指南",
+    "Phone notifications…": "手机通知…",
     "First steps…": "入门指南...",
     "WHAT IT CAN DO\n• The paladin watches the chip, the battery, the fans and the power source - by default a reading every 15 seconds.\n• When things get too hot, it FREEZES heavy processes instead of letting the Mac cook itself. The pause destroys nothing: the process stops mid-instruction and continues once the chip cools. Example? Measured: 89 °C → 60 °C in 19 seconds, no loss.\n• It finds the real culprit: CPU is counted across the whole process tree, so it also sees a script that spawns hundreds of short jobs while using almost nothing itself.\n• On battery below 10% it pauses long jobs - they resume when you plug in.\n• It keeps a black box: after a hard failure the last 8 readings survive. One click turns them into a report for a repair shop (should you ever need it).\n• Keep-awake - works like the well-known Caffeine or Amphetamine, but unlike them it comes with a fuse: the sleep lock is released the moment things run hot. Sleep is the fastest cooling there is.": "它能做什么\n• 圣骑士监控芯片、电池、风扇和电源 - 默认每15秒测量一次。\n• 过热时会冻结繁重进程,而不是让 Mac 煮熟自己。暂停不会破坏任何东西:进程原地停住,芯片冷却后从同一处继续。例子?实测:89 °C → 60 °C 只用19秒,零损失。\n• 找到真正的元凶:按整个进程树统计 CPU,连派生数百个短任务的脚本也看得见。\n• 电量低于10%时暂停长任务 - 插上电源后自动恢复。\n• 黑匣子:硬故障后保留最后8次测量,一键生成维修报告(以备不时之需)。\n• 保持唤醒 - 像知名的 Caffeine 或 Amphetamine 一样,但不同的是它带保险丝:一旦过热立即释放睡眠锁。睡眠是最快的降温方式。",
     "WHAT WILL HAPPEN\n• Your choice in the welcome window decides how you start.\n\n\"Watch only\" mode: the paladin measures, logs and alerts, but PAUSES NOTHING.\n\n\"Enable protection\" mode: it pauses at the defined thresholds.\n\nSwitching is easy - one switch at the top of the menu.\n\n• Default thresholds: pause at 85 °C, resume at 76 °C, gentle closing of processes at 90 °C - and only after 4 critical readings in a row. Above 90 °C for over a minute is an emergency: despite the pauses the chip still holds critical (something we could not pause is heating, or pausing was not enough to cool the chip). The process is then woken up and gets SIGTERM - a polite \"shut down\": it has a chance to save its state, close its files, clean up. That is why we call this termination \"gentle\".\n\nA fanless Mac (e.g. an Air or Neo) gets more careful parameters. The thresholds are always picked for YOUR machine: see menu > \"About my Mac\".\n\n• Notifications: on. Sounds: off (enable them in Settings). At the critical level a system banner breaks through everything - Focus and full-screen included.\n• The system, Finder, your terminal and your AI agent are on the never-touch list. The guard will not freeze the session working next to it.": "将会发生什么\n• 欢迎窗口的选择决定起点。\n\n「仅观察」模式:圣骑士测量、记录、警报,但不暂停任何进程。\n\n「启用保护」模式:按设定的阈值暂停。\n\n切换很简单 - 菜单顶部的一个开关。\n\n• 默认阈值:85 °C 暂停,76 °C 恢复,90 °C 温和关闭进程 - 且需连续4次危险读数。超过 90 °C 持续一分钟以上属于紧急情况:尽管已暂停,芯片仍处于危险级别(发热的是我们无法暂停的东西,或暂停不足以降温)。此时进程会被唤醒并收到 SIGTERM - 礼貌的「请关闭」:它有机会保存状态、关闭文件、清理现场。所以我们称这种终止为「温和」。\n\n无风扇的 Mac(如 Air 或 Neo)获得更保守的参数。阈值总是为你的机器挑选:见菜单 >「关于我的 Mac」。\n\n• 通知:开。声音:关(可在设置中打开)。危险级别时系统横幅总会弹出 - 专注模式和全屏也不例外。\n• 系统、Finder、终端和你的 AI 代理都在不可触碰清单上。守卫不会冻结在它身边工作的会话。",
     "WHAT YOU CAN SET\n• Chip pause threshold - a slider; resume and terminate recalculate themselves.\n• Measurement interval 5-30 s: more often = faster reaction, but costlier in CPU use.\n• Heavy jobs (safe-run): all cores (fast) or efficiency cores only (cool and quiet), plus a CPU limit of 50-100%.\n• Battery gate, signals, keep-awake, this Mac's name in the fleet.": "你可以设置\n• 芯片暂停阈值 - 滑块;恢复和终止自动换算。\n• 测量间隔 5-30 秒:更频繁 = 反应更快,但 CPU 开销更大。\n• 繁重任务(safe-run):全部核心(快)或仅能效核心(安静),外加 50-100% CPU 限制。\n• 电池阈值、信号、保持唤醒、这台 Mac 在机群中的名字。",
-    "PHONE PUSH (ntfy)\n• Settings → \"Phone push (ntfy.sh)...\". The topic name is the ONLY protection: anyone who knows or guesses it can read your alerts and send fake ones. Click \"Generate\" - you get a random, unguessable one.\n• On your phone install the ntfy app from ntfy.sh - mind the lookalike apps - and subscribe to the same topic.\n• No account, no server of ours. It works over the internet, not WiFi: the 90 °C pause reaches your phone on a train, over LTE.": "手机推送(ntfy)\n• 设置 →「手机推送(ntfy.sh)...」。主题名是唯一的保护:知道或猜到的人能读你的警报并发送假消息。点「生成」获得随机名称。\n• 在手机上安装来自 ntfy.sh 的 ntfy 应用 - 谨防仿冒 - 并订阅同一主题。\n• 无需账户,无我们的服务器。走互联网而非 WiFi:90 °C 的暂停会通过 LTE 送达火车上的你。",
     "Enjoy your work!\nPaweł": "祝工作愉快!\nPaweł",
     "Sponsor on GitHub…": "在 GitHub 上赞助...",
     "Is your Mac heating up with AI and renders? coffee-paladin watches battery, chip and GPU temperatures. It pauses heavy jobs and resumes them by itself once the temperature drops.\n\nOpen source, free, for you:\n%@\n\n#panbookovsky #macbook #protect #temperature #guard":
@@ -896,8 +911,8 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
         "关闭通知、其声音和手机推送——同一道闸门。",
     "Exception: the critical banner shouts regardless.":
         "例外:危险横幅无论如何都会警报。",
-    "It is the ‹Pause jobs when the Mac overheats› switch: OFF = watch-only.":
-        "即主开关‹过热时暂停任务›:关闭 = 仅观察。",
+    "It is the ‹Thermal protection› switch: OFF = watch-only.":
+        "即主开关‹过热保护›:关闭 = 仅观察。",
     "fastest reaction - the guard itself burns ~3.5% of one core all the time":
         "反应最快,但守卫自身持续占用约3.5%单核",
     "reacts up to 5 s sooner than default, costs ~1.8% of one core":
@@ -1036,7 +1051,6 @@ let ES: [String: String] = [
     "Freeze heavy jobs now?": "¿Pausar ahora las tareas pesadas?",
     "Nothing heavy is running right now. Anything that gets heavy will be frozen until you switch this back off.": "Ahora mismo no hay nada pesado en marcha. Todo lo que se vuelva pesado quedará en pausa hasta que vuelvas a desactivar esto.",
     "Freeze": "Pausar",
-    "Pause jobs when the Mac overheats": "Pausar tareas cuando el Mac se recalienta",
     "OFF - the Mac is only being watched": "DESACTIVADO: el Mac solo está siendo observado",
     "Show in the bar": "Mostrar en la barra",
     "Show all": "Mostrar todo",
@@ -1130,6 +1144,12 @@ Vuelve a activarlo cuando termines.
     "at this rate the guard pauses in ~%.0f min, before the block ends": "a este ritmo el guardián pausará en ~%.0f min, antes de que acabe el bloque",
     "%@ tokens": "%@ tokens",
     "Claude limits: %@": "Límites de Claude: %@",
+    "Thermal protection": "Protección térmica",
+    "%@: %d%%": "%@: %d%%",
+    "(resets %@)": "(se reinicia %@)",
+    "5h limit": "límite 5 h",
+    "7d limit": "límite 7 días",
+    "context": "contexto",
     "no AI session is running right now": "ninguna sesión de IA está activa ahora",
     "… %d more": "… %d más",
     "%@ session — %.0f%% CPU in its tree": "sesión %@ — %.0f%% CPU en su árbol",
@@ -1169,11 +1189,11 @@ Vuelve a activarlo cuando termines.
     "This topic will not work": "Este tema no funcionará",
     "Use only letters, digits, _ and -, up to 64 characters. A space stops the push silently, and # or ? publish to a shorter topic than the one you typed.": "Usa solo letras, dígitos, _ y -, hasta 64 caracteres. Un espacio bloquea el push en silencio, y # o ? publican en un tema más corto del que escribiste.",
     "First steps with the paladin": "Primeros pasos con el paladín",
+    "Phone notifications…": "Notificaciones en el móvil…",
     "First steps…": "Primeros pasos...",
-    "WHAT IT CAN DO\n• The paladin watches the chip, the battery, the fans and the power source - by default a reading every 15 seconds.\n• When things get too hot, it FREEZES heavy processes instead of letting the Mac cook itself. The pause destroys nothing: the process stops mid-instruction and continues once the chip cools. Example? Measured: 89 °C → 60 °C in 19 seconds, no loss.\n• It finds the real culprit: CPU is counted across the whole process tree, so it also sees a script that spawns hundreds of short jobs while using almost nothing itself.\n• On battery below 10% it pauses long jobs - they resume when you plug in.\n• It keeps a black box: after a hard failure the last 8 readings survive. One click turns them into a report for a repair shop (should you ever need it).\n• Keep-awake - works like the well-known Caffeine or Amphetamine, but unlike them it comes with a fuse: the sleep lock is released the moment things run hot. Sleep is the fastest cooling there is.": "CO POTRAFI\n• Paladyn pilnuje chipa, baterii, wentylatorów i zasilania – domyślny pomiar co 15 sekund.\n• Gdy robi się za gorąco, ZAMRAŻA ciężkie procesy zamiast pozwolić Macowi się ugotować. Pauza niczego nie niszczy: proces staje w miejscu i rusza dalej, gdy chip ostygnie. Przykład? Zmierzone: 89 °C → 60 °C w 19 sekund, obliczenia bez strat.\n• Znajduje prawdziwego winowajcę: liczy CPU całego drzewa procesów, więc widzi też skrypt, który odpala setki krótkich zadań i sam prawie nic nie zużywa.\n• Na baterii poniżej 10% wstrzymuje długie obliczenia - wznowi po podpięciu ładowarki.\n• Prowadzi czarną skrzynkę: po twardej awarii zostaje 8 ostatnich pomiarów. Jednym kliknięciem złożysz z tego raport dla serwisu (w razie potrzeby).\n• „Nie usypiaj Maca\" – działa jak znane programy Caffeine czy Amphetamine, ale w odróżnieniu od nich robi to z bezpiecznikiem: blokada snu puszcza w momencie, gdy robi się gorąco. Sen chłodzi najszybciej.",
-    "WHAT WILL HAPPEN\n• Your choice in the welcome window decides how you start.\n\n\"Watch only\" mode: the paladin measures, logs and alerts, but PAUSES NOTHING.\n\n\"Enable protection\" mode: it pauses at the defined thresholds.\n\nSwitching is easy - one switch at the top of the menu.\n\n• Default thresholds: pause at 85 °C, resume at 76 °C, gentle closing of processes at 90 °C - and only after 4 critical readings in a row. Above 90 °C for over a minute is an emergency: despite the pauses the chip still holds critical (something we could not pause is heating, or pausing was not enough to cool the chip). The process is then woken up and gets SIGTERM - a polite \"shut down\": it has a chance to save its state, close its files, clean up. That is why we call this termination \"gentle\".\n\nA fanless Mac (e.g. an Air or Neo) gets more careful parameters. The thresholds are always picked for YOUR machine: see menu > \"About my Mac\".\n\n• Notifications: on. Sounds: off (enable them in Settings). At the critical level a system banner breaks through everything - Focus and full-screen included.\n• The system, Finder, your terminal and your AI agent are on the never-touch list. The guard will not freeze the session working next to it.": "CO SIĘ BĘDZIE DZIAŁO\n• Twój wybór z okna powitalnego decyduje o starcie.\n\nTryb „Tylko obserwuj\": paladyn mierzy, loguje i alarmuje, ale NICZEGO NIE WSTRZYMUJE.\n\nTryb „Włącz ochronę\": pauzuje na zdefiniowanych progach.\n\nTryby przełączysz łatwo – to jeden switch na górze menu.\n\n• Domyślne progi: pauza przy 85 °C, wznowienie przy 76 °C, łagodne zamknięcie procesów przy 90 °C - i to dopiero po 4 krytycznych odczytach z rzędu. Ponad 90 °C przez ponad 1 minutę to sytuacja awaryjna: mimo pauzowania chip dalej trzyma poziom krytyczny (czyli grzeje coś, czego nie mogliśmy zapauzować, albo pauza nie wystarczyła do chłodzenia chipa). Wtedy proces jest budzony i dostaje SIGTERM — grzeczne „zamknij się\": ma szansę zapisać stan, domknąć pliki, posprzątać. Dlatego ubicie go traktujemy jako „łagodne\".\n\nMac bez wentylatora (np. Air lub Neo) dostaje ostrożniejsze parametry. Progi zawsze są dobrane dla TWOJEJ maszyny: zobacz w menu > „O moim Macu\".\n\n• Powiadomienia: włączone. Dźwięki: wyłączone (włączysz w Ustawieniach). Przy poziomie krytycznym baner systemowy przebija się zawsze - nawet przez Skupienie i pełny ekran.\n• System, Finder, terminal i Twój agent AI są na liście nietykalnych. Strażnik nie zamrozi sesji, która przy nim pracuje.",
-    "WHAT YOU CAN SET\n• Chip pause threshold - a slider; resume and terminate recalculate themselves.\n• Measurement interval 5-30 s: more often = faster reaction, but costlier in CPU use.\n• Heavy jobs (safe-run): all cores (fast) or efficiency cores only (cool and quiet), plus a CPU limit of 50-100%.\n• Battery gate, signals, keep-awake, this Mac's name in the fleet.": "CO MOŻESZ USTAWIĆ\n• Próg pauzy chipa - suwak; wznowienie i ubicie przeliczają się same.\n• Interwał pomiaru 5-30 s: częściej = szybsza reakcja, ale drożej w użyciu CPU.\n• Ciężkie zadania (safe-run): wszystkie rdzenie (szybko) albo tylko E-cores (chłodno i cicho), do tego limit CPU 50-100%.\n• Bramka baterii, sygnały, „Nie usypiaj\", nazwa tego Maca we flocie.",
-    "PHONE PUSH (ntfy)\n• Settings → \"Phone push (ntfy.sh)...\". The topic name is the ONLY protection: anyone who knows or guesses it can read your alerts and send fake ones. Click \"Generate\" - you get a random, unguessable one.\n• On your phone install the ntfy app from ntfy.sh - mind the lookalike apps - and subscribe to the same topic.\n• No account, no server of ours. It works over the internet, not WiFi: the 90 °C pause reaches your phone on a train, over LTE.": "PUSH AL TELÉFONO (ntfy)\n• Ajustes → «Push al teléfono (ntfy.sh)...». El nombre del tema es la ÚNICA protección: quien lo conozca puede leer tus alertas y enviar falsas. Pulsa «Generar» - obtienes uno aleatorio.\n• Instala en el teléfono la app ntfy desde ntfy.sh - cuidado con las imitaciones - y suscríbete al mismo tema.\n• Sin cuenta y sin servidor nuestro. Funciona por internet: la pausa de 90 °C llega a tu teléfono en el tren, por LTE.",
+    "WHAT IT CAN DO\n• The paladin watches the chip, the battery, the fans and the power source - by default a reading every 15 seconds.\n• When things get too hot, it FREEZES heavy processes instead of letting the Mac cook itself. The pause destroys nothing: the process stops mid-instruction and continues once the chip cools. Example? Measured: 89 °C → 60 °C in 19 seconds, no loss.\n• It finds the real culprit: CPU is counted across the whole process tree, so it also sees a script that spawns hundreds of short jobs while using almost nothing itself.\n• On battery below 10% it pauses long jobs - they resume when you plug in.\n• It keeps a black box: after a hard failure the last 8 readings survive. One click turns them into a report for a repair shop (should you ever need it).\n• Keep-awake - works like the well-known Caffeine or Amphetamine, but unlike them it comes with a fuse: the sleep lock is released the moment things run hot. Sleep is the fastest cooling there is.": "QUÉ SABE HACER\n• El paladín vigila el chip, la batería, los ventiladores y la fuente de alimentación: por defecto una medición cada 15 segundos.\n• Cuando la cosa se calienta demasiado, CONGELA los procesos pesados en vez de dejar que el Mac se cueza. La pausa no destruye nada: el proceso se detiene a mitad de instrucción y sigue en cuanto el chip se enfría. ¿Un ejemplo? Medido: 89 °C → 60 °C en 19 segundos, sin pérdidas.\n• Encuentra al culpable de verdad: la CPU se cuenta en todo el árbol de procesos, así que también ve el script que lanza cientos de tareas cortas sin apenas consumir por sí mismo.\n• Con la batería por debajo del 10% pausa los trabajos largos, y los reanuda al enchufar la corriente.\n• Lleva una caja negra: tras un apagón brusco sobreviven las 8 últimas mediciones. Con un clic se convierten en un informe para el servicio técnico (por si algún día hace falta).\n• Mantener despierto: funciona como los conocidos Caffeine o Amphetamine, pero a diferencia de ellos viene con fusible: el bloqueo del sueño se suelta en cuanto sube la temperatura. Dormir es la forma más rápida de enfriar.",
+    "WHAT WILL HAPPEN\n• Your choice in the welcome window decides how you start.\n\n\"Watch only\" mode: the paladin measures, logs and alerts, but PAUSES NOTHING.\n\n\"Enable protection\" mode: it pauses at the defined thresholds.\n\nSwitching is easy - one switch at the top of the menu.\n\n• Default thresholds: pause at 85 °C, resume at 76 °C, gentle closing of processes at 90 °C - and only after 4 critical readings in a row. Above 90 °C for over a minute is an emergency: despite the pauses the chip still holds critical (something we could not pause is heating, or pausing was not enough to cool the chip). The process is then woken up and gets SIGTERM - a polite \"shut down\": it has a chance to save its state, close its files, clean up. That is why we call this termination \"gentle\".\n\nA fanless Mac (e.g. an Air or Neo) gets more careful parameters. The thresholds are always picked for YOUR machine: see menu > \"About my Mac\".\n\n• Notifications: on. Sounds: off (enable them in Settings). At the critical level a system banner breaks through everything - Focus and full-screen included.\n• The system, Finder, your terminal and your AI agent are on the never-touch list. The guard will not freeze the session working next to it.": "QUÉ VA A PASAR\n• Tu elección en la ventana de bienvenida decide cómo empiezas.\n\nModo «Solo observar»: el paladín mide, registra y avisa, pero NO PAUSA NADA.\n\nModo «Activar protección»: pausa en los umbrales definidos.\n\nCambiar de uno a otro es fácil: un interruptor en lo alto del menú.\n\n• Umbrales por defecto: pausa a 85 °C, reanudación a 76 °C, cierre suave de procesos a 90 °C, y solo tras 4 lecturas críticas seguidas. Más de 90 °C durante más de un minuto es una emergencia: pese a las pausas el chip sigue en crítico (algo que no pudimos pausar está calentando, o pausar no bastó para enfriarlo). Entonces el proceso se despierta y recibe SIGTERM, un «ciérrate» educado: tiene ocasión de guardar su estado, cerrar sus archivos y limpiar. Por eso llamamos «suave» a esta terminación.\n\nUn Mac sin ventilador (por ejemplo un Air) recibe parámetros más prudentes. Los umbrales se eligen siempre para TU máquina: míralo en el menú > «Sobre mi Mac».\n\n• Notificaciones: activadas. Sonidos: desactivados (se activan en Ajustes). En el nivel crítico un aviso del sistema atraviesa todo, incluidos Concentración y la pantalla completa.\n• El sistema, el Finder, tu terminal y tu agente de IA están en la lista de intocables. El guardián no congelará la sesión que trabaja a su lado.",
+    "WHAT YOU CAN SET\n• Chip pause threshold - a slider; resume and terminate recalculate themselves.\n• Measurement interval 5-30 s: more often = faster reaction, but costlier in CPU use.\n• Heavy jobs (safe-run): all cores (fast) or efficiency cores only (cool and quiet), plus a CPU limit of 50-100%.\n• Battery gate, signals, keep-awake, this Mac's name in the fleet.": "QUÉ PUEDES CONFIGURAR\n• Umbral de pausa del chip: un deslizador; la reanudación y el cierre se recalculan solos.\n• Intervalo de medición de 5 a 30 s: más a menudo = reacción más rápida, pero más gasto de CPU.\n• Trabajos pesados (safe-run): todos los núcleos (rápido) o solo los de eficiencia (fresco y silencioso), más un límite de CPU del 50 al 100%.\n• Puerta de batería, señales, mantener despierto y el nombre de este Mac en la flota.",
     "Enjoy your work!\nPaweł": "¡Que disfrutes del trabajo!\nPaweł",
     "Sponsor on GitHub…": "Patrocinar en GitHub...",
     "Is your Mac heating up with AI and renders? coffee-paladin watches battery, chip and GPU temperatures. It pauses heavy jobs and resumes them by itself once the temperature drops.\n\nOpen source, free, for you:\n%@\n\n#panbookovsky #macbook #protect #temperature #guard":
@@ -1199,8 +1219,8 @@ Vuelve a activarlo cuando termines.
         "Apaga avisos, sus sonidos y el push al móvil: una sola puerta para todo.",
     "Exception: the critical banner shouts regardless.":
         "Excepción: el banner crítico grita igualmente.",
-    "It is the ‹Pause jobs when the Mac overheats› switch: OFF = watch-only.":
-        "Es el estado del interruptor ‹Pausar al sobrecalentarse›: apagado = solo observación.",
+    "It is the ‹Thermal protection› switch: OFF = watch-only.":
+        "Es el estado del interruptor ‹Protección térmica›: apagado = solo observación.",
     "fastest reaction - the guard itself burns ~3.5% of one core all the time":
         "reacción más rápida, pero el guardián quema ~3,5% de un núcleo sin parar",
     "reacts up to 5 s sooner than default, costs ~1.8% of one core":
@@ -1666,7 +1686,10 @@ final class Guide {
         fx.addSubview(title)
 
         let text = NSMutableAttributedString()
-        let sections = [T(GUIDE_CAN), T(GUIDE_WILL), T(GUIDE_SET), T(GUIDE_NTFY)]
+        // Three sections, not four: what it can do, what will happen, what you can set.
+        // The phone-push walkthrough is setup for a feature that is off by default - it
+        // made a first-run screen read like a manual, so it moved behind its own button.
+        let sections = [T(GUIDE_CAN), T(GUIDE_WILL), T(GUIDE_SET)]
         for s in sections {
             let lines = s.split(separator: "\n", maxSplits: 1, omittingEmptySubsequences: false)
             // Add the colon and blank line under each section header while assembling text,
@@ -1685,7 +1708,15 @@ final class Guide {
         text.append(NSAttributedString(string: T(GUIDE_BYE),
             attributes: [.font: NSFont.systemFont(ofSize: 12, weight: .medium), .foregroundColor: NSColor.labelColor]))
 
-        let scroll = NSScrollView(frame: NSRect(x: 16, y: 14, width: W - 32, height: H - 108))
+        // The phone-push setup lives here as a button: one click to the same dialog that
+        // used to be a wall of text in the middle of a first-run screen.
+        let ntfyBtn = NSButton(title: T("Phone notifications…"), target: Bar.shared,
+                               action: #selector(Bar.ntfyDialog))
+        ntfyBtn.bezelStyle = .rounded
+        ntfyBtn.frame = NSRect(x: 16, y: 12, width: 210, height: 24)
+        fx.addSubview(ntfyBtn)
+
+        let scroll = NSScrollView(frame: NSRect(x: 16, y: 46, width: W - 32, height: H - 140))
         scroll.hasVerticalScroller = true
         scroll.drawsBackground = false
         let tv = NSTextView(frame: NSRect(x: 0, y: 0, width: W - 48, height: 10))
@@ -1708,7 +1739,6 @@ final class Guide {
 let GUIDE_CAN = "WHAT IT CAN DO\n• The paladin watches the chip, the battery, the fans and the power source - by default a reading every 15 seconds.\n• When things get too hot, it FREEZES heavy processes instead of letting the Mac cook itself. The pause destroys nothing: the process stops mid-instruction and continues once the chip cools. Example? Measured: 89 °C → 60 °C in 19 seconds, no loss.\n• It finds the real culprit: CPU is counted across the whole process tree, so it also sees a script that spawns hundreds of short jobs while using almost nothing itself.\n• On battery below 10% it pauses long jobs - they resume when you plug in.\n• It keeps a black box: after a hard failure the last 8 readings survive. One click turns them into a report for a repair shop (should you ever need it).\n• Keep-awake - works like the well-known Caffeine or Amphetamine, but unlike them it comes with a fuse: the sleep lock is released the moment things run hot. Sleep is the fastest cooling there is."
 let GUIDE_WILL = "WHAT WILL HAPPEN\n• Your choice in the welcome window decides how you start.\n\n\"Watch only\" mode: the paladin measures, logs and alerts, but PAUSES NOTHING.\n\n\"Enable protection\" mode: it pauses at the defined thresholds.\n\nSwitching is easy - one switch at the top of the menu.\n\n• Default thresholds: pause at 85 °C, resume at 76 °C, gentle closing of processes at 90 °C - and only after 4 critical readings in a row. Above 90 °C for over a minute is an emergency: despite the pauses the chip still holds critical (something we could not pause is heating, or pausing was not enough to cool the chip). The process is then woken up and gets SIGTERM - a polite \"shut down\": it has a chance to save its state, close its files, clean up. That is why we call this termination \"gentle\".\n\nA fanless Mac (e.g. an Air or Neo) gets more careful parameters. The thresholds are always picked for YOUR machine: see menu > \"About my Mac\".\n\n• Notifications: on. Sounds: off (enable them in Settings). At the critical level a system banner breaks through everything - Focus and full-screen included.\n• The system, Finder, your terminal and your AI agent are on the never-touch list. The guard will not freeze the session working next to it."
 let GUIDE_SET = "WHAT YOU CAN SET\n• Chip pause threshold - a slider; resume and terminate recalculate themselves.\n• Measurement interval 5-30 s: more often = faster reaction, but costlier in CPU use.\n• Heavy jobs (safe-run): all cores (fast) or efficiency cores only (cool and quiet), plus a CPU limit of 50-100%.\n• Battery gate, signals, keep-awake, this Mac's name in the fleet."
-let GUIDE_NTFY = "PHONE PUSH (ntfy)\n• Settings → \"Phone push (ntfy.sh)...\". The topic name is the ONLY protection: anyone who knows or guesses it can read your alerts and send fake ones. Click \"Generate\" - you get a random, unguessable one.\n• On your phone install the ntfy app from ntfy.sh - mind the lookalike apps - and subscribe to the same topic.\n• No account, no server of ours. It works over the internet, not WiFi: the 90 °C pause reaches your phone on a train, over LTE."
 let GUIDE_BYE = "Enjoy your work!\nPaweł"
 
 
@@ -2887,12 +2917,15 @@ final class Bar: NSObject, NSMenuDelegate {
         if Date().timeIntervalSince1970 - epoch > 300 { return nil }
         var bits: [String] = []
         if let m = j["model"] as? String, !m.isEmpty { bits.append(m) }
+        // Spelled out rather than compressed. The bar is not the statusline: it has room,
+        // and "5h 16% ↺13:30" asks the reader to decode three symbols to learn one fact.
         func window(_ key: String, _ label: String, _ resetKey: String) {
             guard let p = (j[key] as? NSNumber)?.intValue else { return }
             let reset = (j[resetKey] as? String) ?? ""
-            bits.append("\(label) \(p)%" + (reset.isEmpty ? "" : " ↺\(reset)"))
+            bits.append(String(format: T("%@: %d%%"), label, p)
+                        + (reset.isEmpty ? "" : " " + String(format: T("(resets %@)"), reset)))
         }
-        window("five_hour_pct", "5h", "five_hour_reset")
+        window("five_hour_pct", T("5h limit"), "five_hour_reset")
         // The weekly reset day is formatted HERE, from the epoch, in the
         // BAR's language: the statusline wrote its text in the session's
         // language, and "Wed" inside a Polish menu is a localization bug.
@@ -2905,9 +2938,12 @@ final class Bar: NSObject, NSMenuDelegate {
                 f.setLocalizedDateFormatFromTemplate("EEE")
                 reset = f.string(from: Date(timeIntervalSince1970: epoch))
             }
-            bits.append("7d \(p)%" + (reset.isEmpty ? "" : " ↺\(reset)"))
+            bits.append(String(format: T("%@: %d%%"), T("7d limit"), p)
+                        + (reset.isEmpty ? "" : " " + String(format: T("(resets %@)"), reset)))
         }
-        if let c = (j["context_pct"] as? NSNumber)?.intValue { bits.append("ctx \(c)%") }
+        if let c = (j["context_pct"] as? NSNumber)?.intValue {
+            bits.append(String(format: T("%@: %d%%"), T("context"), c))
+        }
         guard bits.count > 1 else { return nil }
         return String(format: T("Claude limits: %@"), bits.joined(separator: " · "))
     }
@@ -3906,7 +3942,7 @@ final class Bar: NSObject, NSMenuDelegate {
         // in Settings. Switch ON means protection is active (dry_run = false).
         let watchOnly = GuardCfg.bool("dry_run", true)
         let protectionItem = NSMenuItem()
-        protectionItem.view = SwitchRow(T("Pause jobs when the Mac overheats"),
+        protectionItem.view = SwitchRow(T("Thermal protection"),
                                  on: !watchOnly,
                                  target: self, action: #selector(toggleDry),
                                  offSubtitle: T("OFF - the Mac is only being watched"),
@@ -4442,6 +4478,10 @@ final class Bar: NSObject, NSMenuDelegate {
         }
         var actRows: [(String, String, Int)] = []
         var actTotal = 0
+        // Rows and nodes stopped being the same thing once duplicates started folding:
+        // "sleep ×3" is one row standing for three nodes. The "… N more" counter has to
+        // compare nodes with nodes, or it reports hidden entries that are on screen.
+        var actShown = 0
         // The same 180 s stale gate as the bar marker: after a daemon stop the
         // file freezes, and a menu listing yesterday's sessions as alive lies.
         let actFresh: Bool = {
@@ -4459,17 +4499,39 @@ final class Bar: NSObject, NSMenuDelegate {
            let d = FileManager.default.contents(atPath: activityPath),
            let j = try? JSONSerialization.jsonObject(with: d) as? [String: Any],
            let agents = j["agents"] as? [[String: Any]], !agents.isEmpty {
+            // Identical siblings collapse into one row with a count. An agent that spawns
+            // the same helper five times produced five identical lines, which pushed the
+            // interesting branches off the visible list without adding one fact.
+            // Only IDLE duplicates fold: anything burning CPU keeps its own row, because
+            // that is the row someone opened this submenu to find.
             func walk(_ nodes: [[String: Any]], indent: Int) {
+                var pending: (comm: String, count: Int)? = nil
+                func flush() {
+                    guard let p = pending else { return }
+                    pending = nil
+                    guard actRows.count < 40 else { return }
+                    let title = p.count > 1 ? "\(p.comm) ×\(p.count)" : p.comm
+                    actRows.append((title, actIcon(p.comm), indent))
+                    actShown += p.count
+                }
                 for n in nodes {
                     actTotal += 1
                     let comm = (n["comm"] as? String) ?? "?"
                     let cpu = (n["cpu"] as? Double) ?? 0
+                    let kids = (n["kids"] as? [[String: Any]]) ?? []
+                    if cpu < 1, kids.isEmpty {
+                        if pending?.comm == comm { pending?.count += 1 } else { flush(); pending = (comm, 1) }
+                        continue
+                    }
+                    flush()
                     if actRows.count < 40 {
                         let cpuTxt = cpu >= 1 ? String(format: " — %.0f%% CPU", cpu) : ""
                         actRows.append((comm + cpuTxt, actIcon(comm), indent))
+                        actShown += 1
                     }
-                    walk((n["kids"] as? [[String: Any]]) ?? [], indent: indent + 1)
+                    walk(kids, indent: indent + 1)
                 }
+                flush()
             }
             for a in agents {
                 actTotal += 1
@@ -4481,6 +4543,7 @@ final class Bar: NSObject, NSMenuDelegate {
                 sessionRows.append(line)
                 if actRows.count < 40 {
                     actRows.append((line, "sparkles", 0))
+                    actShown += 1
                 }
                 walk((a["children"] as? [[String: Any]]) ?? [], indent: 1)
             }
@@ -4502,9 +4565,9 @@ final class Bar: NSObject, NSMenuDelegate {
                 it.image = img(ic)
                 tmenu.addItem(it)
             }
-            if actTotal > actRows.count {
+            if actTotal > actShown {
                 tmenu.addItem(NSMenuItem(title: String(format: T("… %d more"),
-                                                       actTotal - actRows.count),
+                                                       actTotal - actShown),
                                          action: nil, keyEquivalent: ""))
             }
             let treesIt = NSMenuItem(title: T("Process tree details"), action: nil, keyEquivalent: "")
