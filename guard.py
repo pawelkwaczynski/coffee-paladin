@@ -37,7 +37,7 @@ import subprocess
 import sys
 import time
 
-GUARD_VERSION = "3.2.5"   # bump together with heatbar VERSION, thermal-report VERSION, README
+GUARD_VERSION = "3.2.6"   # bump together with heatbar VERSION, thermal-report VERSION, README
 
 HOME = os.path.expanduser("~")
 BASE = os.environ.get("TG_BASE") or os.path.join(HOME, ".coffee-paladin")
@@ -141,6 +141,16 @@ DEFAULTS = {
     # processes owned by another user anyway.
     "system_demote_patterns": ["corespotlightd", "spotlightknowledged",
                                "photoanalysisd", "mediaanalysisd"],
+    # The emergency net ("unknown heavy": any owned process above unknown_cpu_percent for
+    # unknown_min_seconds) exists for solvers with unknown names. It also caught Google
+    # Chrome 31 times in one day, VTDecoderXPCService while a video played, and contactsd.
+    # SIGSTOP on a window the user is looking at is the same failure class as freezing
+    # their terminal. With this on, a process whose executable lives in an .app bundle is
+    # slowed down (taskpolicy -b) and named in status, never frozen; macOS services under
+    # /System and *.xpc are named and left alone. Named managed_patterns still win: python
+    # inside an .app pauses exactly as before. The net closes again in an emergency: fan
+    # failure alarm, battery at its kill threshold, or thermal state critical.
+    "gui_apps_never_pause": True,
     "notify": True,
     "notify_min_gap_s": 300,
     # Critical-level banner: a normal notification is easy to miss (Focus, fullscreen app).
@@ -618,6 +628,8 @@ PL = {
     "MANUAL FREEZE (from the menu bar)": "ZAMROZENIE RECZNE (z paska menu)",
     "manual resume (from the menu bar)": "wznowienie reczne (z paska menu)",
     "conditions are back to normal": "warunki wrocily do normy",
+    "%s heats the Mac at %.0f%% CPU - a desktop app: slowed down, never frozen": "%s grzeje Maca na %.0f%% CPU - aplikacja okienkowa: spowolniona, nigdy nie zamrazana",
+    "%s heats the Mac at %.0f%% CPU - a macOS service: named, left alone": "%s grzeje Maca na %.0f%% CPU - usluga macOS: nazwana, zostawiona w spokoju",
     "flapping: %s paused again %d time(s) in a row - holding at least %d s this time": "migotanie: %s zapauzowany ponownie, %d. raz z rzedu - tym razem trzymam co najmniej %d s",
     "guard startup - nothing is left frozen": "start guarda - nic nie zostaje zamrozone",
     "guard is shutting down": "guard konczy prace",
@@ -726,6 +738,8 @@ RU = {
     "MANUAL FREEZE (from the menu bar)": "РУЧНАЯ ПАУЗА (из строки меню)",
     "manual resume (from the menu bar)": "ручное возобновление (из строки меню)",
     "conditions are back to normal": "условия вернулись в норму",
+    "%s heats the Mac at %.0f%% CPU - a desktop app: slowed down, never frozen": "%s греет Mac на %.0f%% CPU - оконное приложение: замедлено, никогда не замораживается",
+    "%s heats the Mac at %.0f%% CPU - a macOS service: named, left alone": "%s греет Mac на %.0f%% CPU - служба macOS: названа, оставлена в покое",
     "flapping: %s paused again %d time(s) in a row - holding at least %d s this time": "дребезг: %s снова приостановлен, %d-й раз подряд - в этот раз держу не меньше %d с",
     "paused for longer than %d min": "в паузе дольше %d мин",
     "Thermal guard: CRITICAL overheating": "Thermal guard: КРИТИЧЕСКИЙ перегрев",
@@ -850,6 +864,8 @@ ZH = {
     "MANUAL FREEZE (from the menu bar)": "手动暂停(来自菜单栏)",
     "manual resume (from the menu bar)": "手动恢复(来自菜单栏)",
     "conditions are back to normal": "条件已恢复正常",
+    "%s heats the Mac at %.0f%% CPU - a desktop app: slowed down, never frozen": "%s 以 %.0f%% CPU 让 Mac 发热 - 桌面应用：已减速，绝不冻结",
+    "%s heats the Mac at %.0f%% CPU - a macOS service: named, left alone": "%s 以 %.0f%% CPU 让 Mac 发热 - macOS 服务：已点名，不做处理",
     "flapping: %s paused again %d time(s) in a row - holding at least %d s this time": "抖动：%s 再次被暂停，连续第 %d 次 - 这次至少保持 %d 秒",
     "paused for longer than %d min": "暂停超过 %d 分钟",
     "Thermal guard: CRITICAL overheating": "Thermal guard:严重过热",
@@ -974,6 +990,8 @@ ES = {
     "MANUAL FREEZE (from the menu bar)": "PAUSA MANUAL (desde la barra de menús)",
     "manual resume (from the menu bar)": "reanudación manual (desde la barra de menús)",
     "conditions are back to normal": "las condiciones volvieron a la normalidad",
+    "%s heats the Mac at %.0f%% CPU - a desktop app: slowed down, never frozen": "%s calienta el Mac al %.0f%% de CPU - aplicacion de escritorio: ralentizada, nunca congelada",
+    "%s heats the Mac at %.0f%% CPU - a macOS service: named, left alone": "%s calienta el Mac al %.0f%% de CPU - servicio de macOS: nombrado, sin tocar",
     "flapping: %s paused again %d time(s) in a row - holding at least %d s this time": "oscilacion: %s pausado de nuevo, %d veces seguidas - esta vez lo retengo al menos %d s",
     "paused for longer than %d min": "en pausa durante más de %d min",
     "Thermal guard: CRITICAL overheating": "Thermal guard: sobrecalentamiento CRÍTICO",
@@ -2069,6 +2087,30 @@ def cpu_with_children(procs):
 _UNTOUCHABLE_SUBSTRINGS = {}
 
 
+_HOT_APP_SAID = {}
+
+
+def say_hot_apps(cfg, st, gui_hot, system_hot, gap_s=600):
+    """Name the desktop apps and macOS services that heat the Mac, once per process per 10 min.
+
+    The worst answer to "why is my Mac hot" is an empty candidate list. These processes are
+    deliberately not frozen, so the log and status must say who they are and what was done.
+    """
+    t = now()
+    for pid, cpu, comm, _pgid in gui_hot:
+        if t - _HOT_APP_SAID.get(pid, 0) > gap_s:
+            _HOT_APP_SAID[pid] = t
+            log(T("%s heats the Mac at %.0f%% CPU - a desktop app: slowed down, never frozen")
+                % (comm, cpu))
+    for pid, cpu, comm, _pgid in system_hot:
+        if t - _HOT_APP_SAID.get(pid, 0) > gap_s:
+            _HOT_APP_SAID[pid] = t
+            log(T("%s heats the Mac at %.0f%% CPU - a macOS service: named, left alone")
+                % (comm, cpu))
+    if len(_HOT_APP_SAID) > 512:
+        _HOT_APP_SAID.clear()
+
+
 def _log_untouchable_match(comm, pattern, cpu):
     """Log at most once per hour per process.
 
@@ -2086,6 +2128,43 @@ def _log_untouchable_match(comm, pattern, cpu):
 
 
 _DEMOTE_ONLY = []   # filled on every pick_targets; read by snapshot()
+_GUI_HOT = []       # unknown-heavy processes from .app bundles: slow down, name, never freeze
+_SYSTEM_HOT = []    # unknown-heavy macOS services: name, leave alone
+_EMERGENCY = {"on": False}   # set by the main loop; reopens the net for GUI apps
+_EXE_CACHE = {}
+
+
+def exe_path(pid):
+    """Return the executable path of a process, or "" if unknown.
+
+    `ps -o comm=` without -c prints the full path; list_procs uses -c (basename) for every
+    process, so this one extra call is made only for unknown-heavy candidates, and cached.
+    """
+    path = _EXE_CACHE.get(pid)
+    if path is None:
+        path = run(["ps", "-o", "comm=", "-p", str(pid)]).strip()
+        if len(_EXE_CACHE) > 512:
+            _EXE_CACHE.clear()
+        _EXE_CACHE[pid] = path
+    return path
+
+
+def app_kind(path):
+    """Classify an executable path: "gui" (.app bundle), "system" (macOS service), or None.
+
+    A bundle anywhere counts, not only /Applications: ~/Applications, App Translocation,
+    and nested helper bundles (Chrome Helper (Renderer), Electron) all carry
+    `.app/Contents/MacOS/`. Services under /System, /usr/libexec and *.xpc are Apple's;
+    slowing a video decoder to E-cores drops frames and cools nothing, so they are only
+    named. Anything else (a solver in ~/bin, a Homebrew CLI, cargo) is a CLI job.
+    """
+    if not path:
+        return None
+    if path.startswith(("/System/", "/usr/libexec/")) or ".xpc/Contents/" in path:
+        return "system"
+    if ".app/Contents/MacOS/" in path:
+        return "gui"
+    return None
 
 
 def pick_targets(cfg, procs, saferun):
@@ -2098,6 +2177,8 @@ def pick_targets(cfg, procs, saferun):
     """
     me = os.getpid()
     del _DEMOTE_ONLY[:]
+    del _GUI_HOT[:]
+    del _SYSTEM_HOT[:]
     system_demote = [p.lower() for p in (cfg.get("system_demote_patterns") or [])]
     never = [p.lower() for p in list(cfg["never_patterns"]) + list(cfg.get("never_extra") or [])]
     patterns = [p.lower() for p in cfg["managed_patterns"]]
@@ -2150,6 +2231,13 @@ def pick_targets(cfg, procs, saferun):
             if cpu < cfg.get("unknown_cpu_percent", 50.0):
                 continue
             if proc_age_seconds(pid) < cfg.get("unknown_min_seconds", 120):
+                continue
+            # Order of authority: never > named managed_patterns > GUI/system by path >
+            # unknown CLI. Only an UNNAMED process gets here, so a managed name inside an
+            # .app (python in a bundle) is already on its way to the pause list above.
+            kind = app_kind(exe_path(pid)) if cfg.get("gui_apps_never_pause", True) else None
+            if kind and not _EMERGENCY["on"]:
+                (_GUI_HOT if kind == "gui" else _SYSTEM_HOT).append((pid, cpu, comm, None))
                 continue
         args = args_without_paths(pid)
         if any(n.lower() in args for n in (cfg.get("never_arg_patterns") or [])):
@@ -2545,16 +2633,20 @@ _demote_nie_da_sie = set()    # PIDs taskpolicy rejected, usually another owner
 _stall_said = {}              # pid -> last stall-advisory timestamp (30 min gap)
 
 
-def do_demote(cfg, st, targets, cpu_hist, soc_t, saferun_normal=frozenset()):
+def do_demote(cfg, st, targets, cpu_hist, soc_t, saferun_normal=frozenset(), immediate=False):
     """Move long-running hot processes to background QoS on E-cores.
 
     The cpu_hist clock counts ACCUMULATED seconds of active grinding, not time since first
     seen. A SIGSTOP-paused process leaves targets, and the old clock reset after every
     resume, so the hottest job never accumulated 5 minutes and escaped demotion.
+
+    `immediate=True` is the GUI path at pause level: the Mac is hot NOW and the only thing
+    the guard may do to a desktop app is slow it down, so the five-minute clock and the
+    chip threshold do not apply. Bookkeeping is shared, so do_promote restores it later.
     """
-    limit = cfg["demote_after_minutes"] * 60
+    limit = 0 if immediate else cfg["demote_after_minutes"] * 60
     for pid, cpu, comm, pgid in targets:
-        if cpu < cfg["demote_cpu_percent"] or pid in _demote_nie_da_sie:
+        if pid in _demote_nie_da_sie or (not immediate and cpu < cfg["demote_cpu_percent"]):
             continue
         # safe-run --normal means a human explicitly chose all cores. Demoting it 5 minutes
         # later would undo that decision behind their back. Pause on overheating still
@@ -2566,7 +2658,7 @@ def do_demote(cfg, st, targets, cpu_hist, soc_t, saferun_normal=frozenset()):
         if zebral < limit or pid in st["demoted"]:
             continue
         # Without a chip reading, demotion has no thermal justification. Do not guess.
-        if soc_t is None or soc_t < demote_threshold(cfg):
+        if not immediate and (soc_t is None or soc_t < demote_threshold(cfg)):
             continue
         if cfg["dry_run"]:
             log(T("[DRY-RUN] would demote %s (pid %d)") % (comm, pid))
@@ -3939,6 +4031,10 @@ def status_write(state, temp, soc, soc_t, ac, pct, speed, load, lvl, why, target
         "jobs": st.get("_zadania", []),
         "stats": st.get("_stat", {}),
         "unpausable": st.get("_unpausable", []),
+        # Desktop apps and macOS services that heat the Mac and are, by design, not frozen.
+        # Empty lists mean "nothing of that kind", not "nothing heats".
+        "gui_hot": st.get("_gui_hot", []),
+        "system_hot": st.get("_system_hot", []),
         "top_cpu_list": st.get("_top_cpu", []),
         # Manual-freeze candidates: exactly what will receive SIGSTOP. The menu bar used
         # to show "top_cpu_list" here, the three heaviest system processes. That is a READ
@@ -4046,7 +4142,8 @@ def snapshot(cfg):
     # children do not receive SIGSTOP. The counter and confirmation window show the list
     # without descendants, otherwise the same processor is counted twice.
     return (state, temp, speed, load, targets, lvl, why, soc, soc_t, ac, pct,
-            saferun_normal, without_descendants(targets, procs), list(_DEMOTE_ONLY))
+            saferun_normal, without_descendants(targets, procs), list(_DEMOTE_ONLY),
+            list(_GUI_HOT), list(_SYSTEM_HOT))
 
 
 _fan_zero = {"n": 0}
@@ -4266,7 +4363,8 @@ def main():
         return 0
     if "--once" in sys.argv or "status" in sys.argv:
         (state, temp, speed, load, targets, lvl, why,
-         soc, soc_t, ac, pct, _saferun_normal, _pokaz, _demote_only) = snapshot(cfg)
+         soc, soc_t, ac, pct, _saferun_normal, _pokaz, _demote_only,
+         _gui_hot, _system_hot) = snapshot(cfg)
         fans = ",".join(str(x) for x in (soc.get("fans") if soc else [])) or "n/d"
         print(T("state=%s chip=%s battery=%s fans=%s power=%s CPU_limit=%d%% load1=%.2f level=%d (%s)") % (
             state, ("%.1f C" % soc_t) if soc_t else "n/d",
@@ -4425,7 +4523,17 @@ def main():
             observed_cfg = log_config_changes(observed_cfg, cfg)
             reap_bg()
             (state, temp, speed, load, targets, lvl, why,
-             soc, soc_t, ac, pct, saferun_normal, display_targets, demote_only) = snapshot(cfg)
+             soc, soc_t, ac, pct, saferun_normal, display_targets, demote_only,
+             gui_hot, system_hot) = snapshot(cfg)
+            # Emergency reopens the net for GUI apps on the NEXT poll (one cycle of lag is
+            # fine: each condition below is itself confirmed over several polls).
+            _EMERGENCY["on"] = bool(
+                LEVELS.get(state, 1) >= 3
+                or (temp is not None and temp >= cfg["batt_kill_c"])
+                or _fan_zero["n"] >= cfg.get("fan_alert_polls", 3))
+            st["_gui_hot"] = [{"name": c, "cpu": round(u)} for _p, u, c, _g in gui_hot]
+            st["_system_hot"] = [{"name": c, "cpu": round(u)} for _p, u, c, _g in system_hot]
+            say_hot_apps(cfg, st, gui_hot, system_hot)
             # Sensor returned after startup? Finish deferred calibration. Without this, a
             # fanless Mac stays on fan-equipped thresholds until daemon restart. Use the
             # snapshot (`soc`) to avoid paying for macmon again; the rest of `hw` comes from
@@ -4559,12 +4667,14 @@ def main():
                         T("The Mac is critically hot (%s). Heavy jobs are being stopped.")) % why)
                 do_pause(cfg, st, targets, T("CRITICAL: ") + why, critical_level=True,
                          battery_reason=batt_involved)
+                do_demote(cfg, st, gui_hot, cpu_hist, soc_t, saferun_normal, immediate=True)
                 if crit_polls >= cfg["kill_after_polls"]:
                     do_terminate(cfg, st, why)
                     crit_polls = 0
             elif lvl == 2:
                 crit_polls = 0
                 do_pause(cfg, st, targets, why, battery_reason=batt_involved)
+                do_demote(cfg, st, gui_hot, cpu_hist, soc_t, saferun_normal, immediate=True)
             else:
                 crit_polls = 0
                 cool = may_resume
@@ -4625,7 +4735,7 @@ def main():
                 # can run a job several times slower, and with promotion refusing to act on
                 # a remembered number, a demotion triggered by one would outlive the heat
                 # that justified it.
-                do_demote(cfg, st, targets + demote_only, cpu_hist,
+                do_demote(cfg, st, targets + demote_only + gui_hot, cpu_hist,
                           soc_temp_c(fresh_only=True), saferun_normal)
 
             # Nothing may stay paused forever. BUT waiting for AC is not a failure. When

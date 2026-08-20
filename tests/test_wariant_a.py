@@ -76,10 +76,11 @@ try:
     test("bluetoothd COMPLETELY untouchable (neither pause nor demote)",
          22222 not in target_pids and 22222 not in demote_pidy)
 
-    # snapshot carries the channel as element 14, the live-system integration point.
+    # snapshot carries the channel as element 14, the live-system integration point;
+    # 3.2.6 added the GUI and system hot lists behind it (16 elements).
     mig = g.snapshot(cfg)
-    test("snapshot returns 14 elements, last is a list", len(mig) == 14
-         and isinstance(mig[13], list), repr(len(mig)))
+    test("snapshot returns 16 elements, the last three are lists", len(mig) == 16
+         and all(isinstance(mig[i], list) for i in (13, 14, 15)), repr(len(mig)))
 
     # ------------------------------------------------ 2. do_demote on the demote-only channel
     print("2. do_demote: own process moves to E-cores and returns; foreign pid does not lie")
