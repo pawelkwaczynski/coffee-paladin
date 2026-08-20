@@ -37,7 +37,7 @@ import subprocess
 import sys
 import time
 
-GUARD_VERSION = "3.2.4"   # bump together with heatbar VERSION, thermal-report VERSION, README
+GUARD_VERSION = "3.2.5"   # bump together with heatbar VERSION, thermal-report VERSION, README
 
 HOME = os.path.expanduser("~")
 BASE = os.environ.get("TG_BASE") or os.path.join(HOME, ".coffee-paladin")
@@ -117,6 +117,18 @@ DEFAULTS = {
     # requires confirmation in the next cycle. A single `thermalState` jump to "serious"
     # can last for one reading.
     "state_confirm_polls": 2,
+    # Resume looks at the MEDIAN of the last N chip readings, not the last one. Field data
+    # (1490 samples, 19-20.08): 30% of single readings sit more than 5 C from the median of
+    # five, and an LLM on the GPU swings 63-95 C within one minute on the same load, so the
+    # level flickered 0/1/0/1 between polls. One reading is noise; a window is a state.
+    "resume_window_polls": 4,
+    # Flap damping. A pause that ends in 60 s and comes back 30 s later is not cooling
+    # anything: 366 pauses in one day, 163 of 169 cycles exactly `min_pause_seconds` long,
+    # the chip back at 101 C half a minute after every resume. When the same process is
+    # paused again within this window, its minimum pause doubles (60, 120, 240...) up to the
+    # cap, and the count is said out loud in the log. A quiet window resets it.
+    "repause_window_s": 300,
+    "repause_backoff_max_s": 600,
     "demote_after_minutes": 5,  # hot chip plus a process grinding longer than this -> E-cores
     "demote_cpu_percent": 60.0,
     # Demote only when chip >= this threshold (None = soc_resume_c + 4). Return to
@@ -448,6 +460,9 @@ def load_cfg():
                                 ("min_pause_seconds", 0, 3600),
                                 ("fan_alert_polls", 1, 100),
                                 ("state_confirm_polls", 1, 100),
+                                ("resume_window_polls", 1, 60),
+                                ("repause_window_s", 0, 86400),
+                                ("repause_backoff_max_s", 0, 3600),
                                 ("max_pause_minutes", 1, 10080),
                                 ("max_pause_minutes_batt", 1, 10080),
                                 ("kill_after_polls", 1, 100),
@@ -468,6 +483,10 @@ def load_cfg():
     _limit_s = cfg.get("max_pause_minutes", 45) * 60
     if isinstance(cfg.get("min_pause_seconds"), (int, float)) and cfg["min_pause_seconds"] >= _limit_s:
         cfg["min_pause_seconds"] = max(0, int(_limit_s / 3))
+    # Same killing machine through the back door: a flap hold must leave room to resume
+    # well before the pause limit turns into SIGTERM.
+    if isinstance(cfg.get("repause_backoff_max_s"), (int, float)) and cfg["repause_backoff_max_s"] > _limit_s / 3:
+        cfg["repause_backoff_max_s"] = max(0, int(_limit_s / 3))
         _zle_typy.append("min_pause_seconds >= max_pause_minutes - przyciete do %d s"
                          % cfg["min_pause_seconds"])
 
@@ -599,6 +618,7 @@ PL = {
     "MANUAL FREEZE (from the menu bar)": "ZAMROZENIE RECZNE (z paska menu)",
     "manual resume (from the menu bar)": "wznowienie reczne (z paska menu)",
     "conditions are back to normal": "warunki wrocily do normy",
+    "flapping: %s paused again %d time(s) in a row - holding at least %d s this time": "migotanie: %s zapauzowany ponownie, %d. raz z rzedu - tym razem trzymam co najmniej %d s",
     "guard startup - nothing is left frozen": "start guarda - nic nie zostaje zamrozone",
     "guard is shutting down": "guard konczy prace",
     "CRITICAL: ": "KRYTYCZNIE: ",
@@ -706,6 +726,7 @@ RU = {
     "MANUAL FREEZE (from the menu bar)": "РУЧНАЯ ПАУЗА (из строки меню)",
     "manual resume (from the menu bar)": "ручное возобновление (из строки меню)",
     "conditions are back to normal": "условия вернулись в норму",
+    "flapping: %s paused again %d time(s) in a row - holding at least %d s this time": "дребезг: %s снова приостановлен, %d-й раз подряд - в этот раз держу не меньше %d с",
     "paused for longer than %d min": "в паузе дольше %d мин",
     "Thermal guard: CRITICAL overheating": "Thermal guard: КРИТИЧЕСКИЙ перегрев",
     "The Mac is critically hot (%s). Heavy jobs are being stopped.":
@@ -829,6 +850,7 @@ ZH = {
     "MANUAL FREEZE (from the menu bar)": "手动暂停(来自菜单栏)",
     "manual resume (from the menu bar)": "手动恢复(来自菜单栏)",
     "conditions are back to normal": "条件已恢复正常",
+    "flapping: %s paused again %d time(s) in a row - holding at least %d s this time": "抖动：%s 再次被暂停，连续第 %d 次 - 这次至少保持 %d 秒",
     "paused for longer than %d min": "暂停超过 %d 分钟",
     "Thermal guard: CRITICAL overheating": "Thermal guard:严重过热",
     "The Mac is critically hot (%s). Heavy jobs are being stopped.":
@@ -952,6 +974,7 @@ ES = {
     "MANUAL FREEZE (from the menu bar)": "PAUSA MANUAL (desde la barra de menús)",
     "manual resume (from the menu bar)": "reanudación manual (desde la barra de menús)",
     "conditions are back to normal": "las condiciones volvieron a la normalidad",
+    "flapping: %s paused again %d time(s) in a row - holding at least %d s this time": "oscilacion: %s pausado de nuevo, %d veces seguidas - esta vez lo retengo al menos %d s",
     "paused for longer than %d min": "en pausa durante más de %d min",
     "Thermal guard: CRITICAL overheating": "Thermal guard: sobrecalentamiento CRÍTICO",
     "The Mac is critically hot (%s). Heavy jobs are being stopped.":
@@ -1909,8 +1932,71 @@ def resume_gate(cfg, st, temp, soc_t, state):
     # soc_t may be a last known good reading (see soc_sensors). The asymmetry is deliberate
     # and safe in both directions: a remembered HOT chip keeps jobs frozen a little longer,
     # while a remembered COOL one only ever behaves as an unknown chip did before it existed.
-    chip_holds = soc_t is not None and soc_t > cfg.get("soc_resume_c", 87.0)
-    return not battery_holds and not chip_holds and LEVELS.get(state, 1) <= 1
+    resume_c = cfg.get("soc_resume_c", 87.0)
+    chip_holds = soc_t is not None and soc_t > resume_c
+    # Window median: a single cool reading inside a pulsing load must not open the gate.
+    # The window only ever TIGHTENS the gate (hot history holds, cool history changes
+    # nothing), so a remembered or missing reading cannot relax protection through it.
+    chip_window_push(cfg, st, soc_t)
+    med = chip_window_median(st)
+    window_holds = med is not None and med > resume_c
+    return (not battery_holds and not chip_holds and not window_holds
+            and LEVELS.get(state, 1) <= 1)
+
+
+def chip_window_push(cfg, st, soc_t):
+    """Remember the latest chip reading in the resume window (in-memory, per daemon run)."""
+    n = max(1, int(cfg.get("resume_window_polls", 4)))
+    w = st.setdefault("_chip_window", [])
+    if soc_t is not None:
+        w.append(float(soc_t))
+    elif w:
+        # A missing reading ages the window instead of freezing it: N silent polls empty
+        # it, so a sensor that died right after a hot streak cannot hold a job until
+        # SIGTERM on the strength of history alone.
+        del w[0]
+    del w[:-n]
+
+
+def chip_window_median(st):
+    """Return the median of the resume window, or None while it is empty."""
+    w = sorted(st.get("_chip_window") or [])
+    if not w:
+        return None
+    mid = len(w) // 2
+    return w[mid] if len(w) % 2 else (w[mid - 1] + w[mid]) / 2.0
+
+
+def repause_hold_s(cfg, st, key):
+    """Return how long THIS pause must hold, doubling on every re-pause inside the window.
+
+    Returns (seconds, flap_count). flap_count is 0 for a first pause or one after a quiet
+    window, so the caller can stay silent then and speak only when flapping is real.
+    """
+    base = max(0, int(cfg.get("min_pause_seconds", 60)))
+    window = max(0, int(cfg.get("repause_window_s", 300)))
+    cap = max(base, int(cfg.get("repause_backoff_max_s", 600)))
+    last = (st.get("_last_resume") or {}).get(key)
+    if not last or window <= 0:
+        return base, 0
+    age = now() - last.get("at", 0)
+    # A clock stepped backwards makes `age` negative; that is not "inside the window",
+    # it is "unknown", and unknown means a fresh start, never an inherited hold.
+    if age < 0 or age > window:
+        return base, 0
+    # A pid is not an identity: macOS can hand it to a new process inside the window.
+    # Compare the process start time remembered at resume with the one seen now.
+    born = proc_start_epoch(int(key))
+    if born and last.get("born") and abs(born - last["born"]) > 5:
+        return base, 0
+    hold = min(cap, max(base, int(last.get("hold", base)) * 2))
+    return hold, int(last.get("flaps", 0)) + 1
+
+
+def proc_start_epoch(pid):
+    """Return the approximate start time of a process as epoch seconds, or 0 if unknown."""
+    age = proc_age_seconds(pid)
+    return int(now() - age) if age else 0
 
 
 def entry_stopped(key, info, pids, groups):
@@ -2140,6 +2226,14 @@ def load_state():
                 d["demoted"] = []
             if not isinstance(d.get("demoted_info"), dict):
                 d["demoted_info"] = {}
+            # The resume window is a per-run measurement: readings from before a restart
+            # would hold the gate for nothing. Flap memory, by contrast, is wall-clock and
+            # deliberately survives a restart (a kickstart must not reset the backoff).
+            d.pop("_chip_window", None)
+            if not isinstance(d.get("_last_resume"), dict):
+                d["_last_resume"] = {}
+            d["_last_resume"] = {k: v for k, v in d["_last_resume"].items()
+                                 if isinstance(v, dict)}
             return d
     except Exception as e:
         silent_failure("load_state", e)
@@ -2245,15 +2339,27 @@ def do_pause(cfg, st, targets, reason, manual=False, critical_level=False,
         # Structural flag, not string sniffing: the reason text is translated,
         # and on a RU/ZH/ES machine a battery pause carried no "batt" substring,
         # so it was classified as thermal and lost the AC-resume gate.
+        # Backoff is for the thermal regulator only: a manual freeze is a human's decision
+        # and a battery pause waits for a charger, neither is flapping.
+        if manual or battery_reason:
+            hold_s, flaps = max(0, int(cfg.get("min_pause_seconds", 60))), 0
+        else:
+            hold_s, flaps = repause_hold_s(cfg, st, key)
         st["paused"][key] = {"since": now(), "since_mono": time.monotonic(),
                              "mono_id": _MONO_ID,
                              "powod": "bateria" if battery_reason else "termika",
-                             "comm": comm, "pgid": pgid, "cpu": cpu, "manual": manual}
+                             "comm": comm, "pgid": pgid, "cpu": cpu, "manual": manual,
+                             "hold_s": hold_s, "flaps": flaps}
         save_state(st)
         error = sig(pid, pgid, signal.SIGSTOP)
         if error == 0:
             changed = True
             log(T("PAUSED %s (pid %d, %.0f%% CPU) - %s") % (comm, pid, cpu, reason), tag="PAUSE")
+            if flaps:
+                # Said once per re-pause, with the count: 300 identical PAUSE lines hide
+                # the story, one line with "5th time" tells it.
+                log(T("flapping: %s paused again %d time(s) in a row - holding at least %d s this time")
+                    % (comm, flaps, hold_s))
             event_jsonl("pause_start", name=comm, pid=pid, pgid=pgid,
                         reason_code=st["paused"][key]["powod"], cpu_pct=round(cpu),
                         manual=manual or None)
@@ -2309,6 +2415,14 @@ def do_resume(cfg, st, reason, only_keys=None, after_cooling=False):
             status = run(["ps", "-o", "stat=", "-p", str(pid)]).strip()
             if error == 0 and not status.startswith("T"):
                 log(T("RESUMED %s (pid %d) - %s") % (info.get("comm", "?"), pid, reason), tag="RESUME")
+                # Memory for flap damping: only an automatic resume after cooling of an
+                # automatic thermal pause. Manual resumes, startup and shutdown are not
+                # the regulator oscillating.
+                if after_cooling and not info.get("manual") and info.get("powod") != "bateria":
+                    st.setdefault("_last_resume", {})[key] = {
+                        "at": now(), "born": proc_start_epoch(pid),
+                        "hold": info.get("hold_s", cfg.get("min_pause_seconds", 60)),
+                        "flaps": info.get("flaps", 0)}
                 event_jsonl("pause_end", name=info.get("comm"), pid=pid,
                             pause_s=round(_pause_age(info)))
                 # The stats window says "resumed AFTER COOLING", so manual resume, startup,
@@ -2825,6 +2939,44 @@ _HOOK_WRAPPERS = frozenset(("nice", "env", "taskpolicy", "caffeinate", "timeout"
                             "time", "command", "exec", "nohup", "stdbuf", "arch"))
 
 
+_HEREDOC_RE = re.compile(r"(?<![<>])<<(-?)\s*(?:'([^']+)'|\"([^\"]+)\"|\\([^\s]+)|([A-Za-z0-9_.-]+))")
+
+
+def _strip_heredocs(cmd):
+    """Drop heredoc bodies from a command, keeping anything a shell would still execute.
+
+    A QUOTED tag (<<'EOF', <<"EOF", <<\\EOF) makes the body pure data: dropped whole. An
+    unquoted tag leaves `$(...)` and backticks live inside the body, so those lines stay
+    and go through the normal segment split. Several heredocs on one line are consumed
+    in order. An unterminated heredoc is a shell error, not a command: nothing is dropped,
+    so a `<<EOF` hiding inside a string cannot swallow the real commands after it.
+    `<<<` (here-string) is not matched.
+    """
+    lines = cmd.split("\n")
+    out = []
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        out.append(line)
+        i += 1
+        for m in _HEREDOC_RE.finditer(line):
+            dash = m.group(1) == "-"
+            quoted = m.group(2) is not None or m.group(3) is not None or m.group(4) is not None
+            tag = m.group(2) or m.group(3) or m.group(4) or m.group(5)
+            j = i
+            while j < len(lines):
+                probe = lines[j].lstrip("\t") if dash else lines[j]
+                if probe == tag:
+                    break
+                j += 1
+            if j >= len(lines):
+                return "\n".join(out + lines[i:])     # unterminated: keep the rest
+            if not quoted:
+                out.extend(b for b in lines[i:j] if "$(" in b or "`" in b)
+            i = j + 1
+    return "\n".join(out)
+
+
 def _hook_command_hit(cmd, patterns):
     """Return the heavy pattern a shell command would EXECUTE bare, or None.
 
@@ -2838,6 +2990,10 @@ def _hook_command_hit(cmd, patterns):
     tool followed by a version/help flag is a question, not work.
     """
     import shlex
+    # A heredoc body is data, not commands: `cat > run.sh <<'EOF'` followed by a line
+    # starting with ffmpeg writes a file. Splitting on newlines made each body line a
+    # segment and blocked the write (4 false blocks in one session, 19.08).
+    cmd = _strip_heredocs(cmd)
     for segment in re.split(r"[;|&\n`]+|\$\(", cmd):
         try:
             tokens = shlex.split(segment)
@@ -4433,6 +4589,11 @@ def main():
                     del st["paused"][_k]
                 # Compute the flag from data instead of storing it separately; it cannot drift.
                 st["reczna_pauza"] = any(v.get("manual") for v in st["paused"].values())
+                # Flap memory outlives its window by nothing: a quiet window means a fresh start.
+                _rw = max(0, int(cfg.get("repause_window_s", 300)))
+                for _k in [k for k, v in (st.get("_last_resume") or {}).items()
+                           if now() - v.get("at", 0) > _rw]:
+                    del st["_last_resume"][_k]
 
                 # Minimum pause time. Without this, the system-state trigger, which has no
                 # hysteresis, oscillates: pause -> 15 s -> "conditions normal" -> pause
@@ -4445,7 +4606,7 @@ def main():
                 # cyclically and the oldest pause could wait until SIGTERM. Manual menu-bar
                 # freezes have priority and are not touched.
                 ready_keys = [k for k, v in st["paused"].items()
-                          if _pause_age(v) >= min_p and not v.get("manual")
+                          if _pause_age(v) >= max(min_p, v.get("hold_s", 0)) and not v.get("manual")
                           and (powered or v.get("powod") != "bateria")]
                 if ready_keys and cool:
                     do_resume(cfg, st, T("conditions are back to normal"), only_keys=ready_keys,

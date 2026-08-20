@@ -16,7 +16,7 @@
 
 import Cocoa
 
-let VERSION = "3.2.4"
+let VERSION = "3.2.5"
 let APPNAME = "coffee-paladin"
 let CODENAME = "Cold Brew"
 let SIGNATURE = "\(APPNAME) v\(VERSION) \u{201E}\(CODENAME)\u{201D}  ·  by panbookovsky"

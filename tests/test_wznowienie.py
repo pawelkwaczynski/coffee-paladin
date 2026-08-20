@@ -161,6 +161,9 @@ test("chip 94 C blocks resume even when pause was caused by system state",
      "chip latch would let this through - hence the strict threshold")
 test("chip 88 C still blocks (chip hysteresis untouched)",
      g.resume_gate(CFG, st, 30.0, 88.0, "nominal") is False)
+# Since 3.2.5 the gate also holds on the MEDIAN of the last readings (94, 88 above are
+# still in the window); clear it, this case is about the single-reading threshold.
+st.pop("_chip_window", None)
 test("chip 71.2 C with cool battery - RESUME",
      g.resume_gate(CFG, st, 30.0, 71.2, "nominal") is True)
 test("missing chip sensor does not block resume",
