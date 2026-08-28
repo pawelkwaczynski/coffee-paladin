@@ -16,7 +16,7 @@
 
 import Cocoa
 
-let VERSION = "3.3.0"
+let VERSION = "3.3.1"
 let APPNAME = "coffee-paladin"
 let CODENAME = "Cold Brew"
 let SIGNATURE = "\(APPNAME) v\(VERSION) \u{201E}\(CODENAME)\u{201D}  ·  by panbookovsky"
@@ -256,7 +256,7 @@ let PL: [String: String] = [
         "Wpisz sekretną nazwę tematu. Zainstaluj na telefonie aplikację ntfy i zasubskrybuj ten sam temat — pauzy, ubicia i alarmy przyjdą jako push. Puste pole wyłącza.",
     "The topic name is the ONLY protection: anyone who knows or guesses it can read your alerts and send fake ones. Click Generate for a random unguessable name. On your phone install the ntfy.sh app (from ntfy.sh - mind the lookalike apps) and subscribe to the same topic. Leave empty to disable.":
         "Nazwa tematu to JEDYNE zabezpieczenie: kto ją zna lub zgadnie, widzi Twoje alerty i może wysyłać fałszywe. Kliknij Wygeneruj, aby dostać losową, niezgadywalną nazwę. Na telefonie zainstaluj aplikację ntfy.sh (ze strony ntfy.sh - uwaga na podobne apki) i zasubskrybuj ten sam temat. Puste pole wyłącza.",
-    "A project by the founder of the AIrON student research club.": "Projekt założyciela koła naukowego AHE w Łodzi",
+    "A project by the founder of the AIRON computer science research club | AHE Łódź": "Projekt założyciela koła naukowego informatyki  AIRON | AHE Łódź",
     "Generate": "Wygeneruj",
     "Model:  %@": "Model:  %@",
     "Chip:  %@": "Chip:  %@",
@@ -626,7 +626,7 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
         "Введите секретное имя темы. Установите приложение ntfy на телефон и подпишитесь на ту же тему - паузы, завершения и тревоги придут как push. Пустое поле отключает.",
     "The topic name is the ONLY protection: anyone who knows or guesses it can read your alerts and send fake ones. Click Generate for a random unguessable name. On your phone install the ntfy.sh app (from ntfy.sh - mind the lookalike apps) and subscribe to the same topic. Leave empty to disable.":
         "Имя темы - ЕДИНСТВЕННАЯ защита: кто его знает или угадает, видит ваши оповещения и может слать поддельные. Нажмите «Сгенерировать», чтобы получить случайное имя. Установите на телефон приложение ntfy.sh (с сайта ntfy.sh - остерегайтесь похожих приложений) и подпишитесь на ту же тему. Пустое поле отключает.",
-    "A project by the founder of the AIrON student research club.": "Проект основателя научного кружка AIrON (AHE, Лодзь)",
+    "A project by the founder of the AIRON computer science research club | AHE Łódź": "Проект основателя научного кружка информатики  AIRON | AHE Лодзь",
     "Generate": "Сгенерировать",
     "Model:  %@": "Модель:  %@",
     "Chip:  %@": "Чип:  %@",
@@ -932,7 +932,7 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
         "输入一个保密的主题名。在手机上安装 ntfy 应用并订阅同一主题 - 暂停、终止和警报会以推送形式送达。留空则禁用。",
     "The topic name is the ONLY protection: anyone who knows or guesses it can read your alerts and send fake ones. Click Generate for a random unguessable name. On your phone install the ntfy.sh app (from ntfy.sh - mind the lookalike apps) and subscribe to the same topic. Leave empty to disable.":
         "主题名是唯一的保护:知道或猜到它的人都能看到你的警报并发送伪造消息。点击「生成」获取随机且难以猜测的名称。在手机上安装 ntfy.sh 应用(来自 ntfy.sh, 谨防仿冒应用)并订阅同一主题。留空则禁用。",
-    "A project by the founder of the AIrON student research club.": "AIrON 学生科研社团创始人的项目(罗兹 AHE)",
+    "A project by the founder of the AIRON computer science research club | AHE Łódź": "计算机科学科研社团  AIRON 创始人的项目 | 罗兹 AHE",
     "Generate": "生成",
     "Model:  %@": "型号:  %@",
     "Chip:  %@": "芯片:  %@",
@@ -1240,7 +1240,7 @@ Vuelve a activarlo cuando termines.
         "Escribe un nombre de tema secreto. Instala la app ntfy en el teléfono y suscríbete al mismo tema: pausas, terminaciones y alarmas llegarán como push. Vacío = desactivado.",
     "The topic name is the ONLY protection: anyone who knows or guesses it can read your alerts and send fake ones. Click Generate for a random unguessable name. On your phone install the ntfy.sh app (from ntfy.sh - mind the lookalike apps) and subscribe to the same topic. Leave empty to disable.":
         "El nombre del tema es la ÚNICA protección: quien lo conozca o adivine verá tus alertas y podrá enviar falsas. Pulsa Generar para obtener un nombre aleatorio. Instala en el teléfono la app ntfy.sh (de ntfy.sh, cuidado con las imitaciones) y suscríbete al mismo tema. Vacío = desactivado.",
-    "A project by the founder of the AIrON student research club.": "Proyecto del fundador del club científico AIrON (AHE, Łódź)",
+    "A project by the founder of the AIRON computer science research club | AHE Łódź": "Proyecto del fundador del club de informática  AIRON | AHE Łódź",
     "Generate": "Generar",
     "Model:  %@": "Modelo:  %@",
     "Chip:  %@": "Chip:  %@",
@@ -1808,7 +1808,7 @@ final class HeaderRow: NSView {
         addSubview(motto)
         centeredLabels.append(motto)
 
-        let name = NSTextField(labelWithString: T("A project by the founder of the AIrON student research club."))
+        let name = NSTextField(labelWithString: T("A project by the founder of the AIRON computer science research club | AHE Łódź"))
         name.font = .systemFont(ofSize: 11)
         name.textColor = .secondaryLabelColor
         name.alignment = .center
