@@ -124,12 +124,17 @@ let PL: [String: String] = [
         "Twój Mac grzeje się przy AI i renderach? coffee-paladin pilnuje temperatur (i poziomu) baterii, chipa (CPU) oraz GPU. Pauzuje ciężkie zadania kiedy system ulega przegrzaniu i sam je wznawia, gdy temperatura spadnie, abyś Ty mógł spać spokojnie (dosłownie!). Open source, za darmo, dla Ciebie:",
     "Settings": "Ustawienia",
     "Chip pause threshold": "Wstrzymuj zadania powyżej",
-    "careful - under ordinary heavy work the chip already sits here, so long jobs will be paused often": "ostrożnie - przy zwykłej ciężkiej pracy chip już tu siedzi, więc długie zadania będą często wstrzymywane",
-    "recommended - the pause comes well before the chip's own limiter": "zalecane - pauza przychodzi na długo przed własnym ogranicznikiem chipa",
-    "late - a job will run hot for a while before anything happens": "późno - zadanie pogrzeje przez chwilę, zanim cokolwiek się stanie",
-    "almost never - the reading rarely goes higher than this, so the pause may not come at all": "prawie nigdy - odczyt rzadko bywa wyższy, więc pauza może w ogóle nie przyjść",
     "no limit: a job may use the whole machine": "bez limitu: zadanie może zająć całą maszynę",
     "about %d of %d cores; the job gets tiny micro-pauses (works for any program)": "około %d z %d rdzeni; zadanie dostaje malutkie mikropauzy (działa dla każdego programu)",
+    "resume at %.0f °C, terminate at %.0f °C": "wznowienie przy %.0f °C, zamkniecie przy %.0f °C",
+    "continuous watch - the guard itself burns several percent of one core, all day": "ciagly nadzor - straznik sam zjada kilka procent rdzenia, caly czas",
+    "fastest sensible reaction - about 3.5% of one core": "najszybsza sensowna reakcja - okolo 3,5% rdzenia",
+    "default: good reaction at about 1.2% of one core": "domyslnie: dobra reakcja przy okolo 1,2% rdzenia",
+    "very frugal - between two readings a job can go from warm to the kill threshold unnoticed": "bardzo oszczednie - miedzy dwoma odczytami zadanie moze przejsc od ciepla do progu ubicia niezauwazone",
+    "early - the pause comes during ordinary heavy work, about a third of the time": "wczesnie - pauza przychodzi przy zwyklej ciezkiej pracy, mniej wiecej co trzeci odczyt",
+    "balanced - the pause comes when the chip is genuinely hot, well before it is dangerous": "wywazone - pauza przychodzi, gdy chip jest naprawde goracy, na dlugo przed granica ryzyka",
+    "very late - roughly one reading in fifty gets this high, so the pause will be rare": "bardzo pozno - mniej wiecej jeden odczyt na piecdziesiat siega tak wysoko, wiec pauza bedzie rzadka",
+    "effectively off - this Mac has never reported a temperature this high, so the pause may never come": "praktycznie wylaczone - ten Mac nigdy nie pokazal tak wysokiej temperatury, wiec pauza moze nie przyjsc nigdy",
     "Battery gate": "Wstrzymuj na baterii poniżej",
     "pause below this charge when unplugged": "bez zasilacza ciężkie zadania poczekają na ładowarkę",
     "Notifications": "Powiadomienia",
@@ -236,12 +241,6 @@ let PL: [String: String] = [
         "Wyjątek: baner krytyczny krzyczy niezależnie.",
     "It is the ‹Thermal protection› switch: OFF = watch-only.":
         "To stan przełącznika ‹Ochrona termiczna›: wyłączony = tylko obserwacja.",
-    "fastest reaction - the guard itself burns ~3.5% of one core all the time":
-        "najszybsza reakcja, ale strażnik sam pali ~3,5% jednego rdzenia bez przerwy",
-    "reacts up to 5 s sooner than default, costs ~1.8% of one core":
-        "reaguje do 5 s szybciej niż domyślnie, kosztuje ~1,8% jednego rdzenia",
-    "default: good reaction at ~1.2% of one core":
-        "domyślnie: dobra reakcja przy ~1,2% jednego rdzenia",
     "frugal - an automatic pause may come tens of seconds after the threshold":
         "oszczędnie, ale automatyczna pauza może przyjść kilkadziesiąt sekund po progu",
     "Heavy jobs (safe-run)": "Ciężkie zadania (safe-run)",
@@ -301,7 +300,6 @@ let PL: [String: String] = [
     "until %@": "do %@",
     "Extend by %d min": "Przedłuż o %d min",
     "Right now: NOT keeping the Mac awake": "Teraz: czuwanie nietrzymane",
-    "resume at %.0f °C, terminate at %.0f C": "wznowienie przy %.0f °C, ubicie przy %.0f °C",
     "no fans (fanless Mac)": "brak wentylatorów (Mac bez wentylatorów)",
     "What does watch-only mode do?": "Co daje tryb „tylko obserwuj”?",
     "Report a problem (GitHub)…": "Zgłoś problem lub pomysł (GitHub)...",
@@ -461,17 +459,21 @@ let RU: [String: String] = [
         "Ваш Mac греется под ИИ и рендерами? coffee-paladin следит за батареей (температура и заряд), чипом (CPU) и GPU. Он ставит тяжёлые задачи на паузу при перегреве и сам возобновляет их, когда температура падает, чтобы вы могли спать спокойно (буквально!). Open source, бесплатно, для вас:",
     "Settings": "Настройки",
     "Chip pause threshold": "Пауза при температуре чипа выше",
-    "careful - under ordinary heavy work the chip already sits here, so long jobs will be paused often": "осторожно - при обычной тяжёлой работе чип уже здесь, поэтому длинные задачи будут часто останавливаться",
-    "recommended - the pause comes well before the chip's own limiter": "рекомендуется - пауза наступает задолго до собственного ограничителя чипа",
-    "late - a job will run hot for a while before anything happens": "поздно - задача какое-то время будет греться, прежде чем что-то произойдёт",
-    "almost never - the reading rarely goes higher than this, so the pause may not come at all": "почти никогда - показание редко бывает выше, так что паузы может не быть вовсе",
     "no limit: a job may use the whole machine": "без ограничения: задача может занять всю машину",
     "about %d of %d cores; the job gets tiny micro-pauses (works for any program)": "примерно %d из %d ядер; задача получает крошечные микропаузы (работает с любой программой)",
+    "resume at %.0f °C, terminate at %.0f °C": "возобновление при %.0f °C, завершение при %.0f °C",
+    "continuous watch - the guard itself burns several percent of one core, all day": "непрерывное наблюдение - страж сам съедает несколько процентов ядра, весь день",
+    "fastest sensible reaction - about 3.5% of one core": "самая быстрая разумная реакция - около 3,5% ядра",
+    "default: good reaction at about 1.2% of one core": "по умолчанию: хорошая реакция при около 1,2% ядра",
+    "very frugal - between two readings a job can go from warm to the kill threshold unnoticed": "очень экономно - между двумя отсчётами задача может пройти от тепла до порога завершения незамеченной",
+    "early - the pause comes during ordinary heavy work, about a third of the time": "рано - пауза приходит при обычной тяжёлой работе, примерно каждый третий отсчёт",
+    "balanced - the pause comes when the chip is genuinely hot, well before it is dangerous": "сбалансированно - пауза приходит, когда чип действительно горячий, задолго до опасности",
+    "very late - roughly one reading in fifty gets this high, so the pause will be rare": "очень поздно - примерно один отсчёт из пятидесяти доходит сюда, так что пауза будет редкой",
+    "effectively off - this Mac has never reported a temperature this high, so the pause may never come": "фактически выключено - этот Mac никогда не показывал такую температуру, пауза может не прийти никогда",
     "Battery gate": "Пауза при заряде ниже",
     "pause below this charge when unplugged": "без адаптера тяжёлые задачи подождут зарядку",
     "Notifications": "Уведомления",
     "Watch only, never touch processes (dry run)": "Только наблюдать, не трогать процессы (dry run)",
-    "resume at %.0f °C, terminate at %.0f C": "возобновление при %.0f C, завершение при %.0f C",
     "What does watch-only mode do?": "Что делает режим наблюдения?",
     "Report a problem (GitHub)…": "Сообщить о проблеме (GitHub)...",
     "Write to the author (GitHub)…": "Написать автору (GitHub)...",
@@ -608,12 +610,6 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
         "Исключение: критический баннер кричит независимо.",
     "It is the ‹Thermal protection› switch: OFF = watch-only.":
         "Это состояние переключателя ‹Тепловая защита›: выключен = только наблюдение.",
-    "fastest reaction - the guard itself burns ~3.5% of one core all the time":
-        "самая быстрая реакция, но страж сам жжёт ~3,5% ядра постоянно",
-    "reacts up to 5 s sooner than default, costs ~1.8% of one core":
-        "реагирует до 5 с быстрее, стоит ~1,8% ядра",
-    "default: good reaction at ~1.2% of one core":
-        "по умолчанию: хорошая реакция при ~1,2% ядра",
     "frugal - an automatic pause may come tens of seconds after the threshold":
         "экономно, но автопауза может прийти через десятки секунд после порога",
     "Heavy jobs (safe-run)": "Тяжёлые задачи (safe-run)",
@@ -770,17 +766,21 @@ let ZH: [String: String] = [
         "你的 Mac 在 AI 任务和渲染时发热?coffee-paladin 监控电池(温度和电量)、芯片(CPU)和 GPU。系统过热时自动暂停繁重任务,温度下降后自动恢复,让你安心入睡(字面意义上!)。开源免费,为你而做:",
     "Settings": "设置",
     "Chip pause threshold": "芯片温度高于此值时暂停",
-    "careful - under ordinary heavy work the chip already sits here, so long jobs will be paused often": "谨慎 - 普通重负载时芯片就在这个温度,长任务会被频繁暂停",
-    "recommended - the pause comes well before the chip's own limiter": "推荐 - 暂停远早于芯片自身的限频",
-    "late - a job will run hot for a while before anything happens": "偏晚 - 任务会先热上一阵子才有动作",
-    "almost never - the reading rarely goes higher than this, so the pause may not come at all": "几乎不会触发 - 读数很少更高,暂停可能根本不来",
     "no limit: a job may use the whole machine": "不限制:任务可以占用整台机器",
     "about %d of %d cores; the job gets tiny micro-pauses (works for any program)": "约 %d 个核心(共 %d 个);任务会得到极短的微暂停(适用于任何程序)",
+    "resume at %.0f °C, terminate at %.0f °C": "%.0f °C 时恢复,%.0f °C 时关闭",
+    "continuous watch - the guard itself burns several percent of one core, all day": "持续监视 - 守卫自身全天占用一个核心的百分之几",
+    "fastest sensible reaction - about 3.5% of one core": "最快的合理反应 - 约一个核心的 3.5%",
+    "default: good reaction at about 1.2% of one core": "默认:反应良好,约一个核心的 1.2%",
+    "very frugal - between two readings a job can go from warm to the kill threshold unnoticed": "非常省电 - 两次读数之间,任务可能从温热直冲终止阈值而不被发现",
+    "early - the pause comes during ordinary heavy work, about a third of the time": "偏早:在普通重负载时就会暂停,约三分之一的读数",
+    "balanced - the pause comes when the chip is genuinely hot, well before it is dangerous": "均衡:芯片真正变热时才暂停,远早于危险区",
+    "very late - roughly one reading in fifty gets this high, so the pause will be rare": "很晚:大约每五十个读数才有一个到这么高,暂停会很罕见",
+    "effectively off - this Mac has never reported a temperature this high, so the pause may never come": "等于关闭:这台 Mac 从未报告过这么高的温度,暂停可能永远不会发生",
     "Battery gate": "电量低于此值时暂停",
     "pause below this charge when unplugged": "未接电源时，繁重任务将等待充电",
     "Notifications": "通知",
     "Watch only, never touch processes (dry run)": "仅观察，不干预进程（dry run）",
-    "resume at %.0f °C, terminate at %.0f C": "%.0f C 时恢复，%.0f C 时终止",
     "What does watch-only mode do?": "「仅观察」模式是什么？",
     "Report a problem (GitHub)…": "报告问题（GitHub）...",
     "Write to the author (GitHub)…": "给作者写信(GitHub)...",
@@ -915,12 +915,6 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
         "例外:危险横幅无论如何都会警报。",
     "It is the ‹Thermal protection› switch: OFF = watch-only.":
         "即主开关‹过热保护›:关闭 = 仅观察。",
-    "fastest reaction - the guard itself burns ~3.5% of one core all the time":
-        "反应最快,但守卫自身持续占用约3.5%单核",
-    "reacts up to 5 s sooner than default, costs ~1.8% of one core":
-        "比默认快最多5秒,占用约1.8%单核",
-    "default: good reaction at ~1.2% of one core":
-        "默认:约1.2%单核,反应良好",
     "frugal - an automatic pause may come tens of seconds after the threshold":
         "省电,但自动暂停可能在超过阈值后数十秒才触发",
     "Heavy jobs (safe-run)": "繁重任务(safe-run)",
@@ -1077,17 +1071,21 @@ let ES: [String: String] = [
         "¿Tu Mac se calienta con IA y renders? coffee-paladin vigila la batería (temperatura y carga), el chip (CPU) y la GPU. Pausa las tareas pesadas cuando el sistema se sobrecalienta y las reanuda solo cuando baja la temperatura, para que puedas dormir tranquilo (¡literalmente!). Open source, gratis, para ti:",
     "Settings": "Ajustes",
     "Chip pause threshold": "Pausar por encima de",
-    "careful - under ordinary heavy work the chip already sits here, so long jobs will be paused often": "con cuidado - con trabajo pesado normal el chip ya está aquí, así que los trabajos largos se pausarán a menudo",
-    "recommended - the pause comes well before the chip's own limiter": "recomendado - la pausa llega mucho antes del limitador propio del chip",
-    "late - a job will run hot for a while before anything happens": "tarde - el trabajo estará caliente un rato antes de que pase algo",
-    "almost never - the reading rarely goes higher than this, so the pause may not come at all": "casi nunca - la lectura rara vez sube más, así que la pausa puede no llegar",
     "no limit: a job may use the whole machine": "sin límite: el trabajo puede usar toda la máquina",
     "about %d of %d cores; the job gets tiny micro-pauses (works for any program)": "unos %d de %d núcleos; el trabajo recibe micropausas diminutas (funciona con cualquier programa)",
+    "resume at %.0f °C, terminate at %.0f °C": "reanudar a %.0f °C, cerrar a %.0f °C",
+    "continuous watch - the guard itself burns several percent of one core, all day": "vigilancia continua - el paladín consume varios por ciento de un núcleo, todo el día",
+    "fastest sensible reaction - about 3.5% of one core": "la reacción rápida más sensata - cerca del 3,5% de un núcleo",
+    "default: good reaction at about 1.2% of one core": "por defecto: buena reacción con cerca del 1,2% de un núcleo",
+    "very frugal - between two readings a job can go from warm to the kill threshold unnoticed": "muy frugal - entre dos lecturas un trabajo puede pasar de templado al umbral de cierre sin que se note",
+    "early - the pause comes during ordinary heavy work, about a third of the time": "pronto - la pausa llega con trabajo pesado normal, alrededor de un tercio de las lecturas",
+    "balanced - the pause comes when the chip is genuinely hot, well before it is dangerous": "equilibrado - la pausa llega cuando el chip está realmente caliente, mucho antes del peligro",
+    "very late - roughly one reading in fifty gets this high, so the pause will be rare": "muy tarde - alrededor de una lectura de cada cincuenta llega tan alto, así que la pausa será rara",
+    "effectively off - this Mac has never reported a temperature this high, so the pause may never come": "prácticamente desactivado - este Mac nunca ha informado una temperatura así, la pausa puede no llegar nunca",
     "Battery gate": "Pausar con batería por debajo de",
     "pause below this charge when unplugged": "sin adaptador, las tareas pesadas esperarán al cargador",
     "Notifications": "Notificaciones",
     "Watch only, never touch processes (dry run)": "Solo observar, no tocar procesos (dry run)",
-    "resume at %.0f °C, terminate at %.0f C": "reanuda a %.0f C, termina a %.0f C",
     "What does watch-only mode do?": "¿Qué hace el modo de solo observación?",
     "Report a problem (GitHub)…": "Informar de un problema (GitHub)...",
     "Write to the author (GitHub)…": "Escribir al autor (GitHub)...",
@@ -1224,12 +1222,6 @@ Vuelve a activarlo cuando termines.
         "Excepción: el banner crítico grita igualmente.",
     "It is the ‹Thermal protection› switch: OFF = watch-only.":
         "Es el estado del interruptor ‹Protección térmica›: apagado = solo observación.",
-    "fastest reaction - the guard itself burns ~3.5% of one core all the time":
-        "reacción más rápida, pero el guardián quema ~3,5% de un núcleo sin parar",
-    "reacts up to 5 s sooner than default, costs ~1.8% of one core":
-        "reacciona hasta 5 s antes, cuesta ~1,8% de un núcleo",
-    "default: good reaction at ~1.2% of one core":
-        "por defecto: buena reacción con ~1,2% de un núcleo",
     "frugal - an automatic pause may come tens of seconds after the threshold":
         "ahorrador, pero la pausa automática puede llegar decenas de segundos tras el umbral",
     "Heavy jobs (safe-run)": "Tareas pesadas (safe-run)",
@@ -2388,11 +2380,15 @@ enum Autostart {
 /// sentences come from a month of readings on one Mac with fans: ordinary heavy work
 /// sits between 76 and 96, the CPU side of the reading saturates near 98 and the GPU
 /// side near 103. The bands below 70 are gone because the slider no longer goes there.
+/// What a given pause threshold means on a real machine. The numbers behind these
+/// sentences come from a month of readings on one Mac with fans: ordinary heavy work
+/// has its median at 88, a third of all readings pass 90, a tenth pass 98, and in
+/// thirty days nothing ever passed 102.8 - the reading saturates there.
 func thresholdWarning(_ v: Double) -> (String, String) {
-    if v < 78 { return (T("careful - under ordinary heavy work the chip already sits here, so long jobs will be paused often"), "lightbulb") }
-    if v <= 92 { return (T("recommended - the pause comes well before the chip's own limiter"), "checkmark.circle") }
-    if v <= 96 { return (T("late - a job will run hot for a while before anything happens"), "exclamationmark.triangle") }
-    return (T("almost never - the reading rarely goes higher than this, so the pause may not come at all"), "exclamationmark.triangle")
+    if v <= 92 { return (T("early - the pause comes during ordinary heavy work, about a third of the time"), "checkmark.circle") }
+    if v <= 99 { return (T("balanced - the pause comes when the chip is genuinely hot, well before it is dangerous"), "checkmark.circle") }
+    if v <= 102 { return (T("very late - roughly one reading in fifty gets this high, so the pause will be rare"), "exclamationmark.triangle") }
+    return (T("effectively off - this Mac has never reported a temperature this high, so the pause may never come"), "nosign")
 }
 
 /// Render a menu row with a slider.
@@ -2414,6 +2410,7 @@ final class SliderRow: NSView {
     private let derive: ((Double) -> String)?
 
     init(title: String, min: Double, max: Double, current: Double, unit: String, step: Double = 5,
+         ticks: Bool = true,
          describe: @escaping (Double) -> (String, String),
          derive: ((Double) -> String)? = nil,
          onChange: @escaping (Double) -> Void) {
@@ -2448,9 +2445,12 @@ final class SliderRow: NSView {
         slider.isContinuous = true
         // Ticks follow the step the caller asked for. Hardcoding 5 meant a range of
         // 70 to 98 got six ticks 5.6 degrees apart, so the number under the slider
-        // could never be the one the user aimed at.
-        slider.numberOfTickMarks = Int((max - min) / Swift.max(step, 1)) + 1
-        slider.allowsTickMarkValuesOnly = true
+        // could never be the one the user aimed at. A range too wide to draw them
+        // (one second to five minutes) asks for none and slides freely instead.
+        if ticks {
+            slider.numberOfTickMarks = Int((max - min) / Swift.max(step, 1)) + 1
+            slider.allowsTickMarkValuesOnly = true
+        }
         slider.target = self
         slider.action = #selector(moved)
         slider.frame = NSRect(x: 16, y: y, width: 368, height: 20)
@@ -4225,22 +4225,27 @@ final class Bar: NSObject, NSMenuDelegate {
             // reaches 70, so anything lower pauses on nothing. 98 at the top: the daemon
             // rewrites a pause threshold that reaches the kill threshold, and on this
             // machine the CPU side of the reading saturates near 98 anyway.
-            title: T("Chip pause threshold"), min: 70, max: 98, current: pauseNow, unit: "°C", step: 1,
+            // 90 at the bottom, because a month of readings on this machine puts the
+            // median of ordinary heavy work at 88: below 90 the guard would be pausing
+            // through normal work. 105 at the top so the scale reaches past what this
+            // Mac can show, with the caption saying plainly when that means "never".
+            title: T("Chip pause threshold"), min: 90, max: 105, current: pauseNow, unit: "°C", step: 1,
             describe: thresholdWarning,
-            derive: { v in String(format: T("resume at %.0f °C, terminate at %.0f C"),
-                                  v - 9, Swift.min(v + 5, 100)) }) { v in
-            // Keep derived values consistent: hysteresis 9 C down, kill 5 C up (max 100).
+            derive: { v in String(format: T("resume at %.0f °C, terminate at %.0f °C"),
+                                  v - 9, Swift.min(v + 5, 110)) }) { v in
+            // Keep derived values consistent: hysteresis 9 C down, kill 5 C up. The cap
+            // is the daemon's own upper bound (110), not 100: with the pause slider able
+            // to reach 105, a kill pinned at 100 would sit BELOW the pause and the
+            // daemon would rewrite the pause threshold on the next start.
             GuardCfg.set(["soc_pause_c": v,
                           "soc_resume_c": v - 9,
-                          "soc_kill_c": Swift.min(v + 5, 100)])
+                          "soc_kill_c": Swift.min(v + 5, 110)])
         }
         ss.addItem(chipRow)
         ss.addItem(.separator())
 
         let battRow = NSMenuItem()
-        // Above 30% "low battery" stops meaning low: the gate would pause long jobs on
-        // a battery that is a third full and wait for a charger that may not be near.
-        battRow.view = SliderRow(title: T("Battery gate"), min: 5, max: 30,
+        battRow.view = SliderRow(title: T("Battery gate"), min: 10, max: 50,
                                  current: GuardCfg.double("batt_pct_pause", 10), unit: "%",
                                  describe: { _ in (T("pause below this charge when unplugged"), "") }) { v in
             GuardCfg.set(["batt_pct_pause": Int(v), "batt_pct_resume": Int(v) + 15])
@@ -4253,14 +4258,18 @@ final class Bar: NSObject, NSMenuDelegate {
         // manual actions still react in ~1 s regardless.
         let pollRow = NSMenuItem()
         pollRow.view = SliderRow(
-            title: T("Measurement interval"), min: 5, max: 30,
-            current: GuardCfg.double("poll_seconds", 15), unit: " s",
+            // One second to five minutes, the daemon's own range. Below five seconds the
+            // guard is measuring almost continuously and pays for it in CPU; above a
+            // minute a job can go from warm to the threshold between two readings.
+            title: T("Measurement interval"), min: 1, max: 300,
+            current: GuardCfg.double("poll_seconds", 15), unit: " s", step: 1, ticks: false,
             describe: { v in
                 switch v {
-                case ..<7.5:  return (T("fastest reaction - the guard itself burns ~3.5% of one core all the time"), "")
-                case ..<12.5: return (T("reacts up to 5 s sooner than default, costs ~1.8% of one core"), "")
-                case ..<17.5: return (T("default: good reaction at ~1.2% of one core"), "")
-                default:      return (T("frugal - an automatic pause may come tens of seconds after the threshold"), "")
+                case ..<3:    return (T("continuous watch - the guard itself burns several percent of one core, all day"), "exclamationmark.triangle")
+                case ..<8:    return (T("fastest sensible reaction - about 3.5% of one core"), "")
+                case ..<20:   return (T("default: good reaction at about 1.2% of one core"), "checkmark.circle")
+                case ..<61:   return (T("frugal - an automatic pause may come tens of seconds after the threshold"), "")
+                default:      return (T("very frugal - between two readings a job can go from warm to the kill threshold unnoticed"), "exclamationmark.triangle")
                 }
             }) { v in
             GuardCfg.set(["poll_seconds": Int(v)])
