@@ -92,6 +92,8 @@ PL = {
     "%d rpm": "%d obr/min",
     "   fans: %s%s": "   wentylatory: %s%s",
     " (remembered)": " (zapamietany)",
+    "   (fans at rest while the chip is warm; on Apple silicon they spin up late)":
+        "   (wentylatory stoja przy cieplym chipie; na Apple silicon ruszaja z opoznieniem)",
     "   ⚠️ CHIP IS HOT BUT THE FANS ARE STOPPED - check the cooling!":
         "   ⚠️ CHIP GORACY, A WENTYLATORY STOJA - sprawdz chlodzenie!",
     "AC adapter": "zasilacz",
@@ -177,6 +179,7 @@ RU = {
     "%d rpm": "%d об/мин",
     "   fans: %s%s": "   вентиляторы: %s%s",
     " (remembered)": " (запомнено)",
+    "   (fans at rest while the chip is warm; on Apple silicon they spin up late)": "   (вентиляторы стоят при тёплом чипе; на Apple silicon они раскручиваются с задержкой)",
     "   ⚠️ CHIP IS HOT BUT THE FANS ARE STOPPED - check the cooling!":
         "   ⚠️ ЧИП ГОРЯЧИЙ, А ВЕНТИЛЯТОРЫ СТОЯТ - проверьте охлаждение!",
     "AC adapter": "адаптер питания",
@@ -262,6 +265,7 @@ ZH = {
     "%d rpm": "%d 转/分",
     "   fans: %s%s": "   风扇: %s%s",
     " (remembered)": "（记忆值）",
+    "   (fans at rest while the chip is warm; on Apple silicon they spin up late)": "   (芯片温热时风扇静止;在 Apple silicon 上风扇启动较晚)",
     "   ⚠️ CHIP IS HOT BUT THE FANS ARE STOPPED - check the cooling!":
         "   ⚠️ 芯片过热但风扇停转 - 请检查散热!",
     "AC adapter": "电源适配器",
@@ -347,6 +351,7 @@ ES = {
     "%d rpm": "%d rpm",
     "   fans: %s%s": "   ventiladores: %s%s",
     " (remembered)": " (recordado)",
+    "   (fans at rest while the chip is warm; on Apple silicon they spin up late)": "   (los ventiladores están parados con el chip templado; en Apple silicon arrancan tarde)",
     "   ⚠️ CHIP IS HOT BUT THE FANS ARE STOPPED - check the cooling!":
         "   ⚠️ CHIP CALIENTE CON VENTILADORES PARADOS - ¡revisa la refrigeración!",
     "AC adapter": "adaptador de corriente",
@@ -1207,8 +1212,21 @@ def main():
     if fans:
         description = ", ".join(T("stopped") if f == 0 else T("%d rpm") % f for f in fans)
         warning = ""
+        # Fans on Apple silicon idle at zero and spin up with a delay: every cooling
+        # alarm this machine ever recorded turned out to be that delay, with 2500 rpm
+        # arriving between fourteen seconds and three minutes later. One reading is
+        # not evidence of a fault, so the accusation is only repeated here when the
+        # daemon has watched the condition hold (it writes how long into state.json).
         if chip and chip >= 75.0 and max(fans) == 0 and not chip_stale:
-            warning = T("   ⚠️ CHIP IS HOT BUT THE FANS ARE STOPPED - check the cooling!")
+            held = 0
+            try:
+                with open(STATE) as _f:
+                    held = int(json.load(_f).get("_fan_zero_held_s") or 0)
+            except Exception:
+                held = 0
+            warning = (T("   ⚠️ CHIP IS HOT BUT THE FANS ARE STOPPED - check the cooling!")
+                       if held >= 300
+                       else T("   (fans at rest while the chip is warm; on Apple silicon they spin up late)"))
         print(T("   fans: %s%s") % (description, warning))
 
     if snap:
