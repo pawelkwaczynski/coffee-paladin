@@ -1189,8 +1189,8 @@ and in the `heat --paladin` easter egg - is **the author's own design** and is u
 as the official mascot of the project. Everything else in `branding/` is derived from those two
 source files; details in [`branding/CREDITS.md`](branding/CREDITS.md).
 
-Built by Paweł Kwaczyński / FOCUS FRAME, 2026. Developed also as a project of **AIrON** -
-the student research club for computer science at AHE in Łódź (SKN Informatyki AHE w Łodzi).
+Built by Paweł Kwaczyński / FOCUS FRAME, 2026. A project by the founder of **AIrON**, the
+student research club for computer science at AHE in Łódź (SKN Informatyki AHE w Łodzi).
 
 ---
 
@@ -1936,5 +1936,5 @@ MIT. Rób z tym co chcesz. Jeśli uratuje Ci komputer, to wystarczająca satysfa
 maskotka projektu. Reszta plików w `branding/` to pochodne tych dwóch źródeł; szczegóły
 w [`branding/CREDITS.md`](branding/CREDITS.md).
 
-Autor: Paweł Kwaczyński / FOCUS FRAME, 2026. Projekt rozwijany także w ramach koła naukowego
-**AIrON** (SKN Informatyki AHE w Łodzi).
+Autor: Paweł Kwaczyński / FOCUS FRAME, 2026. Projekt założyciela koła naukowego **AIrON**
+(SKN Informatyki AHE w Łodzi).

@@ -3032,6 +3032,62 @@ def handle_command(cfg, st, targets):
         do_resume(cfg, st, T("manual resume (from the menu bar)"))
 
 
+_CHIP_PROFILE = {"at": 0.0, "data": None}
+
+
+def chip_profile(max_age_s=3600):
+    """What temperatures THIS Mac actually reaches, from its own history.
+
+    Every sentence the settings panel says about a threshold ("the pause will be
+    rare", "this reading never happens here") has to come from the machine in
+    front of the user. A fanless Air, an M1 and an M4 Pro saturate at different
+    numbers, and macmon's average is not a calibrated temperature, so a table
+    written from one laptop would be wrong everywhere else.
+
+    Returns a dict with the sample count, the maximum and the share of readings
+    at or above each candidate threshold, or None when there is not enough
+    history to say anything honest. Recomputed at most once an hour: the file
+    holds thousands of rows and nothing here changes minute to minute.
+    """
+    now_t = now()
+    if _CHIP_PROFILE["data"] is not None and now_t - _CHIP_PROFILE["at"] < max_age_s:
+        return _CHIP_PROFILE["data"]
+    vals = []
+    try:
+        with open(HIST_PATH, encoding="utf-8", errors="replace") as f:
+            next(f, None)
+            for line in f:
+                cols = line.split(",")
+                if len(cols) < 3:
+                    continue
+                try:
+                    v = float(cols[2])
+                except ValueError:
+                    continue
+                # Same physical bound as the report: a truncated row after a power
+                # loss must not become this Mac's "maximum".
+                if 0.0 < v <= 110.0:
+                    vals.append(v)
+    except (OSError, StopIteration):
+        vals = []
+    profile = None
+    if len(vals) >= 200:
+        vals.sort()
+        n = float(len(vals))
+        profile = {
+            "samples": len(vals),
+            "max": round(vals[-1], 1),
+            "p50": round(vals[len(vals) // 2], 1),
+            "p90": round(vals[int(len(vals) * 0.9)], 1),
+            "p99": round(vals[int(len(vals) * 0.99)], 1),
+            # Share of readings at or above each threshold the slider can be set to.
+            "above": {str(t): round(100.0 * sum(1 for v in vals if v >= t) / n, 1)
+                      for t in range(80, 111, 1)},
+        }
+    _CHIP_PROFILE["at"], _CHIP_PROFILE["data"] = now_t, profile
+    return profile
+
+
 def day_stats():
     """Return how many times guard intervened today for menu-bar display."""
     today = time.strftime("%Y-%m-%d")
@@ -4148,6 +4204,9 @@ def status_write(state, temp, soc, soc_t, ac, pct, speed, load, lvl, why, target
         # Otherwise waiting targets a threshold nobody enforces.
         "thresholds": {"pause": st.get("_prog_pauza"), "resume": st.get("_prog_wznowienia"),
                        "kill": st.get("_prog_ubicie")},
+        # What this particular Mac has ever reached, so the settings panel can describe
+        # a threshold with this machine's numbers instead of somebody else's.
+        "chip_profile": chip_profile(),
         # False means no chip sensor (macmon). The menu bar, fleet, and agents must know,
         # because protection then rests only on the battery, which reacts minutes later.
         "chip_sensor": soc is not None,

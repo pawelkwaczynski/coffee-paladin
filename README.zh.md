@@ -311,8 +311,8 @@ coffee-paladin panel           # 绕过菜单栏直接打开窗口
 
 MIT。随便用。如果它救了你的机器，那就够了。
 
-作者：Paweł Kwaczyński / FOCUS FRAME，2026。本项目同时是罗兹 AHE
-计算机科学学生科研社团 **AIrON** 的项目。
+作者：Paweł Kwaczyński / FOCUS FRAME，2026。本项目由罗兹 AHE 计算机科学学生科研社团
+**AIrON** 的创始人开发。
 Swift 部分由 **Claude（Anthropic）** 在 Claude Code 中编写，
 **Codex（OpenAI，GPT-5.5）** 担任对抗性评审，另有两个本地模型
 （MLX 上的 Devstral 24B 与 Ollama 上的 qwen3:4b）参与复核。

@@ -131,10 +131,11 @@ let PL: [String: String] = [
     "fastest sensible reaction - about 3.5% of one core": "najszybsza sensowna reakcja - okolo 3,5% rdzenia",
     "default: good reaction at about 1.2% of one core": "domyslnie: dobra reakcja przy okolo 1,2% rdzenia",
     "very frugal - between two readings a job can go from warm to the kill threshold unnoticed": "bardzo oszczednie - miedzy dwoma odczytami zadanie moze przejsc od ciepla do progu ubicia niezauwazone",
-    "early - the pause comes during ordinary heavy work, about a third of the time": "wczesnie - pauza przychodzi przy zwyklej ciezkiej pracy, mniej wiecej co trzeci odczyt",
-    "balanced - the pause comes when the chip is genuinely hot, well before it is dangerous": "wywazone - pauza przychodzi, gdy chip jest naprawde goracy, na dlugo przed granica ryzyka",
-    "very late - roughly one reading in fifty gets this high, so the pause will be rare": "bardzo pozno - mniej wiecej jeden odczyt na piecdziesiat siega tak wysoko, wiec pauza bedzie rzadka",
-    "effectively off - this Mac has never reported a temperature this high, so the pause may never come": "praktycznie wylaczone - ten Mac nigdy nie pokazal tak wysokiej temperatury, wiec pauza moze nie przyjsc nigdy",
+    "the panel will describe this setting once the guard has watched this Mac for a while": "panel opisze to ustawienie, gdy straznik pozna juz tego Maca",
+    "effectively off - in %d readings this Mac never reached %.0f °C, so the pause may never come": "praktycznie wylaczone - w %d odczytach ten Mac nigdy nie osiagnal %.0f °C, wiec pauza moze nie przyjsc nigdy",
+    "very late - only %.1f%% of this Mac's readings reach here, so the pause will be rare": "bardzo pozno - tylko %.1f%% odczytow tego Maca tu siega, wiec pauza bedzie rzadka",
+    "balanced - %.0f%% of this Mac's readings reach here, hot but not yet dangerous": "wywazone - %.0f%% odczytow tego Maca tu siega, goraco, ale jeszcze nie grozne",
+    "early - %.0f%% of this Mac's readings reach here, so ordinary work will be paused": "wczesnie - %.0f%% odczytow tego Maca tu siega, wiec zwykla praca bedzie wstrzymywana",
     "Battery gate": "Wstrzymuj na baterii poniżej",
     "pause below this charge when unplugged": "bez zasilacza ciężkie zadania poczekają na ładowarkę",
     "Notifications": "Powiadomienia",
@@ -466,10 +467,11 @@ let RU: [String: String] = [
     "fastest sensible reaction - about 3.5% of one core": "самая быстрая разумная реакция - около 3,5% ядра",
     "default: good reaction at about 1.2% of one core": "по умолчанию: хорошая реакция при около 1,2% ядра",
     "very frugal - between two readings a job can go from warm to the kill threshold unnoticed": "очень экономно - между двумя отсчётами задача может пройти от тепла до порога завершения незамеченной",
-    "early - the pause comes during ordinary heavy work, about a third of the time": "рано - пауза приходит при обычной тяжёлой работе, примерно каждый третий отсчёт",
-    "balanced - the pause comes when the chip is genuinely hot, well before it is dangerous": "сбалансированно - пауза приходит, когда чип действительно горячий, задолго до опасности",
-    "very late - roughly one reading in fifty gets this high, so the pause will be rare": "очень поздно - примерно один отсчёт из пятидесяти доходит сюда, так что пауза будет редкой",
-    "effectively off - this Mac has never reported a temperature this high, so the pause may never come": "фактически выключено - этот Mac никогда не показывал такую температуру, пауза может не прийти никогда",
+    "the panel will describe this setting once the guard has watched this Mac for a while": "панель опишет эту настройку, когда страж узнает этот Mac",
+    "effectively off - in %d readings this Mac never reached %.0f °C, so the pause may never come": "фактически выключено - за %d отсчётов этот Mac ни разу не достиг %.0f °C, пауза может не прийти никогда",
+    "very late - only %.1f%% of this Mac's readings reach here, so the pause will be rare": "очень поздно - только %.1f%% отсчётов этого Mac доходят сюда, пауза будет редкой",
+    "balanced - %.0f%% of this Mac's readings reach here, hot but not yet dangerous": "сбалансированно - %.0f%% отсчётов этого Mac доходят сюда, горячо, но пока не опасно",
+    "early - %.0f%% of this Mac's readings reach here, so ordinary work will be paused": "рано - %.0f%% отсчётов этого Mac доходят сюда, обычная работа будет останавливаться",
     "Battery gate": "Пауза при заряде ниже",
     "pause below this charge when unplugged": "без адаптера тяжёлые задачи подождут зарядку",
     "Notifications": "Уведомления",
@@ -773,10 +775,11 @@ let ZH: [String: String] = [
     "fastest sensible reaction - about 3.5% of one core": "最快的合理反应 - 约一个核心的 3.5%",
     "default: good reaction at about 1.2% of one core": "默认:反应良好,约一个核心的 1.2%",
     "very frugal - between two readings a job can go from warm to the kill threshold unnoticed": "非常省电 - 两次读数之间,任务可能从温热直冲终止阈值而不被发现",
-    "early - the pause comes during ordinary heavy work, about a third of the time": "偏早:在普通重负载时就会暂停,约三分之一的读数",
-    "balanced - the pause comes when the chip is genuinely hot, well before it is dangerous": "均衡:芯片真正变热时才暂停,远早于危险区",
-    "very late - roughly one reading in fifty gets this high, so the pause will be rare": "很晚:大约每五十个读数才有一个到这么高,暂停会很罕见",
-    "effectively off - this Mac has never reported a temperature this high, so the pause may never come": "等于关闭:这台 Mac 从未报告过这么高的温度,暂停可能永远不会发生",
+    "the panel will describe this setting once the guard has watched this Mac for a while": "守卫熟悉这台 Mac 之后,面板会说明这项设置",
+    "effectively off - in %d readings this Mac never reached %.0f °C, so the pause may never come": "等于关闭:在 %d 次读数中这台 Mac 从未达到 %.0f °C,暂停可能永远不会发生",
+    "very late - only %.1f%% of this Mac's readings reach here, so the pause will be rare": "很晚:这台 Mac 只有 %.1f%% 的读数到达这里,暂停会很罕见",
+    "balanced - %.0f%% of this Mac's readings reach here, hot but not yet dangerous": "均衡:这台 Mac 有 %.0f%% 的读数到达这里,很热但尚不危险",
+    "early - %.0f%% of this Mac's readings reach here, so ordinary work will be paused": "偏早:这台 Mac 有 %.0f%% 的读数到达这里,普通工作也会被暂停",
     "Battery gate": "电量低于此值时暂停",
     "pause below this charge when unplugged": "未接电源时，繁重任务将等待充电",
     "Notifications": "通知",
@@ -1078,10 +1081,11 @@ let ES: [String: String] = [
     "fastest sensible reaction - about 3.5% of one core": "la reacción rápida más sensata - cerca del 3,5% de un núcleo",
     "default: good reaction at about 1.2% of one core": "por defecto: buena reacción con cerca del 1,2% de un núcleo",
     "very frugal - between two readings a job can go from warm to the kill threshold unnoticed": "muy frugal - entre dos lecturas un trabajo puede pasar de templado al umbral de cierre sin que se note",
-    "early - the pause comes during ordinary heavy work, about a third of the time": "pronto - la pausa llega con trabajo pesado normal, alrededor de un tercio de las lecturas",
-    "balanced - the pause comes when the chip is genuinely hot, well before it is dangerous": "equilibrado - la pausa llega cuando el chip está realmente caliente, mucho antes del peligro",
-    "very late - roughly one reading in fifty gets this high, so the pause will be rare": "muy tarde - alrededor de una lectura de cada cincuenta llega tan alto, así que la pausa será rara",
-    "effectively off - this Mac has never reported a temperature this high, so the pause may never come": "prácticamente desactivado - este Mac nunca ha informado una temperatura así, la pausa puede no llegar nunca",
+    "the panel will describe this setting once the guard has watched this Mac for a while": "el panel describirá este ajuste cuando el paladín conozca este Mac",
+    "effectively off - in %d readings this Mac never reached %.0f °C, so the pause may never come": "prácticamente desactivado - en %d lecturas este Mac nunca llegó a %.0f °C, la pausa puede no llegar nunca",
+    "very late - only %.1f%% of this Mac's readings reach here, so the pause will be rare": "muy tarde - solo el %.1f%% de las lecturas de este Mac llega aquí, la pausa será rara",
+    "balanced - %.0f%% of this Mac's readings reach here, hot but not yet dangerous": "equilibrado - el %.0f%% de las lecturas de este Mac llega aquí, caliente pero aún no peligroso",
+    "early - %.0f%% of this Mac's readings reach here, so ordinary work will be paused": "pronto - el %.0f%% de las lecturas de este Mac llega aquí, el trabajo normal se pausará",
     "Battery gate": "Pausar con batería por debajo de",
     "pause below this charge when unplugged": "sin adaptador, las tareas pesadas esperarán al cargador",
     "Notifications": "Notificaciones",
@@ -2384,15 +2388,30 @@ enum Autostart {
 /// sentences come from a month of readings on one Mac with fans: ordinary heavy work
 /// sits between 76 and 96, the CPU side of the reading saturates near 98 and the GPU
 /// side near 103. The bands below 70 are gone because the slider no longer goes there.
-/// What a given pause threshold means on a real machine. The numbers behind these
-/// sentences come from a month of readings on one Mac with fans: ordinary heavy work
-/// has its median at 88, a third of all readings pass 90, a tenth pass 98, and in
-/// thirty days nothing ever passed 102.8 - the reading saturates there.
+/// What a given pause threshold means ON THIS MAC. A fanless Air, an M1 and an M4 Pro
+/// saturate at different readings, and macmon's average is not a calibrated temperature,
+/// so a fixed table would be wrong on every machine except the one it was written on.
+/// The daemon publishes what this machine has actually reached; until it has enough
+/// history the panel says what it can defend and no more.
 func thresholdWarning(_ v: Double) -> (String, String) {
-    if v <= 92 { return (T("early - the pause comes during ordinary heavy work, about a third of the time"), "checkmark.circle") }
-    if v <= 99 { return (T("balanced - the pause comes when the chip is genuinely hot, well before it is dangerous"), "checkmark.circle") }
-    if v <= 102 { return (T("very late - roughly one reading in fifty gets this high, so the pause will be rare"), "exclamationmark.triangle") }
-    return (T("effectively off - this Mac has never reported a temperature this high, so the pause may never come"), "nosign")
+    guard let snap = readSnap(), snap.chipSamples >= 200,
+          let share = snap.chipAbove[String(Int(v))] else {
+        return (T("the panel will describe this setting once the guard has watched this Mac for a while"), "")
+    }
+    if share <= 0.05 {
+        return (String(format: T("effectively off - in %d readings this Mac never reached %.0f °C, so the pause may never come"),
+                       snap.chipSamples, v), "nosign")
+    }
+    if share < 2 {
+        return (String(format: T("very late - only %.1f%% of this Mac's readings reach here, so the pause will be rare"), share),
+                "exclamationmark.triangle")
+    }
+    if share < 15 {
+        return (String(format: T("balanced - %.0f%% of this Mac's readings reach here, hot but not yet dangerous"), share),
+                "checkmark.circle")
+    }
+    return (String(format: T("early - %.0f%% of this Mac's readings reach here, so ordinary work will be paused"), share),
+            "lightbulb")
 }
 
 /// Render a menu row with a slider.
@@ -2412,9 +2431,14 @@ final class SliderRow: NSView {
     private let unit: String
     private let describe: (Double) -> (String, String)
     private let derive: ((Double) -> String)?
+    /// When the caller gives an explicit list of settings, the slider counts positions
+    /// and this maps a position back to the value. A measurement interval is not linear:
+    /// one second matters next to five, five minutes does not matter next to four.
+    private let stops: [Double]?
+    private let format: ((Double) -> String)?
 
     init(title: String, min: Double, max: Double, current: Double, unit: String, step: Double = 5,
-         ticks: Bool = true,
+         ticks: Bool = true, stops: [Double]? = nil, format: ((Double) -> String)? = nil,
          describe: @escaping (Double) -> (String, String),
          derive: ((Double) -> String)? = nil,
          onChange: @escaping (Double) -> Void) {
@@ -2422,6 +2446,8 @@ final class SliderRow: NSView {
         self.unit = unit
         self.describe = describe
         self.derive = derive
+        self.stops = stops
+        self.format = format
         let height: CGFloat = derive == nil ? 82 : 100
         super.init(frame: NSRect(x: 0, y: 0, width: 400, height: height))
         // This was the only menu view that did not follow menu width: in wider submenus,
@@ -2443,15 +2469,29 @@ final class SliderRow: NSView {
         addSubview(value)
 
         y -= 26
-        slider.minValue = min
-        slider.maxValue = max
-        slider.doubleValue = current
+        if let stops = stops {
+            slider.minValue = 0
+            slider.maxValue = Double(stops.count - 1)
+            // Land on the position closest to the value already in the config, so opening
+            // the menu never silently moves a setting the user chose.
+            var best = 0
+            for (i, v) in stops.enumerated()
+            where abs(v - current) < abs(stops[best] - current) { best = i }
+            slider.doubleValue = Double(best)
+        } else {
+            slider.minValue = min
+            slider.maxValue = max
+            slider.doubleValue = current
+        }
         slider.isContinuous = true
         // Ticks follow the step the caller asked for. Hardcoding 5 meant a range of
         // 70 to 98 got six ticks 5.6 degrees apart, so the number under the slider
         // could never be the one the user aimed at. A range too wide to draw them
         // (one second to five minutes) asks for none and slides freely instead.
-        if ticks {
+        if let stops = stops {
+            slider.numberOfTickMarks = stops.count
+            slider.allowsTickMarkValuesOnly = true
+        } else if ticks {
             slider.numberOfTickMarks = Int((max - min) / Swift.max(step, 1)) + 1
             slider.allowsTickMarkValuesOnly = true
         }
@@ -2483,9 +2523,17 @@ final class SliderRow: NSView {
 
     required init?(coder: NSCoder) { fatalError() }
 
+    /// The value this position stands for, which is not the slider's own number when
+    /// the caller passed a list of settings.
+    private var selected: Double {
+        guard let stops = stops else { return slider.doubleValue }
+        return stops[Swift.min(Swift.max(Int(slider.doubleValue.rounded()), 0), stops.count - 1)]
+    }
+
     private func render() {
-        value.stringValue = String(format: "%.0f %@", slider.doubleValue, unit)
-        let (text, mark) = describe(slider.doubleValue)
+        let v = selected
+        value.stringValue = format?(v) ?? String(format: "%.0f %@", v, unit)
+        let (text, mark) = describe(v)
         let out = NSMutableAttributedString()
         if !mark.isEmpty {
             out.append(icon(mark, fallback: "", size: 11))
@@ -2496,12 +2544,12 @@ final class SliderRow: NSView {
                            .foregroundColor: NSColor.labelColor],
                           range: NSRange(location: 0, length: out.length))
         note.attributedStringValue = out
-        if let d = derive { derived.stringValue = d(slider.doubleValue) }
+        if let d = derive { derived.stringValue = d(v) }
     }
 
     @objc private func moved() {
         render()
-        onChange(slider.doubleValue)
+        onChange(selected)
     }
 }
 
@@ -2555,6 +2603,9 @@ struct Snap {
     var statsSession: [String: Int] = [:] // since the current daemon session started
     var lastCrash: String?
     var thrPause: Double?, thrResume: Double?, thrKill: Double?
+    /// What THIS Mac has actually reached: max, and the share of readings at or above
+    /// each whole degree. Published by the daemon from the machine's own history.
+    var chipMax: Double?, chipAbove: [String: Double] = [:], chipSamples: Int = 0
     var stamp = ""
     var stale = true
 }
@@ -2626,6 +2677,15 @@ func readSnap() -> Snap? {
         s.thrPause = num(t["pause"])
         s.thrResume = num(t["resume"])
         s.thrKill = num(t["kill"])
+    }
+    if let cp = j["chip_profile"] as? [String: Any] {
+        s.chipMax = num(cp["max"])
+        s.chipSamples = (cp["samples"] as? Int) ?? 0
+        if let ab = cp["above"] as? [String: Any] {
+            var out: [String: Double] = [:]
+            for (k, v) in ab { if let d = num(v) { out[k] = d } }
+            s.chipAbove = out
+        }
     }
     if let m = try? FileManager.default.attributesOfItem(atPath: statusPath)[.modificationDate] as? Date {
         s.stale = Date().timeIntervalSince(m) > 90
@@ -3822,8 +3882,12 @@ final class Bar: NSObject, NSMenuDelegate {
             let it = NSMenuItem(title: "", action: nil, keyEquivalent: "")
             it.image = img(symbol)
             let a = NSMutableAttributedString(attributedString: body)
-            a.addAttribute(.font, value: NSFont.menuFont(ofSize: 0),
-                           range: NSRange(location: 0, length: a.length))
+            // Menu font for everything that did not ask for its own: a caller that set
+            // bold on one word means it, and overwriting the whole range silently threw
+            // that away.
+            a.enumerateAttribute(.font, in: NSRange(location: 0, length: a.length)) { existing, range, _ in
+                if existing == nil { a.addAttribute(.font, value: NSFont.menuFont(ofSize: 0), range: range) }
+            }
             it.attributedTitle = a
             (menu ?? m).addItem(it)
         }
@@ -3849,7 +3913,8 @@ final class Bar: NSObject, NSMenuDelegate {
             line.append(NSAttributedString(string: "   "))
             line.append(icon(MUG_FILL, fallback: ""))
             line.append(NSAttributedString(string: " caffeinate",
-                                           attributes: [.foregroundColor: NSColor.systemBlue]))
+                                           attributes: [.foregroundColor: NSColor.systemBlue,
+                                                        .font: NSFont.boldSystemFont(ofSize: NSFont.systemFontSize)]))
             let awake = Awake.read()
             if (awake["mode"] as? String) == "timer", let until = awake["until"] as? Double {
                 let left = max(0, until - Date().timeIntervalSince1970)
@@ -4209,8 +4274,8 @@ final class Bar: NSObject, NSMenuDelegate {
         ss.addItem(.separator())
         let cpuRow = NSMenuItem()
         cpuRow.view = SliderRow(
-            title: T("CPU limit for heavy jobs"), min: 10, max: 100,
-            current: GuardCfg.double("job_cpu_percent", 95), unit: "%", step: 5,
+            title: T("CPU limit for heavy jobs"), min: 50, max: 100,
+            current: GuardCfg.double("job_cpu_percent", 95), unit: "%", step: 10,
             describe: { v in
                 // The limiter is a duty cycle on the whole job, so the percentage is
                 // roughly how many of this machine's cores it may keep busy. Starting
@@ -4231,11 +4296,10 @@ final class Bar: NSObject, NSMenuDelegate {
             // reaches 70, so anything lower pauses on nothing. 98 at the top: the daemon
             // rewrites a pause threshold that reaches the kill threshold, and on this
             // machine the CPU side of the reading saturates near 98 anyway.
-            // 90 at the bottom, because a month of readings on this machine puts the
-            // median of ordinary heavy work at 88: below 90 the guard would be pausing
-            // through normal work. 105 at the top so the scale reaches past what this
-            // Mac can show, with the caption saying plainly when that means "never".
-            title: T("Chip pause threshold"), min: 90, max: 105, current: pauseNow, unit: "°C", step: 1,
+            // 93 to 103 in steps of two. What each setting MEANS is not fixed here: the
+            // caption below reads this Mac's own history, because the same number is
+            // ordinary on one chip and unreachable on another.
+            title: T("Chip pause threshold"), min: 93, max: 103, current: pauseNow, unit: "°C", step: 2,
             describe: thresholdWarning,
             derive: { v in String(format: T("resume at %.0f °C, terminate at %.0f °C"),
                                   v - 9, Swift.min(v + 5, 110)) }) { v in
@@ -4264,11 +4328,12 @@ final class Bar: NSObject, NSMenuDelegate {
         // manual actions still react in ~1 s regardless.
         let pollRow = NSMenuItem()
         pollRow.view = SliderRow(
-            // One second to five minutes, the daemon's own range. Below five seconds the
-            // guard is measuring almost continuously and pays for it in CPU; above a
-            // minute a job can go from warm to the threshold between two readings.
+            // Eleven settings, not a linear scale: one second matters next to five,
+            // four minutes does not matter next to five. The daemon accepts 1 to 300 s.
             title: T("Measurement interval"), min: 1, max: 300,
-            current: GuardCfg.double("poll_seconds", 15), unit: " s", step: 1, ticks: false,
+            current: GuardCfg.double("poll_seconds", 15), unit: " s",
+            stops: [1, 5, 10, 15, 20, 30, 60, 120, 180, 240, 300],
+            format: { v in v < 60 ? String(format: "%.0f s", v) : fmtDur(Int(v / 60)) },
             describe: { v in
                 switch v {
                 case ..<3:    return (T("continuous watch - the guard itself burns several percent of one core, all day"), "exclamationmark.triangle")
