@@ -59,6 +59,49 @@ for file_path in ("guard.py", "thermal-report", "fleet", "heat", "safe-run"):
         if missing:
             errors.append("%s: %s is missing %d translations (for example %r)"
                          % (file_path, name, len(missing), missing[0][:60]))
+# 1b. The same rule for the menu bar, which owns the largest dictionaries in the
+#     project and was not checked at all: the loop above only reads Python files,
+#     so a Swift string could lose its Polish entry and every test stayed green
+#     (proven by deleting one). Swift has no AST here, so unescape the literals the
+#     same way the compiler does and compare those.
+def swift_unescape(raw):
+    out, i = [], 0
+    while i < len(raw):
+        c = raw[i]
+        if c == "\\" and i + 1 < len(raw):
+            nxt = raw[i + 1]
+            out.append({"n": "\n", "t": "\t", "\"": "\"", "\\": "\\", "0": "\0"}.get(nxt, nxt))
+            i += 2
+        else:
+            out.append(c)
+            i += 1
+    return "".join(out)
+
+
+LITERAL = r'"((?:[^"\\\n]|\\.)*)"'
+bar = io.open(os.path.join(SRC, 'heatbar.swift'), encoding='utf-8').read()
+# Strings the bar asks T() for, including the ones it passes as constants.
+bar_called = {swift_unescape(m) for m in re.findall(r'\bT\(\s*' + LITERAL, bar)}
+for const in set(re.findall(r'\bT\(([A-Z][A-Z_]+)\)', bar)):
+    m = re.search(r'^let ' + const + r' = ' + LITERAL, bar, re.M)
+    if m:
+        bar_called.add(swift_unescape(m.group(1)))
+for name in ("PL", "RU", "ZH", "ES"):
+    m = re.search(r'^let ' + name + r'(?::\s*\[String: String\])? = \[', bar, re.M)
+    if not m:
+        errors.append("heatbar.swift: dictionary %s not found" % name)
+        continue
+    body = bar[m.end():bar.index('\n]\n', m.end())]
+    have = {swift_unescape(k) for k in re.findall(r'(?<![\\])' + LITERAL + r'\s*:', body)}
+    # A Swift string built by concatenation ("part one " + T("x")) shows up here as
+    # its first fragment, and the dictionary holds the whole sentence. Treat a
+    # fragment that starts some existing key as covered; a real gap does not.
+    missing = sorted(k for k in bar_called
+                     if k not in have and not any(h.startswith(k) for h in have))
+    if missing:
+        errors.append("heatbar.swift: %s is missing %d translations (for example %r)"
+                     % (name, len(missing), missing[0][:60]))
+
 source = io.open(os.path.join(SRC, 'guard.py'), encoding='utf-8').read()
 
 # 2. Version is the same in all five places. The README title is one of them:

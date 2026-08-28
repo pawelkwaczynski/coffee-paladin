@@ -57,6 +57,7 @@ let lang: String = {
 }()
 
 let PL: [String: String] = [
+    "Sponsor on GitHub…": "Wesprzyj na GitHubie…",
     "!": "!",
     "no data - is coffee-paladin running?": "brak danych - czy coffee-paladin działa?",
     "data is stale (%@) - the guard may have died": "dane nieświeże (%@) - guard mógł paść",
@@ -74,15 +75,18 @@ let PL: [String: String] = [
     "   readings: %.0f-%.0f C": "   ostatnie pomiary: %.0f-%.0f C",
     "rising %.1f C/min - about %.0f min to pause": "rośnie %.1f C/min - do pauzy ok. %.0f min",
     "rising %.1f C/min": "rośnie %.1f C/min",
-    "Supervised jobs (safe-run):": "Zadania pod opieką (safe-run):",
-    "Heating the most now (CPU ≈ heat):": "Największe źródła ciepła teraz (wg CPU):",
+    "What is loading the Mac": "Co obciąża Maca",
+    "Held: %d": "Wstrzymane: %d",
+    "  (by hand)": "  (ręcznie)",
+    "Calm": "Spokojnie",
+    "Warming up": "Robi się ciepło",
+    "Hot": "Gorąco",
+    "Critical": "Krytycznie",
+    "Under the guard (safe-run):": "Pod nadzorem (safe-run):",
+    "Heating the most (CPU stands in for heat):": "Najbardziej grzeją (CPU zastępuje pomiar ciepła):",
+    "cores": "rdzeni",
+    "Chip thresholds:  pause %.0f °C, kill %.0f °C": "Progi chipa:  pauza %.0f °C, ubicie %.0f °C",
     "Eating the most RAM:": "Najwięcej RAM używają:",
-    "Top CPU:  %@ (%d%%)": "Najwięcej CPU:  %@ (%d%%)",
-    "Paused: %@": "Wstrzymane: %@",
-    "  (manual)": "  (ręcznie)",
-    "State: %@": "Stan: %@",
-    "calm": "spokój", "warm": "ciepło", "HOT - paused": "GORĄCO - pauza", "CRITICAL": "KRYTYCZNIE",
-    "Chip thresholds:  pause %.0f C, kill %.0f C": "Progi chipa:  pauza %.0f C, ubicie %.0f C",
     "Today: %d x pause": "Dziś: %d x pauza", ", %d x kill": ", %d x ubicie",
     "Resume paused jobs": "Wznów wstrzymane zadania",
     "Freeze all heavy jobs now": "Wstrzymaj ciężkie zadania",
@@ -159,9 +163,17 @@ let PL: [String: String] = [
     "5h limit": "limit 5 h",
     "7d limit": "limit 7 dni",
     "context": "kontekst",
+    "%@  ·  idle": "%@  ·  bezczynna",
+    "%@  ·  %.1f cores in its tree": "%@  ·  %.1f rdzeni w drzewie",
+    "Chip": "Chip",
+    "Battery": "Bateria",
+    "Fans": "Wentylatory",
+    "State": "Stan",
+    "Snapshot": "Migawka",
+    "Export report": "Zapisz raport",
+    "Start the guard again": "Uruchom strażnika ponownie",
     "no AI session is running right now": "żadna sesja AI teraz nie działa",
     "… %d more": "… jeszcze %d",
-    "%@ session — %.0f%% CPU in its tree": "sesja %@ — %.0f%% CPU w jej drzewie",
     "AI session marker": "Znacznik sesji AI",
     "Battery temperature (from 40 °C)": "Temperatura baterii (od 40 °C)",
     "Fan rpm (when spinning)": "Obroty wentylatorów (gdy się kręcą)",
@@ -177,7 +189,6 @@ let PL: [String: String] = [
     "The paladin stands guard. Choose how to begin:": "Paladyn staje na straży. Wybierz, jak zaczynamy:",
     "Enable protection": "Włącz ochronę",
     "Watch only for now": "Na razie tylko obserwuj",
-    "Load info": "Co obciąża Maca",
     "Keep awake": "Nie usypiaj Maca",
     "Off": "Wyłącz",
     "%d min": "%d min",
@@ -221,16 +232,7 @@ let PL: [String: String] = [
     "chip": "chip", "fans": "wentylatory", "draw": "pobór", "state": "stan", "snapshot": "migawka",
     "To:": "Do:",
     "Everything on record": "Całość, wszystkie zapisy",
-    "Cores:  %d performance + %d efficiency  ·  Neural Engine: %d":
-        "Rdzenie:  %d wydajnościowych + %d oszczędne  ·  Neural Engine: %d",
-    "Disk: %d GB (%d%% free)": "Dysk: %d GB (%d%% wolnego)",
     "max capacity: %d%%": "maks. pojemność: %d%%",
-    "Sensors:": "Czujniki:",
-    "chip and GPU (macmon/IOReport):  %@": "chip i GPU (macmon/IOReport):  %@",
-    "thermal state (Apple API):  %@": "stan termiczny (API Apple):  %@",
-    "battery (ioreg):  %@": "bateria (ioreg):  %@",
-    "CPU throttling (pmset):  %@": "dławienie CPU (pmset):  %@",
-    "limited warranty (est.): until %@": "limited warranty (szac.): do %@",
     "set up: %@": "skonfigurowany: %@",
     "Turns off banners, their sounds and phone push - one gate for all.":
         "Wyłącza dymki, dźwięki przy nich i push na telefon — jedna bramka dla wszystkich.",
@@ -265,8 +267,13 @@ let PL: [String: String] = [
     "Chip:  %@": "Chip:  %@",
     "Cores:  %d performance + %d efficiency": "Rdzenie:  %d wydajnościowych + %d energooszczędnych",
     "RAM:  %d GB": "RAM:  %d GB",
-    "Fans:  %d": "Wentylatory:  %d",
     "macOS:  %@": "macOS:  %@",
+    "Cores:  %d performance + %d efficiency  ·  %d GB RAM": "Rdzenie:  %d wydajnych + %d oszczędnych  ·  %d GB RAM",
+    "Cooling:  %d fans": "Chłodzenie:  wentylatory: %d",
+    "Cooling:  passive, no fans": "Chłodzenie:  pasywne, bez wentylatorów",
+    "Chip reading:  the higher of the CPU and GPU average (macmon)": "Odczyt chipa:  wyższa ze średnich CPU i GPU (macmon)",
+    "macmon averages every SMC key it can read: Tp/Te/Ts on the CPU side, Tg on the GPU side. The guard shows whichever average is higher, so during LLM or video work this is the GPU cluster. It is a relative index, not the hottest transistor, and the two averages saturate at different values on the same machine.": "macmon uśrednia wszystkie klucze SMC, jakie potrafi odczytać: Tp/Te/Ts po stronie CPU, Tg po stronie GPU. Strażnik pokazuje wyższą ze średnich, więc przy pracy LLM albo wideo jest to układ GPU. To wskaźnik względny, nie najgorętszy tranzystor, a obie średnie nasycają się przy różnych wartościach na tej samej maszynie.",
+    "The chip reading is missing - is macmon installed?": "Brak odczytu chipa - czy macmon jest zainstalowany?",
     "Serial:  %@": "Nr seryjny:  %@",
     "Battery cycles:  %@": "Cykle baterii:  %@",
     "Chip sensor (macmon):  %@": "Czujnik chipa (macmon):  %@",
@@ -286,7 +293,6 @@ let PL: [String: String] = [
     "Nothing here - and that is good news: your Mac has not been overheating.": "Nic tu nie ma - to dobrze, znaczy, że twoja maszyna się nie przegrzewała.",
     "In this session: no interventions yet.": "W tej sesji: jeszcze bez interwencji.",
     "Pause ended another way (manual resume, job exited, daemon restart): %d": "Pauza zakończona inaczej (ręczne wznowienie, proces sam się skończył, restart demona): %d",
-    "%@ session — idle": "sesja %@ — bez obciążenia",
     "Process tree details": "Szczegóły drzew procesów",
     "Heavy jobs paused": "Wstrzymane ciężkie zadania",
     "Jobs resumed after cooling": "Wznowione po ostygnięciu",
@@ -372,7 +378,6 @@ let RU: [String: String] = [
     "Nothing here - and that is good news: your Mac has not been overheating.": "Здесь пусто - и это хорошо: ваш Mac не перегревался.",
     "In this session: no interventions yet.": "В этой сессии: вмешательств пока нет.",
     "Pause ended another way (manual resume, job exited, daemon restart): %d": "Пауза завершилась иначе (ручное возобновление, процесс сам завершился, перезапуск демона): %d",
-    "%@ session — idle": "сессия %@ — без нагрузки",
     "Process tree details": "Деревья процессов подробно",
     "Heavy jobs paused": "Приостановлено тяжёлых задач",
     "Jobs resumed after cooling": "Возобновлено после остывания",
@@ -404,18 +409,18 @@ let RU: [String: String] = [
     "   readings: %.0f-%.0f C": "   измерения: %.0f-%.0f C",
     "rising %.1f C/min - about %.0f min to pause": "растёт на %.1f C/мин - до паузы около %.0f мин",
     "rising %.1f C/min": "растёт на %.1f C/мин",
-    "Supervised jobs (safe-run):": "Задачи под присмотром (safe-run):",
-    "Heating the most now (CPU ≈ heat):": "Сильнее всего греют сейчас (CPU ≈ тепло):",
+    "What is loading the Mac": "Что нагружает Mac",
+    "Held: %d": "Остановлено: %d",
+    "  (by hand)": "  (вручную)",
+    "Calm": "Спокойно",
+    "Warming up": "Нагревается",
+    "Hot": "Горячо",
+    "Critical": "Критично",
+    "Under the guard (safe-run):": "Под надзором (safe-run):",
+    "Heating the most (CPU stands in for heat):": "Греют больше всего (CPU вместо замера тепла):",
+    "cores": "ядер",
+    "Chip thresholds:  pause %.0f °C, kill %.0f °C": "Пороги чипа:  пауза %.0f °C, завершение %.0f °C",
     "Eating the most RAM:": "Больше всего памяти занимают:",
-    "Top CPU:  %@ (%d%%)": "Больше всего CPU:  %@ (%d%%)",
-    "Paused: %@": "Приостановлено: %@",
-    "  (manual)": "  (вручную)",
-    "State: %@": "Состояние: %@",
-    "calm": "спокойно",
-    "warm": "тепло",
-    "HOT - paused": "ГОРЯЧО - пауза",
-    "CRITICAL": "КРИТИЧНО",
-    "Chip thresholds:  pause %.0f C, kill %.0f C": "Пороги чипа:  пауза %.0f C, завершение %.0f C",
     "Today: %d x pause": "Сегодня: %d x пауза",
     ", %d x kill": ", %d x завершение",
     "Resume paused jobs": "Возобновить приостановленные задачи",
@@ -527,9 +532,17 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
     "5h limit": "лимит 5 ч",
     "7d limit": "лимит 7 дней",
     "context": "контекст",
+    "%@  ·  idle": "%@  ·  простаивает",
+    "%@  ·  %.1f cores in its tree": "%@  ·  %.1f ядер в дереве",
+    "Chip": "Чип",
+    "Battery": "Батарея",
+    "Fans": "Вентиляторы",
+    "State": "Состояние",
+    "Snapshot": "Снимок",
+    "Export report": "Сохранить отчёт",
+    "Start the guard again": "Запустить страж снова",
     "no AI session is running right now": "сейчас не работает ни одна сессия ИИ",
     "… %d more": "… ещё %d",
-    "%@ session — %.0f%% CPU in its tree": "сессия %@ — %.0f%% CPU в её дереве",
     "AI session marker": "Маркер сессии ИИ",
     "Battery temperature (from 40 °C)": "Температура батареи (от 40 °C)",
     "Fan rpm (when spinning)": "Обороты вентиляторов (когда крутятся)",
@@ -545,7 +558,6 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
     "The paladin stands guard. Choose how to begin:": "Паладин заступает на стражу. С чего начнём:",
     "Enable protection": "Включить защиту",
     "Watch only for now": "Пока только наблюдать",
-    "Load info": "Сведения о нагрузке",
     "Keep awake": "Не давать Mac спать",
     "Off": "Выключить",
     "%d min": "%d мин",
@@ -577,9 +589,9 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
     "First steps with the paladin": "Первые шаги с паладином",
     "Phone notifications…": "Уведомления на телефон…",
     "First steps…": "Первые шаги...",
-    "WHAT IT CAN DO\n• The paladin watches the chip, the battery, the fans and the power source - by default a reading every 15 seconds.\n• When things get too hot, it FREEZES heavy processes instead of letting the Mac cook itself. The pause destroys nothing: the process stops mid-instruction and continues once the chip cools. Example? Measured: 89 °C → 60 °C in 19 seconds, no loss.\n• It finds the real culprit: CPU is counted across the whole process tree, so it also sees a script that spawns hundreds of short jobs while using almost nothing itself.\n• On battery below 10% it pauses long jobs - they resume when you plug in.\n• It keeps a black box: after a hard failure the last 8 readings survive. One click turns them into a report for a repair shop (should you ever need it).\n• Keep-awake - works like the well-known Caffeine or Amphetamine, but unlike them it comes with a fuse: the sleep lock is released the moment things run hot. Sleep is the fastest cooling there is.": "ЧТО ОН УМЕЕТ\n• Паладин следит за чипом, батареей, вентиляторами и питанием - по умолчанию замер каждые 15 секунд.\n• Когда становится слишком горячо, ЗАМОРАЖИВАЕТ тяжёлые процессы, вместо того чтобы дать Mac свариться. Пауза ничего не разрушает: процесс замирает и продолжает с того же места, когда чип остынет. Пример? Измерено: 89 °C → 60 °C за 19 секунд, без потерь.\n• Находит настоящего виновника: CPU считается по всему дереву процессов, поэтому виден и скрипт, порождающий сотни коротких задач.\n• На батарее ниже 10% длинные задачи ставятся на паузу - возобновятся после подключения зарядки.\n• Ведёт чёрный ящик: после жёсткого сбоя остаются 8 последних замеров. Один клик - и из них готов отчёт для сервиса (если понадобится).\n• «Не усыплять Mac» - работает как известные Caffeine или Amphetamine, но в отличие от них с предохранителем: блокировка сна снимается, как только становится горячо. Сон охлаждает быстрее всего.",
-    "WHAT WILL HAPPEN\n• Your choice in the welcome window decides how you start.\n\n\"Watch only\" mode: the paladin measures, logs and alerts, but PAUSES NOTHING.\n\n\"Enable protection\" mode: it pauses at the defined thresholds.\n\nSwitching is easy - one switch at the top of the menu.\n\n• Default thresholds: pause at 85 °C, resume at 76 °C, gentle closing of processes at 90 °C - and only after 4 critical readings in a row. Above 90 °C for over a minute is an emergency: despite the pauses the chip still holds critical (something we could not pause is heating, or pausing was not enough to cool the chip). The process is then woken up and gets SIGTERM - a polite \"shut down\": it has a chance to save its state, close its files, clean up. That is why we call this termination \"gentle\".\n\nA fanless Mac (e.g. an Air or Neo) gets more careful parameters. The thresholds are always picked for YOUR machine: see menu > \"About my Mac\".\n\n• Notifications: on. Sounds: off (enable them in Settings). At the critical level a system banner breaks through everything - Focus and full-screen included.\n• The system, Finder, your terminal and your AI agent are on the never-touch list. The guard will not freeze the session working next to it.": "ЧТО БУДЕТ ПРОИСХОДИТЬ\n• Ваш выбор в окне приветствия определяет старт.\n\nРежим «Только наблюдать»: паладин измеряет, ведёт журнал и предупреждает, но НИЧЕГО НЕ ОСТАНАВЛИВАЕТ.\n\nРежим «Включить защиту»: ставит на паузу по заданным порогам.\n\nПереключиться легко - один переключатель вверху меню.\n\n• Пороги по умолчанию: пауза при 85 °C, возобновление при 76 °C, мягкое закрытие процессов при 90 °C - и только после 4 критических замеров подряд. Выше 90 °C дольше минуты - аварийная ситуация: несмотря на паузы чип держит критический уровень (греет то, что мы не могли поставить на паузу, или паузы не хватило для охлаждения). Тогда процесс будят, и он получает SIGTERM - вежливое «завершись»: есть шанс сохранить состояние, закрыть файлы, прибраться. Поэтому такое завершение мы называем «мягким».\n\nMac без вентилятора (например, Air или Neo) получает более осторожные параметры. Пороги всегда подобраны для ВАШЕЙ машины: см. меню > «Об этом Mac».\n\n• Уведомления: включены. Звуки: выключены (включаются в Настройках). На критическом уровне системный баннер пробивается всегда - даже через Фокусирование и полный экран.\n• Система, Finder, терминал и ваш ИИ-агент - в списке неприкасаемых. Страж не заморозит сессию, которая работает рядом с ним.",
-    "WHAT YOU CAN SET\n• Chip pause threshold - a slider; resume and terminate recalculate themselves.\n• Measurement interval 5-30 s: more often = faster reaction, but costlier in CPU use.\n• Heavy jobs (safe-run): all cores (fast) or efficiency cores only (cool and quiet), plus a CPU limit of 50-100%.\n• Battery gate, signals, keep-awake, this Mac's name in the fleet.": "ЧТО МОЖНО НАСТРОИТЬ\n• Порог паузы чипа - ползунок; возобновление и завершение пересчитываются сами.\n• Интервал замеров 5-30 с: чаще = быстрее реакция, но дороже по CPU.\n• Тяжёлые задачи (safe-run): все ядра (быстро) или только E-ядра (тихо), плюс лимит CPU 50-100%.\n• Порог батареи, сигналы, keep-awake, имя этого Mac в парке.",
+    "WHAT IT CAN DO\n• The paladin watches the chip, the battery, the fans and the power source - by default a reading every 15 seconds.\n• When things get too hot, it FREEZES heavy processes instead of letting the Mac cook itself. The pause destroys nothing: the process stops mid-instruction and continues once the chip cools. Example? Measured: 89 °C → 60 °C in 19 seconds, no loss.\n• It finds the real culprit: CPU is counted across the whole process tree, so it also sees a script that spawns hundreds of short jobs while using almost nothing itself.\n• On battery at 10% or less it pauses long jobs - they resume when you plug in, or once the charge is back above 25% (both figures are defaults; the Battery gate slider moves them together).\n• It keeps a black box: after a hard failure the last 8 readings survive. One click turns them into a report for a repair shop (should you ever need it).\n• Keep-awake - works like the well-known Caffeine or Amphetamine, but unlike them it comes with a fuse: the sleep lock is released the moment the Mac reaches pause level. Sleep is the fastest cooling there is.": "ЧТО ОН УМЕЕТ\n• Паладин следит за чипом, батареей, вентиляторами и источником питания - по умолчанию замер каждые 15 секунд.\n• Когда становится слишком горячо, он ЗАМОРАЖИВАЕТ тяжёлые процессы, вместо того чтобы дать Mac свариться. Пауза ничего не разрушает: процесс замирает посреди инструкции и продолжает с того же места, как только чип остынет. Пример? Измерено: 89 °C → 60 °C за 19 секунд, без потерь.\n• Он находит настоящего виновника: CPU считается по всему дереву процессов, поэтому виден и скрипт, который порождает сотни коротких задач, а сам почти ничего не потребляет.\n• На батарее при 10% и ниже он ставит длинные задачи на паузу - они возобновятся, когда вы подключите питание, или когда заряд снова поднимется выше 25% (обе цифры это значения по умолчанию, ползунок «Пауза при заряде ниже» двигает их вместе).\n• Он ведёт чёрный ящик: после жёсткого сбоя остаются 8 последних замеров. Один клик превращает их в отчёт для сервиса (если он когда-нибудь понадобится).\n• «Не давать Mac спать» - работает как известные Caffeine или Amphetamine, но, в отличие от них, идёт с предохранителем: блокировка сна снимается в тот момент, когда Mac доходит до уровня паузы. Сон охлаждает быстрее всего.",
+    "WHAT WILL HAPPEN\n• Your choice in the welcome window decides how you start.\n\n\"Watch only\" mode: the paladin measures, logs and alerts, but PAUSES NOTHING.\n\n\"Enable protection\" mode: it pauses at the defined thresholds.\n\nSwitching is easy - one switch at the top of the menu.\n\n• Default thresholds on a Mac with fans: pause at 85 °C, resume at 76 °C, gentle closing of processes at 90 °C - and only after 4 critical readings in a row, which is about 45 seconds at the default 15-second interval and shorter if you speed the interval up. A fanless Mac (an Air, or Neo) gets 78/70/88 instead. The thresholds are always picked for YOUR machine: see menu > \"About my Mac\".\n\n• Termination is the last resort, for when the chip stays critical despite the pauses: something we could not pause is heating, or pausing was not enough. The process is woken up first and gets SIGTERM, a polite \"shut down\" - a chance to save its state, close its files, clean up. That is why we call it gentle. Twenty seconds later, anything still alive gets SIGKILL. A job left frozen for more than 45 minutes is closed the same gentle way; a pause caused only by a low battery gets 4 hours, because waiting for a charger is not a failure.\n\n• A pause is not the only remedy. The process that caused it comes back on efficiency cores instead of at full speed, and stays there until the Mac has been quiet for five minutes. A job you started with `safe-run --normal` keeps all its cores.\n\n• Notifications: on. Sounds: off (enable them in Settings). At the critical level a system banner breaks through everything - Focus and full-screen included.\n• The system, Finder, your terminal and your AI agent are never frozen. An app with a window that the guard does not know by name, a browser or a video app, is pushed to efficiency cores and named in the menu instead of being frozen - unless there is a real emergency: a cooling failure, the battery at its kill threshold, or macOS itself reporting critical. A heavy job it does know by name (python, ffmpeg, a compiler) is paused whether or not it sits inside an app bundle. The guard will not freeze the session working next to it.": "ЧТО БУДЕТ ПРОИСХОДИТЬ\n• Ваш выбор в окне приветствия определяет, как вы начнёте.\n\nРежим «Только наблюдение»: паладин измеряет, ведёт журнал и предупреждает, но НИЧЕГО НЕ СТАВИТ НА ПАУЗУ.\n\nРежим «Включить защиту»: он ставит на паузу на заданных порогах.\n\nПереключиться просто, это один переключатель вверху меню.\n\n• Пороги по умолчанию на Mac с вентиляторами: пауза при 85 °C, возобновление при 76 °C, мягкое закрытие процессов при 90 °C, и только после 4 критических замеров подряд, то есть примерно через 45 секунд при интервале по умолчанию 15 с, и быстрее, если вы ускорите интервал. Mac без вентилятора (Air или Neo) получает 78/70/88. Пороги всегда подбираются под ВАШУ машину: смотрите меню > «Об этом Mac».\n\n• Завершение процесса это крайняя мера, на случай, когда чип остаётся в критической зоне несмотря на паузы: греет что-то, что мы не смогли поставить на паузу, или паузы не хватило. Процесс сначала будят, и он получает SIGTERM, вежливое «завершись», то есть шанс сохранить состояние, закрыть файлы, прибрать за собой. Поэтому мы называем это мягким закрытием. Через двадцать секунд всё, что ещё живо, получает SIGKILL. Задачу, оставленную в заморозке дольше 45 минут, закрываем так же мягко; пауза, вызванная только низким зарядом батареи, получает 4 часа, потому что ожидание зарядки это не авария.\n\n• Пауза не единственное средство. Процесс, который её вызвал, возвращается на энергоэффективные ядра, а не на полную мощность, и остаётся там, пока на Mac не будет спокойно пять минут подряд. Задача, запущенная через `safe-run --normal`, сохраняет все свои ядра.\n\n• Уведомления: включены. Звуки: выключены (включите их в Настройках). На критическом уровне системный баннер пробивается через всё, включая Фокусирование и полноэкранный режим.\n• Система, Finder, ваш терминал и ваш ИИ-агент никогда не замораживаются. Приложение с окном, которое страж не знает по имени, браузер или программа для видео, отправляется на энергоэффективные ядра и называется в меню вместо заморозки, если только нет настоящей аварии: отказ охлаждения, батарея на пороге принудительного завершения или сам macOS сообщает о критическом состоянии. Тяжёлую задачу, которую страж знает по имени (python, ffmpeg, компилятор), он ставит на паузу независимо от того, находится она внутри пакета приложения или нет. Страж не заморозит сессию, которая работает рядом с ним.",
+    "WHAT YOU CAN SET\n• Chip pause threshold - a slider; resume follows 9 °C lower, gentle closing 5 °C higher (never above 100).\n• Measurement interval 5-30 s: more often = faster reaction, but costlier in CPU use.\n• Heavy jobs (safe-run): all cores (fast) or efficiency cores only (cool and quiet), plus a CPU limit of 50-100%.\n• Battery gate, signals, keep-awake, this Mac's name in the fleet.": "ЧТО МОЖНО НАСТРОИТЬ\n• Порог паузы по чипу - ползунок; возобновление идёт на 9 °C ниже, мягкое закрытие на 5 °C выше (никогда выше 100).\n• Интервал замеров 5-30 с: чаще = быстрее реакция, но дороже по использованию CPU.\n• Тяжёлые задачи (safe-run): все ядра (быстро) или только энергоэффективные ядра (прохладно и тихо), плюс лимит CPU 50-100%.\n• «Пауза при заряде ниже», сигналы, «Не давать Mac спать», имя этого Mac в парке машин.",
     "Enjoy your work!\nPaweł": "Приятной работы!\nПавел",
     "Sponsor on GitHub…": "Поддержать на GitHub...",
     "Is your Mac heating up with AI and renders? coffee-paladin watches battery, chip and GPU temperatures. It pauses heavy jobs and resumes them by itself once the temperature drops.\n\nOpen source, free, for you:\n%@\n\n#panbookovsky #macbook #protect #temperature #guard":
@@ -590,16 +602,7 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
     "chip": "чип", "fans": "вентиляторы", "draw": "мощность", "state": "состояние", "snapshot": "снимок",
     "To:": "По:",
     "Everything on record": "Всё, что записано",
-    "Cores:  %d performance + %d efficiency  ·  Neural Engine: %d":
-        "Ядра:  %d производительных + %d экономичных  ·  Neural Engine: %d",
-    "Disk: %d GB (%d%% free)": "Диск: %d ГБ (%d%% свободно)",
     "max capacity: %d%%": "макс. ёмкость: %d%%",
-    "Sensors:": "Датчики:",
-    "chip and GPU (macmon/IOReport):  %@": "чип и GPU (macmon/IOReport):  %@",
-    "thermal state (Apple API):  %@": "тепловое состояние (API Apple):  %@",
-    "battery (ioreg):  %@": "батарея (ioreg):  %@",
-    "CPU throttling (pmset):  %@": "троттлинг CPU (pmset):  %@",
-    "limited warranty (est.): until %@": "гарантия (оцен.): до %@",
     "set up: %@": "настроен: %@",
     "Turns off banners, their sounds and phone push - one gate for all.":
         "Отключает уведомления, их звуки и push — один шлюз для всего.",
@@ -634,8 +637,13 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
     "Chip:  %@": "Чип:  %@",
     "Cores:  %d performance + %d efficiency": "Ядра:  %d производительных + %d энергоэффективных",
     "RAM:  %d GB": "RAM:  %d ГБ",
-    "Fans:  %d": "Вентиляторы:  %d",
     "macOS:  %@": "macOS:  %@",
+    "Cores:  %d performance + %d efficiency  ·  %d GB RAM": "Ядра:  %d производительных + %d энергоэффективных  ·  %d ГБ ОЗУ",
+    "Cooling:  %d fans": "Охлаждение:  вентиляторов: %d",
+    "Cooling:  passive, no fans": "Охлаждение:  пассивное, без вентиляторов",
+    "Chip reading:  the higher of the CPU and GPU average (macmon)": "Показание чипа:  большее из средних CPU и GPU (macmon)",
+    "macmon averages every SMC key it can read: Tp/Te/Ts on the CPU side, Tg on the GPU side. The guard shows whichever average is higher, so during LLM or video work this is the GPU cluster. It is a relative index, not the hottest transistor, and the two averages saturate at different values on the same machine.": "macmon усредняет все ключи SMC, которые может прочитать: Tp/Te/Ts со стороны CPU, Tg со стороны GPU. Страж показывает большее из средних, поэтому при работе LLM или видео это кластер GPU. Это относительный показатель, а не самый горячий транзистор, и обе средние насыщаются на разных значениях на одной машине.",
+    "The chip reading is missing - is macmon installed?": "Нет показаний чипа - установлен ли macmon?",
     "Serial:  %@": "Серийный номер:  %@",
     "Battery cycles:  %@": "Циклы батареи:  %@",
     "Chip sensor (macmon):  %@": "Датчик чипа (macmon):  %@",
@@ -678,7 +686,6 @@ let ZH: [String: String] = [
     "Nothing here - and that is good news: your Mac has not been overheating.": "这里是空的 - 这是好消息：你的 Mac 没有过热。",
     "In this session: no interventions yet.": "本次会话:尚无干预。",
     "Pause ended another way (manual resume, job exited, daemon restart): %d": "暂停以其他方式结束(手动恢复、进程自行退出、守护进程重启):%d",
-    "%@ session — idle": "%@ 会话 — 空闲",
     "Process tree details": "进程树详情",
     "Heavy jobs paused": "已暂停的繁重任务",
     "Jobs resumed after cooling": "降温后已恢复",
@@ -710,18 +717,18 @@ let ZH: [String: String] = [
     "   readings: %.0f-%.0f C": "   测量值：%.0f-%.0f C",
     "rising %.1f C/min - about %.0f min to pause": "每分钟上升 %.1f C - 约 %.0f 分钟后暂停",
     "rising %.1f C/min": "每分钟上升 %.1f C",
-    "Supervised jobs (safe-run):": "受监管的任务（safe-run）：",
-    "Heating the most now (CPU ≈ heat):": "当前发热最多（CPU ≈ 热量）：",
+    "What is loading the Mac": "什么在给 Mac 加负载",
+    "Held: %d": "已暂停:%d",
+    "  (by hand)": "  (手动)",
+    "Calm": "平静",
+    "Warming up": "正在升温",
+    "Hot": "很热",
+    "Critical": "危急",
+    "Under the guard (safe-run):": "在守卫之下(safe-run):",
+    "Heating the most (CPU stands in for heat):": "最发热的进程(以 CPU 代表发热):",
+    "cores": "核",
+    "Chip thresholds:  pause %.0f °C, kill %.0f °C": "芯片阈值:暂停 %.0f °C,终止 %.0f °C",
     "Eating the most RAM:": "内存占用最多：",
-    "Top CPU:  %@ (%d%%)": "CPU 占用最高：  %@（%d%%）",
-    "Paused: %@": "已暂停：%@",
-    "  (manual)": "（手动）",
-    "State: %@": "状态：%@",
-    "calm": "正常",
-    "warm": "偏热",
-    "HOT - paused": "过热 - 已暂停",
-    "CRITICAL": "危急",
-    "Chip thresholds:  pause %.0f C, kill %.0f C": "芯片阈值：  暂停 %.0f C，终止 %.0f C",
     "Today: %d x pause": "今天：%d 次暂停",
     ", %d x kill": "，%d 次终止",
     "Resume paused jobs": "恢复已暂停的任务",
@@ -831,9 +838,17 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
     "5h limit": "5 小时额度",
     "7d limit": "7 天额度",
     "context": "上下文",
+    "%@  ·  idle": "%@  ·  空闲",
+    "%@  ·  %.1f cores in its tree": "%@  ·  在其进程树中 %.1f 核",
+    "Chip": "芯片",
+    "Battery": "电池",
+    "Fans": "风扇",
+    "State": "状态",
+    "Snapshot": "快照",
+    "Export report": "导出报告",
+    "Start the guard again": "重新启动守卫",
     "no AI session is running right now": "当前没有运行中的 AI 会话",
     "… %d more": "… 还有 %d 个",
-    "%@ session — %.0f%% CPU in its tree": "%@ 会话 — 其进程树占 %.0f%% CPU",
     "AI session marker": "AI 会话标记",
     "Battery temperature (from 40 °C)": "电池温度（40 °C 起）",
     "Fan rpm (when spinning)": "风扇转速（旋转时）",
@@ -849,7 +864,6 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
     "The paladin stands guard. Choose how to begin:": "圣骑士开始站岗。选择如何开始:",
     "Enable protection": "启用保护",
     "Watch only for now": "暂时仅观察",
-    "Load info": "负载信息",
     "Keep awake": "保持 Mac 唤醒",
     "Off": "关闭",
     "%d min": "%d 分钟",
@@ -881,9 +895,9 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
     "First steps with the paladin": "圣骑士入门指南",
     "Phone notifications…": "手机通知…",
     "First steps…": "入门指南...",
-    "WHAT IT CAN DO\n• The paladin watches the chip, the battery, the fans and the power source - by default a reading every 15 seconds.\n• When things get too hot, it FREEZES heavy processes instead of letting the Mac cook itself. The pause destroys nothing: the process stops mid-instruction and continues once the chip cools. Example? Measured: 89 °C → 60 °C in 19 seconds, no loss.\n• It finds the real culprit: CPU is counted across the whole process tree, so it also sees a script that spawns hundreds of short jobs while using almost nothing itself.\n• On battery below 10% it pauses long jobs - they resume when you plug in.\n• It keeps a black box: after a hard failure the last 8 readings survive. One click turns them into a report for a repair shop (should you ever need it).\n• Keep-awake - works like the well-known Caffeine or Amphetamine, but unlike them it comes with a fuse: the sleep lock is released the moment things run hot. Sleep is the fastest cooling there is.": "它能做什么\n• 圣骑士监控芯片、电池、风扇和电源 - 默认每15秒测量一次。\n• 过热时会冻结繁重进程,而不是让 Mac 煮熟自己。暂停不会破坏任何东西:进程原地停住,芯片冷却后从同一处继续。例子?实测:89 °C → 60 °C 只用19秒,零损失。\n• 找到真正的元凶:按整个进程树统计 CPU,连派生数百个短任务的脚本也看得见。\n• 电量低于10%时暂停长任务 - 插上电源后自动恢复。\n• 黑匣子:硬故障后保留最后8次测量,一键生成维修报告(以备不时之需)。\n• 保持唤醒 - 像知名的 Caffeine 或 Amphetamine 一样,但不同的是它带保险丝:一旦过热立即释放睡眠锁。睡眠是最快的降温方式。",
-    "WHAT WILL HAPPEN\n• Your choice in the welcome window decides how you start.\n\n\"Watch only\" mode: the paladin measures, logs and alerts, but PAUSES NOTHING.\n\n\"Enable protection\" mode: it pauses at the defined thresholds.\n\nSwitching is easy - one switch at the top of the menu.\n\n• Default thresholds: pause at 85 °C, resume at 76 °C, gentle closing of processes at 90 °C - and only after 4 critical readings in a row. Above 90 °C for over a minute is an emergency: despite the pauses the chip still holds critical (something we could not pause is heating, or pausing was not enough to cool the chip). The process is then woken up and gets SIGTERM - a polite \"shut down\": it has a chance to save its state, close its files, clean up. That is why we call this termination \"gentle\".\n\nA fanless Mac (e.g. an Air or Neo) gets more careful parameters. The thresholds are always picked for YOUR machine: see menu > \"About my Mac\".\n\n• Notifications: on. Sounds: off (enable them in Settings). At the critical level a system banner breaks through everything - Focus and full-screen included.\n• The system, Finder, your terminal and your AI agent are on the never-touch list. The guard will not freeze the session working next to it.": "将会发生什么\n• 欢迎窗口的选择决定起点。\n\n「仅观察」模式:圣骑士测量、记录、警报,但不暂停任何进程。\n\n「启用保护」模式:按设定的阈值暂停。\n\n切换很简单 - 菜单顶部的一个开关。\n\n• 默认阈值:85 °C 暂停,76 °C 恢复,90 °C 温和关闭进程 - 且需连续4次危险读数。超过 90 °C 持续一分钟以上属于紧急情况:尽管已暂停,芯片仍处于危险级别(发热的是我们无法暂停的东西,或暂停不足以降温)。此时进程会被唤醒并收到 SIGTERM - 礼貌的「请关闭」:它有机会保存状态、关闭文件、清理现场。所以我们称这种终止为「温和」。\n\n无风扇的 Mac(如 Air 或 Neo)获得更保守的参数。阈值总是为你的机器挑选:见菜单 >「关于我的 Mac」。\n\n• 通知:开。声音:关(可在设置中打开)。危险级别时系统横幅总会弹出 - 专注模式和全屏也不例外。\n• 系统、Finder、终端和你的 AI 代理都在不可触碰清单上。守卫不会冻结在它身边工作的会话。",
-    "WHAT YOU CAN SET\n• Chip pause threshold - a slider; resume and terminate recalculate themselves.\n• Measurement interval 5-30 s: more often = faster reaction, but costlier in CPU use.\n• Heavy jobs (safe-run): all cores (fast) or efficiency cores only (cool and quiet), plus a CPU limit of 50-100%.\n• Battery gate, signals, keep-awake, this Mac's name in the fleet.": "你可以设置\n• 芯片暂停阈值 - 滑块;恢复和终止自动换算。\n• 测量间隔 5-30 秒:更频繁 = 反应更快,但 CPU 开销更大。\n• 繁重任务(safe-run):全部核心(快)或仅能效核心(安静),外加 50-100% CPU 限制。\n• 电池阈值、信号、保持唤醒、这台 Mac 在机群中的名字。",
+    "WHAT IT CAN DO\n• The paladin watches the chip, the battery, the fans and the power source - by default a reading every 15 seconds.\n• When things get too hot, it FREEZES heavy processes instead of letting the Mac cook itself. The pause destroys nothing: the process stops mid-instruction and continues once the chip cools. Example? Measured: 89 °C → 60 °C in 19 seconds, no loss.\n• It finds the real culprit: CPU is counted across the whole process tree, so it also sees a script that spawns hundreds of short jobs while using almost nothing itself.\n• On battery at 10% or less it pauses long jobs - they resume when you plug in, or once the charge is back above 25% (both figures are defaults; the Battery gate slider moves them together).\n• It keeps a black box: after a hard failure the last 8 readings survive. One click turns them into a report for a repair shop (should you ever need it).\n• Keep-awake - works like the well-known Caffeine or Amphetamine, but unlike them it comes with a fuse: the sleep lock is released the moment the Mac reaches pause level. Sleep is the fastest cooling there is.": "它能做什么\n• 圣骑士监控芯片、电池、风扇和电源 - 默认每 15 秒测量一次。\n• 一旦过热,它会冻结繁重进程,而不是让 Mac 把自己煮熟。暂停不会破坏任何东西:进程在指令中途停住,芯片冷却后从原处继续。例子?实测:89 °C → 60 °C 只用 19 秒,零损失。\n• 它能找出真正的元凶:CPU 按整个进程树统计,所以连自己几乎不占资源、却派生出数百个短任务的脚本也看得见。\n• 使用电池且电量在 10% 或以下时,它会暂停长任务 - 接上电源后恢复,或者电量回到 25% 以上时恢复(这两个数字都是默认值,「电量低于此值时暂停」滑块会同时移动它们)。\n• 它保留一个黑匣子:硬故障之后,最后 8 次读数仍然保存下来。一键即可把它们变成给维修店的报告(万一你需要的话)。\n• 保持唤醒 - 和常见的 Caffeine 或 Amphetamine 一样,但不同之处在于它带保险丝:Mac 一到暂停阈值,睡眠锁立刻释放。睡眠是最快的降温方式。",
+    "WHAT WILL HAPPEN\n• Your choice in the welcome window decides how you start.\n\n\"Watch only\" mode: the paladin measures, logs and alerts, but PAUSES NOTHING.\n\n\"Enable protection\" mode: it pauses at the defined thresholds.\n\nSwitching is easy - one switch at the top of the menu.\n\n• Default thresholds on a Mac with fans: pause at 85 °C, resume at 76 °C, gentle closing of processes at 90 °C - and only after 4 critical readings in a row, which is about 45 seconds at the default 15-second interval and shorter if you speed the interval up. A fanless Mac (an Air, or Neo) gets 78/70/88 instead. The thresholds are always picked for YOUR machine: see menu > \"About my Mac\".\n\n• Termination is the last resort, for when the chip stays critical despite the pauses: something we could not pause is heating, or pausing was not enough. The process is woken up first and gets SIGTERM, a polite \"shut down\" - a chance to save its state, close its files, clean up. That is why we call it gentle. Twenty seconds later, anything still alive gets SIGKILL. A job left frozen for more than 45 minutes is closed the same gentle way; a pause caused only by a low battery gets 4 hours, because waiting for a charger is not a failure.\n\n• A pause is not the only remedy. The process that caused it comes back on efficiency cores instead of at full speed, and stays there until the Mac has been quiet for five minutes. A job you started with `safe-run --normal` keeps all its cores.\n\n• Notifications: on. Sounds: off (enable them in Settings). At the critical level a system banner breaks through everything - Focus and full-screen included.\n• The system, Finder, your terminal and your AI agent are never frozen. An app with a window that the guard does not know by name, a browser or a video app, is pushed to efficiency cores and named in the menu instead of being frozen - unless there is a real emergency: a cooling failure, the battery at its kill threshold, or macOS itself reporting critical. A heavy job it does know by name (python, ffmpeg, a compiler) is paused whether or not it sits inside an app bundle. The guard will not freeze the session working next to it.": "将会发生什么\n• 欢迎窗口里的选择决定你从哪里开始。\n\n「仅观察」模式:圣骑士只测量、记录和提醒,不暂停任何东西。\n\n「启用保护」模式:达到设定的阈值时它会暂停。\n\n切换很简单 - 菜单顶部有一个开关。\n\n• 有风扇的 Mac 的默认阈值:85 °C 暂停,76 °C 恢复,90 °C 温和关闭进程 - 而且只有在连续 4 次临界读数之后才会执行,按默认 15 秒的间隔算大约是 45 秒,如果你把间隔调快就更短。无风扇的 Mac(Air 或 Neo)使用 78/70/88。阈值始终按你的机器挑选:见菜单 > 「关于我的 Mac」。\n\n• 终止进程是最后手段,用于暂停之后芯片仍然停在临界状态的情况:有我们无法暂停的东西在发热,或者暂停不够。进程会先被唤醒,然后收到 SIGTERM,一个客气的「请关闭」,也就是保存状态、关闭文件、清理现场的机会。所以我们称之为温和关闭。二十秒后,仍然活着的进程会收到 SIGKILL。被冻结超过 45 分钟的任务,会以同样温和的方式关闭;仅因电量低而产生的暂停可以有 4 小时,因为等充电器不算故障。\n\n• 暂停不是唯一的处理方式。引发暂停的进程恢复时跑在能效核心上,而不是满速,并且一直留在那里,直到 Mac 安静五分钟为止。用 `safe-run --normal` 启动的任务保留全部核心。\n\n• 通知:开启。声音:关闭(在设置里开启)。到了临界级别,系统横幅会穿透一切,包括专注模式和全屏。\n• 系统、Finder、你的终端和你的 AI 代理永远不会被冻结。守卫不认识名字的带窗口应用、浏览器或视频程序,会被推到能效核心并在菜单里点名,而不是被冻结,除非出现真正的紧急情况:散热失效、电池到达强制终止阈值,或者 macOS 自己报告临界状态。它按名字认识的繁重任务(python、ffmpeg、编译器),无论是否位于应用包内都会被暂停。守卫不会冻结在它旁边工作的会话。",
+    "WHAT YOU CAN SET\n• Chip pause threshold - a slider; resume follows 9 °C lower, gentle closing 5 °C higher (never above 100).\n• Measurement interval 5-30 s: more often = faster reaction, but costlier in CPU use.\n• Heavy jobs (safe-run): all cores (fast) or efficiency cores only (cool and quiet), plus a CPU limit of 50-100%.\n• Battery gate, signals, keep-awake, this Mac's name in the fleet.": "你可以设置\n• 芯片暂停阈值 - 滑块;恢复自动低 9 °C,温和关闭自动高 5 °C(绝不超过 100)。\n• 测量间隔 5-30 秒:更频繁 = 反应更快,但 CPU 开销更大。\n• 繁重任务(safe-run):全部核心(快)或仅能效核心(凉爽安静),外加 50-100% 的 CPU 限制。\n• 「电量低于此值时暂停」、信号、保持唤醒、这台 Mac 在机群中的名字。",
     "Enjoy your work!\nPaweł": "祝工作愉快!\nPaweł",
     "Sponsor on GitHub…": "在 GitHub 上赞助...",
     "Is your Mac heating up with AI and renders? coffee-paladin watches battery, chip and GPU temperatures. It pauses heavy jobs and resumes them by itself once the temperature drops.\n\nOpen source, free, for you:\n%@\n\n#panbookovsky #macbook #protect #temperature #guard":
@@ -894,16 +908,7 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
     "chip": "芯片", "fans": "风扇", "draw": "功耗", "state": "状态", "snapshot": "快照",
     "To:": "至:",
     "Everything on record": "全部记录",
-    "Cores:  %d performance + %d efficiency  ·  Neural Engine: %d":
-        "核心:  %d 性能 + %d 能效  ·  神经网络引擎: %d",
-    "Disk: %d GB (%d%% free)": "磁盘: %d GB(%d%% 可用)",
     "max capacity: %d%%": "最大容量: %d%%",
-    "Sensors:": "传感器:",
-    "chip and GPU (macmon/IOReport):  %@": "芯片与 GPU(macmon/IOReport):  %@",
-    "thermal state (Apple API):  %@": "热状态(Apple API):  %@",
-    "battery (ioreg):  %@": "电池(ioreg):  %@",
-    "CPU throttling (pmset):  %@": "CPU 降频(pmset):  %@",
-    "limited warranty (est.): until %@": "保修(估计): 至 %@",
     "set up: %@": "配置于: %@",
     "Turns off banners, their sounds and phone push - one gate for all.":
         "关闭通知、其声音和手机推送——同一道闸门。",
@@ -938,8 +943,13 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
     "Chip:  %@": "芯片:  %@",
     "Cores:  %d performance + %d efficiency": "核心:  %d 性能 + %d 能效",
     "RAM:  %d GB": "内存:  %d GB",
-    "Fans:  %d": "风扇:  %d",
     "macOS:  %@": "macOS:  %@",
+    "Cores:  %d performance + %d efficiency  ·  %d GB RAM": "核心:%d 性能核 + %d 能效核  ·  %d GB 内存",
+    "Cooling:  %d fans": "散热:%d 个风扇",
+    "Cooling:  passive, no fans": "散热:被动式,无风扇",
+    "Chip reading:  the higher of the CPU and GPU average (macmon)": "芯片读数:CPU 与 GPU 平均值中较高者(macmon)",
+    "macmon averages every SMC key it can read: Tp/Te/Ts on the CPU side, Tg on the GPU side. The guard shows whichever average is higher, so during LLM or video work this is the GPU cluster. It is a relative index, not the hottest transistor, and the two averages saturate at different values on the same machine.": "macmon 会对它能读取的所有 SMC 键取平均:CPU 侧的 Tp/Te/Ts,GPU 侧的 Tg。守卫显示两者中较高的平均值,因此在运行 LLM 或视频任务时显示的是 GPU 集群。这是一个相对指标,不是最热的晶体管,而且同一台机器上两个平均值的饱和点并不相同。",
+    "The chip reading is missing - is macmon installed?": "缺少芯片读数 - 是否已安装 macmon?",
     "Serial:  %@": "序列号:  %@",
     "Battery cycles:  %@": "电池循环:  %@",
     "Chip sensor (macmon):  %@": "芯片传感器(macmon):  %@",
@@ -982,7 +992,6 @@ let ES: [String: String] = [
     "Nothing here - and that is good news: your Mac has not been overheating.": "Aquí no hay nada, y es buena noticia: tu Mac no se ha sobrecalentado.",
     "In this session: no interventions yet.": "En esta sesión: aún sin intervenciones.",
     "Pause ended another way (manual resume, job exited, daemon restart): %d": "La pausa terminó de otra forma (reanudación manual, el proceso terminó solo, reinicio del demonio): %d",
-    "%@ session — idle": "sesión %@ — sin carga",
     "Process tree details": "Detalles de árboles de procesos",
     "Heavy jobs paused": "Tareas pesadas pausadas",
     "Jobs resumed after cooling": "Reanudadas tras enfriarse",
@@ -1014,18 +1023,18 @@ let ES: [String: String] = [
     "   readings: %.0f-%.0f C": "   lecturas: %.0f-%.0f C",
     "rising %.1f C/min - about %.0f min to pause": "sube %.1f C/min - pausa en unos %.0f min",
     "rising %.1f C/min": "sube %.1f C/min",
-    "Supervised jobs (safe-run):": "Tareas supervisadas (safe-run):",
-    "Heating the most now (CPU ≈ heat):": "Lo que más calienta ahora (CPU ≈ calor):",
+    "What is loading the Mac": "Qué está cargando el Mac",
+    "Held: %d": "Detenidos: %d",
+    "  (by hand)": "  (a mano)",
+    "Calm": "En calma",
+    "Warming up": "Calentándose",
+    "Hot": "Caliente",
+    "Critical": "Crítico",
+    "Under the guard (safe-run):": "Bajo el paladín (safe-run):",
+    "Heating the most (CPU stands in for heat):": "Los que más calientan (la CPU representa el calor):",
+    "cores": "núcleos",
+    "Chip thresholds:  pause %.0f °C, kill %.0f °C": "Umbrales del chip:  pausa %.0f °C, cierre %.0f °C",
     "Eating the most RAM:": "Lo que más RAM consume:",
-    "Top CPU:  %@ (%d%%)": "Mayor uso de CPU:  %@ (%d%%)",
-    "Paused: %@": "En pausa: %@",
-    "  (manual)": "  (manual)",
-    "State: %@": "Estado: %@",
-    "calm": "tranquilo",
-    "warm": "templado",
-    "HOT - paused": "CALIENTE - en pausa",
-    "CRITICAL": "CRÍTICO",
-    "Chip thresholds:  pause %.0f C, kill %.0f C": "Umbrales del chip:  pausa %.0f C, terminar %.0f C",
     "Today: %d x pause": "Hoy: %d x pausa",
     ", %d x kill": ", %d x terminación",
     "Resume paused jobs": "Reanudar tareas en pausa",
@@ -1136,9 +1145,17 @@ Vuelve a activarlo cuando termines.
     "5h limit": "límite 5 h",
     "7d limit": "límite 7 días",
     "context": "contexto",
+    "%@  ·  idle": "%@  ·  inactiva",
+    "%@  ·  %.1f cores in its tree": "%@  ·  %.1f núcleos en su árbol",
+    "Chip": "Chip",
+    "Battery": "Batería",
+    "Fans": "Ventiladores",
+    "State": "Estado",
+    "Snapshot": "Instantánea",
+    "Export report": "Guardar informe",
+    "Start the guard again": "Iniciar el paladín de nuevo",
     "no AI session is running right now": "ninguna sesión de IA está activa ahora",
     "… %d more": "… %d más",
-    "%@ session — %.0f%% CPU in its tree": "sesión %@ — %.0f%% CPU en su árbol",
     "AI session marker": "Marcador de sesión IA",
     "Battery temperature (from 40 °C)": "Temperatura de la batería (desde 40 °C)",
     "Fan rpm (when spinning)": "Rpm de ventiladores (cuando giran)",
@@ -1155,7 +1172,6 @@ Vuelve a activarlo cuando termines.
     "The paladin stands guard. Choose how to begin:": "El paladín monta guardia. Elige cómo empezar:",
     "Enable protection": "Activar protección",
     "Watch only for now": "Solo observar por ahora",
-    "Load info": "Información de carga",
     "Keep awake": "Mantener el Mac despierto",
     "Off": "Apagar",
     "%d min": "%d min",
@@ -1187,9 +1203,9 @@ Vuelve a activarlo cuando termines.
     "First steps with the paladin": "Primeros pasos con el paladín",
     "Phone notifications…": "Notificaciones en el móvil…",
     "First steps…": "Primeros pasos...",
-    "WHAT IT CAN DO\n• The paladin watches the chip, the battery, the fans and the power source - by default a reading every 15 seconds.\n• When things get too hot, it FREEZES heavy processes instead of letting the Mac cook itself. The pause destroys nothing: the process stops mid-instruction and continues once the chip cools. Example? Measured: 89 °C → 60 °C in 19 seconds, no loss.\n• It finds the real culprit: CPU is counted across the whole process tree, so it also sees a script that spawns hundreds of short jobs while using almost nothing itself.\n• On battery below 10% it pauses long jobs - they resume when you plug in.\n• It keeps a black box: after a hard failure the last 8 readings survive. One click turns them into a report for a repair shop (should you ever need it).\n• Keep-awake - works like the well-known Caffeine or Amphetamine, but unlike them it comes with a fuse: the sleep lock is released the moment things run hot. Sleep is the fastest cooling there is.": "QUÉ SABE HACER\n• El paladín vigila el chip, la batería, los ventiladores y la fuente de alimentación: por defecto una medición cada 15 segundos.\n• Cuando la cosa se calienta demasiado, CONGELA los procesos pesados en vez de dejar que el Mac se cueza. La pausa no destruye nada: el proceso se detiene a mitad de instrucción y sigue en cuanto el chip se enfría. ¿Un ejemplo? Medido: 89 °C → 60 °C en 19 segundos, sin pérdidas.\n• Encuentra al culpable de verdad: la CPU se cuenta en todo el árbol de procesos, así que también ve el script que lanza cientos de tareas cortas sin apenas consumir por sí mismo.\n• Con la batería por debajo del 10% pausa los trabajos largos, y los reanuda al enchufar la corriente.\n• Lleva una caja negra: tras un apagón brusco sobreviven las 8 últimas mediciones. Con un clic se convierten en un informe para el servicio técnico (por si algún día hace falta).\n• Mantener despierto: funciona como los conocidos Caffeine o Amphetamine, pero a diferencia de ellos viene con fusible: el bloqueo del sueño se suelta en cuanto sube la temperatura. Dormir es la forma más rápida de enfriar.",
-    "WHAT WILL HAPPEN\n• Your choice in the welcome window decides how you start.\n\n\"Watch only\" mode: the paladin measures, logs and alerts, but PAUSES NOTHING.\n\n\"Enable protection\" mode: it pauses at the defined thresholds.\n\nSwitching is easy - one switch at the top of the menu.\n\n• Default thresholds: pause at 85 °C, resume at 76 °C, gentle closing of processes at 90 °C - and only after 4 critical readings in a row. Above 90 °C for over a minute is an emergency: despite the pauses the chip still holds critical (something we could not pause is heating, or pausing was not enough to cool the chip). The process is then woken up and gets SIGTERM - a polite \"shut down\": it has a chance to save its state, close its files, clean up. That is why we call this termination \"gentle\".\n\nA fanless Mac (e.g. an Air or Neo) gets more careful parameters. The thresholds are always picked for YOUR machine: see menu > \"About my Mac\".\n\n• Notifications: on. Sounds: off (enable them in Settings). At the critical level a system banner breaks through everything - Focus and full-screen included.\n• The system, Finder, your terminal and your AI agent are on the never-touch list. The guard will not freeze the session working next to it.": "QUÉ VA A PASAR\n• Tu elección en la ventana de bienvenida decide cómo empiezas.\n\nModo «Solo observar»: el paladín mide, registra y avisa, pero NO PAUSA NADA.\n\nModo «Activar protección»: pausa en los umbrales definidos.\n\nCambiar de uno a otro es fácil: un interruptor en lo alto del menú.\n\n• Umbrales por defecto: pausa a 85 °C, reanudación a 76 °C, cierre suave de procesos a 90 °C, y solo tras 4 lecturas críticas seguidas. Más de 90 °C durante más de un minuto es una emergencia: pese a las pausas el chip sigue en crítico (algo que no pudimos pausar está calentando, o pausar no bastó para enfriarlo). Entonces el proceso se despierta y recibe SIGTERM, un «ciérrate» educado: tiene ocasión de guardar su estado, cerrar sus archivos y limpiar. Por eso llamamos «suave» a esta terminación.\n\nUn Mac sin ventilador (por ejemplo un Air) recibe parámetros más prudentes. Los umbrales se eligen siempre para TU máquina: míralo en el menú > «Sobre mi Mac».\n\n• Notificaciones: activadas. Sonidos: desactivados (se activan en Ajustes). En el nivel crítico un aviso del sistema atraviesa todo, incluidos Concentración y la pantalla completa.\n• El sistema, el Finder, tu terminal y tu agente de IA están en la lista de intocables. El guardián no congelará la sesión que trabaja a su lado.",
-    "WHAT YOU CAN SET\n• Chip pause threshold - a slider; resume and terminate recalculate themselves.\n• Measurement interval 5-30 s: more often = faster reaction, but costlier in CPU use.\n• Heavy jobs (safe-run): all cores (fast) or efficiency cores only (cool and quiet), plus a CPU limit of 50-100%.\n• Battery gate, signals, keep-awake, this Mac's name in the fleet.": "QUÉ PUEDES CONFIGURAR\n• Umbral de pausa del chip: un deslizador; la reanudación y el cierre se recalculan solos.\n• Intervalo de medición de 5 a 30 s: más a menudo = reacción más rápida, pero más gasto de CPU.\n• Trabajos pesados (safe-run): todos los núcleos (rápido) o solo los de eficiencia (fresco y silencioso), más un límite de CPU del 50 al 100%.\n• Puerta de batería, señales, mantener despierto y el nombre de este Mac en la flota.",
+    "WHAT IT CAN DO\n• The paladin watches the chip, the battery, the fans and the power source - by default a reading every 15 seconds.\n• When things get too hot, it FREEZES heavy processes instead of letting the Mac cook itself. The pause destroys nothing: the process stops mid-instruction and continues once the chip cools. Example? Measured: 89 °C → 60 °C in 19 seconds, no loss.\n• It finds the real culprit: CPU is counted across the whole process tree, so it also sees a script that spawns hundreds of short jobs while using almost nothing itself.\n• On battery at 10% or less it pauses long jobs - they resume when you plug in, or once the charge is back above 25% (both figures are defaults; the Battery gate slider moves them together).\n• It keeps a black box: after a hard failure the last 8 readings survive. One click turns them into a report for a repair shop (should you ever need it).\n• Keep-awake - works like the well-known Caffeine or Amphetamine, but unlike them it comes with a fuse: the sleep lock is released the moment the Mac reaches pause level. Sleep is the fastest cooling there is.": "QUÉ SABE HACER\n• El paladín vigila el chip, la batería, los ventiladores y la fuente de alimentación: por defecto una medición cada 15 segundos.\n• Cuando la cosa se calienta demasiado, CONGELA los procesos pesados en vez de dejar que el Mac se cueza. La pausa no destruye nada: el proceso se detiene a mitad de instrucción y sigue en cuanto el chip se enfría. ¿Un ejemplo? Medido: 89 °C → 60 °C en 19 segundos, sin pérdidas.\n• Encuentra al culpable de verdad: la CPU se cuenta en todo el árbol de procesos, así que también ve el script que lanza cientos de tareas cortas sin apenas consumir por sí mismo.\n• Con la batería al 10% o menos pausa los trabajos largos, y los reanuda cuando enchufas la corriente o cuando la carga vuelve a superar el 25% (las dos cifras son valores por defecto, el deslizador «Pausar con batería por debajo de» las mueve juntas).\n• Lleva una caja negra: tras un fallo brusco sobreviven las 8 últimas mediciones. Con un clic se convierten en un informe para el servicio técnico (por si algún día hace falta).\n• Mantener el Mac despierto: funciona como los conocidos Caffeine o Amphetamine, pero a diferencia de ellos viene con fusible: el bloqueo del sueño se suelta en el momento en que el Mac llega al nivel de pausa. Dormir es la forma más rápida de enfriar.",
+    "WHAT WILL HAPPEN\n• Your choice in the welcome window decides how you start.\n\n\"Watch only\" mode: the paladin measures, logs and alerts, but PAUSES NOTHING.\n\n\"Enable protection\" mode: it pauses at the defined thresholds.\n\nSwitching is easy - one switch at the top of the menu.\n\n• Default thresholds on a Mac with fans: pause at 85 °C, resume at 76 °C, gentle closing of processes at 90 °C - and only after 4 critical readings in a row, which is about 45 seconds at the default 15-second interval and shorter if you speed the interval up. A fanless Mac (an Air, or Neo) gets 78/70/88 instead. The thresholds are always picked for YOUR machine: see menu > \"About my Mac\".\n\n• Termination is the last resort, for when the chip stays critical despite the pauses: something we could not pause is heating, or pausing was not enough. The process is woken up first and gets SIGTERM, a polite \"shut down\" - a chance to save its state, close its files, clean up. That is why we call it gentle. Twenty seconds later, anything still alive gets SIGKILL. A job left frozen for more than 45 minutes is closed the same gentle way; a pause caused only by a low battery gets 4 hours, because waiting for a charger is not a failure.\n\n• A pause is not the only remedy. The process that caused it comes back on efficiency cores instead of at full speed, and stays there until the Mac has been quiet for five minutes. A job you started with `safe-run --normal` keeps all its cores.\n\n• Notifications: on. Sounds: off (enable them in Settings). At the critical level a system banner breaks through everything - Focus and full-screen included.\n• The system, Finder, your terminal and your AI agent are never frozen. An app with a window that the guard does not know by name, a browser or a video app, is pushed to efficiency cores and named in the menu instead of being frozen - unless there is a real emergency: a cooling failure, the battery at its kill threshold, or macOS itself reporting critical. A heavy job it does know by name (python, ffmpeg, a compiler) is paused whether or not it sits inside an app bundle. The guard will not freeze the session working next to it.": "QUÉ VA A PASAR\n• Tu elección en la ventana de bienvenida decide cómo empiezas.\n\nModo «Solo observar»: el paladín mide, registra y avisa, pero NO PAUSA NADA.\n\nModo «Activar protección»: pausa en los umbrales definidos.\n\nCambiar es fácil, hay un interruptor arriba del todo en el menú.\n\n• Umbrales por defecto en un Mac con ventiladores: pausa a 85 °C, reanudación a 76 °C, cierre suave de procesos a 90 °C, y solo después de 4 lecturas críticas seguidas, que son unos 45 segundos con el intervalo por defecto de 15 s, y menos si aceleras el intervalo. Un Mac sin ventilador (un Air, o Neo) usa 78/70/88 en su lugar. Los umbrales se eligen siempre para TU máquina: mira el menú > «Acerca de mi Mac».\n\n• Terminar el proceso es el último recurso, para cuando el chip sigue en estado crítico pese a las pausas: está calentando algo que no pudimos pausar, o pausar no bastó. Primero se despierta el proceso y recibe SIGTERM, un cortés «ciérrate», es decir, la oportunidad de guardar su estado, cerrar sus archivos y limpiar. Por eso lo llamamos cierre suave. Veinte segundos después, lo que siga vivo recibe SIGKILL. Un trabajo que lleve congelado más de 45 minutos se cierra de la misma manera suave; una pausa causada solo por batería baja tiene 4 horas, porque esperar al cargador no es un fallo.\n\n• La pausa no es el único remedio. El proceso que la provocó vuelve en los núcleos de eficiencia en vez de a toda velocidad, y se queda ahí hasta que el Mac lleve cinco minutos tranquilo. Un trabajo que hayas lanzado con `safe-run --normal` conserva todos sus núcleos.\n\n• Notificaciones: activadas. Sonidos: desactivados (actívalos en Ajustes). En el nivel crítico un aviso del sistema atraviesa todo, incluidos Concentración y la pantalla completa.\n• El sistema, Finder, tu terminal y tu agente de IA nunca se congelan. Una app con ventana que el guardián no conoce por su nombre, un navegador o un programa de vídeo, pasa a los núcleos de eficiencia y aparece nombrada en el menú en vez de ser congelada, salvo que haya una emergencia real: un fallo de refrigeración, la batería en su umbral de terminación o el propio macOS informando de estado crítico. Un trabajo pesado que sí conoce por su nombre (python, ffmpeg, un compilador) se pausa esté o no dentro de un paquete de aplicación. El guardián no congelará la sesión que trabaja a su lado.",
+    "WHAT YOU CAN SET\n• Chip pause threshold - a slider; resume follows 9 °C lower, gentle closing 5 °C higher (never above 100).\n• Measurement interval 5-30 s: more often = faster reaction, but costlier in CPU use.\n• Heavy jobs (safe-run): all cores (fast) or efficiency cores only (cool and quiet), plus a CPU limit of 50-100%.\n• Battery gate, signals, keep-awake, this Mac's name in the fleet.": "QUÉ PUEDES CONFIGURAR\n• Umbral de pausa del chip: un deslizador; la reanudación va 9 °C por debajo y el cierre suave 5 °C por encima (nunca por encima de 100).\n• Intervalo de medición 5-30 s: más a menudo = reacción más rápida, pero más gasto de CPU.\n• Trabajos pesados (safe-run): todos los núcleos (rápido) o solo los de eficiencia (fresco y silencioso), más un límite de CPU del 50-100%.\n• «Pausar con batería por debajo de», señales, «Mantener el Mac despierto» y el nombre de este Mac en la flota.",
     "Enjoy your work!\nPaweł": "¡Que disfrutes del trabajo!\nPaweł",
     "Sponsor on GitHub…": "Patrocinar en GitHub...",
     "Is your Mac heating up with AI and renders? coffee-paladin watches battery, chip and GPU temperatures. It pauses heavy jobs and resumes them by itself once the temperature drops.\n\nOpen source, free, for you:\n%@\n\n#panbookovsky #macbook #protect #temperature #guard":
@@ -1200,16 +1216,7 @@ Vuelve a activarlo cuando termines.
     "chip": "chip", "fans": "ventiladores", "draw": "consumo", "state": "estado", "snapshot": "instantánea",
     "To:": "Hasta:",
     "Everything on record": "Todo lo registrado",
-    "Cores:  %d performance + %d efficiency  ·  Neural Engine: %d":
-        "Núcleos:  %d de rendimiento + %d eficientes  ·  Neural Engine: %d",
-    "Disk: %d GB (%d%% free)": "Disco: %d GB (%d%% libre)",
     "max capacity: %d%%": "capacidad máx.: %d%%",
-    "Sensors:": "Sensores:",
-    "chip and GPU (macmon/IOReport):  %@": "chip y GPU (macmon/IOReport):  %@",
-    "thermal state (Apple API):  %@": "estado térmico (API de Apple):  %@",
-    "battery (ioreg):  %@": "batería (ioreg):  %@",
-    "CPU throttling (pmset):  %@": "limitación de CPU (pmset):  %@",
-    "limited warranty (est.): until %@": "garantía (est.): hasta %@",
     "set up: %@": "configurado: %@",
     "Turns off banners, their sounds and phone push - one gate for all.":
         "Apaga avisos, sus sonidos y el push al móvil: una sola puerta para todo.",
@@ -1244,8 +1251,13 @@ Vuelve a activarlo cuando termines.
     "Chip:  %@": "Chip:  %@",
     "Cores:  %d performance + %d efficiency": "Núcleos:  %d de rendimiento + %d de eficiencia",
     "RAM:  %d GB": "RAM:  %d GB",
-    "Fans:  %d": "Ventiladores:  %d",
     "macOS:  %@": "macOS:  %@",
+    "Cores:  %d performance + %d efficiency  ·  %d GB RAM": "Núcleos:  %d de rendimiento + %d de eficiencia  ·  %d GB de RAM",
+    "Cooling:  %d fans": "Refrigeración:  %d ventiladores",
+    "Cooling:  passive, no fans": "Refrigeración:  pasiva, sin ventiladores",
+    "Chip reading:  the higher of the CPU and GPU average (macmon)": "Lectura del chip:  la mayor de las medias de CPU y GPU (macmon)",
+    "macmon averages every SMC key it can read: Tp/Te/Ts on the CPU side, Tg on the GPU side. The guard shows whichever average is higher, so during LLM or video work this is the GPU cluster. It is a relative index, not the hottest transistor, and the two averages saturate at different values on the same machine.": "macmon promedia todas las claves SMC que puede leer: Tp/Te/Ts en el lado de la CPU, Tg en el de la GPU. El paladín muestra la media más alta, así que durante trabajo con LLM o vídeo es el clúster de GPU. Es un índice relativo, no el transistor más caliente, y las dos medias se saturan en valores distintos en la misma máquina.",
+    "The chip reading is missing - is macmon installed?": "Falta la lectura del chip - ¿está instalado macmon?",
     "Serial:  %@": "Número de serie:  %@",
     "Battery cycles:  %@": "Ciclos de batería:  %@",
     "Chip sensor (macmon):  %@": "Sensor del chip (macmon):  %@",
@@ -3715,7 +3727,7 @@ final class Bar: NSObject, NSMenuDelegate {
         }
         item.button?.attributedTitle = out
 
-        var tip = s.reason.isEmpty ? "coffee-paladin: " + T("calm") : s.reason
+        var tip = s.reason.isEmpty ? "coffee-paladin: " + T("Calm") : s.reason
         if let e = s.eta { tip += String(format: "\n%.0f min", e) }
         item.button?.toolTip = tip
     }
@@ -3764,7 +3776,7 @@ final class Bar: NSObject, NSMenuDelegate {
         }
         let na = T("n/a")
 
-        if s.stale { row(T("!") + " " + String(format: T("data is stale (%@) - the guard may have died"), s.stamp)) }
+        if s.stale { row("! " + String(format: T("data is stale (%@) - the guard may have died"), s.stamp)) }
         if let c = s.lastCrash { row(String(format: T("the Mac shut down without warning: %@"), c)) }
 
         // Pair readings into one line: temperatures together, load with fans, power
@@ -4288,17 +4300,12 @@ final class Bar: NSObject, NSMenuDelegate {
             // macOS+setup date / fans+battery cycles.
             let chipName = (hw["chip"] as? String) ?? "?"
             arow(((hw["model_name"] as? String) ?? "?") + "  ·  " + chipName)
-            // Neural Engine has no public read API. Derive ANE cores from chip model:
-            // Ultra = 2x die = 32; every other M chip = 16.
-            let ane = chipName.contains("Ultra") ? 32 : 16
-            arow(String(format: T("Cores:  %d performance + %d efficiency  ·  Neural Engine: %d"),
-                        (hw["p_cores"] as? Int) ?? 0, (hw["e_cores"] as? Int) ?? 0, ane))
-            var ramLine = String(format: T("RAM:  %d GB"), (hw["ram_gb"] as? Int) ?? 0)
-            let diskSnap = readSnap()
-            if let dt = diskSnap?.diskTotal, let dp = diskSnap?.diskPct {
-                ramLine += "  ·  " + String(format: T("Disk: %d GB (%d%% free)"), dt, 100 - dp)
-            }
-            arow(ramLine)
+            // Cores and memory on one line, no Neural Engine (nothing here uses it) and
+            // no disk (the card shows it when it matters, and this menu is an ID card:
+            // what the machine IS, not what it is doing).
+            arow(String(format: T("Cores:  %d performance + %d efficiency  ·  %d GB RAM"),
+                        (hw["p_cores"] as? Int) ?? 0, (hw["e_cores"] as? Int) ?? 0,
+                        (hw["ram_gb"] as? Int) ?? 0))
             // Marketing system name, as in "About This Mac" (Tahoe/Sequoia/...).
             let osVersion = (hw["macos"] as? String) ?? "?"
             let osName: String
@@ -4312,10 +4319,8 @@ final class Bar: NSObject, NSMenuDelegate {
             default: osName = "macOS"
             }
             var osLine = osName + " " + osVersion
-            var setupDate: Date?
             if let atr = try? FileManager.default.attributesOfItem(atPath: "/var/db/.AppleSetupDone"),
                let setupDoneDate = (atr[.creationDate] ?? atr[.modificationDate]) as? Date {
-                setupDate = setupDoneDate
                 let f = DateFormatter()
                 f.dateFormat = "dd.MM.yyyy"
         f.locale = Locale(identifier: "en_US_POSIX")
@@ -4323,7 +4328,11 @@ final class Bar: NSObject, NSMenuDelegate {
                 osLine += "  ·  " + String(format: T("set up: %@"), f.string(from: setupDoneDate))
             }
             arow(osLine)
-            var fanLine = String(format: T("Fans:  %d"), (hw["fan_count"] as? Int) ?? 0)
+            abm.addItem(.separator())
+            let fanCount = (hw["fan_count"] as? Int) ?? 0
+            var fanLine = fanCount == 0
+                ? T("Cooling:  passive, no fans")
+                : String(format: T("Cooling:  %d fans"), fanCount)
             if let cyc = hw["battery_cycles"] as? Int {
                 let warn = (hw["battery_failure"] as? Bool) == true ? " (!)" : ""
                 fanLine += "  ·  " + String(format: T("Battery cycles:  %@"), "\(cyc)\(warn)")
@@ -4333,74 +4342,93 @@ final class Bar: NSObject, NSMenuDelegate {
             }
             arow(fanLine)
             if let ser = hw["serial"] as? String, !ser.isEmpty {
-                var serialLine = String(format: T("Serial:  %@"), ser)
-                // Warranty: macOS does not expose it programmatically. Estimate one year
-                // from first system setup and state clearly that it is an estimate.
-                if let ds = setupDate {
-                    let f = DateFormatter()
-                    f.dateFormat = "dd.MM.yyyy"
-        f.locale = Locale(identifier: "en_US_POSIX")
-        f.calendar = Calendar(identifier: .gregorian)
-                    let warrantyEnd = ds.addingTimeInterval(365 * 86400)
-                    serialLine += "  ·  " + String(format: T("limited warranty (est.): until %@"),
-                                                 f.string(from: warrantyEnd))
-                }
-                arow(serialLine)
+                // No warranty guess here any more: it was a year counted from the first
+                // system setup, which a reinstall or a migration resets, and Apple's own
+                // term starts at purchase. A wrong date on a repair document is worse
+                // than no date.
+                arow(String(format: T("Serial:  %@"), ser))
             }
             // Show all measurement sources, not only macmon. If one fails, users can
             // immediately see what else is still watching the machine.
-            let ok = T("yes"), noText = T("no")
-            let mac = (hw["chip_sensor"] as? Bool) == true
-            let thermalStateOK = FileManager.default.isExecutableFile(atPath:
-                NSHomeDirectory() + "/.local/bin/thermalstate")
-            let sensorSnap = readSnap()
-            let battOK = sensorSnap?.batt != nil
-            let thrOK = (sensorSnap?.cpuLimit ?? 0) > 0
-            arow(T("Sensors:"))
-            arow("   - " + String(format: T("chip and GPU (macmon/IOReport):  %@"), mac ? ok : noText))
-            arow("   - " + String(format: T("thermal state (Apple API):  %@"), thermalStateOK ? ok : noText))
-            arow("   - " + String(format: T("battery (ioreg):  %@"), battOK ? ok : noText))
-            arow("   - " + String(format: T("CPU throttling (pmset):  %@"), thrOK ? ok : noText))
-            let sp = GuardCfg.double("soc_pause_c", 85), sk = GuardCfg.double("soc_kill_c", 90)
-            arow(String(format: T("Chip thresholds:  pause %.0f C, kill %.0f C"), sp, sk))
+            // What the chip number IS, because every threshold in this app is set
+            // against it: macmon averages the SMC keys it can read on the CPU side and
+            // on the GPU side, and the guard takes whichever average is higher. It is a
+            // relative index, not the hottest point on the die. The five-row list of
+            // sensors that used to be here answered a question nobody asked; a missing
+            // sensor is worth a row, a working one is not.
+            abm.addItem(.separator())
+            let chipRow = NSMenuItem(title: T("Chip reading:  the higher of the CPU and GPU average (macmon)"),
+                                     action: nil, keyEquivalent: "")
+            chipRow.toolTip = T("macmon averages every SMC key it can read: Tp/Te/Ts on the CPU side, Tg on the GPU side. The guard shows whichever average is higher, so during LLM or video work this is the GPU cluster. It is a relative index, not the hottest transistor, and the two averages saturate at different values on the same machine.")
+            abm.addItem(chipRow)
+            if (hw["chip_sensor"] as? Bool) != true {
+                let miss = NSMenuItem(title: T("The chip reading is missing - is macmon installed?"),
+                                      action: nil, keyEquivalent: "")
+                miss.image = img("exclamationmark.triangle")
+                abm.addItem(miss)
+            }
         }
         about.submenu = abm
         m.addItem(about)
         if let sn = readSnap() {
             // "Load info": jobs, top CPU/RAM, state, thresholds, and daily counter all
             // live in a submenu so the main card stays compact.
-            let loadIt = NSMenuItem(title: T("Load info"), action: nil, keyEquivalent: "")
+            // "What is loading the Mac": the answer first, the evidence under it, and
+            // a heading only when it has entries below it. CPU is shown in cores, not
+            // percent: "985% CPU" means nothing next to "Load: 8.5 / 14 cores" on the
+            // card, and a number over 100 reads like an error.
+            let loadIt = NSMenuItem(title: T("What is loading the Mac"), action: nil, keyEquivalent: "")
             loadIt.image = img("chart.bar")
             let lo = NSMenu()
             lo.autoenablesItems = false
             func lrow(_ t: String) { lo.addItem(NSMenuItem(title: t, action: nil, keyEquivalent: "")) }
-            if !sn.jobs.isEmpty {
-                lrow(T("Supervised jobs (safe-run):"))
-                for j in sn.jobs { lrow("   - \(j.name) — \(j.minutes) min") }
+            func entry(_ t: String) {
+                let it = NSMenuItem(title: t, action: nil, keyEquivalent: "")
+                it.indentationLevel = 1
+                lo.addItem(it)
             }
-            // "What heats / eats RAM" lists: CPU approximates heat because per-process
-            // temperatures do not exist, and the label says so. If an older daemon has
-            // not published the lists yet, keep the older single Top CPU row.
-            if !sn.topCpuList.isEmpty {
-                lrow(T("Heating the most now (CPU ≈ heat):"))
-                for t in sn.topCpuList { lrow("   - \(t.name) — \(t.cpu)% CPU") }
-            } else if let p = sn.topProc, let c = sn.topCPU {
-                lrow(String(format: T("Top CPU:  %@ (%d%%)"), p, c))
-            }
-            if !sn.topRamList.isEmpty {
-                lrow(T("Eating the most RAM:"))
-                for t in sn.topRamList { lrow(String(format: "   - %@ — %.1f GB", t.name, t.gb)) }
+            func headline(_ symbol: String, _ text: String) {
+                let it = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+                let a = NSMutableAttributedString(string: text)
+                a.addAttribute(.font, value: NSFont.boldSystemFont(ofSize: NSFont.systemFontSize),
+                               range: NSRange(location: 0, length: a.length))
+                it.attributedTitle = a
+                it.image = img(symbol)
+                lo.addItem(it)
             }
             if !sn.paused.isEmpty {
-                lrow(String(format: T("Paused: %@"), sn.paused.joined(separator: ", "))
-                     + (sn.manualPause ? T("  (manual)") : ""))
+                headline("pause.circle", String(format: T("Held: %d"), sn.paused.count)
+                         + (sn.manualPause ? T("  (by hand)") : ""))
+                for name in sn.paused { entry(name) }
             } else {
-                let names = [T("calm"), T("warm"), T("HOT - paused"), T("CRITICAL")]
-                lrow(String(format: T("State: %@"), names[min(max(sn.level, 0), 3)])
-                     + (sn.reason.isEmpty ? "" : " — \(sn.reason)"))
+                let names = [T("Calm"), T("Warming up"), T("Hot"), T("Critical")]
+                let symbols = ["checkmark.circle", "thermometer.medium", "flame", "exclamationmark.triangle"]
+                let lvl = min(max(sn.level, 0), 3)
+                headline(symbols[lvl], names[lvl] + (sn.reason.isEmpty ? "" : "  ·  \(sn.reason)"))
             }
+            if !sn.jobs.isEmpty {
+                lo.addItem(.separator())
+                lrow(T("Under the guard (safe-run):"))
+                for j in sn.jobs { entry("\(j.name)  ·  " + fmtDur(j.minutes)) }
+            }
+            if !sn.topCpuList.isEmpty {
+                lo.addItem(.separator())
+                lrow(T("Heating the most (CPU stands in for heat):"))
+                for t in sn.topCpuList {
+                    entry(String(format: "%@  ·  %.1f " + T("cores"), t.name, Double(t.cpu) / 100.0))
+                }
+            } else if let p = sn.topProc, let c = sn.topCPU {
+                lo.addItem(.separator())
+                lrow(String(format: "%@  ·  %.1f " + T("cores"), p, Double(c) / 100.0))
+            }
+            if !sn.topRamList.isEmpty {
+                lo.addItem(.separator())
+                lrow(T("Eating the most RAM:"))
+                for t in sn.topRamList { entry(String(format: "%@  ·  %.1f GB", t.name, t.gb)) }
+            }
+            lo.addItem(.separator())
             if let pp = sn.thrPause, let pk = sn.thrKill {
-                lrow(String(format: T("Chip thresholds:  pause %.0f C, kill %.0f C"), pp, pk))
+                lrow(String(format: T("Chip thresholds:  pause %.0f °C, kill %.0f °C"), pp, pk))
             }
             if sn.pausesToday > 0 || sn.killsToday > 0 {
                 lrow(String(format: T("Today: %d x pause"), sn.pausesToday)
@@ -4481,7 +4509,9 @@ final class Bar: NSObject, NSMenuDelegate {
                     }
                     flush()
                     if actRows.count < 40 {
-                        let cpuTxt = cpu >= 1 ? String(format: " — %.0f%% CPU", cpu) : ""
+                        // Cores, like everywhere else in this menu: a helper at 630%
+                        // means nothing next to "Load: 8.5 / 14 cores" on the card.
+                        let cpuTxt = cpu >= 1 ? String(format: "  ·  %.1f " + T("cores"), cpu / 100.0) : ""
                         actRows.append((comm + cpuTxt, actIcon(comm), indent))
                         actShown += 1
                     }
@@ -4494,8 +4524,8 @@ final class Bar: NSObject, NSMenuDelegate {
                 let label = (a["agent"] as? String ?? "?").capitalized
                 let tree = (a["cpu_tree"] as? Double) ?? 0
                 let line = tree < 1
-                    ? String(format: T("%@ session — idle"), label)
-                    : String(format: T("%@ session — %.0f%% CPU in its tree"), label, tree)
+                    ? String(format: T("%@  ·  idle"), label)
+                    : String(format: T("%@  ·  %.1f cores in its tree"), label, tree / 100.0)
                 sessionRows.append(line)
                 if actRows.count < 40 {
                     actRows.append((line, "sparkles", 0))
@@ -4662,7 +4692,7 @@ final class Bar: NSObject, NSMenuDelegate {
                     "ram": h.ramPct.map { "\($0)%" } ?? "-",
                     "power": h.onAC ? T("AC adapter")
                                     : T("Battery") + (h.battPct.map { " \($0)%" } ?? ""),
-                    "state": [T("calm"), T("warm"), T("HOT - paused"), T("CRITICAL")][min(max(h.level, 0), 3)],
+                    "state": [T("Calm"), T("Warming up"), T("Hot"), T("Critical")][min(max(h.level, 0), 3)],
                     "paused": h.paused.joined(separator: ", "),
                 ] as [String: String]
                 fmenu.addItem(it)
