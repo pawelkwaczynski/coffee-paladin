@@ -93,11 +93,14 @@ for name in ("PL", "RU", "ZH", "ES"):
         continue
     body = bar[m.end():bar.index('\n]\n', m.end())]
     have = {swift_unescape(k) for k in re.findall(r'(?<![\\])' + LITERAL + r'\s*:', body)}
-    # A Swift string built by concatenation ("part one " + T("x")) shows up here as
-    # its first fragment, and the dictionary holds the whole sentence. Treat a
-    # fragment that starts some existing key as covered; a real gap does not.
+    # A Swift string built by concatenation ("part one " + "part two") shows up here
+    # as its first fragment while the dictionary holds the whole sentence. Such a
+    # fragment always ends mid-sentence, on a space. Anything else that is missing is
+    # missing for real: "Chip" is a prefix of "Chip thresholds", and treating every
+    # prefix as covered hid exactly that key when it was deleted on purpose.
     missing = sorted(k for k in bar_called
-                     if k not in have and not any(h.startswith(k) for h in have))
+                     if k not in have
+                     and not (k.endswith(" ") and any(h.startswith(k) for h in have)))
     if missing:
         errors.append("heatbar.swift: %s is missing %d translations (for example %r)"
                      % (name, len(missing), missing[0][:60]))
