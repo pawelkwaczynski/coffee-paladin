@@ -188,6 +188,12 @@ let PL: [String: String] = [
     "released automatically when the Mac gets hot": "zwalniane samo, gdy Mac się grzeje",
     "Keep-awake: %@ left": "Czuwanie: zostało %@",
     "Held right now: %d": "Wstrzymane teraz: %d",
+    "Watch only": "Tylko obserwuj",
+    "The paladin keeps measuring and writes to the log what it would pause, but it stops nothing until you switch this back on.": "Paladyn dalej mierzy i zapisuje w logu, co by wstrzymał, ale niczego nie zatrzyma, dopóki nie włączysz ochrony z powrotem.",
+    "Thermal protection is on": "Ochrona termiczna włączona",
+    "Above %.0f °C the paladin pauses heavy jobs and starts them again by itself at %.0f °C.": "Powyżej %.0f °C paladyn wstrzymuje ciężkie zadania i sam je wznawia przy %.0f °C.",
+    "Jobs resumed": "Zadania wznowione",
+    "Held jobs (%d) are running again; if the chip is still hot the paladin pauses them again on its next reading.": "Wstrzymane zadania (%d) znów działają; jeśli chip nadal jest gorący, paladyn wstrzyma je ponownie przy następnym odczycie.",
     "Heavy processes right now: %d": "Ciężkie procesy teraz: %d",
     "Measurement interval": "Częstotliwość pomiarów",
     "Pick the report period.": "Wybierz okres raportu.",
@@ -546,6 +552,12 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
     "released automatically when the Mac gets hot": "снимается само, когда Mac нагревается",
     "Keep-awake: %@ left": "Бодрствование: осталось %@",
     "Held right now: %d": "Сейчас остановлено: %d",
+    "Watch only": "Только наблюдение",
+    "The paladin keeps measuring and writes to the log what it would pause, but it stops nothing until you switch this back on.": "Паладин продолжает измерять и записывать в журнал, что он остановил бы, но ничего не останавливает, пока вы не включите защиту снова.",
+    "Thermal protection is on": "Тепловая защита включена",
+    "Above %.0f °C the paladin pauses heavy jobs and starts them again by itself at %.0f °C.": "Выше %.0f °C паладин ставит тяжёлые задачи на паузу и сам возобновляет их при %.0f °C.",
+    "Jobs resumed": "Задачи возобновлены",
+    "Held jobs (%d) are running again; if the chip is still hot the paladin pauses them again on its next reading.": "Остановленные задачи (%d) снова работают; если чип всё ещё горячий, паладин остановит их при следующем измерении.",
     "Heavy processes right now: %d": "Тяжёлых процессов сейчас: %d",
     "Measurement interval": "Частота измерений",
     "Pick the report period.": "Выберите период отчёта.",
@@ -840,6 +852,12 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
     "released automatically when the Mac gets hot": "Mac 变热时自动解除",
     "Keep-awake: %@ left": "保持唤醒:剩余 %@",
     "Held right now: %d": "当前已暂停:%d",
+    "Watch only": "仅观察",
+    "The paladin keeps measuring and writes to the log what it would pause, but it stops nothing until you switch this back on.": "帕拉丁继续测量并把它本会暂停的内容写入日志,但在你重新打开保护之前不会停止任何进程。",
+    "Thermal protection is on": "热保护已开启",
+    "Above %.0f °C the paladin pauses heavy jobs and starts them again by itself at %.0f °C.": "超过 %.0f °C 时帕拉丁会暂停重任务,并在 %.0f °C 时自动恢复。",
+    "Jobs resumed": "任务已恢复",
+    "Held jobs (%d) are running again; if the chip is still hot the paladin pauses them again on its next reading.": "已暂停的任务(%d 个)又在运行;如果芯片仍然很热,帕拉丁会在下一次读数时再次暂停它们。",
     "Heavy processes right now: %d": "当前繁重进程数:%d",
     "Measurement interval": "测量频率",
     "Pick the report period.": "选择报告时间段。",
@@ -1136,6 +1154,12 @@ Vuelve a activarlo cuando termines.
     "released automatically when the Mac gets hot": "se libera solo cuando el Mac se calienta",
     "Keep-awake: %@ left": "Despierto: quedan %@",
     "Held right now: %d": "Detenidos ahora: %d",
+    "Watch only": "Solo observar",
+    "The paladin keeps measuring and writes to the log what it would pause, but it stops nothing until you switch this back on.": "El paladín sigue midiendo y anota en el registro lo que pausaría, pero no detiene nada hasta que vuelvas a activar la protección.",
+    "Thermal protection is on": "Protección térmica activada",
+    "Above %.0f °C the paladin pauses heavy jobs and starts them again by itself at %.0f °C.": "Por encima de %.0f °C el paladín pausa los trabajos pesados y los reanuda solo a %.0f °C.",
+    "Jobs resumed": "Trabajos reanudados",
+    "Held jobs (%d) are running again; if the chip is still hot the paladin pauses them again on its next reading.": "Los trabajos detenidos (%d) vuelven a ejecutarse; si el chip sigue caliente, el paladín los pausará de nuevo en la siguiente lectura.",
     "Heavy processes right now: %d": "Procesos pesados ahora: %d",
     "Measurement interval": "Frecuencia de medición",
     "Pick the report period.": "Elige el periodo del informe.",
@@ -2466,7 +2490,7 @@ struct Snap {
     var statsTotal: [String: Int] = [:]   // lifetime total; survives daemon restarts
     var statsSession: [String: Int] = [:] // since the current daemon session started
     var lastCrash: String?
-    var thrPause: Double?, thrKill: Double?
+    var thrPause: Double?, thrResume: Double?, thrKill: Double?
     var stamp = ""
     var stale = true
 }
@@ -2536,6 +2560,7 @@ func readSnap() -> Snap? {
     if let p = j["last_hard_shutdown"] as? [String: Any] { s.lastCrash = p["time"] as? String }
     if let t = j["thresholds"] as? [String: Any] {
         s.thrPause = num(t["pause"])
+        s.thrResume = num(t["resume"])
         s.thrKill = num(t["kill"])
     }
     if let m = try? FileManager.default.attributesOfItem(atPath: statusPath)[.modificationDate] as? Date {
@@ -4978,22 +5003,31 @@ final class Bar: NSObject, NSMenuDelegate {
     /// Explain watch-only mode plainly before someone grants process-control authority.
     /// This is the key option for users who are cautious about letting the tool control
     /// their processes.
+    /// One sentence per switch, said the moment it is flipped. Four paragraphs of
+    /// explanation were read once and skipped forever; what the user needs is the
+    /// consequence of the click he just made.
     @objc func explainDry() {
-        let body = T("""
-Protection is now OFF\n- coffee-paladin has entered watch-only mode.
+        _ = paladinWindow(title: T("Watch only"),
+                          body: T("The paladin keeps measuring and writes to the log what it would pause, but it stops nothing until you switch this back on."),
+                          buttons: ["OK"])
+    }
 
-It still measures everything (chip, GPU, battery, fans) and writes to the event log exactly \
-what it WOULD do - "would pause ffmpeg (630% CPU)" - but it sends no signal and never touches \
-a single process.
-
-Use it to see whether the thresholds suit your machine before you let the paladin freeze real \
-work. Open "Show the guard log" after a heavy job and you will know if it would have interfered \
-too eagerly, or not soon enough.
-
-Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on when you are done.
-""")
-        _ = paladinWindow(title: T("Watch only (dry run)"), body: body,
-                         buttons: ["OK"], width: 440)
+    /// The numbers come from the daemon's own snapshot, not from the config file: the
+    /// daemon clamps values it considers unsafe, so the file can promise a threshold
+    /// that is not in force. With no snapshot there is nothing to promise at all.
+    @objc func explainProtectionOn() {
+        let s = readSnap()
+        if s == nil || s!.stale {
+            _ = paladinWindow(title: T("Thermal protection is on"),
+                              body: T("no data - is coffee-paladin running?"), buttons: ["OK"])
+            return
+        }
+        let pause = s!.thrPause ?? GuardCfg.double("soc_pause_c", 85)
+        let resume = s!.thrResume ?? (pause - 9)
+        _ = paladinWindow(title: T("Thermal protection is on"),
+                          body: String(format: T("Above %.0f °C the paladin pauses heavy jobs and starts them again by itself at %.0f °C."),
+                                       pause, resume),
+                          buttons: ["OK"])
     }
 
     @objc func enableProtection() {
@@ -5006,8 +5040,9 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
         let watchOnlyNow = !GuardCfg.bool("dry_run", true)
         GuardCfg.set(["dry_run": watchOnlyNow])
         expectDryRun(watchOnlyNow)
-        // Disabling protection is a serious decision; explain what it means immediately.
-        if watchOnlyNow { showModally { self.explainDry() } }
+        // Both directions say what the click did: turning protection off is the serious
+        // one, but "on" is the moment to state the thresholds that are now in force.
+        showModally { watchOnlyNow ? self.explainDry() : self.explainProtectionOn() }
     }
 
     @objc func toggleSound() { GuardCfg.set(["sound": !GuardCfg.bool("sound", false)]) }
@@ -5068,7 +5103,20 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
         // and `send` schedules an extra quick bar refresh, so confirmation arrives in
         // about a second instead of after the full tick.
         let s = readSnap()
-        if let s = s, !s.paused.isEmpty { send("resume"); return }
+        if let s = s, !s.paused.isEmpty {
+            let held = s.paused.count
+            send("resume")
+            // Resuming is not the end of the story: a chip still above the threshold
+            // gets the same jobs paused again on the next reading, and without this
+            // line that looks like the switch failed.
+            showModally {
+                _ = self.paladinWindow(title: T("Jobs resumed"),
+                                       body: String(format: T("Held jobs (%d) are running again; if the chip is still hot the paladin pauses them again on its next reading."),
+                                                    held),
+                                       buttons: ["OK"])
+            }
+            return
+        }
         // Manual freeze is the one place where users consciously stop THEIR work.
         // Before doing that, they must see exactly WHAT will stop and what to expect;
         // otherwise the switch is a blind shot.
