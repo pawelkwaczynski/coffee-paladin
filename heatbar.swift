@@ -283,17 +283,18 @@ let PL: [String: String] = [
     "Right now: keeping the Mac awake": "Teraz: czuwanie trzymane",
     "Keep the screen on too (uses more power)": "Nie gaś też ekranu (więcej prądu i ciepła)",
     "Keep-awake time left": "Ile zostało czuwania",
-    "Session statistics": "Statystyki sesji",
-    "Across the fleet (%d machines)": "Cała flota (%d maszyny)",
-    "%d machine(s) not reporting - their numbers may be old": "%d maszyna nie raportuje - jej liczby mogą być stare",
-    "per machine: menu > Apple fleet > click a Mac": "rozbicie na maszyny: menu > Flota Apple > kliknij Maca",
     "What the guard did here (total)": "Co bezpiecznik zrobił na tej maszynie (od zawsze)",
-    "in this session (since %@)": "w tej sesji (od %@)",
-    "total since %@": "łącznie od %@",
     "Nothing here - and that is good news: your Mac has not been overheating.": "Nic tu nie ma - to dobrze, znaczy, że twoja maszyna się nie przegrzewała.",
-    "In this session: no interventions yet.": "W tej sesji: jeszcze bez interwencji.",
     "Pause ended another way (manual resume, job exited, daemon restart): %d": "Pauza zakończona inaczej (ręczne wznowienie, proces sam się skończył, restart demona): %d",
     "Process tree details": "Szczegóły drzew procesów",
+    "Guard statistics": "Statystyki strażnika",
+    "Since the guard started (%@)": "Od startu strażnika (%@)",
+    "Since the guard started (%@): no interventions yet.": "Od startu strażnika (%@): jeszcze bez interwencji.",
+    "All time on this Mac, counting since %@": "Cały czas na tym Macu, liczone od %@",
+    "Other Macs": "Inne Maki",
+    "no interventions there yet": "tam jeszcze bez interwencji",
+    "%@:  %@  (last report %@ ago)": "%@:  %@  (ostatni raport %@ temu)",
+    "paused / resumed / terminated / sleep-lock released": "wstrzymane / wznowione / ubite / zwolnione blokady snu",
     "Heavy jobs paused": "Wstrzymane ciężkie zadania",
     "Jobs resumed after cooling": "Wznowione po ostygnięciu",
     "Jobs terminated at the kill threshold": "Zakończone awaryjnie przy progu krytycznym",
@@ -368,17 +369,18 @@ let RU: [String: String] = [
     "Right now: keeping the Mac awake": "Сейчас: бодрствование удерживается",
     "Keep the screen on too (uses more power)": "Не гасить и экран (больше энергии и тепла)",
     "Keep-awake time left": "Сколько осталось бодрствования",
-    "Session statistics": "Статистика сессии",
-    "Across the fleet (%d machines)": "Весь парк (%d машин)",
-    "%d machine(s) not reporting - their numbers may be old": "%d машин(а) не отчитывается - её числа могут быть старыми",
-    "per machine: menu > Apple fleet > click a Mac": "по машинам: меню > Парк Apple > нажмите на Mac",
     "What the guard did here (total)": "Что защита сделала на этой машине (за всё время)",
-    "in this session (since %@)": "в этой сессии (с %@)",
-    "total since %@": "всего с %@",
     "Nothing here - and that is good news: your Mac has not been overheating.": "Здесь пусто - и это хорошо: ваш Mac не перегревался.",
-    "In this session: no interventions yet.": "В этой сессии: вмешательств пока нет.",
     "Pause ended another way (manual resume, job exited, daemon restart): %d": "Пауза завершилась иначе (ручное возобновление, процесс сам завершился, перезапуск демона): %d",
     "Process tree details": "Деревья процессов подробно",
+    "Guard statistics": "Статистика стража",
+    "Since the guard started (%@)": "С запуска стража (%@)",
+    "Since the guard started (%@): no interventions yet.": "С запуска стража (%@): вмешательств пока не было.",
+    "All time on this Mac, counting since %@": "За всё время на этом Mac, отсчёт с %@",
+    "Other Macs": "Другие Mac",
+    "no interventions there yet": "там вмешательств пока не было",
+    "%@:  %@  (last report %@ ago)": "%@:  %@  (последний отчёт %@ назад)",
+    "paused / resumed / terminated / sleep-lock released": "остановлено / возобновлено / завершено / снято блокировок сна",
     "Heavy jobs paused": "Приостановлено тяжёлых задач",
     "Jobs resumed after cooling": "Возобновлено после остывания",
     "Jobs terminated at the kill threshold": "Завершено на критическом пороге",
@@ -676,17 +678,18 @@ let ZH: [String: String] = [
     "Right now: keeping the Mac awake": "当前：正在保持唤醒",
     "Keep the screen on too (uses more power)": "屏幕也不熄灭（更耗电、更热）",
     "Keep-awake time left": "唤醒剩余时间",
-    "Session statistics": "本次会话统计",
-    "Across the fleet (%d machines)": "整个机群（%d 台）",
-    "%d machine(s) not reporting - their numbers may be old": "%d 台未上报 - 其数字可能过时",
-    "per machine: menu > Apple fleet > click a Mac": "按机器查看：菜单 > Apple 机群 > 点击某台 Mac",
     "What the guard did here (total)": "守护在这台机器上做过什么（累计）",
-    "in this session (since %@)": "本次会话（自 %@）",
-    "total since %@": "累计自 %@",
     "Nothing here - and that is good news: your Mac has not been overheating.": "这里是空的 - 这是好消息：你的 Mac 没有过热。",
-    "In this session: no interventions yet.": "本次会话:尚无干预。",
     "Pause ended another way (manual resume, job exited, daemon restart): %d": "暂停以其他方式结束(手动恢复、进程自行退出、守护进程重启):%d",
     "Process tree details": "进程树详情",
+    "Guard statistics": "守卫统计",
+    "Since the guard started (%@)": "自守卫启动(%@)",
+    "Since the guard started (%@): no interventions yet.": "自守卫启动(%@):尚无干预。",
+    "All time on this Mac, counting since %@": "本机全部时间,自 %@ 起计",
+    "Other Macs": "其他 Mac",
+    "no interventions there yet": "那边尚无干预",
+    "%@:  %@  (last report %@ ago)": "%@:  %@  (上次报告在 %@ 前)",
+    "paused / resumed / terminated / sleep-lock released": "已暂停 / 已恢复 / 已终止 / 已释放睡眠锁",
     "Heavy jobs paused": "已暂停的繁重任务",
     "Jobs resumed after cooling": "降温后已恢复",
     "Jobs terminated at the kill threshold": "在临界阈值终止",
@@ -982,17 +985,18 @@ let ES: [String: String] = [
     "Right now: keeping the Mac awake": "Ahora: manteniendo el Mac despierto",
     "Keep the screen on too (uses more power)": "Mantener también la pantalla encendida (más consumo y calor)",
     "Keep-awake time left": "Tiempo restante de vigilia",
-    "Session statistics": "Estadísticas de la sesión",
-    "Across the fleet (%d machines)": "Toda la flota (%d máquinas)",
-    "%d machine(s) not reporting - their numbers may be old": "%d máquina(s) sin reportar: sus números pueden ser antiguos",
-    "per machine: menu > Apple fleet > click a Mac": "por máquina: menú > Flota Apple > pulsa un Mac",
     "What the guard did here (total)": "Lo que hizo el guardián en esta máquina (histórico)",
-    "in this session (since %@)": "en esta sesión (desde %@)",
-    "total since %@": "total desde %@",
     "Nothing here - and that is good news: your Mac has not been overheating.": "Aquí no hay nada, y es buena noticia: tu Mac no se ha sobrecalentado.",
-    "In this session: no interventions yet.": "En esta sesión: aún sin intervenciones.",
     "Pause ended another way (manual resume, job exited, daemon restart): %d": "La pausa terminó de otra forma (reanudación manual, el proceso terminó solo, reinicio del demonio): %d",
     "Process tree details": "Detalles de árboles de procesos",
+    "Guard statistics": "Estadísticas del paladín",
+    "Since the guard started (%@)": "Desde que arrancó el paladín (%@)",
+    "Since the guard started (%@): no interventions yet.": "Desde que arrancó el paladín (%@): todavía sin intervenciones.",
+    "All time on this Mac, counting since %@": "Todo el tiempo en este Mac, contando desde %@",
+    "Other Macs": "Otros Mac",
+    "no interventions there yet": "allí todavía sin intervenciones",
+    "%@:  %@  (last report %@ ago)": "%@:  %@  (último informe hace %@)",
+    "paused / resumed / terminated / sleep-lock released": "pausados / reanudados / terminados / bloqueos de sueño liberados",
     "Heavy jobs paused": "Tareas pesadas pausadas",
     "Jobs resumed after cooling": "Reanudadas tras enfriarse",
     "Jobs terminated at the kill threshold": "Terminadas en el umbral crítico",
@@ -3956,7 +3960,7 @@ final class Bar: NSObject, NSMenuDelegate {
 
         // Directly under the log: same family. The log says WHAT happened; stats say
         // HOW MANY TIMES.
-        let statsIt = m.addItem(withTitle: T("Session statistics"),
+        let statsIt = m.addItem(withTitle: T("Guard statistics"),
                                 action: #selector(openStats), keyEquivalent: "")
         statsIt.target = self
         statsIt.image = img("checkmark.shield")
@@ -5635,15 +5639,20 @@ final class Bar: NSObject, NSMenuDelegate {
         if sessionEmpty && totalEmpty {
             lines.append(T("Nothing here - and that is good news: your Mac has not been overheating."))
         } else if sessionEmpty {
-            lines.append(T("In this session: no interventions yet."))
+            // The date belongs here too: "no interventions yet" reads very
+            // differently after two minutes and after two days.
+            lines.append(String(format: T("Since the guard started (%@): no interventions yet."),
+                                dateText(ses["since"])))
         } else {
-            lines.append(String(format: T("in this session (since %@)"), dateText(ses["since"])))
+            lines.append(String(format: T("Since the guard started (%@)"), dateText(ses["since"])))
             lines.append("")
             lines.append(contentsOf: labels.map { "\($0.0):  \(ses[$0.1] ?? 0)" })
         }
         if !totalEmpty {
             lines.append("")
-            lines.append(String(format: T("total since %@"), dateText(sum["since"])))
+            // "counting since", not "since install": the counter starts at the first
+            // event it books, and pauses logged before that are not in these numbers.
+            lines.append(String(format: T("All time on this Mac, counting since %@"), dateText(sum["since"])))
             lines.append("")
             lines.append(contentsOf: labels.map { "\($0.0):  \(sum[$0.1] ?? 0)" })
             // The books must balance: paused minus resumed minus killed leaves
@@ -5656,34 +5665,33 @@ final class Bar: NSObject, NSMenuDelegate {
             }
         }
 
-        // FLEET: ONE number per category. Per-machine breakdown lives in the "Apple
-        // fleet" submenu after clicking a Mac, where users already look when they want
-        // to know which machine is cooking.
-        let fleet = fleetStats()
-        if fleet.count > 1 {
-            var totals: [String: Int] = [:]
-            for m in fleet {
-                for (_, k) in labels { totals[k] = (totals[k] ?? 0) + (m.sum[k] ?? 0) }
-            }
-            if labels.contains(where: { (totals[$0.1] ?? 0) > 0 }) {
-                lines.append("")
-                lines.append(String(format: T("Across the fleet (%d machines)"), fleet.count))
-                lines.append("")
-                lines.append(contentsOf: labels.map { "\($0.0):  \(totals[$0.1] ?? 0)" })
-                // Stale snapshots must be visible; otherwise the total hides that part
-                // of the fleet has been silent for a long time.
-                let staleHosts = fleet.filter { $0.age > 300 }
-                if !staleHosts.isEmpty {
-                    lines.append("")
-                    lines.append(String(format: T("%d machine(s) not reporting - their numbers may be old"),
-                                        staleHosts.count))
+        // FLEET: one line per other Mac, never a sum. Adding the machines together
+        // reprinted this Mac's own numbers under a second heading when the other
+        // machine had nothing to report, which is how the window ended up saying the
+        // same four figures twice.
+        let others = fleetStats().filter { $0.host != Host.current().localizedName
+                                           && $0.host != ProcessInfo.processInfo.hostName }
+        if !others.isEmpty {
+            let speaking = others.filter { m in labels.contains { (m.sum[$0.1] ?? 0) > 0 } }
+            lines.append("")
+            lines.append(T("Other Macs"))
+            lines.append("")
+            if speaking.isEmpty {
+                lines.append(T("no interventions there yet"))
+            } else {
+                for m in speaking {
+                    let counts = labels.map { "\(m.sum[$0.1] ?? 0)" }.joined(separator: " / ")
+                    lines.append(m.age > 300
+                        ? String(format: T("%@:  %@  (last report %@ ago)"), m.host, counts,
+                                 fmtDur(max(1, Int(m.age / 60))))
+                        : "\(m.host):  \(counts)")
                 }
-                lines.append(T("per machine: menu > Apple fleet > click a Mac"))
+                lines.append(T("paused / resumed / terminated / sleep-lock released"))
             }
         }
 
         showModally { [weak self] in
-            _ = self?.paladinWindow(title: T("Session statistics"),
+            _ = self?.paladinWindow(title: T("Guard statistics"),
                                    body: lines.joined(separator: "\n"),
                                    buttons: ["OK"], width: 460)
         }
