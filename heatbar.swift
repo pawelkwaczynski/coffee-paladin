@@ -124,18 +124,14 @@ let PL: [String: String] = [
         "Twój Mac grzeje się przy AI i renderach? coffee-paladin pilnuje temperatur (i poziomu) baterii, chipa (CPU) oraz GPU. Pauzuje ciężkie zadania kiedy system ulega przegrzaniu i sam je wznawia, gdy temperatura spadnie, abyś Ty mógł spać spokojnie (dosłownie!). Open source, za darmo, dla Ciebie:",
     "Settings": "Ustawienia",
     "Chip pause threshold": "Wstrzymuj zadania powyżej",
+    "careful - under ordinary heavy work the chip already sits here, so long jobs will be paused often": "ostrożnie - przy zwykłej ciężkiej pracy chip już tu siedzi, więc długie zadania będą często wstrzymywane",
+    "recommended - the pause comes well before the chip's own limiter": "zalecane - pauza przychodzi na długo przed własnym ogranicznikiem chipa",
+    "late - a job will run hot for a while before anything happens": "późno - zadanie pogrzeje przez chwilę, zanim cokolwiek się stanie",
+    "almost never - the reading rarely goes higher than this, so the pause may not come at all": "prawie nigdy - odczyt rzadko bywa wyższy, więc pauza może w ogóle nie przyjść",
+    "no limit: a job may use the whole machine": "bez limitu: zadanie może zająć całą maszynę",
+    "about %d of %d cores; the job gets tiny micro-pauses (works for any program)": "około %d z %d rdzeni; zadanie dostaje malutkie mikropauzy (działa dla każdego programu)",
     "Battery gate": "Wstrzymuj na baterii poniżej",
     "pause below this charge when unplugged": "bez zasilacza ciężkie zadania poczekają na ładowarkę",
-    "TOO LOW - an idle M-series chip already sits at 40-55 C, the guard would pause constantly":
-        "ZA NISKO - bezczynny chip M-serii ma 40-55 C, guard pauzowałby bez przerwy",
-    "very conservative - a quiet, cool Mac, but long jobs will crawl":
-        "bardzo ostrożnie - cichy, chłodny Mac, ale długie zadania będą się wlekły",
-    "conservative - good for a fanless Mac (Air, 12-inch)":
-        "ostrożnie - dobre dla Maca bez wentylatorów (Air, 12-cal)",
-    "recommended - well below Apple's own throttling point (~100-108 C)":
-        "zalecane - wyraźnie poniżej progu, na którym macOS sam dławi (~100-108 C)",
-    "aggressive - close to the temperature at which macOS throttles by itself":
-        "agresywnie - blisko temperatury, w której macOS sam zaczyna dławić",
     "Notifications": "Powiadomienia",
     "Watch only, never touch processes (dry run)": "Tylko obserwuj, nie ruszaj procesów (dry run)",
     "Language": "Język",
@@ -253,8 +249,6 @@ let PL: [String: String] = [
     "All cores (fast - the paladin still watches the temperature)":
         "Wszystkie rdzenie (szybko — temperatury i tak pilnuje paladyn)",
     "CPU limit for heavy jobs": "Limit CPU dla ciężkich zadań",
-    "below 100% the whole job gets tiny micro-pauses (works for any program)":
-        "poniżej 100% całe zadanie dostaje mikropauzy (działa z każdym programem)",
     "Start at login": "Uruchamiaj przy starcie komputera",
     "About my Mac": "O moim Macu",
     "Phone push (ntfy.sh)…": "Push na telefon (ntfy.sh)...",
@@ -466,13 +460,14 @@ let RU: [String: String] = [
         "Ваш Mac греется под ИИ и рендерами? coffee-paladin следит за батареей (температура и заряд), чипом (CPU) и GPU. Он ставит тяжёлые задачи на паузу при перегреве и сам возобновляет их, когда температура падает, чтобы вы могли спать спокойно (буквально!). Open source, бесплатно, для вас:",
     "Settings": "Настройки",
     "Chip pause threshold": "Пауза при температуре чипа выше",
+    "careful - under ordinary heavy work the chip already sits here, so long jobs will be paused often": "осторожно - при обычной тяжёлой работе чип уже здесь, поэтому длинные задачи будут часто останавливаться",
+    "recommended - the pause comes well before the chip's own limiter": "рекомендуется - пауза наступает задолго до собственного ограничителя чипа",
+    "late - a job will run hot for a while before anything happens": "поздно - задача какое-то время будет греться, прежде чем что-то произойдёт",
+    "almost never - the reading rarely goes higher than this, so the pause may not come at all": "почти никогда - показание редко бывает выше, так что паузы может не быть вовсе",
+    "no limit: a job may use the whole machine": "без ограничения: задача может занять всю машину",
+    "about %d of %d cores; the job gets tiny micro-pauses (works for any program)": "примерно %d из %d ядер; задача получает крошечные микропаузы (работает с любой программой)",
     "Battery gate": "Пауза при заряде ниже",
     "pause below this charge when unplugged": "без адаптера тяжёлые задачи подождут зарядку",
-    "TOO LOW - an idle M-series chip already sits at 40-55 C, the guard would pause constantly": "СЛИШКОМ НИЗКО - чип M-серии без нагрузки уже при 40-55 C, пауза была бы постоянной",
-    "very conservative - a quiet, cool Mac, but long jobs will crawl": "очень осторожно - тихий и холодный Mac, но долгие задачи будут ползти",
-    "conservative - good for a fanless Mac (Air, 12-inch)": "осторожно - подходит для Mac без вентиляторов (Air)",
-    "recommended - well below Apple's own throttling point (~100-108 C)": "рекомендуется - заметно ниже порога троттлинга macOS (~100-108 C)",
-    "aggressive - close to the temperature at which macOS throttles by itself": "агрессивно - близко к температуре, при которой macOS сам снижает частоты",
     "Notifications": "Уведомления",
     "Watch only, never touch processes (dry run)": "Только наблюдать, не трогать процессы (dry run)",
     "resume at %.0f °C, terminate at %.0f C": "возобновление при %.0f C, завершение при %.0f C",
@@ -625,8 +620,6 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
     "All cores (fast - the paladin still watches the temperature)":
         "Все ядра (быстро — за температурой всё равно следит паладин)",
     "CPU limit for heavy jobs": "Лимит CPU для тяжёлых задач",
-    "below 100% the whole job gets tiny micro-pauses (works for any program)":
-        "ниже 100% вся задача получает микропаузы (работает с любой программой)",
     "Start at login": "Запускать при входе в систему",
     "About my Mac": "Об этом Mac",
     "Phone push (ntfy.sh)…": "Push на телефон (ntfy.sh)...",
@@ -775,13 +768,14 @@ let ZH: [String: String] = [
         "你的 Mac 在 AI 任务和渲染时发热?coffee-paladin 监控电池(温度和电量)、芯片(CPU)和 GPU。系统过热时自动暂停繁重任务,温度下降后自动恢复,让你安心入睡(字面意义上!)。开源免费,为你而做:",
     "Settings": "设置",
     "Chip pause threshold": "芯片温度高于此值时暂停",
+    "careful - under ordinary heavy work the chip already sits here, so long jobs will be paused often": "谨慎 - 普通重负载时芯片就在这个温度,长任务会被频繁暂停",
+    "recommended - the pause comes well before the chip's own limiter": "推荐 - 暂停远早于芯片自身的限频",
+    "late - a job will run hot for a while before anything happens": "偏晚 - 任务会先热上一阵子才有动作",
+    "almost never - the reading rarely goes higher than this, so the pause may not come at all": "几乎不会触发 - 读数很少更高,暂停可能根本不来",
+    "no limit: a job may use the whole machine": "不限制:任务可以占用整台机器",
+    "about %d of %d cores; the job gets tiny micro-pauses (works for any program)": "约 %d 个核心(共 %d 个);任务会得到极短的微暂停(适用于任何程序)",
     "Battery gate": "电量低于此值时暂停",
     "pause below this charge when unplugged": "未接电源时，繁重任务将等待充电",
-    "TOO LOW - an idle M-series chip already sits at 40-55 C, the guard would pause constantly": "太低 - M 系列芯片空闲时已有 40-55 C，守护会不停暂停",
-    "very conservative - a quiet, cool Mac, but long jobs will crawl": "非常保守 - 机器安静凉爽，但长任务会很慢",
-    "conservative - good for a fanless Mac (Air, 12-inch)": "保守 - 适合无风扇的 Mac（Air）",
-    "recommended - well below Apple's own throttling point (~100-108 C)": "推荐 - 明显低于 macOS 自身降频点（约 100-108 C）",
-    "aggressive - close to the temperature at which macOS throttles by itself": "激进 - 接近 macOS 自动降频的温度",
     "Notifications": "通知",
     "Watch only, never touch processes (dry run)": "仅观察，不干预进程（dry run）",
     "resume at %.0f °C, terminate at %.0f C": "%.0f C 时恢复，%.0f C 时终止",
@@ -932,8 +926,6 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
     "All cores (fast - the paladin still watches the temperature)":
         "全部核心(快 - 温度仍由圣骑士监控)",
     "CPU limit for heavy jobs": "繁重任务的 CPU 限制",
-    "below 100% the whole job gets tiny micro-pauses (works for any program)":
-        "低于 100% 时整个任务会得到微暂停(适用于任何程序)",
     "Start at login": "登录时启动",
     "About my Mac": "关于我的 Mac",
     "Phone push (ntfy.sh)…": "手机推送(ntfy.sh)...",
@@ -1082,13 +1074,14 @@ let ES: [String: String] = [
         "¿Tu Mac se calienta con IA y renders? coffee-paladin vigila la batería (temperatura y carga), el chip (CPU) y la GPU. Pausa las tareas pesadas cuando el sistema se sobrecalienta y las reanuda solo cuando baja la temperatura, para que puedas dormir tranquilo (¡literalmente!). Open source, gratis, para ti:",
     "Settings": "Ajustes",
     "Chip pause threshold": "Pausar por encima de",
+    "careful - under ordinary heavy work the chip already sits here, so long jobs will be paused often": "con cuidado - con trabajo pesado normal el chip ya está aquí, así que los trabajos largos se pausarán a menudo",
+    "recommended - the pause comes well before the chip's own limiter": "recomendado - la pausa llega mucho antes del limitador propio del chip",
+    "late - a job will run hot for a while before anything happens": "tarde - el trabajo estará caliente un rato antes de que pase algo",
+    "almost never - the reading rarely goes higher than this, so the pause may not come at all": "casi nunca - la lectura rara vez sube más, así que la pausa puede no llegar",
+    "no limit: a job may use the whole machine": "sin límite: el trabajo puede usar toda la máquina",
+    "about %d of %d cores; the job gets tiny micro-pauses (works for any program)": "unos %d de %d núcleos; el trabajo recibe micropausas diminutas (funciona con cualquier programa)",
     "Battery gate": "Pausar con batería por debajo de",
     "pause below this charge when unplugged": "sin adaptador, las tareas pesadas esperarán al cargador",
-    "TOO LOW - an idle M-series chip already sits at 40-55 C, the guard would pause constantly": "DEMASIADO BAJO - un chip M en reposo ya está a 40-55 C, pausaría sin parar",
-    "very conservative - a quiet, cool Mac, but long jobs will crawl": "muy conservador - un Mac frío y silencioso, pero las tareas largas irán lentas",
-    "conservative - good for a fanless Mac (Air, 12-inch)": "conservador - adecuado para un Mac sin ventiladores (Air)",
-    "recommended - well below Apple's own throttling point (~100-108 C)": "recomendado - muy por debajo del throttling de macOS (~100-108 C)",
-    "aggressive - close to the temperature at which macOS throttles by itself": "agresivo - cerca de la temperatura a la que macOS reduce la frecuencia",
     "Notifications": "Notificaciones",
     "Watch only, never touch processes (dry run)": "Solo observar, no tocar procesos (dry run)",
     "resume at %.0f °C, terminate at %.0f C": "reanuda a %.0f C, termina a %.0f C",
@@ -1241,8 +1234,6 @@ Vuelve a activarlo cuando termines.
     "All cores (fast - the paladin still watches the temperature)":
         "Todos los núcleos (rápido - el paladín sigue vigilando la temperatura)",
     "CPU limit for heavy jobs": "Límite de CPU para tareas pesadas",
-    "below 100% the whole job gets tiny micro-pauses (works for any program)":
-        "por debajo del 100% la tarea recibe micropausas (funciona con cualquier programa)",
     "Start at login": "Iniciar al iniciar sesión",
     "About my Mac": "Acerca de mi Mac",
     "Phone push (ntfy.sh)…": "Push al teléfono (ntfy.sh)...",
@@ -2365,12 +2356,15 @@ enum Autostart {
 /// guard would pause constantly because an idle chip already sits at 40-55 C.
 /// The second tuple element is an SF Symbol name. No emoji: they have fixed colors and
 /// look like stickers in menus, while template symbols take the text color.
+/// What a given pause threshold means on a real machine. The numbers behind these
+/// sentences come from a month of readings on one Mac with fans: ordinary heavy work
+/// sits between 76 and 96, the CPU side of the reading saturates near 98 and the GPU
+/// side near 103. The bands below 70 are gone because the slider no longer goes there.
 func thresholdWarning(_ v: Double) -> (String, String) {
-    if v < 60 { return (T("TOO LOW - an idle M-series chip already sits at 40-55 C, the guard would pause constantly"), "nosign") }
-    if v < 70 { return (T("very conservative - a quiet, cool Mac, but long jobs will crawl"), "exclamationmark.triangle") }
-    if v < 80 { return (T("conservative - good for a fanless Mac (Air, 12-inch)"), "lightbulb") }
-    if v <= 92 { return (T("recommended - well below Apple's own throttling point (~100-108 C)"), "checkmark.circle") }
-    return (T("aggressive - close to the temperature at which macOS throttles by itself"), "exclamationmark.triangle")
+    if v < 78 { return (T("careful - under ordinary heavy work the chip already sits here, so long jobs will be paused often"), "lightbulb") }
+    if v <= 92 { return (T("recommended - the pause comes well before the chip's own limiter"), "checkmark.circle") }
+    if v <= 96 { return (T("late - a job will run hot for a while before anything happens"), "exclamationmark.triangle") }
+    return (T("almost never - the reading rarely goes higher than this, so the pause may not come at all"), "exclamationmark.triangle")
 }
 
 /// Render a menu row with a slider.
@@ -2391,7 +2385,7 @@ final class SliderRow: NSView {
     private let describe: (Double) -> (String, String)
     private let derive: ((Double) -> String)?
 
-    init(title: String, min: Double, max: Double, current: Double, unit: String,
+    init(title: String, min: Double, max: Double, current: Double, unit: String, step: Double = 5,
          describe: @escaping (Double) -> (String, String),
          derive: ((Double) -> String)? = nil,
          onChange: @escaping (Double) -> Void) {
@@ -2424,7 +2418,10 @@ final class SliderRow: NSView {
         slider.maxValue = max
         slider.doubleValue = current
         slider.isContinuous = true
-        slider.numberOfTickMarks = Int((max - min) / 5) + 1
+        // Ticks follow the step the caller asked for. Hardcoding 5 meant a range of
+        // 70 to 98 got six ticks 5.6 degrees apart, so the number under the slider
+        // could never be the one the user aimed at.
+        slider.numberOfTickMarks = Int((max - min) / Swift.max(step, 1)) + 1
         slider.allowsTickMarkValuesOnly = true
         slider.target = self
         slider.action = #selector(moved)
@@ -4186,16 +4183,29 @@ final class Bar: NSObject, NSMenuDelegate {
         ss.addItem(.separator())
         let cpuRow = NSMenuItem()
         cpuRow.view = SliderRow(
-            title: T("CPU limit for heavy jobs"), min: 50, max: 100,
-            current: GuardCfg.double("job_cpu_percent", 95), unit: "%",
-            describe: { _ in (T("below 100% the whole job gets tiny micro-pauses (works for any program)"), "") }) { v in
+            title: T("CPU limit for heavy jobs"), min: 10, max: 100,
+            current: GuardCfg.double("job_cpu_percent", 95), unit: "%", step: 5,
+            describe: { v in
+                // The limiter is a duty cycle on the whole job, so the percentage is
+                // roughly how many of this machine's cores it may keep busy. Starting
+                // the slider at 50 made the useful settings unreachable: safe-run maps
+                // --cores 1 to 10% and --cores 4 to 29% on a 14 core Mac.
+                let cores = Swift.max(1, Int((v / 100.0 * Double(ProcessInfo.processInfo.processorCount)).rounded()))
+                if v >= 100 { return (T("no limit: a job may use the whole machine"), "") }
+                return (String(format: T("about %d of %d cores; the job gets tiny micro-pauses (works for any program)"),
+                               cores, ProcessInfo.processInfo.processorCount), "")
+            }) { v in
             GuardCfg.set(["job_cpu_percent": Int(v)])
         }
         ss.addItem(cpuRow)
         ss.addItem(.separator())
         let chipRow = NSMenuItem()
         chipRow.view = SliderRow(
-            title: T("Chip pause threshold"), min: 55, max: 100, current: pauseNow, unit: "°C",
+            // 70 at the bottom: an idle M series chip sits at 40 to 55 and ordinary work
+            // reaches 70, so anything lower pauses on nothing. 98 at the top: the daemon
+            // rewrites a pause threshold that reaches the kill threshold, and on this
+            // machine the CPU side of the reading saturates near 98 anyway.
+            title: T("Chip pause threshold"), min: 70, max: 98, current: pauseNow, unit: "°C", step: 1,
             describe: thresholdWarning,
             derive: { v in String(format: T("resume at %.0f °C, terminate at %.0f C"),
                                   v - 9, Swift.min(v + 5, 100)) }) { v in
@@ -4208,7 +4218,9 @@ final class Bar: NSObject, NSMenuDelegate {
         ss.addItem(.separator())
 
         let battRow = NSMenuItem()
-        battRow.view = SliderRow(title: T("Battery gate"), min: 5, max: 50,
+        // Above 30% "low battery" stops meaning low: the gate would pause long jobs on
+        // a battery that is a third full and wait for a charger that may not be near.
+        battRow.view = SliderRow(title: T("Battery gate"), min: 5, max: 30,
                                  current: GuardCfg.double("batt_pct_pause", 10), unit: "%",
                                  describe: { _ in (T("pause below this charge when unplugged"), "") }) { v in
             GuardCfg.set(["batt_pct_pause": Int(v), "batt_pct_resume": Int(v) + 15])
