@@ -37,7 +37,7 @@ import subprocess
 import sys
 import time
 
-GUARD_VERSION = "3.2.6"   # bump together with heatbar VERSION, thermal-report VERSION, README
+GUARD_VERSION = "3.2.7"   # bump together with heatbar VERSION, thermal-report VERSION, README
 
 HOME = os.path.expanduser("~")
 BASE = os.environ.get("TG_BASE") or os.path.join(HOME, ".coffee-paladin")
@@ -3069,6 +3069,41 @@ def _strip_heredocs(cmd):
     return "\n".join(out)
 
 
+def _shell_segments(cmd):
+    """Split a shell command into simple commands, each a token list, honouring quotes.
+
+    The old splitter cut on `|`, `;` and `&` anywhere, so `pgrep -fl 'ffmpeg|ab-av1'` and
+    `grep -E 'x265|x264'` produced a segment whose first word was a heavy name, and a
+    search for a tool counted as starting it (a whole session of false blocks, 20.08).
+    shlex with punctuation_chars keeps quoted text whole and returns operators as their
+    own tokens; `$(` and backticks still open a new segment because what follows runs.
+    On a lexer error (unbalanced quote) fall back to whitespace splitting of the raw text:
+    the gate must answer, not raise.
+    """
+    import shlex
+    segments = []
+    for chunk in re.split(r"`|\$\(", cmd):
+        lex = shlex.shlex(chunk, posix=True, punctuation_chars=";|&\n)")
+        lex.whitespace = " \t\r"        # a newline separates commands, so it is an operator
+        lex.whitespace_split = True
+        lex.commenters = ""
+        try:
+            tokens = list(lex)
+        except ValueError:
+            tokens = chunk.replace("|", " | ").replace(";", " ; ").split()
+        current = []
+        for tok in tokens:
+            if tok and set(tok) <= set(";|&)\n"):
+                if current:
+                    segments.append(current)
+                current = []
+            else:
+                current.append(tok)
+        if current:
+            segments.append(current)
+    return segments
+
+
 def _hook_command_hit(cmd, patterns):
     """Return the heavy pattern a shell command would EXECUTE bare, or None.
 
@@ -3081,16 +3116,11 @@ def _hook_command_hit(cmd, patterns):
     segment whose argv[0] is safe-run is supervised as a whole, and a matched
     tool followed by a version/help flag is a question, not work.
     """
-    import shlex
     # A heredoc body is data, not commands: `cat > run.sh <<'EOF'` followed by a line
     # starting with ffmpeg writes a file. Splitting on newlines made each body line a
     # segment and blocked the write (4 false blocks in one session, 19.08).
     cmd = _strip_heredocs(cmd)
-    for segment in re.split(r"[;|&\n`]+|\$\(", cmd):
-        try:
-            tokens = shlex.split(segment)
-        except ValueError:
-            tokens = segment.split()
+    for tokens in _shell_segments(cmd):
         i = 0
         while i < len(tokens):
             tok = tokens[i]
@@ -3455,6 +3485,11 @@ def _admission_entries():
                     continue
                 with open(path) as f:
                     d = json.load(f)
+                # A wrapper blocked in --after registers itself so a chain can see
+                # it, but it asks for no cores until its predecessor is gone: it is
+                # neither running nor in the admission queue.
+                if d.get("waiting_for"):
+                    continue
                 pid = int(d.get("pid", 0))
                 if not pid or not alive(pid):
                     continue

@@ -154,6 +154,16 @@ test("command AFTER the heredoc still counts", hit("cat <<'EOF'\nn\nEOF\n%s -i a
 test("bare heavy tool still blocked", hit("%s -i a.mov b.mp4" % F, H) == F)
 test("safe-run still passes", hit("safe-run -- %s -i a b" % F, H) is None)
 test("grep of a heavy name is grep", hit("ps aux | grep whisper", H) is None)
+test("quoted pipe inside pgrep pattern is not a pipeline",
+     hit("pgrep -fl '%s|ab-av1'" % F, H) is None)
+test("quoted alternation in grep -E is data", hit("grep -E 'x265|x264' out.txt", H) is None)
+test("quoted semicolon in echo is data", hit("echo 'a; %s -i x y'" % F, H) is None)
+test("double-quoted pipe is data", hit('printf "%s|x265" > names.txt' % F, H) is None)
+test("real pipeline still blocked", hit("cat list | %s -i - out.mp4" % F, H) == F)
+test("real && still blocked", hit("echo start && %s -i a b" % F, H) == F)
+test("subshell still blocked", hit("echo $(%s -version)" % F, H) is None)
+test("subshell with work still blocked", hit("x=$(%s -i a b)" % F, H) == F)
+test("unbalanced quote: fail-open split, no crash", hit("echo 'oops %s" % F, H) is None)
 
 print("E) Codex round: what must NOT take part in flap damping")
 st = {"paused": {}}

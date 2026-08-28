@@ -1,4 +1,4 @@
-# coffee-paladin v3.2.6
+# coffee-paladin v3.2.7
 
 <p align="center">
   <img src="branding/paladin.gif" alt="coffee-paladin - the project mascot" width="260">
@@ -954,8 +954,9 @@ chip, half between the resume and pause thresholds, no new admissions on a hot o
 from unregistered processes shrinks the budget too. The declaration is enforced through the
 CPU duty limiter, so the budget stays truthful. `--queue-priority N` (0 first, 9 last,
 default 5) orders the queue; arrival breaks ties and a small job never overtakes the head.
-`--after NAME` starts a job only when the safe-run job NAME has finished - chains without
-hand-rolled pgrep loops. The queue survives a guard restart, `heat` lists who is waiting,
+`--after NAME` starts a job only when the safe-run job NAME has finished; a NAME that is
+itself still waiting in its own `--after` counts as unfinished, so a chain holds at any
+length (3.2.7) - chains without hand-rolled pgrep loops. The queue survives a guard restart, `heat` lists who is waiting,
 and `fleet` gains a Q column. The arbiter only delays starts: it never pauses or kills
 anything, and on any internal error it admits everyone - thermal safety stays with the
 pause logic. Off by default; without the flag every start behaves exactly as before.
@@ -1837,7 +1838,8 @@ nie wstrzymuje, dopóki sam nie włączysz ochrony - jednym kliknięciem w pasku
   deklarują rdzenie (`--cores 6`), a bezpiecznik wpuszcza je lub kolejkuje według
   termicznego zapasu (chłodny chip = pełna pula P, między progami = połowa, gorący =
   zero nowych wpuszczeń); deklaracja jest twarda (wymuszana limiterem CPU),
-  `--queue-priority` ustawia kolejność, `--after NAZWA` startuje po końcu innego zadania,
+  `--queue-priority` ustawia kolejność, `--after NAZWA` startuje po końcu innego zadania
+  (także gdy tamto samo jeszcze czeka w swoim `--after`, więc łańcuch trzyma na całej długości),
   kolejka przeżywa restart demona, `heat` pokazuje czekających, `fleet` ma kolumnę Q;
   arbiter tylko opóźnia starty - nigdy niczego nie pauzuje ani nie ubija, a przy
   własnym błędzie wpuszcza wszystkich; do tego heartbeat postępu (doradczy):

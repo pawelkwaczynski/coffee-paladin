@@ -740,6 +740,12 @@ def wait_for_cooldown(limit):
 # Poll intervals for --after and admission waiting. Environment overrides
 # exist for tests; real minutes-long sleeps are untestable in reasonable time.
 AFTER_POLL_S = float(os.environ.get("SAFE_RUN_AFTER_POLL", 10))
+# The wrapper's own birth, for managed/ identity checks. The guard compares a
+# placeholder's `started` with the process start time it sees and drops the entry
+# on a mismatch over 90 s (pid reuse). Stamping the time of the WRITE broke that
+# for every wrapper that spent longer than 90 s in --after or --wait-cool before
+# registering: its own placeholder looked like a recycled pid.
+WRAPPER_STARTED = time.time()
 ADMIT_POLL_S = float(os.environ.get("SAFE_RUN_ADMIT_POLL", 5))
 # How long a fresh snapshot may lack the admission block before we conclude
 # the daemon simply does not support it. Right after admission_control is
@@ -791,8 +797,48 @@ def job_named_alive(job_name):
     return False
 
 
+def register_waiting(opt, job_name):
+    """Write a managed/ placeholder for a wrapper blocked in --after; return its path.
+
+    A wrapper waiting for its predecessor used to be invisible: nothing in managed/
+    carried its name until the job started, so a third job chained behind it saw no
+    live job and started at once. In an omniai queue 3d ran alongside 3b because 3c
+    was only waiting for 3b (20.08). The placeholder makes the wait itself a live
+    registration. queued:true keeps the guard's sweeper treating it as a wrapper,
+    never a pause or kill target; waiting_for tells the admission arbiter it asks
+    for no cores yet. The sweeper also checks identity by process birth, so
+    `started` is the wrapper's own start, not the time of this write.
+    """
+    reg = os.path.join(MANAGED_DIR, "%d.json" % os.getpid())
+    entry = {"pid": os.getpid(), "name": opt["name"], "queued": True,
+             "waiting_for": job_name, "cores": opt["cores"],
+             "priority": opt["priority"], "since": time.time(),
+             "started": WRAPPER_STARTED}
+    try:
+        os.makedirs(MANAGED_DIR, 0o700, exist_ok=True)
+        fd = os.open(reg, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w") as f:
+            json.dump(entry, f)
+    except OSError:
+        return None          # an unwritable managed/ must not break the chain itself
+    return reg
+
+
+def drop_registration(path):
+    """Remove a placeholder; a missing file is fine, the guard's sweeper may have won."""
+    if path:
+        try:
+            os.unlink(path)
+        except OSError:
+            pass
+
+
 def wait_for_job(job_name):
-    """Block until no live safe-run job carries this name (--after)."""
+    """Block until no live safe-run job carries this name (--after).
+
+    A wrapper that is itself waiting counts as live only if it registered through
+    `register_waiting` first; both call sites in main() do that before calling here.
+    """
     last_message = 0.0
     while job_named_alive(job_name):
         if not last_message or time.time() - last_message >= 600.0:
@@ -820,7 +866,7 @@ def admission_wait(opt):
     reg = os.path.join(MANAGED_DIR, "%d.json" % my_pid)
     entry = {"pid": my_pid, "name": opt["name"], "queued": True,
              "cores": opt["cores"], "priority": opt["priority"],
-             "since": time.time(), "started": time.time()}
+             "since": time.time(), "started": WRAPPER_STARTED}
     fd = os.open(reg, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     with os.fdopen(fd, "w") as f:
         json.dump(entry, f)
@@ -1023,10 +1069,15 @@ def main():
         # the outer job's admitted core budget, so queueing it again would
         # double-count the same cores.
         if opt["after"]:
+            waiting = register_waiting(opt, opt["after"])
             try:
                 wait_for_job(opt["after"])
             except KeyboardInterrupt:
+                drop_registration(waiting)
                 return 130
+            # The inner job has no registration of its own, so a chain can see
+            # this wrapper only while it waits; that ends here, before exec.
+            drop_registration(waiting)
         print(T("safe-run: already inside a supervised job - running the command directly"))
         sys.stdout.flush()
         try:
@@ -1043,10 +1094,13 @@ def main():
 
     # Chains first: waiting for a predecessor makes every later gate (thermal,
     # admission) evaluate fresh conditions instead of hour-old ones.
+    waiting = None
     if opt["after"]:
+        waiting = register_waiting(opt, opt["after"])
         try:
             wait_for_job(opt["after"])
         except KeyboardInterrupt:
+            drop_registration(waiting)
             return 130
 
     admission_on = bool(cfg().get("admission_control"))
@@ -1083,6 +1137,7 @@ def main():
         if not opt["wait_cool"]:
             print(T("safe-run: REFUSING TO START - the Mac is already hot. Use --wait-cool to wait, let it cool down, or pass --allow-hot.")
                   + ((" (%s)" % chip_reason) if chip_reason else ""))
+            drop_registration(waiting)
             return 3
         # Waiting DOES NOT consume the --hours budget: t0, the job deadline,
         # starts below after cooldown. Ctrl-C while waiting is a normal manual
@@ -1090,6 +1145,7 @@ def main():
         try:
             minutes = wait_for_cooldown(limit)
         except KeyboardInterrupt:
+            drop_registration(waiting)
             return 130
         print(T("safe-run: cooled down after %d min - starting the job") % round(minutes))
         sys.stdout.flush()
@@ -1100,11 +1156,15 @@ def main():
             print(T("safe-run: WARNING - the guard did not start, this job will NOT be supervised.")
                   + "  launchctl kickstart -k gui/$UID/%s" % AGENT_LABEL)
 
-    placeholder = None
+    # The waiting placeholder lives at the same path as the admission one, so
+    # admission_wait simply overwrites it; without admission it stays until the
+    # real registration exists and is removed with the same unlink below.
+    placeholder = waiting
     if admission_on:
         try:
             placeholder = admission_wait(opt)
         except KeyboardInterrupt:
+            drop_registration(waiting)
             return 130
 
     wrapped = list(cmd)
@@ -1132,6 +1192,7 @@ def main():
         proc = subprocess.Popen(wrapped, preexec_fn=os.setsid, env=env)
     except Exception as e:
         print(T("safe-run: cannot start: %r") % (e,))
+        drop_registration(placeholder)
         # The heartbeat file was created before the fork; a failed start must
         # not leave an orphan for the daemon's sweeper to explain.
         if progress_path:
