@@ -188,6 +188,10 @@ let PL: [String: String] = [
     "released automatically when the Mac gets hot": "zwalniane samo, gdy Mac się grzeje",
     "Keep-awake: %@ left": "Czuwanie: zostało %@",
     "Held right now: %d": "Wstrzymane teraz: %d",
+    "Turn thermal protection off?": "Wyłączyć ochronę termiczną?",
+    "The paladin will keep measuring and writing down what it would have paused, and will stop nothing at all, even above %.0f °C.": "Paladyn dalej będzie mierzył i zapisywał, co by wstrzymał, ale nie zatrzyma niczego, nawet powyżej %.0f °C.",
+    "Turn protection off": "Wyłącz ochronę",
+    "Keep it on": "Zostaw włączoną",
     "Watch only": "Tylko obserwuj",
     "The paladin keeps measuring and writes to the log what it would pause, but it stops nothing until you switch this back on.": "Paladyn dalej mierzy i zapisuje w logu, co by wstrzymał, ale niczego nie zatrzyma, dopóki nie włączysz ochrony z powrotem.",
     "Thermal protection is on": "Ochrona termiczna włączona",
@@ -552,6 +556,10 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
     "released automatically when the Mac gets hot": "снимается само, когда Mac нагревается",
     "Keep-awake: %@ left": "Бодрствование: осталось %@",
     "Held right now: %d": "Сейчас остановлено: %d",
+    "Turn thermal protection off?": "Отключить тепловую защиту?",
+    "The paladin will keep measuring and writing down what it would have paused, and will stop nothing at all, even above %.0f °C.": "Паладин продолжит измерять и записывать, что он остановил бы, но не остановит ничего, даже выше %.0f °C.",
+    "Turn protection off": "Отключить защиту",
+    "Keep it on": "Оставить включённой",
     "Watch only": "Только наблюдение",
     "The paladin keeps measuring and writes to the log what it would pause, but it stops nothing until you switch this back on.": "Паладин продолжает измерять и записывать в журнал, что он остановил бы, но ничего не останавливает, пока вы не включите защиту снова.",
     "Thermal protection is on": "Тепловая защита включена",
@@ -852,6 +860,10 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
     "released automatically when the Mac gets hot": "Mac 变热时自动解除",
     "Keep-awake: %@ left": "保持唤醒:剩余 %@",
     "Held right now: %d": "当前已暂停:%d",
+    "Turn thermal protection off?": "关闭热保护?",
+    "The paladin will keep measuring and writing down what it would have paused, and will stop nothing at all, even above %.0f °C.": "帕拉丁会继续测量并记录它本会暂停的内容,但不会停止任何进程,即使超过 %.0f °C。",
+    "Turn protection off": "关闭保护",
+    "Keep it on": "保持开启",
     "Watch only": "仅观察",
     "The paladin keeps measuring and writes to the log what it would pause, but it stops nothing until you switch this back on.": "帕拉丁继续测量并把它本会暂停的内容写入日志,但在你重新打开保护之前不会停止任何进程。",
     "Thermal protection is on": "热保护已开启",
@@ -1154,6 +1166,10 @@ Vuelve a activarlo cuando termines.
     "released automatically when the Mac gets hot": "se libera solo cuando el Mac se calienta",
     "Keep-awake: %@ left": "Despierto: quedan %@",
     "Held right now: %d": "Detenidos ahora: %d",
+    "Turn thermal protection off?": "¿Desactivar la protección térmica?",
+    "The paladin will keep measuring and writing down what it would have paused, and will stop nothing at all, even above %.0f °C.": "El paladín seguirá midiendo y anotando lo que habría pausado, y no detendrá nada, ni siquiera por encima de %.0f °C.",
+    "Turn protection off": "Desactivar protección",
+    "Keep it on": "Dejarla activada",
     "Watch only": "Solo observar",
     "The paladin keeps measuring and writes to the log what it would pause, but it stops nothing until you switch this back on.": "El paladín sigue midiendo y anota en el registro lo que pausaría, pero no detiene nada hasta que vuelvas a activar la protección.",
     "Thermal protection is on": "Protección térmica activada",
@@ -5038,11 +5054,28 @@ final class Bar: NSObject, NSMenuDelegate {
     @objc func toggleNotify() { GuardCfg.set(["notify": !GuardCfg.bool("notify", true)]) }
     @objc func toggleDry() {
         let watchOnlyNow = !GuardCfg.bool("dry_run", true)
-        GuardCfg.set(["dry_run": watchOnlyNow])
-        expectDryRun(watchOnlyNow)
-        // Both directions say what the click did: turning protection off is the serious
-        // one, but "on" is the moment to state the thresholds that are now in force.
-        showModally { watchOnlyNow ? self.explainDry() : self.explainProtectionOn() }
+        // Turning protection OFF asks first. It used to write the config on the click and
+        // explain afterwards, which left nothing to decide: by the time the window was up
+        // the Mac was already unguarded. Turning it back ON needs no permission, only the
+        // thresholds that are now in force.
+        if watchOnlyNow {
+            showModally {
+                let kill = readSnap()?.thrKill ?? GuardCfg.double("soc_kill_c", 90)
+                let answer = self.paladinWindow(
+                    title: T("Turn thermal protection off?"),
+                    body: String(format: T("The paladin will keep measuring and writing down what it would have paused, and will stop nothing at all, even above %.0f °C."), kill),
+                    buttons: [T("Turn protection off"), T("Keep it on")],
+                    defaultIndex: 1)
+                guard answer == 0 else { return }
+                GuardCfg.set(["dry_run": true])
+                self.expectDryRun(true)
+                self.refreshAfterAction()
+            }
+            return
+        }
+        GuardCfg.set(["dry_run": false])
+        expectDryRun(false)
+        showModally { self.explainProtectionOn() }
     }
 
     @objc func toggleSound() { GuardCfg.set(["sound": !GuardCfg.bool("sound", false)]) }
