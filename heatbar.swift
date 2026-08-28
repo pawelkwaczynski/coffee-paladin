@@ -97,7 +97,7 @@ let PL: [String: String] = [
     "Freeze heavy jobs now?": "Wstrzymać teraz ciężkie zadania?",
     "Nothing heavy is running right now. Anything that gets heavy will be frozen until you switch this back off.": "Nic ciężkiego teraz nie chodzi. Cokolwiek się rozpędzi, zostanie wstrzymane, dopóki nie przesuniesz przełącznika z powrotem.",
     "Freeze": "Wstrzymaj",
-    "OFF - the Mac is only being watched": "WYŁĄCZONE — Mac jest tylko obserwowany",
+    "OFF - the Mac is only being watched": "WYŁĄCZONE - Mac jest tylko obserwowany",
     "Show in the bar": "Pokaż na pasku",
     "Show all": "Pokaż wszystko",
     "Export report for a repair shop": "Raport dla serwisu",
@@ -182,7 +182,7 @@ let PL: [String: String] = [
     "battery": "bateria",
     "paused": "wstrzymane",
     "STALE - not reporting": "NIE RAPORTUJE",
-    "no fleet folder - run: fleet --setup": "brak folderu floty — uruchom: fleet --setup",
+    "no fleet folder - run: fleet --setup": "brak folderu floty - uruchom: fleet --setup",
     "no agent snapshots yet (agents publish about once a minute)":
         "brak migawek agentów (agenty publikują mniej więcej co minutę)",
     "now": "teraz",
@@ -237,7 +237,7 @@ let PL: [String: String] = [
     "max capacity: %d%%": "maks. pojemność: %d%%",
     "set up: %@": "skonfigurowany: %@",
     "Turns off banners, their sounds and phone push - one gate for all.":
-        "Wyłącza dymki, dźwięki przy nich i push na telefon — jedna bramka dla wszystkich.",
+        "Wyłącza dymki, dźwięki przy nich i push na telefon, jedna bramka dla wszystkich.",
     "Exception: the critical banner shouts regardless.":
         "Wyjątek: baner krytyczny krzyczy niezależnie.",
     "It is the ‹Thermal protection› switch: OFF = watch-only.":
@@ -247,16 +247,16 @@ let PL: [String: String] = [
     "Heavy jobs (safe-run)": "Ciężkie zadania (safe-run)",
     "Efficiency cores only (cool and quiet)": "Tylko rdzenie energooszczędne (chłodno i cicho)",
     "All cores (fast - the paladin still watches the temperature)":
-        "Wszystkie rdzenie (szybko — temperatury i tak pilnuje paladyn)",
+        "Wszystkie rdzenie (szybko, temperatury i tak pilnuje paladyn)",
     "CPU limit for heavy jobs": "Limit CPU dla ciężkich zadań",
     "Start at login": "Uruchamiaj przy starcie komputera",
     "About my Mac": "O moim Macu",
     "Phone push (ntfy.sh)…": "Push na telefon (ntfy.sh)...",
     "Enter a secret topic name. Install the ntfy app on your phone and subscribe to the same topic - pauses, kills and alarms will arrive as push notifications. Leave empty to disable.":
-        "Wpisz sekretną nazwę tematu. Zainstaluj na telefonie aplikację ntfy i zasubskrybuj ten sam temat — pauzy, ubicia i alarmy przyjdą jako push. Puste pole wyłącza.",
+        "Wpisz sekretną nazwę tematu. Zainstaluj na telefonie aplikację ntfy i zasubskrybuj ten sam temat, a pauzy, ubicia i alarmy przyjdą jako push. Puste pole wyłącza.",
     "The topic name is the ONLY protection: anyone who knows or guesses it can read your alerts and send fake ones. Click Generate for a random unguessable name. On your phone install the ntfy.sh app (from ntfy.sh - mind the lookalike apps) and subscribe to the same topic. Leave empty to disable.":
         "Nazwa tematu to JEDYNE zabezpieczenie: kto ją zna lub zgadnie, widzi Twoje alerty i może wysyłać fałszywe. Kliknij Wygeneruj, aby dostać losową, niezgadywalną nazwę. Na telefonie zainstaluj aplikację ntfy.sh (ze strony ntfy.sh - uwaga na podobne apki) i zasubskrybuj ten sam temat. Puste pole wyłącza.",
-    "A project by the founder of the AIRON computer science research club | AHE Łódź": "Projekt założyciela koła naukowego informatyki  AIRON | AHE Łódź",
+    "A project by the founder of SKN \"AIRON\" | AHE Łódź": "Projekt założyciela SKN „AIRON” | AHE Łódź",
     "Generate": "Wygeneruj",
     "Model:  %@": "Model:  %@",
     "Chip:  %@": "Chip:  %@",
@@ -428,7 +428,7 @@ let RU: [String: String] = [
     "Freeze heavy jobs now?": "Приостановить тяжёлые задачи сейчас?",
     "Nothing heavy is running right now. Anything that gets heavy will be frozen until you switch this back off.": "Сейчас ничего тяжёлого не работает. Всё, что станет тяжёлым, будет приостановлено, пока вы не выключите этот переключатель.",
     "Freeze": "Приостановить",
-    "OFF - the Mac is only being watched": "ВЫКЛЮЧЕНО — Mac только под наблюдением",
+    "OFF - the Mac is only being watched": "ВЫКЛЮЧЕНО - Mac только под наблюдением",
     "Show in the bar": "Показывать в строке меню",
     "Show all": "Показать всё",
     "Export report for a repair shop": "Отчёт для сервисного центра",
@@ -607,7 +607,7 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
     "max capacity: %d%%": "макс. ёмкость: %d%%",
     "set up: %@": "настроен: %@",
     "Turns off banners, their sounds and phone push - one gate for all.":
-        "Отключает уведомления, их звуки и push — один шлюз для всего.",
+        "Отключает уведомления, их звуки и push, один шлюз для всего.",
     "Exception: the critical banner shouts regardless.":
         "Исключение: критический баннер кричит независимо.",
     "It is the ‹Thermal protection› switch: OFF = watch-only.":
@@ -617,7 +617,7 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
     "Heavy jobs (safe-run)": "Тяжёлые задачи (safe-run)",
     "Efficiency cores only (cool and quiet)": "Только энергоэффективные ядра (холодно и тихо)",
     "All cores (fast - the paladin still watches the temperature)":
-        "Все ядра (быстро — за температурой всё равно следит паладин)",
+        "Все ядра (быстро, за температурой всё равно следит паладин)",
     "CPU limit for heavy jobs": "Лимит CPU для тяжёлых задач",
     "Start at login": "Запускать при входе в систему",
     "About my Mac": "Об этом Mac",
@@ -626,7 +626,7 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
         "Введите секретное имя темы. Установите приложение ntfy на телефон и подпишитесь на ту же тему - паузы, завершения и тревоги придут как push. Пустое поле отключает.",
     "The topic name is the ONLY protection: anyone who knows or guesses it can read your alerts and send fake ones. Click Generate for a random unguessable name. On your phone install the ntfy.sh app (from ntfy.sh - mind the lookalike apps) and subscribe to the same topic. Leave empty to disable.":
         "Имя темы - ЕДИНСТВЕННАЯ защита: кто его знает или угадает, видит ваши оповещения и может слать поддельные. Нажмите «Сгенерировать», чтобы получить случайное имя. Установите на телефон приложение ntfy.sh (с сайта ntfy.sh - остерегайтесь похожих приложений) и подпишитесь на ту же тему. Пустое поле отключает.",
-    "A project by the founder of the AIRON computer science research club | AHE Łódź": "Проект основателя научного кружка информатики  AIRON | AHE Лодзь",
+    "A project by the founder of SKN \"AIRON\" | AHE Łódź": "Проект основателя SKN «AIRON» | AHE Лодзь",
     "Generate": "Сгенерировать",
     "Model:  %@": "Модель:  %@",
     "Chip:  %@": "Чип:  %@",
@@ -736,7 +736,7 @@ let ZH: [String: String] = [
     "Freeze heavy jobs now?": "现在暂停繁重任务？",
     "Nothing heavy is running right now. Anything that gets heavy will be frozen until you switch this back off.": "目前没有繁重任务在运行。之后出现的繁重任务都会被暂停，直到你关掉这个开关。",
     "Freeze": "暂停",
-    "OFF - the Mac is only being watched": "已关闭 —— 仅在观察这台 Mac",
+    "OFF - the Mac is only being watched": "已关闭,仅在观察这台 Mac",
     "Show in the bar": "菜单栏显示内容",
     "Show all": "全部显示",
     "Export report for a repair shop": "导出维修报告",
@@ -913,7 +913,7 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
     "max capacity: %d%%": "最大容量: %d%%",
     "set up: %@": "配置于: %@",
     "Turns off banners, their sounds and phone push - one gate for all.":
-        "关闭通知、其声音和手机推送——同一道闸门。",
+        "关闭通知、其声音和手机推送,同一道闸门。",
     "Exception: the critical banner shouts regardless.":
         "例外:危险横幅无论如何都会警报。",
     "It is the ‹Thermal protection› switch: OFF = watch-only.":
@@ -932,7 +932,7 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
         "输入一个保密的主题名。在手机上安装 ntfy 应用并订阅同一主题 - 暂停、终止和警报会以推送形式送达。留空则禁用。",
     "The topic name is the ONLY protection: anyone who knows or guesses it can read your alerts and send fake ones. Click Generate for a random unguessable name. On your phone install the ntfy.sh app (from ntfy.sh - mind the lookalike apps) and subscribe to the same topic. Leave empty to disable.":
         "主题名是唯一的保护:知道或猜到它的人都能看到你的警报并发送伪造消息。点击「生成」获取随机且难以猜测的名称。在手机上安装 ntfy.sh 应用(来自 ntfy.sh, 谨防仿冒应用)并订阅同一主题。留空则禁用。",
-    "A project by the founder of the AIRON computer science research club | AHE Łódź": "计算机科学科研社团  AIRON 创始人的项目 | 罗兹 AHE",
+    "A project by the founder of SKN \"AIRON\" | AHE Łódź": "SKN「AIRON」创始人的项目 | 罗兹 AHE",
     "Generate": "生成",
     "Model:  %@": "型号:  %@",
     "Chip:  %@": "芯片:  %@",
@@ -1240,7 +1240,7 @@ Vuelve a activarlo cuando termines.
         "Escribe un nombre de tema secreto. Instala la app ntfy en el teléfono y suscríbete al mismo tema: pausas, terminaciones y alarmas llegarán como push. Vacío = desactivado.",
     "The topic name is the ONLY protection: anyone who knows or guesses it can read your alerts and send fake ones. Click Generate for a random unguessable name. On your phone install the ntfy.sh app (from ntfy.sh - mind the lookalike apps) and subscribe to the same topic. Leave empty to disable.":
         "El nombre del tema es la ÚNICA protección: quien lo conozca o adivine verá tus alertas y podrá enviar falsas. Pulsa Generar para obtener un nombre aleatorio. Instala en el teléfono la app ntfy.sh (de ntfy.sh, cuidado con las imitaciones) y suscríbete al mismo tema. Vacío = desactivado.",
-    "A project by the founder of the AIRON computer science research club | AHE Łódź": "Proyecto del fundador del club de informática  AIRON | AHE Łódź",
+    "A project by the founder of SKN \"AIRON\" | AHE Łódź": "Proyecto del fundador de SKN «AIRON» | AHE Łódź",
     "Generate": "Generar",
     "Model:  %@": "Modelo:  %@",
     "Chip:  %@": "Chip:  %@",
@@ -1808,7 +1808,7 @@ final class HeaderRow: NSView {
         addSubview(motto)
         centeredLabels.append(motto)
 
-        let name = NSTextField(labelWithString: T("A project by the founder of the AIRON computer science research club | AHE Łódź"))
+        let name = NSTextField(labelWithString: T("A project by the founder of SKN \"AIRON\" | AHE Łódź"))
         name.font = .systemFont(ofSize: 11)
         name.textColor = .secondaryLabelColor
         name.alignment = .center
@@ -4764,7 +4764,7 @@ final class Bar: NSObject, NSMenuDelegate {
                     // dark mode it looks like a sticker and shifts columns.
                     let a = NSMutableAttributedString()
                     a.append(icon("exclamationmark.triangle", fallback: "!"))
-                    a.append(NSAttributedString(string: "  \(h.name) — " + T("STALE - not reporting")
+                    a.append(NSAttributedString(string: "  \(h.name)  ·  " + T("STALE - not reporting")
                                                 + "  (" + fleetAge(h.age) + ")"))
                     let it = NSMenuItem(title: "", action: nil, keyEquivalent: "")
                     it.attributedTitle = a
