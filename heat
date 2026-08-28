@@ -86,39 +86,39 @@ LANG = _lang()
 
 PL = {
     "%s thermal state: %s   chip: %s   battery: %s   CPU available: %d%%   load: %.2f / %.2f (%d cores)":
-        "%s stan termiczny: %s   chip: %s   bateria: %s   CPU dostepne: %d%%   load: %.2f / %.2f (rdzeni %d)",
+        "%s stan termiczny: %s   chip: %s   bateria: %s   CPU dostępne: %d%%   load: %.2f / %.2f (rdzeni %d)",
     "n/a": "n/d",
     "stopped": "stoi",
     "%d rpm": "%d obr/min",
     "   fans: %s%s": "   wentylatory: %s%s",
-    " (remembered)": " (zapamietany)",
+    " (remembered)": " (zapamiętany)",
     "   (fans at rest while the chip is warm; on Apple silicon they spin up late)":
-        "   (wentylatory stoja przy cieplym chipie; na Apple silicon ruszaja z opoznieniem)",
+        "   (wentylatory stoją przy ciepłym chipie; na Apple silicon ruszają z opóźnieniem)",
     "   ⚠️ CHIP IS HOT BUT THE FANS ARE STOPPED - check the cooling!":
-        "   ⚠️ CHIP GORACY, A WENTYLATORY STOJA - sprawdz chlodzenie!",
+        "   ⚠️ CHIP GORĄCY, A WENTYLATORY STOJĄ - sprawdź chłodzenie!",
     "AC adapter": "zasilacz",
     "battery %s%%": "bateria %s%%",
     "   power: %s%s": "   zasilanie: %s%s",
     "   draw: %.1f W": "   pobor: %.1f W",
     "   battery temperature record (whole lifetime): %.1f °C":
         "   rekord temperatury baterii (caly cykl zycia): %.1f °C",
-    "running ✅": "dziala ✅",
-    "NOT RUNNING ❌  (launchctl kickstart -k gui/%d/%s)": "NIE DZIALA ❌  (launchctl kickstart -k gui/%d/%s)",
+    "running ✅": "działa ✅",
+    "NOT RUNNING ❌  (launchctl kickstart -k gui/%d/%s)": "NIE DZIAŁA ❌  (launchctl kickstart -k gui/%d/%s)",
     "   coffee-paladin: %s": "   coffee-paladin: %s",
     "   ⏸  paused: %s (pid %s, since %s)": "   ⏸  wstrzymane: %s (pid %s, od %s)",
     "\nTop CPU right now:": "\nNajwiecej CPU teraz:",
     "\nAdmission queue (budget %s core(s), jobs start as headroom allows):":
-        "\nKolejka wpuszczania (budzet: %s rdzeni, zadania startuja w miare zapasu):",
+        "\nKolejka wpuszczania (budżet: %s rdzeni, zadania startują w miarę zapasu):",
     "   \u23f3 %s (pid %s) - %s core(s), rank %s, waiting %d min":
         "   \u23f3 %s (pid %s) - rdzenie: %s, ranga %s, czeka %d min",
     "\nPeak chip temperature in the last 24 h: %.1f °C (%s)":
         "\nMax temperatura chipa z ostatnich 24 h: %.1f °C (%s)",
     "\nRecent guard interventions:": "\nOstatnie interwencje guarda:",
-    "No stopped processes. Nothing is waiting for a SIGCONT.": "Brak zatrzymanych procesow. Nic nie czeka na SIGCONT.",
+    "No stopped processes. Nothing is waiting for a SIGCONT.": "Brak zatrzymanych procesów. Nic nie czeka na SIGCONT.",
     "Stopped processes (state T):": "Zatrzymane procesy (stan T):",
     "   ⏸  %s (pid %s, %s) - paused by coffee-paladin, resumes by itself": "   ⏸  %s (pid %s, %s) - pauza coffee-paladin, wznowi sie sam",
-    "   ⚠️  %s (pid %s, %s) - stopped by something else": "   ⚠️  %s (pid %s, %s) - zatrzymany przez cos innego",
-    "\nA process stopped by something else is usually the SIGTTIN trap: a background\njob touched the terminal and the kernel stopped it. Nothing will resume it.\nBring it to the foreground (fg) or resume it: kill -CONT <pid>": "\nProces zatrzymany przez cos innego to zwykle pulapka SIGTTIN: zadanie w tle\ndotknelo terminala i jadro je zatrzymalo. Nikt go nie wznowi.\nPrzenies je na pierwszy plan (fg) albo wznow: kill -CONT <pid>",
+    "   ⚠️  %s (pid %s, %s) - stopped by something else": "   ⚠️  %s (pid %s, %s) - zatrzymany przez coś innego",
+    "\nA process stopped by something else is usually the SIGTTIN trap: a background\njob touched the terminal and the kernel stopped it. Nothing will resume it.\nBring it to the foreground (fg) or resume it: kill -CONT <pid>": "\nProces zatrzymany przez coś innego to zwykle pułapka SIGTTIN: zadanie w tle\ndotknęło terminala i jądro je zatrzymało. Nikt go nie wznowi.\nPrzenieś je na pierwszy plan (fg) albo wznów: kill -CONT <pid>",
     'THERMAL PROFILE OF THIS MAC':
         'PROFIL TERMICZNY TEGO MACA',
     '   idle:            %5.1f °C   (settled median of %d samples, 90%% below %.1f °C; %d quiet samples not settled yet)':

@@ -161,52 +161,52 @@ LANG = _lang()
 PL = {
     "safe-run: unknown option %s": "safe-run: nieznana opcja %s",
     "safe-run: SIGTERM at %s unless the job ends first (--hours %.1f)":
-        "safe-run: SIGTERM o %s, chyba ze zadanie skonczy sie wczesniej (--hours %.1f)",
+        "safe-run: SIGTERM o %s, chyba że zadanie skończy się wcześniej (--hours %.1f)",
     "safe-run: thermal state=%s, battery=%s, time budget=%.1f h":
         "safe-run: stan termiczny=%s, bateria=%s, limit czasu=%.1f h",
     "safe-run: REFUSING TO START - the Mac is already hot. Use --wait-cool to wait, let it cool down, or pass --allow-hot.":
-        "safe-run: ODMOWA STARTU - Mac jest juz goracy. Uzyj --wait-cool zeby poczekac, daj mu ostygnac albo uzyj --allow-hot.",
+        "safe-run: ODMOWA STARTU - Mac jest już gorący. Użyj --wait-cool żeby poczekać, daj mu ostygnąć albo użyj --allow-hot.",
     "safe-run: --wait-cool - the Mac is hot (%s), waiting until it cools down (checking every 60 s)":
-        "safe-run: --wait-cool - Mac jest goracy (%s), czekam az ostygnie (sprawdzam co 60 s)",
+        "safe-run: --wait-cool - Mac jest gorący (%s), czekam aż ostygnie (sprawdzam co 60 s)",
     "safe-run: cooled down after %d min - starting the job":
-        "safe-run: ostyglo po %d min - startuje zadanie",
+        "safe-run: ostygło po %d min - startuję zadanie",
     "safe-run: --after %s - waiting until that job finishes":
-        "safe-run: --after %s - czekam, az tamto zadanie sie skonczy",
+        "safe-run: --after %s - czekam, aż tamto zadanie się skończy",
     "safe-run: admitted - starting the job":
-        "safe-run: wpuszczone - startuje zadanie",
+        "safe-run: wpuszczone - startuję zadanie",
     "safe-run: waiting for admission (declared %d core(s), %d job(s) ahead)":
-        "safe-run: czekam na wpuszczenie (zadeklarowane rdzenie: %d, zadan przede mna: %d)",
+        "safe-run: czekam na wpuszczenie (zadeklarowane rdzenie: %d, zadań przede mną: %d)",
     "safe-run: WARNING - admission control is on but the guard's snapshot is stale; starting without admission":
-        "safe-run: UWAGA - admission control wlaczone, ale migawka bezpiecznika jest nieswieza; startuje bez wpuszczania",
+        "safe-run: UWAGA - admission control włączone, ale migawka bezpiecznika jest nieświeża; startuję bez wpuszczania",
     "safe-run: --cores %d caps the CPU limit at %d%%":
         "safe-run: --cores %d ogranicza limit CPU do %d%%",
     "safe-run: cleaning up %d leftover process(es) from the job's group (SIGTERM, then SIGKILL after %d s)":
-        "safe-run: sprzatam %d proces(y) pozostale w grupie zadania (SIGTERM, po %d s SIGKILL)",
+        "safe-run: sprzątam %d proces(y) pozostałe w grupie zadania (SIGTERM, po %d s SIGKILL)",
     "safe-run: WARNING - the job left %d process(es) running in its group (pids: %s) - no time budget applies to them":
-        "safe-run: UWAGA - zadanie zostawilo w swojej grupie %d dzialajacych procesow (pidy: %s) - limit czasu ich juz nie obejmuje",
+        "safe-run: UWAGA - zadanie zostawiło w swojej grupie %d działających procesów (pidy: %s) - limit czasu ich już nie obejmuje",
     "safe-run: coffee-paladin is not running - trying to start it...":
-        "safe-run: coffee-paladin nie dziala - probuje uruchomic...",
+        "safe-run: coffee-paladin nie działa - próbuję uruchomić...",
     "safe-run: WARNING - the guard did not start, this job will NOT be supervised.":
-        "safe-run: UWAGA - guard nie wstal, zadanie NIE bedzie pilnowane.",
-    "safe-run: cannot start: %r": "safe-run: nie moge uruchomic: %r",
+        "safe-run: UWAGA - guard nie wstał, zadanie NIE będzie pilnowane.",
+    "safe-run: cannot start: %r": "safe-run: nie mogę uruchomić: %r",
     "safe-run: TIME BUDGET %.1f h reached - terminating the job (SIGTERM)":
-        "safe-run: LIMIT CZASU %.1f h - koncze zadanie (SIGTERM)",
+        "safe-run: LIMIT CZASU %.1f h - kończę zadanie (SIGTERM)",
     "safe-run: %s - exit code %s, took %dh %dm, peak temperature %s%s":
         "safe-run: %s - kod %s, czas %dh %dm, max temperatura %s%s",
     "safe-run: the job was stopped by signal %d - check ~/.coffee-paladin/guard.log":
-        "safe-run: zadanie zatrzymane sygnalem %d - sprawdz ~/.coffee-paladin/guard.log",
+        "safe-run: zadanie zatrzymane sygnałem %d - sprawdź ~/.coffee-paladin/guard.log",
     "finished": "zakonczone",
     "failed": "nieudane",
     "n/a": "n/d",
     "terminated by the time budget": "ubite przez limit czasu",
     "safe-run: cores=%s, CPU limit=%d%%": "safe-run: rdzenie=%s, limit CPU=%d%%",
     "all": "wszystkie",
-    "efficiency only": "tylko energooszczedne (E)",
-    "the guard reports a hot machine": "guard zglasza goraca maszyne",
+    "efficiency only": "tylko energooszczędne (E)",
+    "the guard reports a hot machine": "guard zgłasza gorącą maszynę",
     "safe-run: already inside a supervised job - running the command directly":
-        "safe-run: jestesmy juz w nadzorowanym zadaniu - uruchamiam polecenie wprost",
+        "safe-run: jesteśmy już w nadzorowanym zadaniu - uruchamiam polecenie wprost",
     "safe-run: WARNING - the guard's snapshot is stale, the daemon is probably not running. This job will start, but NOTHING will supervise its temperature.":
-        "safe-run: UWAGA - migawka bezpiecznika jest nieswieza, demon najpewniej nie dziala. Zadanie wystartuje, ale NIKT nie bedzie pilnowal jego temperatury.",
+        "safe-run: UWAGA - migawka bezpiecznika jest nieświeża, demon najpewniej nie działa. Zadanie wystartuje, ale NIKT nie będzie pilnował jego temperatury.",
 }
 
 RU = {

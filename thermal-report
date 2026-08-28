@@ -80,17 +80,17 @@ PL = {
     "\n## HARDWARE\n": "\n## SPRZET\n",
     "\n## BATTERY\n": "\n## BATERIA\n",
     "\n## CRITICAL EVENTS (hard shutdowns, cooling alarms)\n":
-        "\n## ZDARZENIA KRYTYCZNE (twarde wylaczenia, alarmy chlodzenia)\n",
+        "\n## ZDARZENIA KRYTYCZNE (twarde wyłączenia, alarmy chłodzenia)\n",
     "  (none - no hard shutdown or cooling alarm was detected in this period)":
-        "  (brak - w tym okresie nie wykryto twardego wylaczenia ani alarmu chlodzenia)",
-    "      readings immediately before the event:": "      odczyty bezposrednio przed zdarzeniem:",
-    "\n## SHUTDOWN CAUSES REPORTED BY THE SYSTEM\n": "\n## POWODY WYLACZEN WG SYSTEMU\n",
+        "  (brak - w tym okresie nie wykryto twardego wyłączenia ani alarmu chłodzenia)",
+    "      readings immediately before the event:": "      odczyty bezpośrednio przed zdarzeniem:",
+    "\n## SHUTDOWN CAUSES REPORTED BY THE SYSTEM\n": "\n## POWODY WYŁĄCZEŃ WG SYSTEMU\n",
     "  last boot: %s": "  ostatni start systemu: %s",
     "unknown": "nieznany",
     "  (the system log holds no shutdown-cause entry for this boot. Apple silicon often records none, so this is NOT evidence of a power loss.)": "  (w logu systemowym nie ma wpisu o przyczynie wyłączenia dla tego startu. Apple silicon często go nie zapisuje, więc to NIE jest dowód utraty zasilania.)",
-    "  %s: pauses %d, resumes %d, kills %d, slowed down %d, back to full speed %d, fan alarms %d, crashes %d": "  %s: pauzy %d, wznowienia %d, ubicia %d, spowolnienia %d, powroty na pelna moc %d, alarmy wentylatorow %d, awarie %d",
-    "  the serious ones in full (daemon language):": "  te powazne w calosci (jezyk demona):",
-    "  every line: guard.log and its rotated generations": "  kazda linia: guard.log i jego starsze generacje",
+    "  %s: pauses %d, resumes %d, kills %d, slowed down %d, back to full speed %d, fan alarms %d, crashes %d": "  %s: pauzy %d, wznowienia %d, ubicia %d, spowolnienia %d, powroty na pełną moc %d, alarmy wentylatorów %d, awarie %d",
+    "  the serious ones in full (daemon language):": "  te poważne w całości (język demona):",
+    "  every line: guard.log and its rotated generations": "  każda linia: guard.log i jego starsze generacje",
     "  (no 'Previous shutdown cause' entries - typical after a loss of power)":
         "  (brak wpisow 'Previous shutdown cause' - typowe przy utracie zasilania)",
     "\n## GUARD INTERVENTIONS\n": "\n## INTERWENCJE BEZPIECZNIKA\n",
@@ -100,31 +100,31 @@ PL = {
         "  czas, stan, chip C, GPU C, bateria C, obroty, W, bateria %, zasilacz, CPU limit, load, poziom",
     "  PEAK MEASURED CHIP TEMPERATURE: %.1f C (%s)": "  NAJWYZSZA ZMIERZONA TEMPERATURA CHIPA: %.1f C (%s)",
     "  DISCARDED AS IMPLAUSIBLE: %d row(s) over 110 C (highest %.1f C) - shown in the timeline below, not counted towards the peak":
-        "  ODRZUCONE JAKO NIEWIARYGODNE: %d wiersz(y) powyzej 110 C (najwyzszy %.1f C) - widoczne na osi czasu ponizej, nie liczone do szczytu",
+        "  ODRZUCONE JAKO NIEWIARYGODNE: %d wiersz(y) powyżej 110 C (najwyższy %.1f C) - widoczne na osi czasu poniżej, nie liczone do szczytu",
     "Measurements are collected by the algorithm every %d s (written every 5 min and on every event).":
-        "Algorytmy zbieraja pomiary co %d s (zapis co 5 min oraz przy kazdym zdarzeniu).",
-    "Measurements are taken every %d s; a row is written about every %d min while the Mac is calm and on every reading during an intervention.": "Pomiar co %d s; wiersz zapisywany mniej wiecej co %d min, gdy Mac jest spokojny, i przy kazdym odczycie w trakcie interwencji.",
-    "Measurements are taken every %d s; a row is written every few minutes while the Mac is calm and on every reading during an intervention.": "Pomiar co %d s; wiersz zapisywany co kilka minut, gdy Mac jest spokojny, i przy kazdym odczycie w trakcie interwencji.",
+        "Algorytmy zbierają pomiary co %d s (zapis co 5 min oraz przy każdym zdarzeniu).",
+    "Measurements are taken every %d s; a row is written about every %d min while the Mac is calm and on every reading during an intervention.": "Pomiar co %d s; wiersz zapisywany mniej więcej co %d min, gdy Mac jest spokojny, i przy każdym odczycie w trakcie interwencji.",
+    "Measurements are taken every %d s; a row is written every few minutes while the Mac is calm and on every reading during an intervention.": "Pomiar co %d s; wiersz zapisywany co kilka minut, gdy Mac jest spokojny, i przy każdym odczycie w trakcie interwencji.",
     "Chip temperature is read through IOReport, battery temperature through AppleSmartBattery.":
         "Temperatura chipa czytana przez IOReport, temperatura baterii przez AppleSmartBattery.",
     "AC": "zasilacz",
     "battery": "bateria",
     "thermal-report: unknown argument: %s": "thermal-report: nieznany argument: %s",
-    "thermal-report: cannot write %s (%s)": "thermal-report: nie moge zapisac %s (%s)",
+    "thermal-report: cannot write %s (%s)": "thermal-report: nie mogę zapisać %s (%s)",
     "  !! NO MEASUREMENTS IN THIS RANGE. This document does NOT show that nothing happened -\n     it shows that nothing was recorded. Possible reasons: the guard was not running,\n     the data was deleted, or the range predates the installation.":
-        "  !! BRAK POMIAROW W TYM ZAKRESIE. Ten dokument NIE pokazuje, ze nic sie nie stalo -\n     pokazuje, ze niczego nie zarejestrowano. Mozliwe powody: bezpiecznik nie dzialal,\n     dane zostaly usuniete, albo zakres jest sprzed instalacji.",
+        "  !! BRAK POMIARÓW W TYM ZAKRESIE. Ten dokument NIE pokazuje, że nic się nie stało -\n     pokazuje, że niczego nie zarejestrowano. Możliwe powody: bezpiecznik nie działał,\n     dane zostały usunięte, albo zakres jest sprzed instalacji.",
     "thermal-report: %s needs a number of days":
         "thermal-report: %s wymaga liczby dni",
     "thermal-report: number of days must be 1 or more (got %s)":
-        "thermal-report: liczba dni musi wynosic co najmniej 1 (podano %s)",
+        "thermal-report: liczba dni musi wynosić co najmniej 1 (podano %s)",
     "thermal-report: --from needs a date as YYYY-MM-DD":
         "thermal-report: --from wymaga daty w formacie RRRR-MM-DD",
     "thermal-report: --to needs a date as YYYY-MM-DD":
         "thermal-report: --to wymaga daty w formacie RRRR-MM-DD",
     "thermal-report: the range ends before it starts (--from is after --to)":
-        "thermal-report: zakres konczy sie przed poczatkiem (--from jest pozniej niz --to)",
+        "thermal-report: zakres kończy się przed początkiem (--from jest później niż --to)",
     "  TIMELINE SHORTENED: showing %d of %d measurements. Every reading within 10 C of the peak\n     and every reading with an intervention was kept; the calm rest is sampled evenly.\n     Full data: history.csv (and its rotated generations).":
-        "  OS CZASU SKROCONA: pokazano %d z %d pomiarow. Zostaly WSZYSTKIE odczyty w granicach 10 C\n     od szczytu i wszystkie z interwencja; spokojna reszta jest probkowana rownomiernie.\n     Pelne dane: history.csv (razem ze zrotowanymi pokoleniami).",
+        "  OŚ CZASU SKRÓCONA: pokazano %d z %d pomiarów. Zostały WSZYSTKIE odczyty w granicach 10 C\n     od szczytu i wszystkie z interwencją; spokojna reszta jest próbkowana równomiernie.\n     Pełne dane: history.csv (razem ze zrotowanymi pokoleniami).",
 }
 
 RU = {

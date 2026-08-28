@@ -591,18 +591,18 @@ PL = {
     "SIGKILL %s (pid %d)": "SIGKILL %s (pid %d)",
     "[DRY-RUN] would demote %s (pid %d)": "[DRY-RUN] demote %s (pid %d)",
     "DEMOTED %s (pid %d) -> background QoS/E-cores (hot for >%d min)":
-        "DEMOTE %s (pid %d) -> tlo/E-cores (goraco i mieli >%d min)",
+        "DEMOTE %s (pid %d) -> tło/E-cores (gorąco i mieli >%d min)",
     "PROMOTED %s (pid %d) -> back on P-cores (machine cooled down)":
-        "PROMOTE %s (pid %d) -> z powrotem na rdzenie P (maszyna ostygla)",
-    "Thermal guard: hot": "Thermal guard: goraco",
+        "PROMOTE %s (pid %d) -> z powrotem na rdzenie P (maszyna ostygła)",
+    "Thermal guard: hot": "Thermal guard: gorąco",
     "unknown argument: %s": "nieznany argument: %s",
     "usage: coffee-paladin [--once | status | --version | panel | bar icon-only|chip|full | hook-gate]   (no arguments = run the daemon)":
         "uzycie: coffee-paladin [--once | status | --version | panel | bar icon-only|chip|full | hook-gate]   (bez argumentow = uruchom demona)",
     "paused by the guard:": "wstrzymane przez guarda:",
     "  frozen: %-16s pid=%-7d since %s (%d min) - manual freeze, no automatic termination":
-        "  zamrozone: %-16s pid=%-7d od %s (%d min) - reczna pauza, bez automatycznego ubicia",
+        "  zamrożone: %-16s pid=%-7d od %s (%d min) - ręczna pauza, bez automatycznego ubicia",
     "  frozen: %-16s pid=%-7d since %s (%d min) - reason %s, termination in %d min":
-        "  zamrozone: %-16s pid=%-7d od %s (%d min) - powod: %s, ubicie za %d min",
+        "  zamrożone: %-16s pid=%-7d od %s (%d min) - powód: %s, ubicie za %d min",
     "limited by the safe-run duty cycle (T-state blinks are normal, not a guard pause):":
         "ograniczane przez duty-cycle safe-run (miganie stanu T jest normalne, to NIE pauza guarda):",
     "  limited: %-16s pid=%-7d cap %d%%":
@@ -610,61 +610,61 @@ PL = {
     "battery": "bateria",
     "thermal": "termika",
     "job %s (pid %d): no progress for %d min despite a declared interval of %d s":
-        "zadanie %s (pid %d): brak postepu od %d min mimo zadeklarowanego interwalu %d s",
-    "Thermal guard: job may be stalled": "Thermal guard: zadanie moze stac",
+        "zadanie %s (pid %d): brak postępu od %d min mimo zadeklarowanego interwału %d s",
+    "Thermal guard: job may be stalled": "Thermal guard: zadanie może stać",
     "%s reports no progress for %d min. Check it - the guard only watches here, it will not touch the job.":
-        "%s nie zglasza postepu od %d min. Sprawdz je - straznik tu tylko patrzy, nie ruszy zadania.",
+        "%s nie zgłasza postępu od %d min. Sprawdź je - strażnik tu tylko patrzy, nie ruszy zadania.",
     "  stalled? %-16s pid=%-7d no progress for %d min (declared every %d s)":
         "  stoi? %-16s pid=%-7d brak postepu od %d min (deklarowane co %d s)",
     "Thermal guard: job slowed down": "Thermal guard: zadanie zwolnione",
     "%s moved to E-cores (up to several times slower) - returns to full speed when the machine cools":
-        "%s zepchniete na rdzenie E (nawet kilka razy wolniej) - wroci na pelna predkosc, gdy maszyna ostygnie",
-    "Thermal guard: full speed again": "Thermal guard: znow pelna predkosc",
-    "%s is back on P-cores": "%s wrocil na rdzenie P",
-    "Thermal guard (watch-only): hot": "Thermal guard (obserwacja): goraco",
+        "%s zepchnięte na rdzenie E (nawet kilka razy wolniej) - wróci na pełną prędkość, gdy maszyna ostygnie",
+    "Thermal guard: full speed again": "Thermal guard: znów pełna prędkość",
+    "%s is back on P-cores": "%s wrócił na rdzenie P",
+    "Thermal guard (watch-only): hot": "Thermal guard (obserwacja): gorąco",
     "Would pause %s - %s. Protection is off.":
-        "Wstrzymalbym %s - %s. Ochrona jest wylaczona.",
+        "Wstrzymałbym %s - %s. Ochrona jest wyłączona.",
     "Paused: %s (%s)": "Wstrzymano: %s (%s)",
     "Thermal guard: cooled down": "Thermal guard: ochlodzone",
     "Resumed paused jobs (%s)": "Wznowiono wstrzymane zadania (%s)",
     "Thermal guard: STOPPED": "Thermal guard: ZATRZYMANE",
     "Jobs terminated (%s). Resume from a checkpoint once the Mac has cooled down.":
-        "Ubito zadania (%s). Wznow z checkpointu, gdy Mac ostygnie.",
+        "Ubito zadania (%s). Wznów z checkpointu, gdy Mac ostygnie.",
     "!!! HARD SHUTDOWN DETECTED - ": "!!! WYKRYTO TWARDY PAD - ",
     "Mac shut down without warning": "Mac zgasl bez ostrzezenia",
     "Evidence from the moment of the crash was saved - menu bar > Export report":
         "Zapisalem dowody z chwili padu - menu paska > Eksportuj raport",
-    "manual freeze: there was nothing to freeze": "reczne zamrozenie: nie bylo czego zamrozic",
+    "manual freeze: there was nothing to freeze": "ręczne zamrożenie: nie było czego zamrozić",
     "Nothing to freeze": "Nie ma czego zamrozic",
-    "No heavy job meets the conditions": "Zadne ciezkie zadanie nie spelnia warunkow",
+    "No heavy job meets the conditions": "Żadne ciężkie zadanie nie spełnia warunków",
     "COOLING FAILURE? chip %.1f C while both fans report 0 rpm for %d s":
         "AWARIA CHLODZENIA? chip %.1f C, a oba wentylatory 0 obr/min od %d s",
-    "Fans stopped while the chip is hot": "Wentylatory stoja przy goracym chipie",
-    "PAUSE >%d min - terminating job %s (pid %s)": "PAUZA >%d min - koncze zadanie %s (pid %s)",
+    "Fans stopped while the chip is hot": "Wentylatory stoją przy gorącym chipie",
+    "PAUSE >%d min - terminating job %s (pid %s)": "PAUZA >%d min - kończę zadanie %s (pid %s)",
     "paused for longer than %d min": "pauza dluzsza niz %d min",
-    "LOOP ERROR: %r": "BLAD petli: %r",
-    "MANUAL FREEZE (from the menu bar)": "ZAMROZENIE RECZNE (z paska menu)",
-    "manual resume (from the menu bar)": "wznowienie reczne (z paska menu)",
+    "LOOP ERROR: %r": "BŁĄD pętli: %r",
+    "MANUAL FREEZE (from the menu bar)": "ZAMROŻENIE RĘCZNE (z paska menu)",
+    "manual resume (from the menu bar)": "wznowienie ręczne (z paska menu)",
     "conditions are back to normal": "warunki wrocily do normy",
     "%s heats the Mac at %.0f%% CPU - a desktop app: slowed down, never frozen": "%s grzeje Maca na %.0f%% CPU - aplikacja okienkowa: spowolniona, nigdy nie zamrazana",
     "%s heats the Mac at %.0f%% CPU - a macOS service: named, left alone": "%s grzeje Maca na %.0f%% CPU - usluga macOS: nazwana, zostawiona w spokoju",
     "DEMOTED %s (pid %d) at pause -> comes back on E-cores, not at full speed":
         "DEMOTE %s (pid %d) przy pauzie -> wroci na rdzeniach E, nie z pelna moca",
     "flapping: %s paused again %d time(s) in a row - holding at least %d s this time": "migotanie: %s zapauzowany ponownie, %d. raz z rzedu - tym razem trzymam co najmniej %d s",
-    "guard startup - nothing is left frozen": "start guarda - nic nie zostaje zamrozone",
-    "guard is shutting down": "guard konczy prace",
+    "guard startup - nothing is left frozen": "start guarda - nic nie zostaje zamrożone",
+    "guard is shutting down": "guard kończy pracę",
     "CRITICAL: ": "KRYTYCZNIE: ",
     "chip %.1f C": "chip %.1f C",
-    "chip %.1f C (remembered reading)": "chip %.1f C (zapamietany odczyt)",
+    "chip %.1f C (remembered reading)": "chip %.1f C (zapamiętany odczyt)",
     "battery %.1f C": "bateria %.1f C",
     "thermal state=%s": "stan termiczny=%s",
     "thermal state=critical": "stan termiczny=critical",
     "thermal state=fair": "stan termiczny=fair",
-    "CPU throttled to %d%%": "CPU dlawione do %d%%",
+    "CPU throttled to %d%%": "CPU dławione do %d%%",
     "battery %d%% on battery power": "bateria %d%% bez zasilacza",
     "nothing to freeze": "nie ma czego zamrazac",
     "Mac went down without a clean shutdown. Guard's last heartbeat: %s, system booted: %s.":
-        "Mac zgasl bez czystego zamkniecia. Ostatni puls guarda: %s, system wstal: %s.",
+        "Mac zgasł bez czystego zamknięcia. Ostatni puls guarda: %s, system wstał: %s.",
     "yes": "tak",
     "NO (macmon missing - running on battery temperature only)":
         "NIE (brak macmon - lecimy na samej baterii)",
@@ -685,13 +685,13 @@ PL = {
         "kasuje wpis pauzy %s (pid %d) - proces zniknal, nie ma czego wznawiac",
     "STILL STOPPED after SIGCONT: %s (pid %d) - foreground terminal job, type 'fg' in its window":
         "NADAL WSTRZYMANY po SIGCONT: %s (pid %d) - zadanie pierwszoplanowe terminala, wpisz 'fg' w jego oknie",
-    "Thermal guard: job needs your hand": "Thermal guard: zadanie wymaga Twojej reki",
+    "Thermal guard: job needs your hand": "Thermal guard: zadanie wymaga Twojej ręki",
     "%s cannot resume by itself - switch to its terminal and type 'fg'.":
         "%s nie wznowi sie samo - przejdz do jego terminala i wpisz 'fg'.",
     "Thermal guard: PROTECTION INCOMPLETE": "Thermal guard: OCHRONA NIEPELNA",
-    "No chip temperature sensor (macmon missing). Only battery temperature is watched, and it reacts minutes late. Fix: brew install macmon": "Brak czujnika temperatury chipa (nie ma macmona). Pilnowana jest tylko bateria, a ona reaguje z kilkuminutowym opoznieniem. Naprawa: brew install macmon",
+    "No chip temperature sensor (macmon missing). Only battery temperature is watched, and it reacts minutes late. Fix: brew install macmon": "Brak czujnika temperatury chipa (nie ma macmona). Pilnowana jest tylko bateria, a ona reaguje z kilkuminutowym opóźnieniem. Naprawa: brew install macmon",
     "Could not pause: %s (%s). The Mac stays hot - intervene manually.":
-        "Nie udalo sie wstrzymac: %s (%s). Mac zostaje goracy - zareaguj recznie.",
+        "Nie udało się wstrzymać: %s (%s). Mac zostaje gorący - zareaguj ręcznie.",
     "Thermal guard: CRITICAL overheating": "Thermal guard: KRYTYCZNE przegrzanie",
     "The Mac is critically hot (%s). Heavy jobs are being stopped.":
         "Mac jest krytycznie gorący (%s). Ciężkie zadania są zatrzymywane.",
@@ -700,13 +700,13 @@ PL = {
     "coffee-paladin: watch-only mode": "coffee-paladin: tryb obserwacji",
     "Measuring and alerting only - nothing is paused. Enable protection in the menu bar (one click).":
         "Tylko mierzę i alarmuję - nic nie jest wstrzymywane. Włącz ochronę w menu paska (jeden klik).",
-    "another coffee-paladin daemon is already running - this one exits": "inny demon coffee-paladin juz dziala - ten sie wylacza",
+    "another coffee-paladin daemon is already running - this one exits": "inny demon coffee-paladin już działa - ten się wyłącza",
     "CONFIDENCE: LOW - %s.":
         "WIARYGODNOSC: NISKA - %s.",
     "the last heartbeat is %d days before boot - the clock was most likely wrong (dead RTC, NTP jump) or the data came from a backup":
-        "ostatni puls jest %d dni przed startem systemu - zegar byl najpewniej zly (rozladowany RTC, skok NTP) albo dane pochodza z kopii zapasowej",
+        "ostatni puls jest %d dni przed startem systemu - zegar był najpewniej zły (rozładowany RTC, skok NTP) albo dane pochodzą z kopii zapasowej",
     "%.1f h passed between the last heartbeat and boot - the guard may have been killed long before the Mac actually went down":
-        "miedzy ostatnim pulsem a startem systemu uplynelo %.1f h - bezpiecznik mogl zostac ubity dlugo przed tym, jak Mac naprawde zgasl",
+        "między ostatnim pulsem a startem systemu upłynęło %.1f h - bezpiecznik mógł zostać ubity długo przed tym, jak Mac naprawdę zgasł",
     'cannot ask the menu bar to open a window: %s':
         'nie moge poprosic paska menu o otwarcie okna: %s',
     'asked the menu bar to open the panel (it appears within a few seconds)':

@@ -63,36 +63,36 @@ PL = {
     "calm": "spokoj", "warm": "cieplo", "HOT": "GORACO", "CRIT": "KRYT",
     "STALE - not reporting": "NIE RAPORTUJE",
     "hard shutdown %s": "twardy pad %s",
-    "throttled to %d%%": "dlawiony do %d%%",
-    "fans dead at %.0f C": "wentylatory stoja przy %.0f C",
+    "throttled to %d%%": "dławiony do %d%%",
+    "fans dead at %.0f C": "wentylatory stoją przy %.0f C",
     "battery %d%% unplugged": "bateria %d%% bez zasilacza",
-    "disk %d%% full": "dysk zapelniony w %d%%",
+    "disk %d%% full": "dysk zapełniony w %d%%",
     "paused: %s": "wstrzymane: %s",
     "%d machine(s) need attention:": "%d maszyn(y) wymaga uwagi:",
-    "all machines look fine": "wszystkie maszyny wygladaja dobrze",
+    "all machines look fine": "wszystkie maszyny wyglądają dobrze",
     "fleet_dir saved: %s (the agent starts publishing within a minute)":
         "fleet_dir zapisany: %s (agent zacznie publikowac w ciagu minuty)",
     "no synced folders detected - pass the path yourself: fleet --set-dir <folder>":
-        "nie wykryto folderow synchronizowanych - podaj sciezke sam: fleet --set-dir <folder>",
+        "nie wykryto folderów synchronizowanych - podaj ścieżkę sam: fleet --set-dir <folder>",
     "Detected folders every machine of yours could share:":
-        "Wykryte foldery, ktore Twoje maszyny moga wspoldzielic:",
+        "Wykryte foldery, które Twoje maszyny mogą współdzielić:",
     "Pick a number (the SAME folder must be set on every machine):":
-        "Wybierz numer (TEN SAM folder trzeba ustawic na kazdej maszynie):",
+        "Wybierz numer (TEN SAM folder trzeba ustawić na każdej maszynie):",
     "cancelled": "anulowano",
-    "fleet: cannot read %s (%s) - not touching it. Fix the file first.": "fleet: nie umiem odczytac %s (%s) - nie ruszam pliku. Napraw go najpierw.",
+    "fleet: cannot read %s (%s) - not touching it. Fix the file first.": "fleet: nie umiem odczytać %s (%s) - nie ruszam pliku. Napraw go najpierw.",
     "no chip sensor - battery temperature only": "brak czujnika chipa - tylko temperatura baterii",
     "HOT - %.0f C":
-        "GORACO - %.0f C",
+        "GORĄCO - %.0f C",
     "HOT - guard is intervening":
-        "GORACO - bezpiecznik interweniuje",
+        "GORĄCO - bezpiecznik interweniuje",
     "unreadable snapshot":
         "migawka nie do odczytania",
     "implausible readings: %s":
         "niewiarygodne odczyty: %s",
     "fleet: --set-dir needs a folder path":
-        "fleet: --set-dir wymaga sciezki do folderu",
+        "fleet: --set-dir wymaga ścieżki do folderu",
     "fleet: --dir needs a folder path":
-        "fleet: --dir wymaga sciezki do folderu",
+        "fleet: --dir wymaga ścieżki do folderu",
 }
 
 RU = {
