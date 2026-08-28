@@ -7,8 +7,9 @@
    in 15 s cycles at chip 84-85 C made the job jump without cooling anything. The fix
    is a minimum pause duration.
 2. False cooling alarm. A reading of "chip 75.9 C, both fans 0 rpm" can be fan spin-up,
-   not failure, if fans report 2300-2900 rpm moments later. The condition must hold for
-   several readings.
+   not failure, if fans report 2300-2900 rpm moments later. Counting readings was not
+   enough: at poll_seconds=5 three of them are fifteen seconds, and all seven alarms ever
+   recorded turned out to be spin-up lag. The condition must now also hold in wall time.
 3. Duplicate CPU counting. The same processor used to appear twice in candidates: as
    a parent with subtree CPU and as a child with own CPU, for example "bash 276%" next
    to "ffmpeg 276%" while `ps` showed bash at 0.0%. The displayed list keeps the highest
@@ -65,31 +66,48 @@ for description, entry, may_resume in [
 print("\n2. cooling alarm requires a sustained condition")
 test("fan_alert_polls is in the config and greater than 1",
      cfg.get("fan_alert_polls", 1) > 1, "value: %s" % cfg.get("fan_alert_polls"))
+test("fan_alert_seconds is in the config and outlasts fan spin-up",
+     cfg.get("fan_alert_seconds", 0) >= 180, "value: %s" % cfg.get("fan_alert_seconds"))
 
 st = {}
 cold_soc = {"cpu": 50.0, "fans": [0, 0]}
 hot_soc = {"cpu": 80.0, "fans": [0, 0]}
 alerts = []
 _write = g.record_event
+_now = g.now
+_clock = {"t": g.now()}
 g.record_event = lambda *a, **k: alerts.append(a[0] if a else "?")
+g.now = lambda: _clock["t"]
 try:
-    # One "hot + zero rpm" reading means spin-up, not failure.
-    g.fan_alarm(cfg, hot_soc, 80.0, st)
-    test("first reading does NOT alarm (fan spin-up)", not alerts,
-         "alarms: %d" % len(alerts))
-    g.fan_alarm(cfg, hot_soc, 80.0, st)
-    test("second reading does not either", not alerts, "alarms: %d" % len(alerts))
-    g.fan_alarm(cfg, hot_soc, 80.0, st)
-    test("third consecutive reading ALARMS (now it is a failure)", len(alerts) == 1,
-         "alarms: %d" % len(alerts))
+    # Counting readings was never enough. All seven COOLING_ALARM entries ever recorded
+    # were false, and poll_seconds was as low as 5 s while they fired, so "three readings"
+    # was fifteen seconds - inside the spin-up lag that history.csv shows ending in
+    # 2500-4800 rpm 14 s to 3 min later. The condition has to hold in wall time too.
+    g._fan_zero["n"] = 0
+    for reading in range(3):
+        _clock["t"] += 5
+        g.fan_alarm(cfg, hot_soc, 80.0, st)
+        test("reading %d does NOT alarm (fan spin-up)" % (reading + 1), not alerts,
+             "alarms: %d" % len(alerts))
+    test("but the counter is at the threshold, so the emergency net still opens fast",
+         g._fan_zero["n"] >= cfg.get("fan_alert_polls", 3), "counter: %s" % g._fan_zero["n"])
+    # Same condition, unbroken, past the window: now it is an accusation worth making.
+    for _ in range(int(cfg["fan_alert_seconds"] / 5) + 1):
+        _clock["t"] += 5
+        g.fan_alarm(cfg, hot_soc, 80.0, st)
+    test("ALARMS once the condition has held for fan_alert_seconds", len(alerts) == 1,
+         "alarms: %d, held: %s s" % (len(alerts), st.get("_fan_zero_held_s")))
     # Spin-up: fans moved, so the counter must reset.
     st2 = {}
+    _clock["t"] += 5
     g.fan_alarm(cfg, hot_soc, 80.0, st2)
+    _clock["t"] += 5
     g.fan_alarm(cfg, {"cpu": 80.0, "fans": [2300, 2900]}, 80.0, st2)
     test("fan movement resets the counter", st2.get("_fan_zero_polls") == 0,
          "counter: %s" % st2.get("_fan_zero_polls"))
 finally:
     g.record_event = _write
+    g.now = _now
 
 print("\n3. the same processor cannot be a candidate twice")
 # bash (parent) uses no CPU itself; all CPU belongs to child ffmpeg.

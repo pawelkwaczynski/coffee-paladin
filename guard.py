@@ -105,6 +105,14 @@ DEFAULTS = {
     "cpu_min_percent": 20.0,    # only processes above this usage can be touched
     "max_pause_minutes": 45,    # longer than this paused: gentle termination with checkpoint time
     "fan_alert_polls": 3,       # this many consecutive "hot + 0 rpm" readings triggers alarm
+    # The same condition must ALSO hold this long by the wall clock before the daemon
+    # accuses the hardware. Apple silicon parks the fans at 0 rpm and ramps them with a
+    # delay, so "hot chip and 0 rpm" is the normal opening of a spin-up. Every one of the
+    # seven COOLING_ALARM entries written so far was followed in history.csv by 2500-4800
+    # rpm between 14 s and 3 min later: all seven were spin-up lag, none was a fault. With
+    # poll_seconds down at 5 s, "three polls" meant 15 s, far inside that lag. Five minutes
+    # of a hot chip with motionless fans is not a ramp any more. 0 = poll counting only.
+    "fan_alert_seconds": 300,
     "kill_after_polls": 4,      # this many consecutive critical readings triggers SIGTERM
     # Chip thresholds have hysteresis (pause 95 / resume 87), but the second trigger,
     # system `thermalState`, is binary and has no hysteresis.
@@ -478,6 +486,7 @@ def load_cfg():
     for key, lower_bound, upper_bound in (("poll_seconds", 1, 300),
                                 ("min_pause_seconds", 0, 3600),
                                 ("fan_alert_polls", 1, 100),
+                                ("fan_alert_seconds", 0, 3600),
                                 ("state_confirm_polls", 1, 100),
                                 ("resume_window_polls", 1, 60),
                                 ("repause_window_s", 0, 86400),
@@ -628,8 +637,8 @@ PL = {
     "manual freeze: there was nothing to freeze": "reczne zamrozenie: nie bylo czego zamrozic",
     "Nothing to freeze": "Nie ma czego zamrozic",
     "No heavy job meets the conditions": "Zadne ciezkie zadanie nie spelnia warunkow",
-    "COOLING FAILURE? chip %.1f C while both fans report 0 rpm":
-        "AWARIA CHLODZENIA? chip %.1f C, a oba wentylatory 0 obr/min",
+    "COOLING FAILURE? chip %.1f C while both fans report 0 rpm for %d s":
+        "AWARIA CHLODZENIA? chip %.1f C, a oba wentylatory 0 obr/min od %d s",
     "Fans stopped while the chip is hot": "Wentylatory stoja przy goracym chipie",
     "PAUSE >%d min - terminating job %s (pid %s)": "PAUZA >%d min - koncze zadanie %s (pid %s)",
     "paused for longer than %d min": "pauza dluzsza niz %d min",
@@ -737,8 +746,8 @@ RU = {
     "Nothing to freeze": "Нечего приостанавливать",
     "No heavy job meets the conditions": "Ни одна тяжёлая задача не подходит под условия",
     "Fans stopped while the chip is hot": "Вентиляторы стоят при горячем чипе",
-    "COOLING FAILURE? chip %.1f C while both fans report 0 rpm":
-        "ОТКАЗ ОХЛАЖДЕНИЯ? чип %.1f C, а оба вентилятора 0 об/мин",
+    "COOLING FAILURE? chip %.1f C while both fans report 0 rpm for %d s":
+        "ОТКАЗ ОХЛАЖДЕНИЯ? чип %.1f C, а оба вентилятора 0 об/мин уже %d с",
     "chip %.1f C": "чип %.1f C",
     "chip %.1f C (remembered reading)": "чип %.1f C (запомненный отсчёт)",
     "battery %.1f C": "батарея %.1f C",
@@ -865,8 +874,8 @@ ZH = {
     "Nothing to freeze": "没有可暂停的任务",
     "No heavy job meets the conditions": "没有符合条件的繁重任务",
     "Fans stopped while the chip is hot": "芯片过热时风扇停转",
-    "COOLING FAILURE? chip %.1f C while both fans report 0 rpm":
-        "散热故障?芯片 %.1f C,而两个风扇均为 0 转/分",
+    "COOLING FAILURE? chip %.1f C while both fans report 0 rpm for %d s":
+        "散热故障?芯片 %.1f C,而两个风扇均为 0 转/分,已持续 %d 秒",
     "chip %.1f C": "芯片 %.1f C",
     "chip %.1f C (remembered reading)": "芯片 %.1f C（记忆中的读数）",
     "battery %.1f C": "电池 %.1f C",
@@ -993,8 +1002,8 @@ ES = {
     "Nothing to freeze": "Nada que pausar",
     "No heavy job meets the conditions": "Ninguna tarea pesada cumple las condiciones",
     "Fans stopped while the chip is hot": "Ventiladores parados con el chip caliente",
-    "COOLING FAILURE? chip %.1f C while both fans report 0 rpm":
-        "¿FALLO DE REFRIGERACIÓN? chip a %.1f C y ambos ventiladores a 0 rpm",
+    "COOLING FAILURE? chip %.1f C while both fans report 0 rpm for %d s":
+        "¿FALLO DE REFRIGERACIÓN? chip a %.1f C y ambos ventiladores a 0 rpm durante %d s",
     "chip %.1f C": "chip %.1f C",
     "chip %.1f C (remembered reading)": "chip %.1f C (lectura recordada)",
     "battery %.1f C": "batería %.1f C",
@@ -4237,7 +4246,14 @@ def snapshot(cfg):
             list(_GUI_HOT), list(_SYSTEM_HOT))
 
 
-_fan_zero = {"n": 0}
+_fan_zero = {"n": 0, "since": 0.0, "last": 0.0}
+
+
+def _fan_zero_reset():
+    """Forget the current "hot and 0 rpm" streak: its length, its start and its last poll."""
+    _fan_zero["n"] = 0
+    _fan_zero["since"] = 0.0
+    _fan_zero["last"] = 0.0
 
 
 def fan_alarm(cfg, soc, soc_t, st):
@@ -4246,6 +4262,10 @@ def fan_alarm(cfg, soc, soc_t, st):
     This indicates cooling failure, such as a stuck fan, disconnected cable, or clogged
     cooling path. It only shouts; thermal logic owns pausing so a bad fan reading does not
     kill computations.
+
+    Two gates, deliberately different: `fan_alert_polls` readings for the counter the
+    emergency net watches, and `fan_alert_seconds` of wall time before anything is written
+    down as a fault.
     """
     # This counter MUST NOT survive missing data or daemon restart. Otherwise "three
     # consecutive readings" means "three readings ever", and after restart with counter 2
@@ -4253,35 +4273,66 @@ def fan_alarm(cfg, soc, soc_t, st):
     #
     # A remembered reading counts as missing data here. Cooling failure is an accusation
     # against the hardware that lands in events.log and then in the repair-shop report;
-    # it has to rest on fan rpm somebody actually measured, three times in a row.
+    # it has to rest on fan rpm somebody actually measured, over the whole window.
     if soc and soc.get("stale"):
-        _fan_zero["n"] = 0
+        _fan_zero_reset()
         return
     if not cfg.get("fan_check", True) or not soc or soc_t is None:
-        _fan_zero["n"] = 0
+        _fan_zero_reset()
         return
     fans = soc.get("fans") or []
     if not fans:
-        _fan_zero["n"] = 0
+        _fan_zero_reset()
         return
     hot = soc_t >= cfg.get("fan_alert_temp_c", 75.0)
     dead = max(fans) == 0
     # Fans ramp up from zero over several seconds. One "hot and 0 rpm" reading is usually
     # spin-up, not failure. A true cooling failure persists; a transient one does not. Count
-    # consecutive readings.
-    _fan_zero["n"] = (_fan_zero["n"] + 1) if (hot and dead) else 0
+    # consecutive readings, and remember WHEN the streak started, because the count alone
+    # says nothing about elapsed time: at poll_seconds=5 three readings are fifteen seconds.
+    moment = now()
+    if hot and dead:
+        # A poll that never happened is not part of a streak. Across a sleep, a hang or a
+        # closed lid the wall clock kept running while nobody measured anything, so that
+        # silence must not be sold as "the condition held". Longer than three intervals
+        # plus a minute of slack is a hole in the evidence, and the streak starts over.
+        gap_limit = 3 * cfg.get("poll_seconds", 30) + 60
+        if _fan_zero["n"] == 0 or (moment - _fan_zero["last"]) > gap_limit:
+            _fan_zero["n"] = 1
+            _fan_zero["since"] = moment
+        else:
+            _fan_zero["n"] += 1
+        _fan_zero["last"] = moment
+    else:
+        _fan_zero_reset()
+    held = (moment - _fan_zero["since"]) if _fan_zero["n"] else 0.0
     st["_fan_zero_polls"] = _fan_zero["n"]          # state.json inspection only
-    if hot and dead and _fan_zero["n"] >= cfg.get("fan_alert_polls", 3):
+    st["_fan_zero_held_s"] = round(held)
+    # Two different jobs sit on this one condition and they must not share a threshold.
+    # The emergency net in the main loop reacts on the COUNTER, fast, and reopening the net
+    # for desktop apps costs nothing if it turns out to be spin-up. The ACCUSATION below
+    # goes into events.log and from there into the repair-shop report, so it waits for both
+    # gates: enough readings AND enough wall time. All seven COOLING_ALARM entries recorded
+    # so far were false, and every one of them was followed by 2500-4800 rpm in history.csv
+    # 14 s to 3 min later - the counter was satisfied before the fans had finished starting.
+    if (hot and dead and _fan_zero["n"] >= cfg.get("fan_alert_polls", 3)
+            and held >= cfg.get("fan_alert_seconds", 300)):
         if now() - st.get("fan_alarm_at", 0) > 600:
             st["fan_alarm_at"] = now()
-            msg = (T("COOLING FAILURE? chip %.1f C while both fans report 0 rpm") % soc_t)
+            msg = (T("COOLING FAILURE? chip %.1f C while both fans report 0 rpm for %d s")
+                   % (soc_t, held))
             log("!!! " + msg, tag="FANFAIL")
             # events.log is the black box for evidence reports. Fan alarms used to go only
             # to guard.log, while the report builds its critical section from events.log.
             # The document then said "no cooling alarm detected" while showing such alarms
             # elsewhere, contradicting itself.
+            #
+            # held_s and polls travel WITH the entry. Judging the seven false alarms meant
+            # opening history.csv and lining timestamps up by hand; the next audit reads
+            # how long the condition really lasted straight from the record.
             record_event("COOLING_ALARM", msg,
-                             {"chip_c": round(soc_t, 1), "fans": list(fans)})
+                             {"chip_c": round(soc_t, 1), "fans": list(fans),
+                              "held_s": round(held), "polls": _fan_zero["n"]})
             notify(cfg, T("Fans stopped while the chip is hot"), msg, key="fan")
 
 
