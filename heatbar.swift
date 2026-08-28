@@ -63,11 +63,9 @@ let PL: [String: String] = [
     " (remembered)": " (zapamiętany)",
     "the Mac shut down without warning: %@": "Mac zgasł bez ostrzeżenia: %@",
     "Battery:  %@": "Bateria:  %@",
-    "Fans:  %@": "Wentylatory:  %@",
+    "Memory used of total, load average over cores, fan speed": "Pamiec uzyta z calosci, srednie obciazenie na rdzenie, obroty wentylatorow",
     "stopped": "stoi", "%d rpm": "%d obr/min", "%@ rpm": "%@ obr/min", "n/a": "n/d",
     "Draw:  %.1f W": "Pobór:  %.1f W",
-    "RAM:  %.1f / %.1f GB (%d%%)": "RAM:  %.1f / %.1f GB (%d%%)",
-    "swap %.2f GB": "swap %.2f GB",
     "Disk:  %d / %d GB used (%d%%)": "Dysk:  %d / %d GB zajęte (%d%%)",
     "Power:  %@": "Zasilanie:  %@",
     "AC adapter": "zasilacz", "battery %@": "bateria %@",
@@ -278,7 +276,6 @@ let PL: [String: String] = [
     "Nothing here - and that is good news: your Mac has not been overheating.": "Nic tu nie ma - to dobrze, znaczy, że twoja maszyna się nie przegrzewała.",
     "In this session: no interventions yet.": "W tej sesji: jeszcze bez interwencji.",
     "Pause ended another way (manual resume, job exited, daemon restart): %d": "Pauza zakończona inaczej (ręczne wznowienie, proces sam się skończył, restart demona): %d",
-    "Hardware details": "Szczegóły sprzętu",
     "%@ session — idle": "sesja %@ — bez obciążenia",
     "Process tree details": "Szczegóły drzew procesów",
     "Heavy jobs paused": "Wstrzymane ciężkie zadania",
@@ -365,7 +362,6 @@ let RU: [String: String] = [
     "Nothing here - and that is good news: your Mac has not been overheating.": "Здесь пусто - и это хорошо: ваш Mac не перегревался.",
     "In this session: no interventions yet.": "В этой сессии: вмешательств пока нет.",
     "Pause ended another way (manual resume, job exited, daemon restart): %d": "Пауза завершилась иначе (ручное возобновление, процесс сам завершился, перезапуск демона): %d",
-    "Hardware details": "Сведения об оборудовании",
     "%@ session — idle": "сессия %@ — без нагрузки",
     "Process tree details": "Деревья процессов подробно",
     "Heavy jobs paused": "Приостановлено тяжёлых задач",
@@ -384,13 +380,11 @@ let RU: [String: String] = [
     " (remembered)": " (запомнено)",
     "the Mac shut down without warning: %@": "Mac выключился без предупреждения: %@",
     "Battery:  %@": "Батарея:  %@",
-    "Fans:  %@": "Вентиляторы:  %@",
     "stopped": "стоит",
+    "Memory used of total, load average over cores, fan speed": "Использовано памяти из общего объёма, средняя нагрузка на ядра, обороты вентиляторов",
     "%d rpm": "%d об/мин", "%@ rpm": "%@ об/мин",
     "n/a": "н/д",
     "Draw:  %.1f W": "Мощность:  %.1f Вт",
-    "RAM:  %.1f / %.1f GB (%d%%)": "RAM:  %.1f / %.1f ГБ (%d%%)",
-    "swap %.2f GB": "своп %.2f ГБ",
     "Disk:  %d / %d GB used (%d%%)": "Диск:  занято %d / %d ГБ (%d%%)",
     "Power:  %@": "Питание:  %@",
     "AC adapter": "адаптер питания",
@@ -664,7 +658,6 @@ let ZH: [String: String] = [
     "Nothing here - and that is good news: your Mac has not been overheating.": "这里是空的 - 这是好消息：你的 Mac 没有过热。",
     "In this session: no interventions yet.": "本次会话:尚无干预。",
     "Pause ended another way (manual resume, job exited, daemon restart): %d": "暂停以其他方式结束(手动恢复、进程自行退出、守护进程重启):%d",
-    "Hardware details": "硬件详情",
     "%@ session — idle": "%@ 会话 — 空闲",
     "Process tree details": "进程树详情",
     "Heavy jobs paused": "已暂停的繁重任务",
@@ -683,13 +676,11 @@ let ZH: [String: String] = [
     " (remembered)": "（记忆值）",
     "the Mac shut down without warning: %@": "Mac 毫无预警地关机了：%@",
     "Battery:  %@": "电池：  %@",
-    "Fans:  %@": "风扇：  %@",
     "stopped": "停转",
+    "Memory used of total, load average over cores, fan speed": "已用内存/总内存,核心平均负载,风扇转速",
     "%d rpm": "%d 转/分", "%@ rpm": "%@ 转/分",
     "n/a": "无",
     "Draw:  %.1f W": "功耗：  %.1f W",
-    "RAM:  %.1f / %.1f GB (%d%%)": "内存：  %.1f / %.1f GB（%d%%）",
-    "swap %.2f GB": "交换 %.2f GB",
     "Disk:  %d / %d GB used (%d%%)": "磁盘：  已用 %d / %d GB（%d%%）",
     "Power:  %@": "电源：  %@",
     "AC adapter": "电源适配器",
@@ -961,7 +952,6 @@ let ES: [String: String] = [
     "Nothing here - and that is good news: your Mac has not been overheating.": "Aquí no hay nada, y es buena noticia: tu Mac no se ha sobrecalentado.",
     "In this session: no interventions yet.": "En esta sesión: aún sin intervenciones.",
     "Pause ended another way (manual resume, job exited, daemon restart): %d": "La pausa terminó de otra forma (reanudación manual, el proceso terminó solo, reinicio del demonio): %d",
-    "Hardware details": "Detalles del hardware",
     "%@ session — idle": "sesión %@ — sin carga",
     "Process tree details": "Detalles de árboles de procesos",
     "Heavy jobs paused": "Tareas pesadas pausadas",
@@ -980,13 +970,11 @@ let ES: [String: String] = [
     " (remembered)": " (recordado)",
     "the Mac shut down without warning: %@": "el Mac se apagó sin aviso: %@",
     "Battery:  %@": "Batería:  %@",
-    "Fans:  %@": "Ventiladores:  %@",
     "stopped": "parado",
+    "Memory used of total, load average over cores, fan speed": "Memoria usada del total, carga media por núcleos, velocidad de los ventiladores",
     "%d rpm": "%d rpm", "%@ rpm": "%@ rpm",
     "n/a": "n/d",
     "Draw:  %.1f W": "Consumo:  %.1f W",
-    "RAM:  %.1f / %.1f GB (%d%%)": "RAM:  %.1f / %.1f GB (%d%%)",
-    "swap %.2f GB": "swap %.2f GB",
     "Disk:  %d / %d GB used (%d%%)": "Disco:  %d / %d GB usados (%d%%)",
     "Power:  %@": "Alimentación:  %@",
     "AC adapter": "adaptador de corriente",
@@ -3790,54 +3778,53 @@ final class Bar: NSObject, NSMenuDelegate {
             }
         }
         rowI("gauge", loadLine)
-        // Fans, RAM, disk and power moved off the main card into "Hardware
-        // details": they are context, not verdict, and eight dense lines were
-        // exactly why the owner could not tell what mattered. A reading comes
-        // BACK to the main card only while it is alarming - a value worth
-        // interrupting for must not hide in a submenu.
-        let hw = NSMenu()
-        hw.autoenablesItems = false
+        // One row for the machine's own numbers, no submenu and no labels: the icons
+        // are the labels. RAM, cores and fans were context hidden one click away while
+        // the card repeated them anyway whenever they got alarming, so the same reading
+        // could appear twice or not at all. Now it appears once, always, and the row
+        // fits: the widest case measured about 340 pt against the 360 pt the chart and
+        // the switches already hold, so the menu keeps its width.
+        let hwLine = NSMutableAttributedString()
+        if let u = s.ramUsed, let t = s.ramTotal, t > 0 {
+            hwLine.append(icon("memorychip", fallback: "RAM"))
+            hwLine.append(txt(String(format: t < 100 ? " %.1f/%.0f GB" : " %.0f/%.0f GB", u, t)))
+            if let sw = s.swap, sw > 0.5 {
+                hwLine.append(txt(String(format: sw < 10 ? " +%.1f swap" : " +%.0f swap", sw)))
+            }
+        }
+        if !hwLine.string.isEmpty { hwLine.append(txt("   ")) }
+        hwLine.append(icon("gauge", fallback: ""))
+        hwLine.append(txt(String(format: " %.1f/%d", s.load, ProcessInfo.processInfo.processorCount)))
         if !s.fans.isEmpty {
             // Unit once at the end, but show ALL values. Filtering zeros would hide a fan
             // that stopped while another runs, exactly the symptom the cooling-failure
             // alarm exists for. Zero must be visible.
-            let fanTxt = s.fans.allSatisfy { $0 == 0 }
+            hwLine.append(txt("   "))
+            hwLine.append(icon("fan", fallback: ""))
+            hwLine.append(txt(" " + (s.fans.allSatisfy { $0 == 0 }
                 ? T("stopped")
-                : String(format: T("%@ rpm"), s.fans.map(String.init).joined(separator: ", "))
-            rowI("fan", txt(String(format: T("Fans:  %@"), fanTxt)), into: hw)
+                : String(format: T("%@ rpm"), s.fans.map(String.init).joined(separator: "\u{00B7}")))))
         }
-        if let u = s.ramUsed, let t = s.ramTotal, t > 0 {
-            var line = String(format: T("RAM:  %.1f / %.1f GB (%d%%)"), u, t, Int(100 * u / t))
-            if let sw = s.swap, sw > 0.01 { line += "     " + String(format: T("swap %.2f GB"), sw) }
-            rowI("memorychip", txt(line), into: hw)
-            if Int(100 * u / t) >= 75 {
-                rowI("memorychip", txt(line))
+        let hwItem = NSMenuItem()
+        hwItem.attributedTitle = hwLine
+        // Without the words on screen, the words live one hover away: VoiceOver reads the
+        // tooltip, and so does anyone who cannot place an icon.
+        hwItem.toolTip = T("Memory used of total, load average over cores, fan speed")
+        m.addItem(hwItem)
+        // Disk and power are not per-second readings, so they earn a row only when they
+        // change what happens: a full disk, or running on battery where the gate applies.
+        if let du = s.diskUsed, let dt = s.diskTotal, let dp = s.diskPct, dp >= 85 {
+            rowI("internaldrive", txt(String(format: T("Disk:  %d / %d GB used (%d%%)"), du, dt, dp)))
+        }
+        if !s.onAC || s.watts != nil {
+            let pw = NSMutableAttributedString()
+            pw.append(txt(String(format: T("Power:  %@"), s.onAC ? T("AC adapter") : T("Battery"))))
+            if let w = s.watts {
+                pw.append(txt("     "))
+                pw.append(icon("bolt.fill", fallback: ""))
+                pw.append(txt(" " + String(format: T("Draw:  %.1f W"), w)))
             }
-        }
-        if let du = s.diskUsed, let dt = s.diskTotal, let dp = s.diskPct {
-            let line = String(format: T("Disk:  %d / %d GB used (%d%%)"), du, dt, dp)
-            rowI("internaldrive", txt(line), into: hw)
-            if dp >= 85 {
-                rowI("internaldrive", txt(line))
-            }
-        }
-        // No battery percentage here; macOS already shows it in the system bar. Keep
-        // AC/battery itself because it changes guard behavior (battery gate). Percentage
-        // remains in fleet, where you inspect another machine without its menu bar.
-        // The icon says it faster than text: plug = AC, battery = battery.
-        let pw = NSMutableAttributedString()
-        pw.append(txt(String(format: T("Power:  %@"), s.onAC ? T("AC adapter") : T("Battery"))))
-        if let w = s.watts {
-            pw.append(txt("     "))
-            pw.append(icon("bolt.fill", fallback: ""))
-            pw.append(txt(" " + String(format: T("Draw:  %.1f W"), w)))
-        }
-        rowI(s.onAC ? "powerplug" : "battery.100", pw, into: hw)
-        if hw.items.isEmpty == false {
-            let hwIt = NSMenuItem(title: T("Hardware details"), action: nil, keyEquivalent: "")
-            hwIt.image = img("cpu")
-            hwIt.submenu = hw
-            m.addItem(hwIt)
+            rowI(s.onAC ? "powerplug" : "battery.100", pw)
         }
         // "CPU available: 100%" was misleading: this is CPU_Speed_Limit from pmset
         // (clock throttling), not free capacity. Show the row ONLY when throttling is
