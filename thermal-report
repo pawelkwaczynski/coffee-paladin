@@ -85,6 +85,12 @@ PL = {
         "  (brak - w tym okresie nie wykryto twardego wylaczenia ani alarmu chlodzenia)",
     "      readings immediately before the event:": "      odczyty bezposrednio przed zdarzeniem:",
     "\n## SHUTDOWN CAUSES REPORTED BY THE SYSTEM\n": "\n## POWODY WYLACZEN WG SYSTEMU\n",
+    "  last boot: %s": "  ostatni start systemu: %s",
+    "unknown": "nieznany",
+    "  (the system log holds no shutdown-cause entry for this boot. Apple silicon often records none, so this is NOT evidence of a power loss.)": "  (w logu systemowym nie ma wpisu o przyczynie wyłączenia dla tego startu. Apple silicon często go nie zapisuje, więc to NIE jest dowód utraty zasilania.)",
+    "  %s: pauses %d, resumes %d, kills %d, slowed down %d, back to full speed %d, fan alarms %d, crashes %d": "  %s: pauzy %d, wznowienia %d, ubicia %d, spowolnienia %d, powroty na pelna moc %d, alarmy wentylatorow %d, awarie %d",
+    "  the serious ones in full (daemon language):": "  te powazne w calosci (jezyk demona):",
+    "  every line: guard.log and its rotated generations": "  kazda linia: guard.log i jego starsze generacje",
     "  (no 'Previous shutdown cause' entries - typical after a loss of power)":
         "  (brak wpisow 'Previous shutdown cause' - typowe przy utracie zasilania)",
     "\n## GUARD INTERVENTIONS\n": "\n## INTERWENCJE BEZPIECZNIKA\n",
@@ -97,6 +103,8 @@ PL = {
         "  ODRZUCONE JAKO NIEWIARYGODNE: %d wiersz(y) powyzej 110 C (najwyzszy %.1f C) - widoczne na osi czasu ponizej, nie liczone do szczytu",
     "Measurements are collected by the algorithm every %d s (written every 5 min and on every event).":
         "Algorytmy zbieraja pomiary co %d s (zapis co 5 min oraz przy kazdym zdarzeniu).",
+    "Measurements are taken every %d s; a row is written about every %d min while the Mac is calm and on every reading during an intervention.": "Pomiar co %d s; wiersz zapisywany mniej wiecej co %d min, gdy Mac jest spokojny, i przy kazdym odczycie w trakcie interwencji.",
+    "Measurements are taken every %d s; a row is written every few minutes while the Mac is calm and on every reading during an intervention.": "Pomiar co %d s; wiersz zapisywany co kilka minut, gdy Mac jest spokojny, i przy kazdym odczycie w trakcie interwencji.",
     "Chip temperature is read through IOReport, battery temperature through AppleSmartBattery.":
         "Temperatura chipa czytana przez IOReport, temperatura baterii przez AppleSmartBattery.",
     "AC": "zasilacz",
@@ -130,6 +138,12 @@ RU = {
         "  (нет - за этот период не обнаружено жёстких выключений и тревог охлаждения)",
     "      readings immediately before the event:": "      измерения непосредственно перед событием:",
     "\n## SHUTDOWN CAUSES REPORTED BY THE SYSTEM\n": "\n## ПРИЧИНЫ ВЫКЛЮЧЕНИЙ ПО ДАННЫМ СИСТЕМЫ\n",
+    "  last boot: %s": "  последняя загрузка: %s",
+    "unknown": "неизвестно",
+    "  (the system log holds no shutdown-cause entry for this boot. Apple silicon often records none, so this is NOT evidence of a power loss.)": "  (в системном журнале нет записи о причине выключения для этой загрузки. На Apple silicon её часто нет, поэтому это НЕ доказательство потери питания.)",
+    "  %s: pauses %d, resumes %d, kills %d, slowed down %d, back to full speed %d, fan alarms %d, crashes %d": "  %s: паузы %d, возобновления %d, завершения %d, замедления %d, возвраты к полной скорости %d, тревоги вентиляторов %d, сбои %d",
+    "  the serious ones in full (daemon language):": "  серьёзные полностью (язык демона):",
+    "  every line: guard.log and its rotated generations": "  каждая строка: guard.log и его ротированные файлы",
     "  (no 'Previous shutdown cause' entries - typical after a loss of power)":
         "  (нет записей 'Previous shutdown cause' - типично при потере питания)",
     "\n## GUARD INTERVENTIONS\n": "\n## ВМЕШАТЕЛЬСТВА ЗАЩИТЫ\n",
@@ -142,6 +156,8 @@ RU = {
         "  ОТБРОШЕНО КАК НЕДОСТОВЕРНОЕ: %d строк(и) выше 110 C (максимум %.1f C) - видно на шкале времени ниже, не учтено в пике",
     "Measurements are collected by the algorithm every %d s (written every 5 min and on every event).":
         "Измерения собирает алгоритм каждые %d с (запись каждые 5 мин и при каждом событии).",
+    "Measurements are taken every %d s; a row is written about every %d min while the Mac is calm and on every reading during an intervention.": "Измерение каждые %d с; строка записывается примерно каждые %d мин в спокойном состоянии и при каждом отсчёте во время вмешательства.",
+    "Measurements are taken every %d s; a row is written every few minutes while the Mac is calm and on every reading during an intervention.": "Измерение каждые %d с; строка записывается раз в несколько минут в спокойном состоянии и при каждом отсчёте во время вмешательства.",
     "Chip temperature is read through IOReport, battery temperature through AppleSmartBattery.":
         "Температура чипа читается через IOReport, температура батареи - через AppleSmartBattery.",
     "AC": "адаптер",
@@ -195,6 +211,12 @@ ZH = {
         "  (无 - 此期间未检测到硬关机或散热警报)",
     "      readings immediately before the event:": "      事件发生前的最后测量值:",
     "\n## SHUTDOWN CAUSES REPORTED BY THE SYSTEM\n": "\n## 系统报告的关机原因\n",
+    "  last boot: %s": "  上次启动:%s",
+    "unknown": "未知",
+    "  (the system log holds no shutdown-cause entry for this boot. Apple silicon often records none, so this is NOT evidence of a power loss.)": "  (系统日志中没有本次启动的关机原因记录。Apple silicon 常常不记录,因此这不能证明发生过断电。)",
+    "  %s: pauses %d, resumes %d, kills %d, slowed down %d, back to full speed %d, fan alarms %d, crashes %d": "  %s:暂停 %d,恢复 %d,终止 %d,降速 %d,恢复全速 %d,风扇警报 %d,崩溃 %d",
+    "  the serious ones in full (daemon language):": "  严重事件的完整记录(守护进程语言):",
+    "  every line: guard.log and its rotated generations": "  每一行:guard.log 及其轮转文件",
     "  (no 'Previous shutdown cause' entries - typical after a loss of power)":
         "  (没有 'Previous shutdown cause' 记录 - 断电后的典型情况)",
     "\n## GUARD INTERVENTIONS\n": "\n## 守护的干预\n",
@@ -207,6 +229,8 @@ ZH = {
         "  因不可信而排除:%d 行超过 110 C(最高 %.1f C)- 在下方时间轴中可见,不计入峰值",
     "Measurements are collected by the algorithm every %d s (written every 5 min and on every event).":
         "算法每 %d 秒采集一次测量(每 5 分钟及每次事件时写入)。",
+    "Measurements are taken every %d s; a row is written about every %d min while the Mac is calm and on every reading during an intervention.": "每 %d 秒测量一次;Mac 平静时约每 %d 分钟写入一行,干预期间每次读数都写入。",
+    "Measurements are taken every %d s; a row is written every few minutes while the Mac is calm and on every reading during an intervention.": "每 %d 秒测量一次;Mac 平静时每隔几分钟写入一行,干预期间每次读数都写入。",
     "Chip temperature is read through IOReport, battery temperature through AppleSmartBattery.":
         "芯片温度通过 IOReport 读取, 电池温度通过 AppleSmartBattery 读取。",
     "AC": "电源适配器",
@@ -260,6 +284,12 @@ ES = {
         "  (ninguno - no se detectó apagado brusco ni alarma de refrigeración en este período)",
     "      readings immediately before the event:": "      lecturas inmediatamente antes del evento:",
     "\n## SHUTDOWN CAUSES REPORTED BY THE SYSTEM\n": "\n## CAUSAS DE APAGADO SEGÚN EL SISTEMA\n",
+    "  last boot: %s": "  último arranque: %s",
+    "unknown": "desconocido",
+    "  (the system log holds no shutdown-cause entry for this boot. Apple silicon often records none, so this is NOT evidence of a power loss.)": "  (el registro del sistema no tiene una entrada de causa de apagado para este arranque. Apple silicon a menudo no la registra, así que esto NO es prueba de un corte de corriente.)",
+    "  %s: pauses %d, resumes %d, kills %d, slowed down %d, back to full speed %d, fan alarms %d, crashes %d": "  %s: pausas %d, reanudaciones %d, terminaciones %d, ralentizaciones %d, vueltas a pleno rendimiento %d, alarmas de ventilador %d, fallos %d",
+    "  the serious ones in full (daemon language):": "  los graves al completo (idioma del demonio):",
+    "  every line: guard.log and its rotated generations": "  cada línea: guard.log y sus generaciones rotadas",
     "  (no 'Previous shutdown cause' entries - typical after a loss of power)":
         "  (sin entradas 'Previous shutdown cause' - típico tras una pérdida de alimentación)",
     "\n## GUARD INTERVENTIONS\n": "\n## INTERVENCIONES DEL GUARD\n",
@@ -272,6 +302,8 @@ ES = {
         "  DESCARTADO POR INVEROSÍMIL: %d fila(s) por encima de 110 C (máxima %.1f C) - visible en la línea temporal de abajo, no cuenta para el pico",
     "Measurements are collected by the algorithm every %d s (written every 5 min and on every event).":
         "El algoritmo toma mediciones cada %d s (escritura cada 5 min y en cada evento).",
+    "Measurements are taken every %d s; a row is written about every %d min while the Mac is calm and on every reading during an intervention.": "Medición cada %d s; se escribe una fila aproximadamente cada %d min con el Mac en calma y en cada lectura durante una intervención.",
+    "Measurements are taken every %d s; a row is written every few minutes while the Mac is calm and on every reading during an intervention.": "Medición cada %d s; se escribe una fila cada pocos minutos con el Mac en calma y en cada lectura durante una intervención.",
     "Chip temperature is read through IOReport, battery temperature through AppleSmartBattery.":
         "La temperatura del chip se lee por IOReport, la de la batería por AppleSmartBattery.",
     "AC": "adaptador",
@@ -667,39 +699,107 @@ def main():
         W.append(T("  (none - no hard shutdown or cooling alarm was detected in this period)"))
 
     W.append(T("\n## SHUTDOWN CAUSES REPORTED BY THE SYSTEM\n"))
-    output = sh(["pmset", "-g", "log"], timeout=60)
-    matches = [l for l in output.splitlines() if "shutdown cause" in l.lower()][-10:]
-    W.extend("  " + l.strip() for l in matches) if matches else W.append(
-        T("  (no 'Previous shutdown cause' entries - typical after a loss of power)"))
+    # `pmset -g log` carries sleep/wake assertions, never the kernel's
+    # "Previous shutdown cause" line, so this section used to print "no entries -
+    # typical after a loss of power" on every healthy Mac: an accusation with no
+    # evidence behind it. The message lives in the unified log around boot time.
+    boot_epoch = 0.0
+    try:
+        m = re.search(r"sec\s*=\s*(\d+)", sh(["sysctl", "-n", "kern.boottime"], timeout=5))
+        boot_epoch = float(m.group(1)) if m else 0.0
+    except Exception:
+        boot_epoch = 0.0
+    matches = []
+    if boot_epoch:
+        def _stamp(e):
+            return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(e))
+        try:
+            output = sh(["log", "show", "--start", _stamp(boot_epoch - 120),
+                         "--end", _stamp(boot_epoch + 180), "--style", "compact",
+                         "--predicate", 'eventMessage CONTAINS[c] "shutdown cause"'], timeout=25)
+            matches = [l for l in output.splitlines() if "shutdown cause" in l.lower()][-10:]
+        except Exception:
+            matches = []
+    W.append(T("  last boot: %s") % (time.strftime("%Y-%m-%d %H:%M:%S%z", time.localtime(boot_epoch))
+                                     if boot_epoch else T("unknown")))
+    for key in ("kern.bootreason", "kern.shutdownreason"):
+        val = sh(["sysctl", "-n", key], timeout=5).strip()
+        if val:
+            W.append("  %s: %s" % (key, val))
+    if matches:
+        W.extend("  " + l.strip() for l in matches)
+    else:
+        W.append(T("  (the system log holds no shutdown-cause entry for this boot. Apple silicon "
+                   "often records none, so this is NOT evidence of a power loss.)"))
 
     W.append(T("\n## GUARD INTERVENTIONS\n"))
+    # A day of pause/resume flapping is 500 lines that say one thing, and a
+    # 14-day report ran to 14 000 of them: past the second page nobody reads it,
+    # and the pages that matter (a kill, a crash, a fan alarm) drown. Count the
+    # ordinary ones per day and print in full only what a technician must see.
     inter = 0
+    per_day, criticals = {}, []
+    TAGS = ("PAUSE", "RESUME", "KILL", "DEMOTE", "PROMOTE", "FANFAIL", "CRASH")
     try:
         for line in iter_lines(LOG):
-            if not in_range(abs_epoch(line[:24])):
+            when = abs_epoch(line[:24])
+            if not in_range(when):
                 continue
             # Tags are the parser contract (see guard.log()): identical in every
             # language, so intervention matching needs no word lists.
-            if re.search(r"\[(PAUSE|RESUME|KILL|DEMOTE|PROMOTE|FANFAIL|CRASH)\]", line):
-                inter += 1
-                W.append("  " + line.rstrip())
+            m = re.search(r"\[(PAUSE|RESUME|KILL|DEMOTE|PROMOTE|FANFAIL|CRASH)\]", line)
+            if not m:
+                continue
+            inter += 1
+            tag = m.group(1)
+            day = time.strftime("%Y-%m-%d", time.localtime(when)) if when else "?"
+            per_day.setdefault(day, dict.fromkeys(TAGS, 0))[tag] += 1
+            if tag in ("KILL", "CRASH", "FANFAIL"):
+                criticals.append("  " + line.rstrip())
     except FileNotFoundError:
         pass
     if not inter:
         W.append(T("  (none)"))
+    else:
+        for day in sorted(per_day):
+            c = per_day[day]
+            W.append(T("  %s: pauses %d, resumes %d, kills %d, slowed down %d, back to full speed %d, "
+                       "fan alarms %d, crashes %d")
+                     % (day, c["PAUSE"], c["RESUME"], c["KILL"], c["DEMOTE"], c["PROMOTE"],
+                        c["FANFAIL"], c["CRASH"]))
+        if criticals:
+            W.append("")
+            W.append(T("  the serious ones in full (daemon language):"))
+            W.extend(criticals)
+        W.append("")
+        W.append(T("  every line: guard.log and its rotated generations"))
 
     W.append(T("\n## MEASUREMENT TIMELINE\n"))
     W.append(T("  time, state, chip C, GPU C, battery C, fan rpm, W, battery %, on AC, CPU limit, load, level"))
+    # Where the timeline's own headers go. Counting back from the end by
+    # measurement_count put them 1900 lines too high, in the middle of the
+    # interventions, whenever the timeline was truncated: the counter is every
+    # measurement read, the document holds only the rows that survived.
+    timeline_hdr_idx = len(W)
     measurement_count = 0
     peak = (0, "")
     rejected_count, rejected_max = 0, 0.0
     timeline_rows = []
+    # How often a row REALLY lands, measured on the range itself. The footer used
+    # to promise "every 5 min" from the config, while the median gap on this data
+    # is over seven: a document that misstates its own sampling rate invites the
+    # reader to distrust the numbers in it.
+    row_gaps, prev_epoch = [], 0.0
     try:
         for line in iter_lines(HIST, skip_header=True):
             c = line.strip().split(",")
             if len(c) < 12 or not in_range(abs_epoch(c[0])):
                 continue
             measurement_count += 1
+            _e = abs_epoch(c[0])
+            if prev_epoch and 2 <= _e - prev_epoch <= 3600:
+                row_gaps.append(_e - prev_epoch)
+            prev_epoch = _e
             try:
                 # Physical range: one truncated row after a power loss used to
                 # replace the document's key number with "999.9 C (CORRUPTED ROW)".
@@ -756,6 +856,23 @@ def main():
         timeline_rows = [timeline_rows[i] for i in selected_indices]
     for row_text, _v, _lv in timeline_rows:
         W.append(row_text)
+    timeline_header = []
+    if truncated_count:
+        timeline_header.append(
+            T("  TIMELINE SHORTENED: showing %d of %d measurements. Every reading within 10 C "
+              "of the peak\n     and every reading with an intervention was kept; the calm rest "
+              "is sampled evenly.\n     Full data: history.csv (and its rotated generations).")
+            % (len(timeline_rows), len(timeline_rows) + truncated_count))
+    if peak[0]:
+        timeline_header.append(T("  PEAK MEASURED CHIP TEMPERATURE: %.1f C (%s)") % peak)
+    if rejected_count:
+        timeline_header.append(
+            T("  DISCARDED AS IMPLAUSIBLE: %d row(s) over 110 C (highest %.1f C) - shown in "
+              "the timeline below, not counted towards the peak") % (rejected_count, rejected_max))
+
+    # one insertion, so the order does not depend on how many lines happen to go in
+    W[timeline_hdr_idx:timeline_hdr_idx] = timeline_header
+
     # NO MEASUREMENTS is not the same as NO EVENTS. With an empty data
     # directory the document filled with "(none - not detected...)" lines and
     # an empty timeline, so it looked like proof of a HEALTHY machine - while
@@ -770,28 +887,20 @@ def main():
                       "reasons: the guard was not running,\n     the data was deleted, or the "
                       "range predates the installation."))
 
-    timeline_header = []
-    if truncated_count:
-        timeline_header.append(
-            T("  TIMELINE SHORTENED: showing %d of %d measurements. Every reading within 10 C "
-              "of the peak\n     and every reading with an intervention was kept; the calm rest "
-              "is sampled evenly.\n     Full data: history.csv (and its rotated generations).")
-            % (len(timeline_rows), len(timeline_rows) + truncated_count))
-    if peak[0]:
-        timeline_header.append(T("  PEAK MEASURED CHIP TEMPERATURE: %.1f C (%s)") % peak)
-    if rejected_count:
-        timeline_header.append(
-            T("  DISCARDED AS IMPLAUSIBLE: %d row(s) over 110 C (highest %.1f C) - shown in "
-              "the timeline below, not counted towards the peak") % (rejected_count, rejected_max))
-    # one insertion, so the order does not depend on how many lines happen to go in
-    W[len(W) - measurement_count - 1:len(W) - measurement_count - 1] = timeline_header
-
     W.append("\n" + "=" * 78)
     try:
         interval = int(json.load(open(CFG)).get("poll_seconds", 15))
     except Exception:
         interval = 15
-    W.append(T("Measurements are collected by the algorithm every %d s (written every 5 min and on every event).") % interval)
+    if len(row_gaps) >= 3:
+        row_gaps.sort()
+        gap_min = max(1, int(round(row_gaps[len(row_gaps) // 2] / 60.0)))
+        W.append(T("Measurements are taken every %d s; a row is written about every %d min while "
+                   "the Mac is calm and on every reading during an intervention.")
+                 % (interval, gap_min))
+    else:
+        W.append(T("Measurements are taken every %d s; a row is written every few minutes while "
+                   "the Mac is calm and on every reading during an intervention.") % interval)
     W.append(T("Chip temperature is read through IOReport, battery temperature through AppleSmartBattery."))
     W.append("")
     W.append("coffee-paladin v%s  ·  Shield the Process, Sip the Coffee" % VERSION)

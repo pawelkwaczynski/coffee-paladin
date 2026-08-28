@@ -140,10 +140,27 @@ try:
              capture_output=True, text=True, timeout=120,
              env=dict(os.environ, TG_BASE=_t5, TG_LANG="en"))
     _report = io.open(_target5, encoding="utf-8", errors="replace").read()
-    _unknown = [t for t in tags if ("[%s]" % t) not in _report]
-    if _unknown:
-        errors.append("thermal-report DID NOT COUNT lines with tags %s - "
-                     "evidence report loses those interventions" % _unknown)
+    # Counted, not quoted. Since 3.3.0 the report prints one line per day with a
+    # number per tag and quotes in full only KILL/CRASH/FANFAIL, so "[PAUSE] is in
+    # the text" stopped being evidence that the parser saw the line. The day line
+    # is fed exactly one line per tag, so its numbers must add up to len(tags):
+    # a tag the report cannot count makes the sum too small, which is the drift
+    # this check exists for.
+    _day_line = next((l for l in _report.splitlines()
+                      if l.strip().startswith(_today + ":")), "")
+    _counted = sum(int(n) for n in re.findall(r"\b(\d+)\b", _day_line.split(":", 1)[-1]))
+    if not _day_line:
+        errors.append("thermal-report printed no per-day intervention line for %s - "
+                      "evidence report loses those interventions" % _today)
+    elif _counted != len(tags):
+        errors.append("thermal-report counted %d of %d tagged interventions (%s) - "
+                      "a tag drifted out of its parser: %s"
+                      % (_counted, len(tags), tags, _day_line.strip()))
+    _quoted = [t for t in ("KILL", "CRASH", "FANFAIL")
+               if t in tags and ("[%s]" % t) not in _report]
+    if _quoted:
+        errors.append("thermal-report did not quote the serious lines %s in full - "
+                      "a technician needs those verbatim" % _quoted)
     _sh5.rmtree(_t5, ignore_errors=True)
 except Exception as _e5:
     errors.append("cannot check log tags: %s: %s" % (type(_e5).__name__, _e5))
