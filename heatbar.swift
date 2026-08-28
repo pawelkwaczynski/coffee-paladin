@@ -1597,6 +1597,9 @@ final class FooterLogoRow: NSView {
         let h: CGFloat = 13
         let w = min(h * ratio, 280)
         // The logo is a button: click opens the URL from config.json (`footer_logo_url`).
+        // Centred against the REAL width, not the 400 pt this view is born with: NSMenu
+        // stretches the row to the menu's width, and the header already re-centres for
+        // the same reason. Without it the mark sat off to one side.
         let b = NSButton(frame: NSRect(x: (400 - w) / 2, y: 6, width: w, height: h))
         b.image = img
         b.isBordered = false
@@ -1606,6 +1609,14 @@ final class FooterLogoRow: NSView {
         b.action = #selector(openSite)
         b.toolTip = GuardCfg.string("footer_logo_url", "")
         addSubview(b)
+        logoButton = b
+    }
+
+    private var logoButton: NSButton?
+
+    override func setFrameSize(_ newSize: NSSize) {
+        super.setFrameSize(newSize)
+        if let b = logoButton { b.frame.origin.x = (bounds.width - b.frame.width) / 2 }
     }
 
     @objc private func openSite() {
@@ -3848,8 +3859,7 @@ final class Bar: NSObject, NSMenuDelegate {
         // the switches already hold, so the menu keeps its width.
         let hwLine = NSMutableAttributedString()
         if let u = s.ramUsed, let t = s.ramTotal, t > 0 {
-            hwLine.append(icon("memorychip", fallback: "RAM"))
-            hwLine.append(txt(String(format: t < 100 ? " %.1f/%.0f GB" : " %.0f/%.0f GB", u, t)))
+            hwLine.append(txt(String(format: t < 100 ? "%.1f/%.0f GB" : "%.0f/%.0f GB", u, t)))
             if let sw = s.swap, sw > 0.5 {
                 hwLine.append(txt(String(format: sw < 10 ? " +%.1f swap" : " +%.0f swap", sw)))
             }
@@ -3869,6 +3879,10 @@ final class Bar: NSObject, NSMenuDelegate {
         }
         if s.keepAwake { caffeinateTag(into: hwLine) }
         let hwItem = NSMenuItem()
+        // The leading icon goes where every other row keeps it, in the item's image, so
+        // the text starts on the same line as the rows above and below. Carrying it
+        // inside the string left this one row shifted left of the whole card.
+        hwItem.image = img("memorychip")
         hwItem.attributedTitle = hwLine
         // Without the words on screen, the words live one hover away: VoiceOver reads the
         // tooltip, and so does anyone who cannot place an icon.
