@@ -4667,6 +4667,11 @@ def main():
             (state, temp, speed, load, targets, lvl, why,
              soc, soc_t, ac, pct, saferun_normal, display_targets, demote_only,
              gui_hot, system_hot) = snapshot(cfg)
+            # Read the fans BEFORE deciding whether this is an emergency. The alarm keeps
+            # the hot-and-stopped streak, and computing the flag first meant the fan path
+            # carried two polls of lag instead of one: the net stayed open for a GUI app
+            # a cycle after the fans had already come back.
+            fan_alarm(cfg, soc, soc_t, st)
             # Emergency reopens the net for GUI apps on the NEXT poll (one cycle of lag is
             # fine: each condition below is itself confirmed over several polls).
             _EMERGENCY["on"] = bool(
@@ -4687,7 +4692,6 @@ def main():
                 cfg = load_cfg()
                 calibration_deferred = False
 
-            fan_alarm(cfg, soc, soc_t, st)
             handle_command(cfg, st, targets)
 
             # Helper data for the menu bar: trend, jobs, daily counter.

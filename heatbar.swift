@@ -3806,35 +3806,23 @@ final class Bar: NSObject, NSMenuDelegate {
                  + (s.gpu != nil ? String(format: "     GPU: %.1f °C", s.gpu!) : "")
                  + "     " + String(format: T("Battery:  %@"),
                                     s.batt.map { String(format: "%.1f °C", $0) } ?? na)))
-        // Load and fans MUST be in separate rows, and the unit must not repeat for every
-        // fan. In one line this row measured 328 pt with stopped fans and 446 pt with
-        // spinning fans. Custom views (chart, switches, languages) hold 360 pt, so any
-        // wider text stretches the menu: it widened by 118 pt when fans started and
-        // shrank when they stopped. Russian was worse (439 pt). Split rows without the
-        // repeated unit fit in 150-213 pt across all five languages, so menu width is
-        // CONSTANT.
-        // caffeinate, held: the command's own name in red at the end of the load row,
+        // caffeinate, held: the command's own name in red at the end of the machine row,
         // not a sentence of its own. Five variants of "the Mac is being kept awake" said
         // less than one word anybody can look up, and the mug matches the bar icon.
         // The countdown is added only for a timer, the one mode with an honest end;
         // which mode is running stays in the Keep awake submenu.
-        let loadLine = NSMutableAttributedString(
-            attributedString: txt(String(format: T("Load:  %.2f / %d cores"),
-                                         s.load, ProcessInfo.processInfo.processorCount)))
-        if s.keepAwake {
-            loadLine.append(NSAttributedString(string: "   "))
-            loadLine.append(icon(MUG_FILL, fallback: ""))
-            loadLine.append(NSAttributedString(string: " caffeinate",
-                                               attributes: [.foregroundColor: NSColor.systemRed]))
+        func caffeinateTag(into line: NSMutableAttributedString) {
+            line.append(NSAttributedString(string: "   "))
+            line.append(icon(MUG_FILL, fallback: ""))
+            line.append(NSAttributedString(string: " caffeinate",
+                                           attributes: [.foregroundColor: NSColor.systemRed]))
             let awake = Awake.read()
             if (awake["mode"] as? String) == "timer", let until = awake["until"] as? Double {
                 let left = max(0, until - Date().timeIntervalSince1970)
-                loadLine.append(NSAttributedString(
-                    string: " " + fmtDur(Int(left / 60)),
-                    attributes: [.foregroundColor: NSColor.secondaryLabelColor]))
+                line.append(NSAttributedString(string: " " + fmtDur(Int(left / 60)),
+                                               attributes: [.foregroundColor: NSColor.secondaryLabelColor]))
             }
         }
-        rowI("gauge", loadLine)
         // One row for the machine's own numbers, no submenu and no labels: the icons
         // are the labels. RAM, cores and fans were context hidden one click away while
         // the card repeated them anyway whenever they got alarming, so the same reading
@@ -3862,6 +3850,7 @@ final class Bar: NSObject, NSMenuDelegate {
                 ? T("stopped")
                 : String(format: T("%@ rpm"), s.fans.map(String.init).joined(separator: "\u{00B7}")))))
         }
+        if s.keepAwake { caffeinateTag(into: hwLine) }
         let hwItem = NSMenuItem()
         hwItem.attributedTitle = hwLine
         // Without the words on screen, the words live one hover away: VoiceOver reads the
@@ -5681,8 +5670,14 @@ final class Bar: NSObject, NSMenuDelegate {
         // reprinted this Mac's own numbers under a second heading when the other
         // machine had nothing to report, which is how the window ended up saying the
         // same four figures twice.
-        let others = fleetStats().filter { $0.host != Host.current().localizedName
-                                           && $0.host != ProcessInfo.processInfo.hostName }
+        // Which entry is THIS Mac: the daemon publishes fleet_label when the user set
+        // one, and the hostname otherwise (guard.py, fleet snapshot). Comparing only
+        // against the system hostname put a named local Mac under "Other Macs" and
+        // printed its numbers twice, which is the very thing this block exists to stop.
+        let myLabel = GuardCfg.string("fleet_label", "").trimmingCharacters(in: .whitespaces)
+        let myNames = Set([myLabel, Host.current().localizedName ?? "",
+                           ProcessInfo.processInfo.hostName].filter { !$0.isEmpty })
+        let others = fleetStats().filter { !myNames.contains($0.host) }
         if !others.isEmpty {
             let speaking = others.filter { m in labels.contains { (m.sum[$0.1] ?? 0) > 0 } }
             lines.append("")
