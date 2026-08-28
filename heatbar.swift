@@ -189,7 +189,7 @@ let PL: [String: String] = [
     "While downloading (network active)": "Dopóki trwa pobieranie (aktywna sieć)",
     "released automatically when the Mac gets hot": "zwalniane samo, gdy Mac się grzeje",
     "Keep-awake: %@ left": "Czuwanie: zostało %@",
-    "caffeinate holds for another %@": "caffeinate trzyma jeszcze %@",
+    "Held right now: %d": "Wstrzymane teraz: %d",
     "Heavy processes right now: %d": "Ciężkie procesy teraz: %d",
     "Measurement interval": "Częstotliwość pomiarów",
     "Pick the report period.": "Wybierz okres raportu.",
@@ -238,9 +238,6 @@ let PL: [String: String] = [
         "domyślnie: dobra reakcja przy ~1,2% jednego rdzenia",
     "frugal - an automatic pause may come tens of seconds after the threshold":
         "oszczędnie, ale automatyczna pauza może przyjść kilkadziesiąt sekund po progu",
-    "Keep-awake: while %@ is running": "Czuwanie: dopóki działa %@",
-    "Keep-awake: while downloading": "Czuwanie: dopóki trwa pobieranie",
-    "Keep-awake: indefinitely": "Czuwanie: bezterminowo",
     "Heavy jobs (safe-run)": "Ciężkie zadania (safe-run)",
     "Efficiency cores only (cool and quiet)": "Tylko rdzenie energooszczędne (chłodno i cicho)",
     "All cores (fast - the paladin still watches the temperature)":
@@ -268,7 +265,6 @@ let PL: [String: String] = [
     "yes": "tak",
     "no": "nie",
     "Keep the Mac awake while heavy jobs run": "Trzymaj caffeinate na ciężkie zadania",
-    "Keeping the Mac awake (heavy job running)": "Nie usypiam Maca, bo działa ciężkie zadanie",
     "Right now: keeping the Mac awake": "Teraz: czuwanie trzymane",
     "Keep the screen on too (uses more power)": "Nie gaś też ekranu (więcej prądu i ciepła)",
     "Keep-awake time left": "Ile zostało czuwania",
@@ -283,10 +279,6 @@ let PL: [String: String] = [
     "In this session: no interventions yet.": "W tej sesji: jeszcze bez interwencji.",
     "Pause ended another way (manual resume, job exited, daemon restart): %d": "Pauza zakończona inaczej (ręczne wznowienie, proces sam się skończył, restart demona): %d",
     "Hardware details": "Szczegóły sprzętu",
-    "Hot - the guard is on it": "Gorąco - strażnik reaguje",
-    "Getting warm - watching closely": "Ciepło - obserwuję uważnie",
-    "Hot - %d job(s) paused": "Gorąco - wstrzymane zadania: %d",
-    "Watch-only mode - measuring, pausing nothing": "Tryb obserwacji - mierzę, niczego nie wstrzymuję",
     "%@ session — idle": "sesja %@ — bez obciążenia",
     "Process tree details": "Szczegóły drzew procesów",
     "Heavy jobs paused": "Wstrzymane ciężkie zadania",
@@ -360,7 +352,6 @@ gdy skończysz.
 
 let RU: [String: String] = [
     "Keep the Mac awake while heavy jobs run": "Не давать Mac засыпать, пока идут тяжёлые задачи",
-    "Keeping the Mac awake (heavy job running)": "Держу Mac в бодрствовании (идёт тяжёлая задача)",
     "Right now: keeping the Mac awake": "Сейчас: бодрствование удерживается",
     "Keep the screen on too (uses more power)": "Не гасить и экран (больше энергии и тепла)",
     "Keep-awake time left": "Сколько осталось бодрствования",
@@ -375,10 +366,6 @@ let RU: [String: String] = [
     "In this session: no interventions yet.": "В этой сессии: вмешательств пока нет.",
     "Pause ended another way (manual resume, job exited, daemon restart): %d": "Пауза завершилась иначе (ручное возобновление, процесс сам завершился, перезапуск демона): %d",
     "Hardware details": "Сведения об оборудовании",
-    "Hot - the guard is on it": "Жарко - страж действует",
-    "Getting warm - watching closely": "Теплеет - слежу внимательно",
-    "Hot - %d job(s) paused": "Горячо - приостановлено задач: %d",
-    "Watch-only mode - measuring, pausing nothing": "Режим наблюдения - измеряю, ничего не останавливаю",
     "%@ session — idle": "сессия %@ — без нагрузки",
     "Process tree details": "Деревья процессов подробно",
     "Heavy jobs paused": "Приостановлено тяжёлых задач",
@@ -564,7 +551,7 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
     "While downloading (network active)": "Пока идёт загрузка (сеть активна)",
     "released automatically when the Mac gets hot": "снимается само, когда Mac нагревается",
     "Keep-awake: %@ left": "Бодрствование: осталось %@",
-    "caffeinate holds for another %@": "caffeinate держит ещё %@",
+    "Held right now: %d": "Сейчас остановлено: %d",
     "Heavy processes right now: %d": "Тяжёлых процессов сейчас: %d",
     "Measurement interval": "Частота измерений",
     "Pick the report period.": "Выберите период отчёта.",
@@ -614,9 +601,6 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
         "по умолчанию: хорошая реакция при ~1,2% ядра",
     "frugal - an automatic pause may come tens of seconds after the threshold":
         "экономно, но автопауза может прийти через десятки секунд после порога",
-    "Keep-awake: while %@ is running": "Бодрствование: пока работает %@",
-    "Keep-awake: while downloading": "Бодрствование: пока идёт загрузка",
-    "Keep-awake: indefinitely": "Бодрствование: бессрочно",
     "Heavy jobs (safe-run)": "Тяжёлые задачи (safe-run)",
     "Efficiency cores only (cool and quiet)": "Только энергоэффективные ядра (холодно и тихо)",
     "All cores (fast - the paladin still watches the temperature)":
@@ -667,7 +651,6 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
 
 let ZH: [String: String] = [
     "Keep the Mac awake while heavy jobs run": "繁重任务运行时保持 Mac 唤醒",
-    "Keeping the Mac awake (heavy job running)": "正在保持 Mac 唤醒（繁重任务运行中）",
     "Right now: keeping the Mac awake": "当前：正在保持唤醒",
     "Keep the screen on too (uses more power)": "屏幕也不熄灭（更耗电、更热）",
     "Keep-awake time left": "唤醒剩余时间",
@@ -682,10 +665,6 @@ let ZH: [String: String] = [
     "In this session: no interventions yet.": "本次会话:尚无干预。",
     "Pause ended another way (manual resume, job exited, daemon restart): %d": "暂停以其他方式结束(手动恢复、进程自行退出、守护进程重启):%d",
     "Hardware details": "硬件详情",
-    "Hot - the guard is on it": "过热 - 守卫正在处理",
-    "Getting warm - watching closely": "变热了 - 正在密切关注",
-    "Hot - %d job(s) paused": "过热 - 已暂停任务:%d",
-    "Watch-only mode - measuring, pausing nothing": "仅观察模式 - 只测量,不暂停",
     "%@ session — idle": "%@ 会话 — 空闲",
     "Process tree details": "进程树详情",
     "Heavy jobs paused": "已暂停的繁重任务",
@@ -869,7 +848,7 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
     "While downloading (network active)": "下载期间(网络活跃)",
     "released automatically when the Mac gets hot": "Mac 变热时自动解除",
     "Keep-awake: %@ left": "保持唤醒:剩余 %@",
-    "caffeinate holds for another %@": "caffeinate 还将保持 %@",
+    "Held right now: %d": "当前已暂停:%d",
     "Heavy processes right now: %d": "当前繁重进程数:%d",
     "Measurement interval": "测量频率",
     "Pick the report period.": "选择报告时间段。",
@@ -919,9 +898,6 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
         "默认:约1.2%单核,反应良好",
     "frugal - an automatic pause may come tens of seconds after the threshold":
         "省电,但自动暂停可能在超过阈值后数十秒才触发",
-    "Keep-awake: while %@ is running": "保持唤醒:%@ 运行期间",
-    "Keep-awake: while downloading": "保持唤醒:下载期间",
-    "Keep-awake: indefinitely": "保持唤醒:无限期",
     "Heavy jobs (safe-run)": "繁重任务(safe-run)",
     "Efficiency cores only (cool and quiet)": "仅能效核心(凉爽安静)",
     "All cores (fast - the paladin still watches the temperature)":
@@ -972,7 +948,6 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
 
 let ES: [String: String] = [
     "Keep the Mac awake while heavy jobs run": "Mantener el Mac despierto mientras corren tareas pesadas",
-    "Keeping the Mac awake (heavy job running)": "Manteniendo el Mac despierto (tarea pesada en curso)",
     "Right now: keeping the Mac awake": "Ahora: manteniendo el Mac despierto",
     "Keep the screen on too (uses more power)": "Mantener también la pantalla encendida (más consumo y calor)",
     "Keep-awake time left": "Tiempo restante de vigilia",
@@ -987,10 +962,6 @@ let ES: [String: String] = [
     "In this session: no interventions yet.": "En esta sesión: aún sin intervenciones.",
     "Pause ended another way (manual resume, job exited, daemon restart): %d": "La pausa terminó de otra forma (reanudación manual, el proceso terminó solo, reinicio del demonio): %d",
     "Hardware details": "Detalles del hardware",
-    "Hot - the guard is on it": "Caliente: el guardián actúa",
-    "Getting warm - watching closely": "Se calienta: vigilando de cerca",
-    "Hot - %d job(s) paused": "Caliente: tareas en pausa: %d",
-    "Watch-only mode - measuring, pausing nothing": "Modo observación: mido, no pauso nada",
     "%@ session — idle": "sesión %@ — sin carga",
     "Process tree details": "Detalles de árboles de procesos",
     "Heavy jobs paused": "Tareas pesadas pausadas",
@@ -1176,7 +1147,7 @@ Vuelve a activarlo cuando termines.
     "While downloading (network active)": "Mientras se descarga (red activa)",
     "released automatically when the Mac gets hot": "se libera solo cuando el Mac se calienta",
     "Keep-awake: %@ left": "Despierto: quedan %@",
-    "caffeinate holds for another %@": "caffeinate aguanta %@ más",
+    "Held right now: %d": "Detenidos ahora: %d",
     "Heavy processes right now: %d": "Procesos pesados ahora: %d",
     "Measurement interval": "Frecuencia de medición",
     "Pick the report period.": "Elige el periodo del informe.",
@@ -1226,9 +1197,6 @@ Vuelve a activarlo cuando termines.
         "por defecto: buena reacción con ~1,2% de un núcleo",
     "frugal - an automatic pause may come tens of seconds after the threshold":
         "ahorrador, pero la pausa automática puede llegar decenas de segundos tras el umbral",
-    "Keep-awake: while %@ is running": "Despierto: mientras corre %@",
-    "Keep-awake: while downloading": "Despierto: mientras se descarga",
-    "Keep-awake: indefinitely": "Despierto: indefinidamente",
     "Heavy jobs (safe-run)": "Tareas pesadas (safe-run)",
     "Efficiency cores only (cool and quiet)": "Solo núcleos de eficiencia (frío y silencioso)",
     "All cores (fast - the paladin still watches the temperature)":
@@ -3784,39 +3752,10 @@ final class Bar: NSObject, NSMenuDelegate {
         }
         func txt(_ s: String) -> NSAttributedString { NSAttributedString(string: s) }
 
-        // THE ANSWER, before any numbers: is it safe, and what is the guard
-        // doing about it. Every reading below is evidence; this line is the
-        // verdict, and the card was hard to read with the verdict missing.
-        if !s.stale {
-            let verdict: (String, String)
-            // Order matters: frozen jobs are a fact regardless of mode, so
-            // they outrank the dry-run line; a hot level without pauses
-            // (nothing pausable, or a pause failed) must still say HOT, not
-            // "warm" - understating the state is the one lie this line can
-            // tell (caught by the Codex review round).
-            if !s.paused.isEmpty {
-                verdict = ("flame", String(format: T("Hot - %d job(s) paused"), s.paused.count))
-            } else if s.dryRun {
-                verdict = ("eye", T("Watch-only mode - measuring, pausing nothing"))
-            } else if s.level >= 2 {
-                verdict = ("flame", T("Hot - the guard is on it"))
-            } else if s.level == 1 {
-                verdict = ("thermometer.high", T("Getting warm - watching closely"))
-            } else {
-                // Calm needs no headline. The verdict earns its row when there is a
-                // verdict to give - paused jobs, watch-only mode, heat - and "all safe"
-                // was a line whose only content was that nothing was happening, in a menu
-                // built on the rule that an element appears when it carries news.
-                verdict = ("", "")
-            }
-            if !verdict.1.isEmpty {
-                let head = NSMutableAttributedString(string: verdict.1)
-                head.addAttribute(.font, value: NSFont.boldSystemFont(ofSize: NSFont.systemFontSize),
-                                  range: NSRange(location: 0, length: head.length))
-                rowI(verdict.0, head)
-            }
-        }
-
+        // No verdict headline here. Everything it said is already on screen: the bar
+        // icon carries the state and its markers, the freeze switch below says how many
+        // jobs are held, and the chart paints the hot readings red. A second copy of a
+        // fact is not emphasis, it is another line to read before the numbers.
         rowI("thermometer.medium",
              txt("Chip:  " + (s.chip.map { String(format: "%.1f °C", $0) + (s.chipStale ? T(" (remembered)") : "") } ?? na)
                  + (s.gpu != nil ? String(format: "     GPU: %.1f °C", s.gpu!) : "")
@@ -3829,8 +3768,28 @@ final class Bar: NSObject, NSMenuDelegate {
         // shrank when they stopped. Russian was worse (439 pt). Split rows without the
         // repeated unit fit in 150-213 pt across all five languages, so menu width is
         // CONSTANT.
-        rowI("gauge", txt(String(format: T("Load:  %.2f / %d cores"),
-                                 s.load, ProcessInfo.processInfo.processorCount)))
+        // caffeinate, held: the command's own name in red at the end of the load row,
+        // not a sentence of its own. Five variants of "the Mac is being kept awake" said
+        // less than one word anybody can look up, and the mug matches the bar icon.
+        // The countdown is added only for a timer, the one mode with an honest end;
+        // which mode is running stays in the Keep awake submenu.
+        let loadLine = NSMutableAttributedString(
+            attributedString: txt(String(format: T("Load:  %.2f / %d cores"),
+                                         s.load, ProcessInfo.processInfo.processorCount)))
+        if s.keepAwake {
+            loadLine.append(NSAttributedString(string: "   "))
+            loadLine.append(icon(MUG_FILL, fallback: ""))
+            loadLine.append(NSAttributedString(string: " caffeinate",
+                                               attributes: [.foregroundColor: NSColor.systemRed]))
+            let awake = Awake.read()
+            if (awake["mode"] as? String) == "timer", let until = awake["until"] as? Double {
+                let left = max(0, until - Date().timeIntervalSince1970)
+                loadLine.append(NSAttributedString(
+                    string: " " + fmtDur(Int(left / 60)),
+                    attributes: [.foregroundColor: NSColor.secondaryLabelColor]))
+            }
+        }
+        rowI("gauge", loadLine)
         // Fans, RAM, disk and power moved off the main card into "Hardware
         // details": they are context, not verdict, and eight dense lines were
         // exactly why the owner could not tell what mattered. A reading comes
@@ -3886,28 +3845,6 @@ final class Bar: NSObject, NSMenuDelegate {
         if s.cpuLimit < 100 {
             row(String(format: T("Throttling: CPU capped at %d%% speed"), s.cpuLimit))
         }
-        if s.keepAwake {
-            let a = Awake.read()
-            switch a["mode"] as? String {
-            case "timer":
-                let left = max(0, (a["until"] as? Double ?? 0) - Date().timeIntervalSince1970)
-                // Clock + plain language: caffeinate (built into macOS) is holding
-                // keep-awake. The counter decreases on each card refresh; an open menu
-                // does not tick every second because a constant menu timer would heat
-                // the CPU we are protecting.
-                rowI("clock", txt(String(format: T("caffeinate holds for another %@"),
-                                         fmtDur(Int(left / 60)))))
-            case "forever":
-                row(T("Keep-awake: indefinitely"))
-            case "app":
-                row(String(format: T("Keep-awake: while %@ is running"), (a["app"] as? String) ?? "?"))
-            case "download":
-                row(T("Keep-awake: while downloading"))
-            default:
-                row(T("Keeping the Mac awake (heavy job running)"))
-            }
-        }
-
         if let chart = ChartRow.make() {
             m.addItem(.separator())
             let it = NSMenuItem()
@@ -3948,8 +3885,13 @@ final class Bar: NSObject, NSMenuDelegate {
                                  // Icon describes the row FUNCTION; state lives in the switch.
                                  // A "play" icon beside an ON switch contradicted itself.
                                  iconName: "pause.circle",
-                                 fixedSubtitle: String(format: T("Heavy processes right now: %d"),
-                                                    s.heavyCount),
+                                 // With jobs held, the count that matters is how many are
+                                 // held, not how many could be: after the verdict row went
+                                 // this is the only place on the card that still says it.
+                                 fixedSubtitle: frozen
+                                     ? String(format: T("Held right now: %d"), s.paused.count)
+                                     : String(format: T("Heavy processes right now: %d"),
+                                              s.heavyCount),
                                  color: .systemBlue)
         // Tooltip says WHICH processes are targeted (top 3 by CPU).
         if !s.topCpuList.isEmpty {
