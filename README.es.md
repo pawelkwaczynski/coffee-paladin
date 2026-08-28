@@ -377,9 +377,8 @@ directamente en el menú principal.
 
 MIT. Haz lo que quieras con esto. Si te salva la máquina, con eso basta.
 
-Autor: Paweł Kwaczyński / FOCUS FRAME, 2026. Las versiones 1.0 a 3.2.7 se desarrollaron
-dentro de **AIrON**, el club de investigación estudiantil de informática de la AHE en Łódź;
-desde 3.3.0 el proyecto se desarrolla y mantiene de forma independiente del club.
+Autor: Paweł Kwaczyński / FOCUS FRAME, 2026. El proyecto se desarrolla también dentro de
+**AIrON**, el club de investigación estudiantil de informática de la AHE en Łódź.
 El código Swift lo escribió **Claude (Anthropic)** en Claude Code, con **Codex (OpenAI,
 GPT-5.5)** como revisor adversarial y dos modelos locales en paralelo:
 Devstral 24B sobre MLX y qwen3:4b sobre Ollama.

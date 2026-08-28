@@ -1034,10 +1034,9 @@ iCloud/SMB. "Live" here means the agent's ~1-minute publishing rhythm plus your 
 delay - perfect for a glance, not for second-by-second monitoring (that is what a future HTTP
 collector would be for).
 
-**Branding:** drop a `logo.png` into `~/.coffee-paladin/` (black-on-transparent, theme-aware
-template) and the menu header shows it instead of the built-in mark; nothing ships there by
-default since 3.3.0. The footer renders `logo_footer.png` (+ optional `logo_footer_dark.png`
-for dark mode; a click opens `footer_logo_url` from the config), copied by the installer from
+**Branding:** the menu header and footer render `~/.coffee-paladin/logo.png` (black-on-transparent,
+theme-aware template) and `logo_footer.png` (+ optional `logo_footer_dark.png` for dark mode;
+a click opens `footer_logo_url` from the config). The installer copies the logos shipped in
 `branding/` - swap those files for your own to rebrand your install.
 
 The menu adds a block-character temperature graph, a trend and forecast ("rising 2.1 °C/min -
@@ -1155,10 +1154,6 @@ The shipped defaults are deliberately more conservative than Apple's own throttl
 **Author: Paweł Kwaczyński (FOCUS FRAME).** The requirements, the decisions, the verification
 and the risk in this project are one person's - the models below wrote code against that.
 
-coffee-paladin started inside AIrON, the student research club at AHE in Łódź, and every
-release up to 3.2.7 carried the club's wordmark in the menu header. From 3.3.0 I develop it
-on my own; tag `v3.2.7` stays as the last release from that time.
-
 I work in Python. The Swift menu bar app exists only because I build Swift in a pair with
 AI - and this project takes that seriously: four different models reviewed each other's work
 across six rounds, and a second Mac audited the first one's install. Here it was the human
@@ -1194,9 +1189,8 @@ and in the `heat --paladin` easter egg - is **the author's own design** and is u
 as the official mascot of the project. Everything else in `branding/` is derived from those two
 source files; details in [`branding/CREDITS.md`](branding/CREDITS.md).
 
-Built by Paweł Kwaczyński / FOCUS FRAME, 2026. Versions 1.0 to 3.2.7 were developed within
-**AIrON**, the student research club for computer science at AHE in Łódź (SKN Informatyki AHE
-w Łodzi); from 3.3.0 the project is developed and maintained independently of the club.
+Built by Paweł Kwaczyński / FOCUS FRAME, 2026. Developed also as a project of **AIrON** -
+the student research club for computer science at AHE in Łódź (SKN Informatyki AHE w Łodzi).
 
 ---
 
@@ -1907,10 +1901,6 @@ językach** (angielski, polski, rosyjski, chiński, hiszpański) - przełączasz
 **Autor: Paweł Kwaczyński (FOCUS FRAME).** Wymagania, decyzje, weryfikacja i ryzyko w tym
 projekcie należą do jednej osoby - modele niżej pisały kod pod to.
 
-coffee-paladin powstał w kole naukowym AIrON w AHE w Łodzi i każde wydanie do 3.2.7 miało
-logotyp koła w nagłówku menu. Od 3.3.0 rozwijam go sam; tag `v3.2.7` zostaje jako ostatnie
-wydanie z tamtego czasu.
-
 Pracuję w Pythonie. Aplikacja paska w Swift istnieje tylko dlatego, że Swift buduję w parze
 z AI - i ten projekt traktuje to poważnie: cztery różne modele recenzowały nawzajem swoją
 pracę w sześciu rundach, a drugi Mac audytował instalację pierwszego. Tutaj to człowiek
@@ -1946,6 +1936,5 @@ MIT. Rób z tym co chcesz. Jeśli uratuje Ci komputer, to wystarczająca satysfa
 maskotka projektu. Reszta plików w `branding/` to pochodne tych dwóch źródeł; szczegóły
 w [`branding/CREDITS.md`](branding/CREDITS.md).
 
-Autor: Paweł Kwaczyński / FOCUS FRAME, 2026. Wersje od 1.0 do 3.2.7 powstały w ramach koła
-naukowego **AIrON** (SKN Informatyki AHE w Łodzi); od 3.3.0 projekt jest rozwijany
-i utrzymywany niezależnie od koła.
+Autor: Paweł Kwaczyński / FOCUS FRAME, 2026. Projekt rozwijany także w ramach koła naukowego
+**AIrON** (SKN Informatyki AHE w Łodzi).
