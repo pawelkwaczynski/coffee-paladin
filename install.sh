@@ -316,11 +316,21 @@ fi
 # (branding/paladin.png, branding/paladin.gif) stay in the repo, not in the
 # working directory. Swap the files for your own to rebrand your install.
 if [ -d "$SRC/branding" ]; then
-  for g in logo.png logo_footer.png logo_footer_dark.png \
+  for g in logo_footer.png logo_footer_dark.png \
            paladin_welcome.gif paladin_welcome.png; do
     [ -f "$SRC/branding/$g" ] && cp "$SRC/branding/$g" "$BASE/"
   done
   echo "  ✅ artwork (logos + the paladin) copied"
+fi
+
+# The header wordmark we shipped up to 3.2.7 is gone from the repo, but every
+# install from that era still has a copy, and the menu would keep drawing it.
+# Match the hash before deleting: a logo.png someone put there themselves is
+# their rebrand (see README, Branding) and must survive the upgrade.
+if [ -f "$BASE/logo.png" ] && \
+   [ "$(shasum -a 256 "$BASE/logo.png" | cut -d' ' -f1)" = \
+     "f9ce4edcd706735f4c67a3dd9efa687425dade2db7986b6956aed899f9a9d3df" ]; then
+  rm -f "$BASE/logo.png"
 fi
 
 # 3c. skill for AI agents (Claude Code and compatible): teaches the agent to

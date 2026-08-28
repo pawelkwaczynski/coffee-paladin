@@ -16,7 +16,7 @@
 
 import Cocoa
 
-let VERSION = "3.2.7"
+let VERSION = "3.3.0"
 let APPNAME = "coffee-paladin"
 let CODENAME = "Cold Brew"
 let SIGNATURE = "\(APPNAME) v\(VERSION) \u{201E}\(CODENAME)\u{201D}  ·  by panbookovsky"
@@ -255,7 +255,6 @@ let PL: [String: String] = [
         "Wpisz sekretną nazwę tematu. Zainstaluj na telefonie aplikację ntfy i zasubskrybuj ten sam temat — pauzy, ubicia i alarmy przyjdą jako push. Puste pole wyłącza.",
     "The topic name is the ONLY protection: anyone who knows or guesses it can read your alerts and send fake ones. Click Generate for a random unguessable name. On your phone install the ntfy.sh app (from ntfy.sh - mind the lookalike apps) and subscribe to the same topic. Leave empty to disable.":
         "Nazwa tematu to JEDYNE zabezpieczenie: kto ją zna lub zgadnie, widzi Twoje alerty i może wysyłać fałszywe. Kliknij Wygeneruj, aby dostać losową, niezgadywalną nazwę. Na telefonie zainstaluj aplikację ntfy.sh (ze strony ntfy.sh - uwaga na podobne apki) i zasubskrybuj ten sam temat. Puste pole wyłącza.",
-    "A project of the AIrON student research club.": "Projekt w ramach koła naukowego AHE w Łodzi.",
     "Generate": "Wygeneruj",
     "Model:  %@": "Model:  %@",
     "Chip:  %@": "Chip:  %@",
@@ -632,7 +631,6 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
         "Введите секретное имя темы. Установите приложение ntfy на телефон и подпишитесь на ту же тему - паузы, завершения и тревоги придут как push. Пустое поле отключает.",
     "The topic name is the ONLY protection: anyone who knows or guesses it can read your alerts and send fake ones. Click Generate for a random unguessable name. On your phone install the ntfy.sh app (from ntfy.sh - mind the lookalike apps) and subscribe to the same topic. Leave empty to disable.":
         "Имя темы - ЕДИНСТВЕННАЯ защита: кто его знает или угадает, видит ваши оповещения и может слать поддельные. Нажмите «Сгенерировать», чтобы получить случайное имя. Установите на телефон приложение ntfy.sh (с сайта ntfy.sh - остерегайтесь похожих приложений) и подпишитесь на ту же тему. Пустое поле отключает.",
-    "A project of the AIrON student research club.": "Проект научного кружка AIrON (AHE, Лодзь).",
     "Generate": "Сгенерировать",
     "Model:  %@": "Модель:  %@",
     "Chip:  %@": "Чип:  %@",
@@ -938,7 +936,6 @@ Remember: while this switch is off, NOTHING protects the Mac.\nFlip it back on w
         "输入一个保密的主题名。在手机上安装 ntfy 应用并订阅同一主题 - 暂停、终止和警报会以推送形式送达。留空则禁用。",
     "The topic name is the ONLY protection: anyone who knows or guesses it can read your alerts and send fake ones. Click Generate for a random unguessable name. On your phone install the ntfy.sh app (from ntfy.sh - mind the lookalike apps) and subscribe to the same topic. Leave empty to disable.":
         "主题名是唯一的保护:知道或猜到它的人都能看到你的警报并发送伪造消息。点击「生成」获取随机且难以猜测的名称。在手机上安装 ntfy.sh 应用(来自 ntfy.sh, 谨防仿冒应用)并订阅同一主题。留空则禁用。",
-    "A project of the AIrON student research club.": "AIrON 学生科研社团项目(罗兹 AHE)。",
     "Generate": "生成",
     "Model:  %@": "型号:  %@",
     "Chip:  %@": "芯片:  %@",
@@ -1246,7 +1243,6 @@ Vuelve a activarlo cuando termines.
         "Escribe un nombre de tema secreto. Instala la app ntfy en el teléfono y suscríbete al mismo tema: pausas, terminaciones y alarmas llegarán como push. Vacío = desactivado.",
     "The topic name is the ONLY protection: anyone who knows or guesses it can read your alerts and send fake ones. Click Generate for a random unguessable name. On your phone install the ntfy.sh app (from ntfy.sh - mind the lookalike apps) and subscribe to the same topic. Leave empty to disable.":
         "El nombre del tema es la ÚNICA protección: quien lo conozca o adivine verá tus alertas y podrá enviar falsas. Pulsa Generar para obtener un nombre aleatorio. Instala en el teléfono la app ntfy.sh (de ntfy.sh, cuidado con las imitaciones) y suscríbete al mismo tema. Vacío = desactivado.",
-    "A project of the AIrON student research club.": "Proyecto del club científico AIrON (AHE, Łódź).",
     "Generate": "Generar",
     "Model:  %@": "Modelo:  %@",
     "Chip:  %@": "Chip:  %@",
@@ -1750,21 +1746,21 @@ final class HeaderRow: NSView {
     init() {
         // 360, not 400: the header must not be what widens the whole menu.
         // NSMenu still supplies the real width; center in setFrameSize.
-        super.init(frame: NSRect(x: 0, y: 0, width: 400, height: 88))
+        super.init(frame: NSRect(x: 0, y: 0, width: 400, height: 72))
         autoresizingMask = [.width]
         if let logo = customLogo() {
             // Horizontal logo (wordmark): centered, height 22, width from aspect ratio.
             let ratio = logo.size.width / max(logo.size.height, 1)
             let h: CGFloat = 24
             let w = min(h * ratio, 330)
-            let iv = NSImageView(frame: NSRect(x: 0, y: 58, width: w, height: h))
+            let iv = NSImageView(frame: NSRect(x: 0, y: 42, width: w, height: h))
             iv.image = logo
             iv.imageScaling = .scaleProportionallyUpOrDown
             iv.contentTintColor = .labelColor
             addSubview(iv)
             logoView = iv
         } else {
-            let iv = NSImageView(frame: NSRect(x: 0, y: 58, width: 22, height: 22))
+            let iv = NSImageView(frame: NSRect(x: 0, y: 42, width: 22, height: 22))
             iv.image = makeLogo(22)
             addSubview(iv)
             logoView = iv
@@ -1772,13 +1768,14 @@ final class HeaderRow: NSView {
         // Product name and motto are the product's face and must stay at the top
         // of the menu, not only in the footer.
         // Deliberately no paladin thumbnail beside them: detailed art at 30 px
-        // becomes a color sticker and clashes with the monochrome wordmark above.
+        // becomes a color sticker and clashes with the mark above, which is the
+        // built-in squircle unless the user drops their own logo.png into the base dir.
         // Paladin art lives in the panel (name click) and the welcome window.
         let app = NSTextField(labelWithString: "\(APPNAME)  ·  v\(VERSION)")
         app.font = .systemFont(ofSize: 13, weight: .semibold)
         app.textColor = .labelColor
         app.alignment = .center
-        app.frame = NSRect(x: 0, y: 38, width: 360, height: 18)
+        app.frame = NSRect(x: 0, y: 22, width: 360, height: 18)
         addSubview(app)
         appLabel = app
         centeredLabels.append(app)
@@ -1787,17 +1784,9 @@ final class HeaderRow: NSView {
         motto.font = .systemFont(ofSize: 11, weight: .regular)
         motto.textColor = .labelColor
         motto.alignment = .center
-        motto.frame = NSRect(x: 0, y: 22, width: 360, height: 14)
+        motto.frame = NSRect(x: 0, y: 6, width: 360, height: 14)
         addSubview(motto)
         centeredLabels.append(motto)
-
-        let name = NSTextField(labelWithString: T("A project of the AIrON student research club."))
-        name.font = .systemFont(ofSize: 11)
-        name.textColor = .secondaryLabelColor
-        name.alignment = .center
-        name.frame = NSRect(x: 0, y: 6, width: 360, height: 14)
-        addSubview(name)
-        centeredLabels.append(name)
 
         // .inVisibleRect: the tracking area follows EVERY row resize, so the
         // pointing cursor still works after NSMenu stretches the view.
@@ -1833,15 +1822,9 @@ final class HeaderRow: NSView {
 
     override func mouseUp(with event: NSEvent) {
         let p = convert(event.locationInWindow, from: nil)
-        if isOnLogo(p) {
-            // The AIrON logo links to the student club's English CS program at AHE.
-            enclosingMenuItem?.menu?.cancelTracking()
-            if let u = urlWithUTM("https://www.ahe.lodz.pl/study-in-english/eng-in-computer-science") {
-                NSWorkspace.shared.open(u)
-            }
-            return
-        }
-        guard isOnName(p) else { return }
+        // The mark and the product name are one target: both open the paladin panel.
+        // Until 3.2.7 the mark was the AIrON wordmark and opened the club's page.
+        guard isOnLogo(p) || isOnName(p) else { return }
         // Close the menu before showing the panel; otherwise it captures mouse events
         // and the panel cannot be dismissed by click.
         enclosingMenuItem?.menu?.cancelTracking()

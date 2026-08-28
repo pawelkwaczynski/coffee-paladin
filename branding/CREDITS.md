@@ -40,7 +40,7 @@ w README, w oknie powitalnym i w sztuce terminalowej.
 
 | Plik | Co to jest |
 |---|---|
-| `logo.png` | AIrON — studenckie koło naukowe (nagłówek menu) |
+| `logo.png` | do 3.2.7 logotyp koła naukowego AIrON w nagłówku menu; od 3.3.0 nie jest już częścią wydania (plik zostaje w tagu `v3.2.7`) |
 | `logo_footer.png`, `logo_footer_dark.png` | FOCUS FRAME (stopka menu) |
 
 Logotypy należą do swoich właścicieli i są użyte za zgodą.
