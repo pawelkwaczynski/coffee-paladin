@@ -160,6 +160,8 @@ LANG = _lang()
 
 PL = {
     "safe-run: unknown option %s": "safe-run: nieznana opcja %s",
+    "safe-run: SIGTERM at %s unless the job ends first (--hours %.1f)":
+        "safe-run: SIGTERM o %s, chyba ze zadanie skonczy sie wczesniej (--hours %.1f)",
     "safe-run: thermal state=%s, battery=%s, time budget=%.1f h":
         "safe-run: stan termiczny=%s, bateria=%s, limit czasu=%.1f h",
     "safe-run: REFUSING TO START - the Mac is already hot. Use --wait-cool to wait, let it cool down, or pass --allow-hot.":
@@ -209,6 +211,7 @@ PL = {
 
 RU = {
     "safe-run: unknown option %s": "safe-run: неизвестный параметр %s",
+    "safe-run: SIGTERM at %s unless the job ends first (--hours %.1f)": "safe-run: SIGTERM в %s, если задача не завершится раньше (--hours %.1f)",
     "safe-run: thermal state=%s, battery=%s, time budget=%.1f h":
         "safe-run: термосостояние=%s, батарея=%s, лимит времени=%.1f ч",
     "safe-run: REFUSING TO START - the Mac is already hot. Use --wait-cool to wait, let it cool down, or pass --allow-hot.":
@@ -258,6 +261,7 @@ RU = {
 
 ZH = {
     "safe-run: unknown option %s": "safe-run: 未知选项 %s",
+    "safe-run: SIGTERM at %s unless the job ends first (--hours %.1f)": "safe-run: 将在 %s 发送 SIGTERM,除非任务提前结束(--hours %.1f)",
     "safe-run: thermal state=%s, battery=%s, time budget=%.1f h":
         "safe-run: 热状态=%s, 电池=%s, 时间预算=%.1f 小时",
     "safe-run: REFUSING TO START - the Mac is already hot. Use --wait-cool to wait, let it cool down, or pass --allow-hot.":
@@ -307,6 +311,7 @@ ZH = {
 
 ES = {
     "safe-run: unknown option %s": "safe-run: opción desconocida %s",
+    "safe-run: SIGTERM at %s unless the job ends first (--hours %.1f)": "safe-run: SIGTERM a las %s salvo que el trabajo termine antes (--hours %.1f)",
     "safe-run: thermal state=%s, battery=%s, time budget=%.1f h":
         "safe-run: estado térmico=%s, batería=%s, límite de tiempo=%.1f h",
     "safe-run: REFUSING TO START - the Mac is already hot. Use --wait-cool to wait, let it cool down, or pass --allow-hot.":
@@ -429,7 +434,10 @@ def start_guard():
 def parse():
     args = sys.argv[1:]
     c = cfg()
-    opt = {"hours": float(os.environ.get("SAFE_RUN_HOURS", 6)), "name": None,
+    # 20 h, not 6: the budget is the anti-zombie fuse, not a thermal one, and 6 h killed two
+    # cold multi-hour transfers whose failure then looked like the network (23.08). A day
+    # still ends an agent loop nobody is watching; SAFE_RUN_HOURS or --hours set the rest.
+    opt = {"hours": float(os.environ.get("SAFE_RUN_HOURS", 20)), "name": None,
            "allow_hot": False, "allow_sleep": False, "wait_cool": False,
            # Defaults from config.json; the menu bar controls them with toggles.
            "normal": (c.get("job_cores_mode") or "efficiency") == "all",
@@ -1133,6 +1141,10 @@ def main():
         state, ("%.1f C" % temp) if temp else T("n/a"), opt["hours"]))
     print(T("safe-run: cores=%s, CPU limit=%d%%") % (
         T("all") if opt["normal"] else T("efficiency only"), int(opt["cpu_limit"])))
+    # The clock time, not only the number of hours: "budget 6.0 h" printed at 09:00 did not
+    # connect with a transfer that died at 15:00 and was blamed on the network.
+    print(T("safe-run: SIGTERM at %s unless the job ends first (--hours %.1f)") % (
+        time.strftime("%H:%M", time.localtime(time.time() + opt["hours"] * 3600)), opt["hours"]))
     if hot and not opt["allow_hot"]:
         if not opt["wait_cool"]:
             print(T("safe-run: REFUSING TO START - the Mac is already hot. Use --wait-cool to wait, let it cool down, or pass --allow-hot.")

@@ -129,6 +129,15 @@ DEFAULTS = {
     # cap, and the count is said out loud in the log. A quiet window resets it.
     "repause_window_s": 300,
     "repause_backoff_max_s": 600,
+    # Throttle at the first pause. A bare encoder at 1200% CPU brought the chip back to
+    # pause level 17 s after EVERY resume (23.08: 3% duty, ten files in five hours), and
+    # the backoff above turned that oscillation into starvation: 600 s of pause for 17 s
+    # of work. The pause already names the heater, so it goes to E-cores (taskpolicy -b)
+    # right there and comes back throttled, held for one quiet window before promotion
+    # may undo it. If it still reaches pause level on E-cores, the backoff applies as
+    # before: the fuse is unchanged, only the order of remedies is. Jobs the user ran with
+    # safe-run --normal keep all cores, as everywhere else.
+    "demote_at_pause": True,
     "demote_after_minutes": 5,  # hot chip plus a process grinding longer than this -> E-cores
     "demote_cpu_percent": 60.0,
     # Demote only when chip >= this threshold (None = soc_resume_c + 4). Return to
@@ -630,6 +639,8 @@ PL = {
     "conditions are back to normal": "warunki wrocily do normy",
     "%s heats the Mac at %.0f%% CPU - a desktop app: slowed down, never frozen": "%s grzeje Maca na %.0f%% CPU - aplikacja okienkowa: spowolniona, nigdy nie zamrazana",
     "%s heats the Mac at %.0f%% CPU - a macOS service: named, left alone": "%s grzeje Maca na %.0f%% CPU - usluga macOS: nazwana, zostawiona w spokoju",
+    "DEMOTED %s (pid %d) at pause -> comes back on E-cores, not at full speed":
+        "DEMOTE %s (pid %d) przy pauzie -> wroci na rdzeniach E, nie z pelna moca",
     "flapping: %s paused again %d time(s) in a row - holding at least %d s this time": "migotanie: %s zapauzowany ponownie, %d. raz z rzedu - tym razem trzymam co najmniej %d s",
     "guard startup - nothing is left frozen": "start guarda - nic nie zostaje zamrozone",
     "guard is shutting down": "guard konczy prace",
@@ -661,6 +672,8 @@ PL = {
     "gone before pause: %s (pid %d)": "zniknal przed pauza: %s (pid %d)",
     "FAILED to pause %s (pid %d) - errno %d, giving up on this pid":
         "NIE UDALO SIE wstrzymac %s (pid %d) - errno %d, rezygnuje z tego pid",
+    "dropped pause entry for %s (pid %d) - process gone, nothing left to resume":
+        "kasuje wpis pauzy %s (pid %d) - proces zniknal, nie ma czego wznawiac",
     "STILL STOPPED after SIGCONT: %s (pid %d) - foreground terminal job, type 'fg' in its window":
         "NADAL WSTRZYMANY po SIGCONT: %s (pid %d) - zadanie pierwszoplanowe terminala, wpisz 'fg' w jego oknie",
     "Thermal guard: job needs your hand": "Thermal guard: zadanie wymaga Twojej reki",
@@ -740,6 +753,7 @@ RU = {
     "conditions are back to normal": "условия вернулись в норму",
     "%s heats the Mac at %.0f%% CPU - a desktop app: slowed down, never frozen": "%s греет Mac на %.0f%% CPU - оконное приложение: замедлено, никогда не замораживается",
     "%s heats the Mac at %.0f%% CPU - a macOS service: named, left alone": "%s греет Mac на %.0f%% CPU - служба macOS: названа, оставлена в покое",
+    "DEMOTED %s (pid %d) at pause -> comes back on E-cores, not at full speed": "ПОНИЖЕН %s (pid %d) при паузе -> вернётся на E-ядрах, не на полной скорости",
     "flapping: %s paused again %d time(s) in a row - holding at least %d s this time": "дребезг: %s снова приостановлен, %d-й раз подряд - в этот раз держу не меньше %d с",
     "paused for longer than %d min": "в паузе дольше %d мин",
     "Thermal guard: CRITICAL overheating": "Thermal guard: КРИТИЧЕСКИЙ перегрев",
@@ -803,6 +817,7 @@ RU = {
     "calm": "спокойно",
     "gone before pause: %s (pid %d)": "исчез до паузы: %s (pid %d)",
     "FAILED to pause %s (pid %d) - errno %d, giving up on this pid": "НЕ УДАЛОСЬ поставить на паузу %s (pid %d) - errno %d, оставляю этот pid",
+    "dropped pause entry for %s (pid %d) - process gone, nothing left to resume": "удалена запись паузы %s (pid %d) - процесс исчез, возобновлять нечего",
     "STILL STOPPED after SIGCONT: %s (pid %d) - foreground terminal job, type 'fg' in its window": "ВСЁ ЕЩЁ ОСТАНОВЛЕН после SIGCONT: %s (pid %d) - задача переднего плана, наберите 'fg' в её окне",
     "Thermal guard: job needs your hand": "Тепловой страж: задача требует вашего вмешательства",
     "%s cannot resume by itself - switch to its terminal and type 'fg'.": "%s не может продолжить сам - перейдите в его терминал и наберите 'fg'.",
@@ -866,6 +881,7 @@ ZH = {
     "conditions are back to normal": "条件已恢复正常",
     "%s heats the Mac at %.0f%% CPU - a desktop app: slowed down, never frozen": "%s 以 %.0f%% CPU 让 Mac 发热 - 桌面应用：已减速，绝不冻结",
     "%s heats the Mac at %.0f%% CPU - a macOS service: named, left alone": "%s 以 %.0f%% CPU 让 Mac 发热 - macOS 服务：已点名，不做处理",
+    "DEMOTED %s (pid %d) at pause -> comes back on E-cores, not at full speed": "已降级 %s (pid %d),暂停时 -> 将在 E 核上恢复,而非全速",
     "flapping: %s paused again %d time(s) in a row - holding at least %d s this time": "抖动：%s 再次被暂停，连续第 %d 次 - 这次至少保持 %d 秒",
     "paused for longer than %d min": "暂停超过 %d 分钟",
     "Thermal guard: CRITICAL overheating": "Thermal guard:严重过热",
@@ -928,6 +944,7 @@ ZH = {
     "calm": "平静",
     "gone before pause: %s (pid %d)": "暂停前已消失:%s (pid %d)",
     "FAILED to pause %s (pid %d) - errno %d, giving up on this pid": "暂停失败 %s (pid %d) - errno %d,放弃该 pid",
+    "dropped pause entry for %s (pid %d) - process gone, nothing left to resume": "已删除 %s (pid %d) 的暂停记录 - 进程已消失,无需恢复",
     "STILL STOPPED after SIGCONT: %s (pid %d) - foreground terminal job, type 'fg' in its window": "SIGCONT 后仍处于停止状态:%s (pid %d) - 前台终端任务,请在其窗口输入 'fg'",
     "Thermal guard: job needs your hand": "热量守卫:任务需要你处理",
     "%s cannot resume by itself - switch to its terminal and type 'fg'.": "%s 无法自行恢复 - 切换到它的终端并输入 'fg'。",
@@ -992,6 +1009,7 @@ ES = {
     "conditions are back to normal": "las condiciones volvieron a la normalidad",
     "%s heats the Mac at %.0f%% CPU - a desktop app: slowed down, never frozen": "%s calienta el Mac al %.0f%% de CPU - aplicacion de escritorio: ralentizada, nunca congelada",
     "%s heats the Mac at %.0f%% CPU - a macOS service: named, left alone": "%s calienta el Mac al %.0f%% de CPU - servicio de macOS: nombrado, sin tocar",
+    "DEMOTED %s (pid %d) at pause -> comes back on E-cores, not at full speed": "DEGRADADO %s (pid %d) en la pausa -> volverá en núcleos E, no a plena velocidad",
     "flapping: %s paused again %d time(s) in a row - holding at least %d s this time": "oscilacion: %s pausado de nuevo, %d veces seguidas - esta vez lo retengo al menos %d s",
     "paused for longer than %d min": "en pausa durante más de %d min",
     "Thermal guard: CRITICAL overheating": "Thermal guard: sobrecalentamiento CRÍTICO",
@@ -1055,6 +1073,7 @@ ES = {
     "calm": "en calma",
     "gone before pause: %s (pid %d)": "desapareció antes de la pausa: %s (pid %d)",
     "FAILED to pause %s (pid %d) - errno %d, giving up on this pid": "NO SE PUDO pausar %s (pid %d) - errno %d, abandono este pid",
+    "dropped pause entry for %s (pid %d) - process gone, nothing left to resume": "entrada de pausa de %s (pid %d) eliminada - el proceso desapareció, nada que reanudar",
     "STILL STOPPED after SIGCONT: %s (pid %d) - foreground terminal job, type 'fg' in its window": "SIGUE DETENIDO tras SIGCONT: %s (pid %d) - tarea en primer plano, escribe 'fg' en su ventana",
     "Thermal guard: job needs your hand": "Guardián térmico: la tarea necesita tu intervención",
     "%s cannot resume by itself - switch to its terminal and type 'fg'.": "%s no puede reanudarse solo - ve a su terminal y escribe 'fg'.",
@@ -2455,6 +2474,17 @@ def do_pause(cfg, st, targets, reason, manual=False, critical_level=False,
             # product achievement, while the statistics window promises the latter.
             if not manual:
                 licznik(st, "pauses")
+            if (not manual and not battery_reason and cfg.get("demote_at_pause", True)
+                    and pid not in st.get("demoted", [])
+                    and pid not in _SAFERUN_NORMAL and pgid not in _SAFERUN_NORMAL):
+                # A stopped process takes the policy fine and runs on E-cores from its
+                # first instruction after SIGCONT. Promotion would undo it in the very
+                # tick of the resume (the gate is "chip cool"), so hold it for a window.
+                if demote_pid(cfg, st, pid, comm, pgid, cpu, None,
+                              T("DEMOTED %s (pid %d) at pause -> comes back on E-cores, "
+                                "not at full speed") % (comm, pid)):
+                    st["demoted_info"][str(pid)]["hold_until"] = (
+                        now() + max(0, int(cfg.get("repause_window_s", 300))))
         elif error == errno.ESRCH:
             # The process disappeared between ps and the signal. That is normal, not a
             # failure; remove the intent entry because it describes nothing alive.
@@ -2537,6 +2567,14 @@ def do_resume(cfg, st, reason, only_keys=None, after_cooling=False):
                     continue
                 log("giving up on resuming %s (pid %d) after 5 attempts"
                     % (info.get("comm", "?"), pid))
+        else:
+            # Said out loud: the last paused encoder of 23.08 had a PAUSE line and no
+            # RESUME line at shutdown, and the only silent path was this one. An audit
+            # a week later could not tell "never resumed" from "already dead".
+            log(T("dropped pause entry for %s (pid %d) - process gone, nothing left to resume")
+                % (info.get("comm", "?"), pid))
+            event_jsonl("pause_entry_dropped", name=info.get("comm"), pid=pid,
+                        reason="process_gone", pause_s=round(_pause_age(info)))
         del st["paused"][key]
     notify(cfg, T("Thermal guard: cooled down"), T("Resumed paused jobs (%s)") % reason, "resume")
     return True
@@ -2630,6 +2668,7 @@ def demote_threshold(cfg):
 
 
 _demote_nie_da_sie = set()    # PIDs taskpolicy rejected, usually another owner
+_SAFERUN_NORMAL = set()       # pids/pgids the user ran with safe-run --normal; refreshed per snapshot
 _stall_said = {}              # pid -> last stall-advisory timestamp (30 min gap)
 
 
@@ -2663,34 +2702,45 @@ def do_demote(cfg, st, targets, cpu_hist, soc_t, saferun_normal=frozenset(), imm
         if cfg["dry_run"]:
             log(T("[DRY-RUN] would demote %s (pid %d)") % (comm, pid))
             continue
-        # taskpolicy only, no renice: once nice is raised, it cannot be returned without
-        # root because Unix lets unprivileged users only increase nice. taskpolicy -b/-B is
-        # fully reversible, and background QoS is what does the work here (E-cores).
-        rc = subprocess.call(["taskpolicy", "-b", "-p", str(pid)],
-                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        if rc != 0:
-            # Another user's process, often root: taskpolicy bounced. Without this check,
-            # it would be added to demoted and reported as "slowed down" while still running
-            # at full speed, so the log would lie. Add the PID to the skipped set; otherwise
-            # almost every cycle would fork taskpolicy and write the same log line.
-            if pid not in _demote_nie_da_sie:
-                _demote_nie_da_sie.add(pid)
-                log("DEMOTE failed for %s (pid %d) - taskpolicy rc=%d (not our process?)"
-                    % (comm, pid, rc))
-            continue
-        st["demoted"].append(pid)
-        # Name in state: demotion can cut throughput by 11x, so humans and agents MUST see
-        # it in status.json. A PID alone tells them nothing.
-        st.setdefault("demoted_info", {})[str(pid)] = {"comm": comm}
-        log(T("DEMOTED %s (pid %d) -> background QoS/E-cores (hot for >%d min)")
-            % (comm, pid, cfg["demote_after_minutes"]), tag="DEMOTE")
-        event_jsonl("demote_start", name=comm, pid=pid, pgid=pgid,
-                    chip_c=soc_t, cpu_pct=round(cpu))
-        # Pause has sound and push, and demotion has a larger lasting effect on job time.
-        # Pause passes; slowdown remains, so it must be audible too.
-        notify(cfg, T("Thermal guard: job slowed down"),
-               T("%s moved to E-cores (up to several times slower) - returns to full speed when the machine cools") % comm,
-               "demote")
+        demote_pid(cfg, st, pid, comm, pgid, cpu, soc_t,
+                   T("DEMOTED %s (pid %d) -> background QoS/E-cores (hot for >%d min)")
+                   % (comm, pid, cfg["demote_after_minutes"]))
+
+
+def demote_pid(cfg, st, pid, comm, pgid, cpu, soc_t, message):
+    """Move one process to background QoS and book it; return whether it happened.
+
+    Shared by the five-minute path (do_demote) and the pause path, so both leave the same
+    bookkeeping for do_promote and the shutdown undo.
+    """
+    # taskpolicy only, no renice: once nice is raised, it cannot be returned without
+    # root because Unix lets unprivileged users only increase nice. taskpolicy -b/-B is
+    # fully reversible, and background QoS is what does the work here (E-cores).
+    rc = subprocess.call(["taskpolicy", "-b", "-p", str(pid)],
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    if rc != 0:
+        # Another user's process, often root: taskpolicy bounced. Without this check,
+        # it would be added to demoted and reported as "slowed down" while still running
+        # at full speed, so the log would lie. Add the PID to the skipped set; otherwise
+        # almost every cycle would fork taskpolicy and write the same log line.
+        if pid not in _demote_nie_da_sie:
+            _demote_nie_da_sie.add(pid)
+            log("DEMOTE failed for %s (pid %d) - taskpolicy rc=%d (not our process?)"
+                % (comm, pid, rc))
+        return False
+    st.setdefault("demoted", []).append(pid)
+    # Name in state: demotion can cut throughput by 11x, so humans and agents MUST see
+    # it in status.json. A PID alone tells them nothing.
+    st.setdefault("demoted_info", {})[str(pid)] = {"comm": comm}
+    log(message, tag="DEMOTE")
+    event_jsonl("demote_start", name=comm, pid=pid, pgid=pgid,
+                chip_c=soc_t, cpu_pct=round(cpu or 0))
+    # Pause has sound and push, and demotion has a larger lasting effect on job time.
+    # Pause passes; slowdown remains, so it must be audible too.
+    notify(cfg, T("Thermal guard: job slowed down"),
+           T("%s moved to E-cores (up to several times slower) - returns to full speed when the machine cools") % comm,
+           "demote")
+    return True
 
 
 def do_promote(cfg, st, cpu_hist, soc_t):
@@ -2707,6 +2757,10 @@ def do_promote(cfg, st, cpu_hist, soc_t):
         if not alive(pid):
             continue
         info = st.get("demoted_info", {}).get(str(pid), {})
+        # Demoted at pause: a cool reading right after the resume is the pause talking,
+        # not the process. Keep it throttled for one quiet window.
+        if now() < float(info.get("hold_until") or 0):
+            continue
         subprocess.call(["taskpolicy", "-B", "-p", str(pid)],
                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         st["demoted"].remove(pid)
@@ -4170,6 +4224,8 @@ def snapshot(cfg):
     ac, pct = power_source()
     procs = list_procs()
     saferun, saferun_normal = managed_pids_from_saferun()
+    _SAFERUN_NORMAL.clear()
+    _SAFERUN_NORMAL.update(saferun_normal)
     targets = pick_targets(cfg, procs, saferun)
     lvl, why = severity(cfg, state, temp, speed, soc_t, ac, pct,
                         soc_stale=bool(soc and soc.get("stale")))

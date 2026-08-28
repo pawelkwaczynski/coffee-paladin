@@ -83,9 +83,13 @@ st = {"paused": {}, "reczna_pauza": False}
 g.do_pause(CFG, st, [(p1.pid, 95.0, "yes", os.getpgid(p1.pid))], "test heat")
 time.sleep(0.25)
 ev = events()
-test("3. do_pause wrote pause_start", len(ev) == before + 1
-     and ev[-1]["type"] == "pause_start" and ev[-1]["pid"] == p1.pid, str(ev[-1:]))
-test("4. reason_code recorded", ev[-1].get("reason_code") == "termika", str(ev[-1]))
+# Since 3.2.7 a thermal pause is followed by demote_start for the same pid (throttle at
+# pause), so the pause event is found by type, not as the last line.
+new_ev = ev[before:]
+pause_ev = [e for e in new_ev if e["type"] == "pause_start"]
+test("3. do_pause wrote pause_start", len(pause_ev) == 1 and pause_ev[0]["pid"] == p1.pid
+     and [e["type"] for e in new_ev] == ["pause_start", "demote_start"], str(new_ev))
+test("4. reason_code recorded", pause_ev[0].get("reason_code") == "termika", str(pause_ev))
 g.do_resume(CFG, st, "test cooled", after_cooling=True)
 time.sleep(0.25)
 ev = events()
