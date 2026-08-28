@@ -1585,6 +1585,10 @@ final class FooterLogoRow: NSView {
 
     private init(img: NSImage) {
         super.init(frame: NSRect(x: 0, y: 0, width: 400, height: 26))
+        // Without this the menu never resizes the row, so setFrameSize never runs and the
+        // logo stays centred against the 400 pt it was born with. Every other custom row
+        // in this menu has carried it from the start; this one did not.
+        autoresizingMask = [.width]
         let ratio = img.size.width / max(img.size.height, 1)
         let h: CGFloat = 13
         let w = min(h * ratio, 280)
@@ -3834,16 +3838,18 @@ final class Bar: NSObject, NSMenuDelegate {
                  + (s.gpu != nil ? String(format: "     GPU: %.1f °C", s.gpu!) : "")
                  + "     " + String(format: T("Battery:  %@"),
                                     s.batt.map { String(format: "%.1f °C", $0) } ?? na)))
-        // caffeinate, held: the command's own name in red at the end of the machine row,
-        // not a sentence of its own. Five variants of "the Mac is being kept awake" said
-        // less than one word anybody can look up, and the mug matches the bar icon.
+        // caffeinate, held: the command's own name at the end of the power row, where
+        // it belongs, since holding the Mac awake is what the machine is being asked to
+        // spend power on. Five variants of "the Mac is being kept awake" said less than
+        // one word anybody can look up, and the mug matches the bar icon. Blue, not red:
+        // red on this card means heat, and a held sleep lock is a state, not an alarm.
         // The countdown is added only for a timer, the one mode with an honest end;
         // which mode is running stays in the Keep awake submenu.
         func caffeinateTag(into line: NSMutableAttributedString) {
             line.append(NSAttributedString(string: "   "))
             line.append(icon(MUG_FILL, fallback: ""))
             line.append(NSAttributedString(string: " caffeinate",
-                                           attributes: [.foregroundColor: NSColor.systemRed]))
+                                           attributes: [.foregroundColor: NSColor.systemBlue]))
             let awake = Awake.read()
             if (awake["mode"] as? String) == "timer", let until = awake["until"] as? Double {
                 let left = max(0, until - Date().timeIntervalSince1970)
@@ -3877,7 +3883,6 @@ final class Bar: NSObject, NSMenuDelegate {
                 ? T("stopped")
                 : String(format: T("%@ rpm"), s.fans.map(String.init).joined(separator: "\u{00B7}")))))
         }
-        if s.keepAwake { caffeinateTag(into: hwLine) }
         let hwItem = NSMenuItem()
         // The leading icon goes where every other row keeps it, in the item's image, so
         // the text starts on the same line as the rows above and below. Carrying it
@@ -3893,7 +3898,7 @@ final class Bar: NSObject, NSMenuDelegate {
         if let du = s.diskUsed, let dt = s.diskTotal, let dp = s.diskPct, dp >= 85 {
             rowI("internaldrive", txt(String(format: T("Disk:  %d / %d GB used (%d%%)"), du, dt, dp)))
         }
-        if !s.onAC || s.watts != nil {
+        if !s.onAC || s.watts != nil || s.keepAwake {
             let pw = NSMutableAttributedString()
             pw.append(txt(String(format: T("Power:  %@"), s.onAC ? T("AC adapter") : T("Battery"))))
             if let w = s.watts {
@@ -3901,6 +3906,7 @@ final class Bar: NSObject, NSMenuDelegate {
                 pw.append(icon("bolt.fill", fallback: ""))
                 pw.append(txt(" " + String(format: T("Draw:  %.1f W"), w)))
             }
+            if s.keepAwake { caffeinateTag(into: pw) }
             rowI(s.onAC ? "powerplug" : "battery.100", pw)
         }
         // "CPU available: 100%" was misleading: this is CPU_Speed_Limit from pmset
