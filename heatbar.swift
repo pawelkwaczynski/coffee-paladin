@@ -16,7 +16,7 @@
 
 import Cocoa
 
-let VERSION = "3.3.3"
+let VERSION = "3.3.4"
 let APPNAME = "coffee-paladin"
 let CODENAME = "Cold Brew"
 let SIGNATURE = "\(APPNAME) v\(VERSION) \u{201E}\(CODENAME)\u{201D}  ·  by panbookovsky"
@@ -66,9 +66,9 @@ let PL: [String: String] = [
     "Battery:  %@": "Bateria:  %@",
     "Memory used of total, load average over cores, fan speed": "Pamięć użyta z całości, średnie obciążenie na rdzenie, obroty wentylatorów",
     "stopped": "stoi", "%d rpm": "%d obr/min", "%@ rpm": "%@ obr/min", "n/a": "n/d",
-    "Draw:  %.1f W": "Pobór:  %.1f W",
     "Disk:  %d / %d GB used (%d%%)": "Dysk:  %d / %d GB zajęte (%d%%)",
-    "Power:  %@": "Zasilanie:  %@",
+    "%.1f W": "%.1f W",
+    "Power source, power draw": "Źródło zasilania, pobór mocy",
     "AC adapter": "zasilacz", "battery %@": "bateria %@",
     "Load:  %.2f / %d cores": "Obciążenie:  %.2f / %d rdzeni",
     "Throttling: CPU capped at %d%% speed": "Dławienie: CPU ścięte do %d%% prędkości",
@@ -395,9 +395,9 @@ let RU: [String: String] = [
     "Memory used of total, load average over cores, fan speed": "Использовано памяти из общего объёма, средняя нагрузка на ядра, обороты вентиляторов",
     "%d rpm": "%d об/мин", "%@ rpm": "%@ об/мин",
     "n/a": "н/д",
-    "Draw:  %.1f W": "Мощность:  %.1f Вт",
     "Disk:  %d / %d GB used (%d%%)": "Диск:  занято %d / %d ГБ (%d%%)",
-    "Power:  %@": "Питание:  %@",
+    "%.1f W": "%.1f Вт",
+    "Power source, power draw": "Источник питания, потребляемая мощность",
     "AC adapter": "адаптер питания",
     "battery %@": "батарея %@",
     "Load:  %.2f / %d cores": "Нагрузка:  %.2f / %d ядер",
@@ -703,9 +703,9 @@ let ZH: [String: String] = [
     "Memory used of total, load average over cores, fan speed": "已用内存/总内存,核心平均负载,风扇转速",
     "%d rpm": "%d 转/分", "%@ rpm": "%@ 转/分",
     "n/a": "无",
-    "Draw:  %.1f W": "功耗：  %.1f W",
     "Disk:  %d / %d GB used (%d%%)": "磁盘：  已用 %d / %d GB（%d%%）",
-    "Power:  %@": "电源：  %@",
+    "%.1f W": "%.1f W",
+    "Power source, power draw": "电源与功耗",
     "AC adapter": "电源适配器",
     "battery %@": "电池 %@",
     "Load:  %.2f / %d cores": "负载：  %.2f / %d 核",
@@ -1009,9 +1009,9 @@ let ES: [String: String] = [
     "Memory used of total, load average over cores, fan speed": "Memoria usada del total, carga media por núcleos, velocidad de los ventiladores",
     "%d rpm": "%d rpm", "%@ rpm": "%@ rpm",
     "n/a": "n/d",
-    "Draw:  %.1f W": "Consumo:  %.1f W",
     "Disk:  %d / %d GB used (%d%%)": "Disco:  %d / %d GB usados (%d%%)",
-    "Power:  %@": "Alimentación:  %@",
+    "%.1f W": "%.1f W",
+    "Power source, power draw": "Fuente de alimentación, consumo",
     "AC adapter": "adaptador de corriente",
     "battery %@": "batería %@",
     "Load:  %.2f / %d cores": "Carga:  %.2f / %d núcleos",
@@ -3878,9 +3878,14 @@ final class Bar: NSObject, NSMenuDelegate {
         // Leading icons match the bar exactly (thermometer/fan/bolt/memorychip/internaldrive),
         // so the bar readout and card readout use the same visual language.
         // Icons inside a line (fan, bolt) are NSTextAttachment values from icon().
-        func rowI(_ symbol: String, _ body: NSAttributedString, into menu: NSMenu? = nil) {
+        func rowI(_ symbol: String, _ body: NSAttributedString, tip: String? = nil,
+                  into menu: NSMenu? = nil) {
             let it = NSMenuItem(title: "", action: nil, keyEquivalent: "")
             it.image = img(symbol)
+            // A row that drops its labels must keep them one hover away, exactly like the
+            // memory row above: VoiceOver reads the tooltip, and so does anyone who cannot
+            // place an icon.
+            it.toolTip = tip
             let a = NSMutableAttributedString(attributedString: body)
             // Menu font for everything that did not ask for its own: a caller that set
             // bold on one word means it, and overwriting the whole range silently threw
@@ -3965,14 +3970,18 @@ final class Bar: NSObject, NSMenuDelegate {
         }
         if !s.onAC || s.watts != nil || s.keepAwake {
             let pw = NSMutableAttributedString()
-            pw.append(txt(String(format: T("Power:  %@"), s.onAC ? T("AC adapter") : T("Battery"))))
+            // Labels dropped on purpose. "Alimentacion:" plus "Consumo:" made the Spanish
+            // menu 576 pt wide against 436 pt for Chinese, so the widest translation
+            // decided the width of the whole card. The plug and bolt already say it.
+            pw.append(txt(s.onAC ? T("AC adapter") : T("Battery")))
             if let w = s.watts {
                 pw.append(txt("     "))
                 pw.append(icon("bolt.fill", fallback: ""))
-                pw.append(txt(" " + String(format: T("Draw:  %.1f W"), w)))
+                pw.append(txt(" " + String(format: T("%.1f W"), w)))
             }
             if s.keepAwake { caffeinateTag(into: pw) }
-            rowI(s.onAC ? "powerplug" : "battery.100", pw)
+            rowI(s.onAC ? "powerplug" : "battery.100", pw,
+                 tip: T("Power source, power draw"))
         }
         // "CPU available: 100%" was misleading: this is CPU_Speed_Limit from pmset
         // (clock throttling), not free capacity. Show the row ONLY when throttling is
