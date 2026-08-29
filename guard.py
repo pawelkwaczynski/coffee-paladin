@@ -35,9 +35,10 @@ import errno
 import signal
 import subprocess
 import sys
+import tempfile
 import time
 
-GUARD_VERSION = "3.3.3"   # bump together with heatbar VERSION, thermal-report VERSION, README
+GUARD_VERSION = "3.3.4"   # bump together with heatbar VERSION, thermal-report VERSION, README
 
 HOME = os.path.expanduser("~")
 BASE = os.environ.get("TG_BASE") or os.path.join(HOME, ".coffee-paladin")
@@ -4099,6 +4100,29 @@ def _hw_cache_fleet():
     return _hw_fleet["v"]
 
 
+def _fleet_sweep_tmp(d, older_than_s=3600):
+    """Remove our own abandoned temporary snapshots from the shared folder.
+
+    Every failed rename leaves a full snapshot behind - serial number included - under a
+    dotted name nothing ever lists. One is litter; on a machine that fails to publish for
+    weeks it is a pile of them, in a folder shared with other people's Macs. Best effort
+    only: a file we cannot delete is exactly the case this sweeper exists to survive.
+    """
+    try:
+        cutoff = time.time() - older_than_s
+        for name in os.listdir(d):
+            if not (name.startswith(".") and name.endswith(".tmp")):
+                continue
+            path = os.path.join(d, name)
+            try:
+                if os.path.getmtime(path) < cutoff:
+                    os.unlink(path)
+            except OSError:
+                pass          # locked by iCloud or owned by another Mac: leave it
+    except OSError:
+        pass
+
+
 def fleet_write(cfg, status):
     """Write this host's snapshot to the configured shared fleet folder."""
     d = os.path.expanduser(cfg.get("fleet_dir") or "")
@@ -4119,12 +4143,33 @@ def fleet_write(cfg, status):
         _errors = {k: v for k, v in _SILENT_FAILURES.items() if not k.startswith("_ostatni_log_")}
         if _errors:
             out["swallowed_errors"] = _errors
-        tmp = os.path.join(d, ".%s.tmp" % hostname())
-        with open(tmp, "w") as f:
+        # A UNIQUE temporary name, not ".<host>.tmp". With a fixed name, one temporary
+        # file that becomes unwritable takes the fleet down permanently: on this Mac a
+        # leftover ".Pawel_s MacBook Pro.tmp" in iCloud Drive picked up a `com.apple.macl`
+        # entry, after which the daemon got EPERM on both open() and unlink() of that
+        # exact path, and every publish for the next 35 minutes failed on the same file
+        # while the machine looked healthy everywhere else. A fresh name per write cannot
+        # inherit another file's access record.
+        fd, tmp = tempfile.mkstemp(dir=d, prefix=".%s." % hostname(), suffix=".tmp")
+        with os.fdopen(fd, "w") as f:
             json.dump(out, f, ensure_ascii=False)
+        os.chmod(tmp, 0o644)
         os.replace(tmp, os.path.join(d, "%s.json" % hostname()))
-    except Exception:
-        pass                      # fleet is an add-on; it must not take down the guard
+        _fleet_sweep_tmp(d)
+    except Exception as e:
+        # Swallowed, because the fleet is an add-on and must never take down the guard -
+        # but no longer silently. This path stopped publishing for 30 minutes on a live
+        # machine while the daemon looked perfectly healthy: status.json was fresh every
+        # three seconds, the fleet table said "not reporting", and there was nothing
+        # anywhere to say which of the two was right. On a rack that is the difference
+        # between a machine nobody is watching and a machine everybody assumes is fine.
+        silent_failure("fleet_write", e)
+        # A temporary file left behind by a failed rename is not harmless: it keeps a full
+        # snapshot, serial number included, under a name no cleanup ever looks at.
+        try:
+            os.unlink(tmp)
+        except (OSError, NameError, UnboundLocalError):
+            pass
 
 
 def status_write(state, temp, soc, soc_t, ac, pct, speed, load, lvl, why, targets, st, disk=None,
