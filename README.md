@@ -8,8 +8,18 @@
 **A thermal and power safety net for Apple Silicon Macs - from one laptop to a whole fleet.**
 It watches the chip temperature, the battery, the fans and the power source, and it *freezes*
 heavy jobs before the machine cooks itself - instead of letting them run until it shuts down.
-Built for people who make Macs work for a living: render farms, post-production studios,
-CI pools of Mac minis, ML teams, and anyone leaving a laptop to compute overnight.
+
+**The load that made this necessary is now an AI agent.** Claude Code, Codex and Gemini CLI
+run builds, encode video and drive local models for hours, and they do not feel the fan or
+notice the machine slowing down. So the guard talks to them: a hook makes the agent ask
+before it starts heavy work on a hot Mac, a statusline puts the chip temperature inside the
+session where the agent and you both see it, and the menu bar shows which AI session is
+burning how many cores, how much of your Claude limit is left and what today cost.
+A local model is the hottest thing most laptops ever run: `ollama` and `llama-server` hold
+the GPU at full clock for minutes, and that is exactly what this was built to survive.
+
+Also for people who make Macs work for a living in other ways: render farms, post-production
+studios, CI pools of Mac minis, ML teams, and anyone leaving a laptop to compute overnight.
 
 No `sudo`. No kernel extensions. No daemons running as root. Everything reads sensors that are
 available to a normal user process.
@@ -379,11 +389,11 @@ as one.
 
 ## For AI agents
 
-If you are a coding agent (Claude Code, Codex, Gemini CLI, …) about to run heavy work on this Mac — builds, `ffmpeg`, model inference, wide test suites, long loops — do this first:
+If you are a coding agent (Claude Code, Codex, Gemini CLI, …) about to run heavy work on this Mac, builds, `ffmpeg`, model inference, wide test suites, long loops, do this first:
 
 1. **Detect the guard:** `test -f ~/.coffee-paladin/status.json`. If the file is missing, coffee-paladin is not installed here; suggest to the user both lines, because `brew install` alone installs files but starts nothing: `brew install pawelkwaczynski/tap/coffee-paladin` followed by `bash "$(brew --prefix)/share/coffee-paladin/install.sh"`.
 2. **Read the state** (plain JSON, refreshed every ~15 s). The field `level` decides: `0` start the job, `1` start but do not parallelise, `2` finish what runs and start nothing new, `3` stop and tell the user the Mac is too hot.
-3. **Trust it only when fresh:** if `time` is older than 60 s the daemon is not running — say so and treat the Mac as unprotected. If `dry_run` is `true`, the guard only watches; warn the user before anything heavy.
+3. **Trust it only when fresh:** if `time` is older than 60 s the daemon is not running, say so and treat the Mac as unprotected. If `dry_run` is `true`, the guard only watches; warn the user before anything heavy.
 4. **Start heavy jobs through `safe-run`**, not directly: `safe-run --name build -- cargo build --release`. It refuses to start on a hot machine and registers the job with the daemon. Never pass `--allow-hot` on your own initiative.
 5. **Never fight a pause.** A name in `paused` is a decision, not a hang: do not `SIGCONT` it, do not relaunch it, do not raise thresholds in `config.json`. It resumes by itself when the chip cools.
 
@@ -1198,13 +1208,24 @@ student research club for computer science at AHE in Łódź (SKN Informatyki AH
 
 # Po polsku
 
-**Inne języki:** [中文](README.zh.md) · [Русский](README.ru.md) · [Español](README.es.md) — wersje skrócone.
+**Inne języki:** [中文](README.zh.md) · [Русский](README.ru.md) · [Español](README.es.md), wersje skrócone.
 
 **Bezpiecznik termiczny i zasilania dla Maców na Apple Silicon - od jednego laptopa po całą
 flotę.** Pilnuje temperatury chipa, baterii, wentylatorów i zasilania, a gdy robi się gorąco -
-**wstrzymuje** ciężkie zadania, zamiast pozwolić im pracować aż komputer zgaśnie. Pisany z myślą
-o ludziach, u których Maki pracują na chleb: farmy renderujące, studia postprodukcji, pule
-Mac mini pod CI, zespoły ML - i każdy, kto zostawia laptop z obliczeniami na noc.
+**wstrzymuje** ciężkie zadania, zamiast pozwolić im pracować aż komputer zgaśnie.
+
+**Obciążeniem, przez które to powstało, jest dziś agent AI.** Claude Code, Codex i Gemini CLI
+godzinami budują, kodują wideo i odpalają lokalne modele, a nie czują wentylatora i nie widzą,
+że maszyna zwalnia. Dlatego strażnik z nimi rozmawia: hak każe agentowi zapytać, zanim odpali
+ciężką robotę na gorącym Macu, statusline pokazuje temperaturę chipa w samej sesji, gdzie widzi
+ją i agent, i Ty, a pasek menu mówi, która sesja AI zjada ile rdzeni, ile zostało z limitu
+Claude i ile kosztował dzisiejszy dzień. Lokalny model to najgorętsza rzecz, jaka odpala się
+na większości laptopów: `ollama` i `llama-server` trzymają GPU na pełnym zegarze przez minuty,
+i właśnie to ma tu przetrwać.
+
+Poza tym dla ludzi, u których Maki pracują na chleb inaczej: farmy renderujące, studia
+postprodukcji, pule Mac mini pod CI, zespoły ML, i każdy, kto zostawia laptop z obliczeniami
+na noc.
 
 Bez `sudo`, bez rozszerzeń jądra, bez niczego działającego jako root.
 
@@ -1510,7 +1531,7 @@ reklamowana jako bezpiecznik.
 ## Twój agent AI umie z nim rozmawiać
 
 Agenty kodujące to dziś zwyczajne źródło obciążenia laptopa: budują, kodują wideo, odpalają
-modele, puszczają kilkanaście rzeczy naraz. I w praktyce są najgorszym sprawcą — bo agent nie
+modele, puszczają kilkanaście rzeczy naraz. I w praktyce są najgorszym sprawcą, bo agent nie
 słyszy wentylatora i nie zauważa, że maszyna się grzeje. To jest dokładnie ta awaria, przez
 którą ten projekt powstał, i zasługuje na lepszą odpowiedź niż „guard w końcu to wstrzyma".
 
@@ -1518,11 +1539,11 @@ Dlatego coffee-paladin dowozi **skill dla agentów AI**. `install.sh` wykłada g
 `~/.claude/skills/coffee-paladin/` dla Claude Code, a tam, gdzie te drzewa już istnieją,
 także do `~/.agents/skills/` (OpenClaw i wszystko, co czyta układ AgentSkills) i
 `~/.grok/skills/` - wszędzie ten sam zwykły Markdown, nigdy nie zakładamy konfiguracji
-narzędzia, którego nie masz. To nie jest dokumentacja *o* narzędziu — to
+narzędzia, którego nie masz. To nie jest dokumentacja *o* narzędziu, to
 instrukcja *dla agenta*, i uczy czterech rzeczy:
 
 - **Popatrz, zanim odpalisz.** `~/.coffee-paladin/status.json` jest do czytania przez program
-  i odświeża się co ~15 s. Jedno pole rozstrzyga wszystko: `level` — `0` startuj, `1` startuj,
+  i odświeża się co ~15 s. Jedno pole rozstrzyga wszystko: `level`, `0` startuj, `1` startuj,
   ale nie zrównoleglaj, `2` dokończ to, co biegnie, i nie zaczynaj nic nowego, `3` stop i
   powiedz człowiekowi. Do tego `dry_run` (ochrona może być wyłączona!) i `unpausable`
   (ochrona jest w tej chwili niepełna).
@@ -1535,11 +1556,11 @@ instrukcja *dla agenta*, i uczy czterech rzeczy:
 - **Nie wytwarzaj ciepła bez potrzeby.** Żadnego zadania w tle bez limitu czasu i sprzątania,
   żadnego rekurencyjnego przeszukiwania katalogów w iCloudzie. Ta druga zasada wzięła się
   z prawdziwego incydentu: `grep`, który zużył 13 sekund procesora w 1 h 42 min, trzymał
-  bezwentylatorowego Maca na 90 °C — bo kazał demonom `fileproviderd` i `cloudd` ściągać pliki
+  bezwentylatorowego Maca na 90 °C, bo kazał demonom `fileproviderd` i `cloudd` ściągać pliki
   z chmury. W kolumnie CPU nie było prawie nic. Tego nikt nie zgadnie; to trzeba mieć zapisane.
 
 Skill traktuje też `status.json` jak **puls**: jeśli znacznik czasu jest starszy niż 60 s,
-demon nie działa — a agent ma to powiedzieć i zachowywać się tak, jakby Mac był bez ochrony.
+demon nie działa, a agent ma to powiedzieć i zachowywać się tak, jakby Mac był bez ochrony.
 Agent, który czyta nieaktualny plik i melduje „poziom 0, wszystko gra", jest gorszy niż taki,
 który w ogóle nie zajrzał.
 
@@ -1929,10 +1950,10 @@ MIT. Rób z tym co chcesz. Jeśli uratuje Ci komputer, to wystarczająca satysfa
 <p align="center">
   <img src="docs/screens/paladin_panel.webp" alt="Panel paladyna przypiety pod paskiem" width="260">
 </p>
-<p align="center"><sub>Kliknij nazwę na górze menu, a paladyn wychodzi — przypięty pod paskiem.</sub></p>
+<p align="center"><sub>Kliknij nazwę na górze menu, a paladyn wychodzi, przypięty pod paskiem.</sub></p>
 
-**Grafika.** Paladyn — maskotka z nagłówka, z okna powitalnego, z menu i z easter eggów
-`heat --paladin` — to **projekt własny autora** i jest używany jako oficjalna
+**Grafika.** Paladyn, maskotka z nagłówka, z okna powitalnego, z menu i z easter eggów
+`heat --paladin`, to **projekt własny autora** i jest używany jako oficjalna
 maskotka projektu. Reszta plików w `branding/` to pochodne tych dwóch źródeł; szczegóły
 w [`branding/CREDITS.md`](branding/CREDITS.md).
 
