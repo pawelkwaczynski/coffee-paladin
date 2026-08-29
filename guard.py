@@ -38,7 +38,7 @@ import sys
 import tempfile
 import time
 
-GUARD_VERSION = "3.3.4"   # bump together with heatbar VERSION, thermal-report VERSION, README
+GUARD_VERSION = "3.3.5"   # bump together with heatbar VERSION, thermal-report VERSION, README
 
 HOME = os.path.expanduser("~")
 BASE = os.environ.get("TG_BASE") or os.path.join(HOME, ".coffee-paladin")
