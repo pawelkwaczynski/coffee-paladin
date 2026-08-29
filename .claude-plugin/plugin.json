@@ -12,8 +12,13 @@
   "keywords": [
     "macos",
     "apple-silicon",
-    "thermal",
+    "thermal-throttling",
     "overheating",
+    "ai-agents",
+    "claude-code",
+    "prometheus",
+    "observability",
+    "menubar",
     "safety"
   ]
 }
