@@ -1,0 +1,477 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""thermal-metrics - the guard's numbers in Prometheus text format.
+
+A Mac that earns money runs unattended: a mini in a rack, four Studios joined over
+Thunderbolt, a laptop rented out for inference overnight. Nobody opens the menu bar on
+those machines - they already have Grafana. This prints what the guard knows in the format
+their scraper reads.
+
+Usage:
+  thermal-metrics                    # this machine, to stdout
+  thermal-metrics --fleet            # plus every machine in the fleet folder
+  thermal-metrics --output FILE      # atomic write (node_exporter textfile collector)
+  thermal-metrics --dir FOLDER       # fleet folder other than the one in config.json
+
+Wiring it to node_exporter (the usual case, no port of our own):
+
+  */1 * * * * /usr/local/bin/thermal-metrics --fleet \\
+      --output /var/lib/node_exporter/textfile/coffee_paladin.prom
+
+Deliberately not a server. This tool prints and exits: no port, no daemon, no listening
+socket. The project's promise is "no sudo, no kernel extension, no root daemon", and
+opening a port would be a new attack surface on every machine in a rack for the sake of a
+scrape that a textfile collector already does.
+
+Two numbers matter more than the temperature and are easy to miss:
+  coffee_paladin_up ............... 0 when the snapshot is stale, i.e. the guard died and
+                                    every other reading below it is a fossil
+  coffee_paladin_dry_run .......... 1 when the guard only watches and pauses NOTHING.
+                                    A rack where this is 1 is unprotected while looking
+                                    perfectly healthy on every other metric.
+"""
+import argparse
+import json
+import math
+import os
+import sys
+import tempfile
+import time
+
+HOME = os.path.expanduser("~")
+BASE = os.environ.get("TG_BASE") or os.path.join(HOME, ".coffee-paladin")
+BASE = os.path.expanduser(BASE)   # TG_BASE is for isolated tests
+STATUS = os.path.join(BASE, "status.json")
+CFG_PATH = os.path.join(BASE, "config.json")
+PREFIX = "coffee_paladin_"
+
+# Two thresholds, because they answer two different questions.
+#
+# DOWN_AFTER_S decides `coffee_paladin_up`. It matches the 300 s `fleet` already uses for
+# "STALE - not reporting", so the table and the dashboard never contradict each other about
+# the same machine - the fastest way to lose trust in both.
+#
+# DROP_READINGS_AFTER_S decides whether the temperatures are still worth publishing.
+# Prometheus stamps a scrape with the time it collected it, so a 17-hour-old snapshot
+# republished every minute draws a flat, healthy line for a machine that may be switched
+# off. But cutting readings at 300 s would punch holes into every graph of a Mac whose
+# measurement interval a user set to 5 minutes, which the interval slider allows. So the
+# readings survive a few missed cycles and then stop, while `up` flips on time.
+DOWN_AFTER_S = 300
+DROP_READINGS_AFTER_S = 15 * 60
+
+GIB = 1024 ** 3
+
+
+def esc(v):
+    """Escape a label value.
+
+    Prometheus rejects the WHOLE scrape on one malformed line, so a single machine with an
+    odd hostname must not take down the metrics of a rack. Host names here come from file
+    names in a shared folder - external input from other people's Macs, iCloud and SMB.
+    """
+    return (str(v).replace("\\", "\\\\").replace('"', '\\"')
+            .replace("\n", "\\n").replace("\r", ""))
+
+
+def num(v):
+    """Return a float only for values that mean something as a metric.
+
+    None, NaN and infinity are not zeros: writing 0 for "the sensor said nothing" makes a
+    machine with a dead sensor indistinguishable from a cold one on the dashboard. Such a
+    sample is dropped instead, which Prometheus reads as "no data" and draws as a gap.
+    """
+    if isinstance(v, bool):
+        return 1.0 if v else 0.0
+    if isinstance(v, (int, float)):
+        f = float(v)
+        return f if math.isfinite(f) else None
+    return None
+
+
+def fmt(f):
+    """Render a float the way Prometheus parses it, without exponent surprises."""
+    if f == int(f) and abs(f) < 1e15:
+        return str(int(f))
+    return repr(round(f, 4))
+
+
+class Registry:
+    """Collects samples and renders them with exactly one HELP/TYPE per metric name.
+
+    This class exists for one reason: with --fleet the same metric is emitted once per
+    machine, and the naive loop writes HELP and TYPE again for every host. Prometheus
+    treats a second HELP for a known name as a parse error and rejects the entire scrape,
+    so the fleet view would fail precisely when it is worth having - the moment a second
+    machine appears.
+    """
+
+    def __init__(self):
+        self._meta = {}      # name -> (type, help)
+        self._samples = {}   # name -> [(labels, value)]
+        self._order = []
+
+    def add(self, name, value, help_text, kind="gauge", labels=None):
+        v = num(value)
+        if v is None:
+            return
+        full = PREFIX + name
+        if full not in self._meta:
+            self._meta[full] = (kind, help_text)
+            self._samples[full] = []
+            self._order.append(full)
+        self._samples[full].append((labels or {}, v))
+
+    def render(self):
+        out = []
+        for name in self._order:
+            kind, help_text = self._meta[name]
+            out.append("# HELP %s %s" % (name, help_text.replace("\n", " ")))
+            out.append("# TYPE %s %s" % (name, kind))
+            for labels, value in self._samples[name]:
+                if labels:
+                    pairs = ",".join('%s="%s"' % (k, esc(v))
+                                     for k, v in sorted(labels.items()))
+                    out.append("%s{%s} %s" % (name, pairs, fmt(value)))
+                else:
+                    out.append("%s %s" % (name, fmt(value)))
+        return "\n".join(out) + "\n"
+
+
+def snapshot_age(snap, path):
+    """Age of a snapshot, from its CONTENT first and file mtime only as a last resort.
+
+    Same reason as in `fleet`: iCloud keeps stale mtimes on fresh files, so a healthy Mac
+    reporting every minute would otherwise be published as down. `epoch` is written by the
+    guard since 2.3.4; older daemons leave a zoned `time` string.
+    """
+    e = num(snap.get("epoch"))
+    if e is not None and 0 < e < 4e9:
+        return time.time() - e
+    t = snap.get("time")
+    if isinstance(t, str):
+        try:
+            import datetime
+            dt = datetime.datetime.strptime(t.strip(), "%Y-%m-%d %H:%M:%S%z")
+            return time.time() - dt.timestamp()
+        except ValueError:
+            pass
+    try:
+        return time.time() - os.path.getmtime(path)
+    except OSError:
+        return 1e9
+
+
+def collect(reg, snap, path, labels, readable=True):
+    """Map one machine's snapshot onto metrics.
+
+    `readable` is false when the file exists but could not be understood: truncated
+    mid-sync, evicted by iCloud, JSON of the wrong shape. That case cannot fall through to
+    the age check, because an unreadable file carries no `epoch`, so the age falls back to
+    the file's mtime - which a sync client has just touched. The machine would then be
+    published as up=1 with no temperature at all: a green row with empty cells, which reads
+    as "fine" on every dashboard. It is not fine, it is unknown.
+    """
+    if not readable:
+        reg.add("up", 0, labels=labels, help_text=(
+            "1 when the guard is writing snapshots; 0 means it stopped and the readings "
+            "below are the last known ones, not current"))
+        reg.add("snapshot_unreadable", 1, labels=labels, help_text=(
+            "1 when this machine's snapshot exists but cannot be read: truncated, evicted "
+            "by iCloud, or not the expected shape"))
+        return
+    reg.add("snapshot_unreadable", 0, labels=labels, help_text=(
+        "1 when this machine's snapshot exists but cannot be read: truncated, evicted "
+        "by iCloud, or not the expected shape"))
+    age = snapshot_age(snap, path)
+    # A future timestamp is clock skew on a remote machine, not a fresh reading. Reporting
+    # a negative age would make "how long since this box spoke" unusable as an alert.
+    age = max(0.0, age)
+
+    reg.add("up", 1 if age < DOWN_AFTER_S else 0, labels=labels, help_text=(
+        "1 when the guard is writing snapshots; 0 means it stopped and the readings below "
+        "are the last known ones, not current"))
+    reg.add("snapshot_age_seconds", age, labels=labels,
+            help_text="Seconds since this machine last wrote a snapshot")
+
+    if age >= DROP_READINGS_AFTER_S:
+        # Publishing a fossil temperature as if it were current is worse than publishing
+        # nothing: Prometheus stamps it with the scrape time, so a machine that has been
+        # off since yesterday draws a calm, flat line at whatever it was doing when it died.
+        return
+
+    reg.add("chip_celsius", snap.get("chip_c"), labels=labels,
+            help_text="Chip temperature: the higher of the CPU and GPU package averages")
+    reg.add("gpu_celsius", snap.get("gpu_c"), labels=labels,
+            help_text="GPU temperature")
+    reg.add("battery_celsius", snap.get("battery_c"), labels=labels,
+            help_text="Battery temperature")
+    reg.add("battery_percent", snap.get("battery_pct"), labels=labels,
+            help_text="Battery charge")
+    reg.add("chip_sensor", snap.get("chip_sensor"), labels=labels,
+            help_text="1 when a real chip sensor is readable, 0 when the guard is guessing")
+    reg.add("chip_stale", snap.get("chip_stale"), labels=labels,
+            help_text="1 when the temperature reading itself stopped updating")
+
+    fans = snap.get("fans")
+    if isinstance(fans, list):
+        for i, rpm in enumerate(fans):
+            lab = dict(labels)
+            lab["fan"] = str(i)
+            reg.add("fan_rpm", rpm, labels=lab, help_text="Fan speed")
+
+    reg.add("power_watts", snap.get("watts"), labels=labels,
+            help_text="Power draw at the wall")
+    reg.add("on_ac", snap.get("on_ac"), labels=labels,
+            help_text="1 on the power adapter, 0 on battery")
+    reg.add("load1", snap.get("load1"), labels=labels,
+            help_text="One-minute load average")
+    reg.add("cpu_limit_percent", snap.get("cpu_limit"), labels=labels,
+            help_text="Duty cycle the guard currently allows heavy jobs")
+    reg.add("level", snap.get("level"), labels=labels,
+            help_text="Guard severity: 0 nominal, higher means closer to intervening")
+
+    for field, metric, help_text in (
+            ("ram_used_gb", "memory_used_bytes", "Memory in use"),
+            ("ram_total_gb", "memory_total_bytes", "Memory installed"),
+            ("swap_used_gb", "swap_used_bytes", "Swap in use"),
+            ("disk_used_gb", "disk_used_bytes", "Disk in use"),
+            ("disk_total_gb", "disk_total_bytes", "Disk capacity")):
+        v = num(snap.get(field))
+        if v is not None:
+            reg.add(metric, v * GIB, labels=labels, help_text=help_text + " (bytes)")
+
+    th = snap.get("thresholds")
+    if isinstance(th, dict):
+        for kind in ("pause", "resume", "kill"):
+            lab = dict(labels)
+            lab["threshold"] = kind
+            reg.add("threshold_celsius", th.get(kind), labels=lab,
+                    help_text="Temperature at which the guard pauses, resumes and kills")
+
+    for field, metric, help_text in (
+            ("paused", "paused_jobs", "Jobs frozen right now"),
+            ("demoted", "demoted_jobs", "Jobs moved to efficiency cores right now"),
+            ("freeze_candidates", "freeze_candidates", "Heavy jobs the guard could freeze"),
+            ("unpausable", "unpausable_jobs", "Heavy jobs the guard is not allowed to touch")):
+        v = snap.get(field)
+        if isinstance(v, list):
+            reg.add(metric, len(v), labels=labels, help_text=help_text)
+
+    reg.add("heavy_jobs", snap.get("heavy_count"), labels=labels,
+            help_text="Processes the guard classes as heavy")
+    reg.add("keep_awake", snap.get("keep_awake"), labels=labels,
+            help_text="1 while the guard holds the Mac awake")
+    reg.add("manual_pause", snap.get("manual_pause"), labels=labels,
+            help_text="1 when a human froze heavy jobs by hand")
+    reg.add("dry_run", snap.get("dry_run"), labels=labels, help_text=(
+        "1 when the guard only watches: it pauses NOTHING, however hot the machine gets"))
+
+    total = snap.get("stats_total")
+    if isinstance(total, dict):
+        for field, metric, help_text in (
+                ("pauses", "pauses_total", "Jobs frozen since the guard was installed"),
+                ("resumes", "resumes_total", "Jobs resumed after cooling"),
+                ("kills", "kills_total", "Jobs terminated at the kill threshold"),
+                ("awake_released_hot", "awake_released_hot_total",
+                 "Times the sleep lock was released because of heat")):
+            reg.add(metric, total.get(field), labels=labels, kind="counter",
+                    help_text=help_text)
+
+    prof = snap.get("chip_profile")
+    if isinstance(prof, dict):
+        reg.add("chip_profile_samples", prof.get("samples"), labels=labels,
+                help_text="Readings this machine's own thermal profile is built from")
+        for key, metric in (("p50", "chip_p50_celsius"), ("p90", "chip_p90_celsius"),
+                            ("p99", "chip_p99_celsius"), ("max", "chip_max_celsius")):
+            reg.add(metric, prof.get(key), labels=labels,
+                    help_text="Chip temperature %s in this machine's history" % key)
+
+    ver = snap.get("guard_version")
+    if isinstance(ver, str) and ver:
+        lab = dict(labels)
+        lab["version"] = ver
+        reg.add("build_info", 1, labels=lab, kind="gauge",
+                help_text="Guard version, as a label")
+
+
+def read_config():
+    try:
+        with open(CFG_PATH, encoding="utf-8") as f:
+            d = json.load(f)
+        return d if isinstance(d, dict) else {}
+    except Exception:
+        return {}
+
+
+def fleet_dir_from_config():
+    v = read_config().get("fleet_dir")
+    return os.path.expanduser(v) if isinstance(v, str) and v else None
+
+
+def local_host(cfg):
+    """This machine's name, spelled exactly the way the guard spells it in the fleet.
+
+    It has to match, or a machine that reports to a fleet folder is counted twice: once
+    from its local status.json under the Unix node name, once from its own fleet snapshot
+    under the Mac's ComputerName. On this Mac those are "MacPro" and "Pawel_s MacBook Pro",
+    so a two-Mac fleet rendered as three hosts, one of them a ghost that can never be
+    fixed because it does not exist.
+
+    Same order as guard.py: an explicit `fleet_label` wins, then the ComputerName a user
+    actually recognises, then the node name.
+    """
+    label = cfg.get("fleet_label")
+    if isinstance(label, str) and label.strip():
+        return label.strip()
+    try:
+        import subprocess
+        v = subprocess.run(["scutil", "--get", "ComputerName"], capture_output=True,
+                           text=True, timeout=5).stdout.strip()
+    except Exception:
+        v = ""
+    if not v:
+        import socket
+        v = socket.gethostname()
+    import re
+    return re.sub(r"[^A-Za-z0-9._ -]", "_", v) or "mac"
+
+
+def host_snapshots(folder):
+    """Read every machine's snapshot from the shared folder.
+
+    The folder is external input - iCloud, SMB, other people's Macs - so every failure ends
+    as a host that is DOWN, never as a host that silently disappears from the scrape. A
+    machine missing from a dashboard reads as "we do not run it any more"; a machine at
+    up=0 reads as "go and look at it".
+    """
+    import stat as statmod
+    out = []
+    try:
+        names = sorted(os.listdir(folder))
+    except OSError:
+        return out
+    for name in names:
+        if name.endswith(".json.icloud"):
+            # Evicted by iCloud: the machine exists, its data is not on this disk.
+            out.append((name.lstrip(".")[:-len(".json.icloud")], {},
+                        os.path.join(folder, name), False))
+            continue
+        if not name.endswith(".json") or name.startswith("."):
+            continue
+        path = os.path.join(folder, name)
+        # The file name is a fallback, not the identity. The guard writes the authoritative
+        # name into the snapshot as `host`, and a shared folder may hold files renamed by
+        # hand, by a sync client resolving a conflict, or by a filesystem that folds case.
+        host = name[:-len(".json")]
+        try:
+            st = os.lstat(path)
+            if not statmod.S_ISREG(st.st_mode):
+                raise ValueError("not a regular file")
+            if st.st_size > 256 * 1024:
+                raise ValueError("snapshot too large")
+            with open(path, encoding="utf-8", errors="replace") as f:
+                snap = json.load(f)
+            if not isinstance(snap, dict):
+                raise ValueError("JSON is not an object")
+            readable = True
+        except Exception:
+            snap, readable = {}, False
+        declared = snap.get("host")
+        if isinstance(declared, str) and declared.strip():
+            host = declared.strip()
+        out.append((host, snap, path, readable))
+    return out
+
+
+def write_atomic(path, text):
+    """Write through a temporary file in the same directory, then rename.
+
+    A textfile collector reads on its own schedule and will happily parse a half-written
+    file, then report a broken scrape. Rename within one filesystem is atomic, so the
+    collector sees either the previous version or the complete new one.
+    """
+    d = os.path.dirname(os.path.abspath(path)) or "."
+    fd, tmp = tempfile.mkstemp(dir=d, prefix=".thermal-metrics-", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(text)
+        os.chmod(tmp, 0o644)   # the collector runs as another user and must read it
+        os.replace(tmp, path)
+    except Exception:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
+def main():
+    ap = argparse.ArgumentParser(
+        prog="thermal-metrics", add_help=False,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description="coffee-paladin metrics in Prometheus text format.",
+        epilog="Wire it to node_exporter without opening a port of our own:\n"
+               "  */1 * * * * thermal-metrics --fleet \\\n"
+               "      --output /var/lib/node_exporter/textfile/coffee_paladin.prom\n\n"
+               "Watch two metrics before the temperature:\n"
+               "  coffee_paladin_up ........ 0 means the guard stopped writing\n"
+               "  coffee_paladin_dry_run ... 1 means it watches and pauses nothing")
+    # Declared by hand rather than through add_help, so that --help is visible as an option
+    # this tool owns: printing help must never have a side effect on disk, which is exactly
+    # how `thermal-report --help` once wrote a report to the Desktop.
+    ap.add_argument("-h", "--help", action="help",
+                    help="show this message and exit")
+    ap.add_argument("--fleet", action="store_true",
+                    help="include every machine in the fleet folder")
+    ap.add_argument("--dir", metavar="FOLDER",
+                    help="fleet folder (default: fleet_dir from config.json)")
+    ap.add_argument("--output", metavar="FILE",
+                    help="write atomically to FILE instead of stdout")
+    args = ap.parse_args()
+
+    reg = Registry()
+    cfg = read_config()
+
+    try:
+        with open(STATUS, encoding="utf-8") as f:
+            snap = json.load(f)
+        if not isinstance(snap, dict):
+            raise ValueError("JSON is not an object")
+        local_readable = True
+    except Exception:
+        # No status.json at all means the guard was never started here, which is the same
+        # answer an operator needs: this machine is not protected.
+        snap, local_readable = {}, False
+    host = local_host(cfg)
+    collect(reg, snap, STATUS, {"host": host}, readable=local_readable)
+
+    if args.fleet or args.dir:
+        folder = args.dir or fleet_dir_from_config()
+        if not folder:
+            sys.stderr.write(
+                'no fleet folder - set "fleet_dir" in %s or pass --dir\n' % CFG_PATH)
+            return 2
+        for fhost, fsnap, fpath, freadable in host_snapshots(folder):
+            if fhost == host:
+                # Our own snapshot is already in, read locally and therefore fresher than
+                # whatever this machine last managed to sync.
+                continue
+            collect(reg, fsnap, fpath, {"host": fhost}, readable=freadable)
+
+    text = reg.render()
+    if args.output:
+        write_atomic(args.output, text)
+    else:
+        sys.stdout.write(text)
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except BrokenPipeError:
+        # `thermal-metrics | head` must not print a traceback into a cron mail.
+        os._exit(0)
+    except KeyboardInterrupt:
+        os._exit(130)

@@ -1,4 +1,4 @@
-# coffee-paladin v3.3.3
+# coffee-paladin v3.3.4
 
 <p align="center">
   <img src="branding/paladin.gif" alt="coffee-paladin - the project mascot" width="260">
@@ -682,6 +682,45 @@ file is built in one function (`fleet_write`).
 
 ---
 
+### Prometheus, Grafana and anything else that scrapes
+
+A rack does not click on a menu bar. `thermal-metrics` prints what the guard knows in the
+Prometheus text format, for this machine or for the whole fleet folder in one document:
+
+```
+thermal-metrics                 # this Mac, to stdout
+thermal-metrics --fleet         # plus every machine in the fleet folder
+```
+
+There is no port and no server here. The tool prints and exits, so it wires into the
+`node_exporter` textfile collector that a Mac in a rack already runs:
+
+```
+*/1 * * * * thermal-metrics --fleet \
+    --output /var/lib/node_exporter/textfile/coffee_paladin.prom
+```
+
+That is deliberate. The promise of this project is no `sudo`, no kernel extension and no
+root daemon, and a listening socket on every machine in a rack is a worse trade than a
+one-line cron entry. The write is atomic, so a collector reading mid-write gets the previous
+document rather than half of this one.
+
+Two metrics deserve an alert before the temperature does:
+
+| Metric | Why it matters |
+|---|---|
+| `coffee_paladin_up` | `0` means the guard stopped writing snapshots. Every reading next to it is the last known one, not the current one. |
+| `coffee_paladin_dry_run` | `1` means the guard is watching and pausing **nothing**. The machine looks perfectly healthy on every other metric and is not protected. |
+
+Alongside those: chip, GPU and battery temperature, fan rpm, power draw and source, load,
+memory, swap, disk, the active thresholds, how many jobs are frozen or demoted right now,
+the machine's own thermal percentiles, and counters for pauses, resumes and kills since
+install. Machines that stopped reporting stay in the output at `up=0` instead of vanishing:
+a host missing from a dashboard reads as "we retired it", a host at zero reads as "go and
+look at it".
+
+---
+
 ## For CI fleets: self-hosted Mac runners
 
 A Mac mini under a desk running `xcodebuild` all day is the machine this guard was built for,
@@ -796,6 +835,7 @@ T=$(mktemp -d) && python3 tests/test_wykryj_twardy_pad.py "$T"; rm -rf "$T"
 python3 tests/test_paladin.py          # 22 checks: CLI, menu bar, artwork, translations
 python3 tests/test_config_odporny.py   # 33 checks: a config must not blind the guard
 python3 tests/test_safe_run_hot.py     #  8 checks: safe-run refuses to start when hot
+python3 tests/test_metryki.py          # 17 checks: one bad machine must not poison a scrape
 python3 tests/test_demote_promote.py   # 20 checks: demotion to E-cores and back
 python3 tests/test_b2_node.py          # 17 checks: node is judged by its command line
 python3 tests/test_wznowienie.py       # 41 checks: what may resume, and what may be killed
@@ -1058,7 +1098,7 @@ running `safe-run` jobs, today's intervention count, a manual **Freeze / Resume*
 <p align="center">
   <img src="docs/screens/session_stats.webp" alt="Session statistics: pauses, resumes, terminations, across the fleet" width="480">
 </p>
-<p align="center"><sub>The guard's own scoreboard: 570 pauses, 557 resumes after cooling, 2 terminations - across the fleet.</sub></p>
+<p align="center"><sub>The guard's own scoreboard on one Mac: 2520 jobs frozen, 2347 resumed after cooling, 2 terminated at the kill threshold.</sub></p>
 
 The bar measures nothing itself - it reads `~/.coffee-paladin/status.json`, which the daemon writes
 every cycle. It therefore costs no CPU and can never disagree with the guard. Manual commands are
@@ -1071,6 +1111,18 @@ gets paused.
 thermal-report --days 14          # plain text to your Desktop
 thermal-report --days 14 --pdf    # the same, rendered to PDF
 ```
+
+### `thermal-metrics` - the numbers for a scraper
+
+```bash
+thermal-metrics                   # this Mac, Prometheus text format
+thermal-metrics --fleet           # every machine in the fleet folder, one document
+```
+
+For a rack, a cluster or a rented-out Mac. No port and no server: it prints and exits, so
+`--output` feeds the `node_exporter` textfile collector from cron. Details and the two
+metrics worth alerting on are under
+[Prometheus, Grafana and anything else that scrapes](#prometheus-grafana-and-anything-else-that-scrapes).
 
 ---
 

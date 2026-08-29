@@ -97,7 +97,7 @@ rm -f "$HOME/.coffee-paladin/statusline.sh" "$HOME/.coffee-paladin/settings_wire
 rm -f "$HOME/.coffee-paladin/"*_hooks_wire.py
 # old names from versions <=2.1.0 (compatibility symlinks, no longer created)
 rm -f "$BIN/thermal-guard" "$BIN/heatbar"
-rm -f "$BIN/coffee-paladin" "$BIN/coffee-paladin-bar" "$BIN/heat" "$BIN/safe-run" "$BIN/thermal-report" "$BIN/fleet" "$BIN/thermalstate"
+rm -f "$BIN/coffee-paladin" "$BIN/coffee-paladin-bar" "$BIN/heat" "$BIN/safe-run" "$BIN/thermal-report" "$BIN/fleet" "$BIN/thermal-metrics" "$BIN/thermalstate"
 echo "binaries and LaunchAgents removed"
 if [ -n "$STILL_RUNNING" ]; then
   echo "⚠️  still loaded:$STILL_RUNNING - log out and back in, or: launchctl bootout gui/$UID/<name>"

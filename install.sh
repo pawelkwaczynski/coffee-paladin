@@ -246,7 +246,8 @@ install -m 755 "$SRC/safe-run"  "$BIN/safe-run"
 install -m 755 "$SRC/heat"      "$BIN/heat"
 install -m 755 "$SRC/thermal-report" "$BIN/thermal-report"
 install -m 755 "$SRC/fleet" "$BIN/fleet"
-echo "  ✅ coffee-paladin, safe-run, heat, thermal-report, fleet -> $BIN"
+install -m 755 "$SRC/thermal-metrics" "$BIN/thermal-metrics"
+echo "  ✅ coffee-paladin, safe-run, heat, thermal-report, fleet, thermal-metrics -> $BIN"
 
 # 2b. dzwieki (CC0, patrz sounds/LICENSES.md) - nadpisujemy: to czesc produktu
 if [ -d "$SRC/sounds" ]; then

@@ -121,7 +121,7 @@ if len(set(versions.values())) != 1:
     errors.append("versions differ: %s" % versions)
 
 # 3. Every tool responds to --help.
-for tool_name in ("heat","safe-run","fleet","thermal-report"):
+for tool_name in ("heat","safe-run","fleet","thermal-report","thermal-metrics"):
     s = io.open(os.path.join(SRC,tool_name)).read()
     if '"--help"' not in s:
         errors.append("%s does not handle --help" % tool_name)
@@ -129,7 +129,8 @@ for tool_name in ("heat","safe-run","fleet","thermal-report"):
 # 4. install.sh installs what uninstall.sh removes.
 inst = io.open(os.path.join(SRC,'install.sh')).read()
 uninst = io.open(os.path.join(SRC,'uninstall.sh')).read()
-for binary in ("coffee-paladin", "coffee-paladin-bar", "heat", "safe-run", "thermal-report", "fleet", "thermalstate"):
+for binary in ("coffee-paladin", "coffee-paladin-bar", "heat", "safe-run",
+               "thermal-report", "fleet", "thermal-metrics", "thermalstate"):
     if '"$BIN/%s"' % binary not in uninst:
         errors.append("uninstall.sh does not remove %s" % binary)
 
