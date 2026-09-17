@@ -22,6 +22,28 @@ de kernel. Sin demonios ejecutándose como root. Todo se lee con un proceso de u
 
 ---
 
+## Qué no es
+
+- **Ningún modelo, ningún entrenamiento, ninguna inferencia.** El demonio es un solo archivo
+  Python sobre la biblioteca estándar: lee sensores, compara números con umbrales y envía
+  `SIGSTOP` / `SIGCONT`. El registro de eventos que guarda
+  (`~/.coffee-paladin/history_events.jsonl`) es un historial plano de lo que pasó; no se
+  entrena ningún predictor con él y no existe ninguno.
+- **Ningún puerto a la escucha.** `thermal-metrics` escribe texto Prometheus para el colector
+  de archivos de texto de `node_exporter`; nada en este proyecto abre un socket.
+- **Un solo canal de salida, opcional.** Los avisos al teléfono pasan por ntfy.sh, y solo si
+  configuras `ntfy_topic` en `config.json`. Está vacío por defecto, y entonces el demonio no
+  hace ninguna petición de red. (`install.sh` usa Homebrew una vez, para traer `macmon`.)
+- **No es un sensor propio.** Las lecturas de chip, GPU, ventiladores y energía vienen de
+  [`macmon`](https://github.com/vladkens/macmon), un binario externo de código abierto que lee
+  IOReport; el guard interpreta su salida y, sin él, recurre a la temperatura de la batería.
+- **No depende de ninguna herramienta de IA.** El skill para agentes, los hooks, la statusline
+  y el manifiesto del plugin son integraciones opcionales. `install.sh` coloca cada uno solo
+  donde la herramienta correspondiente ya existe en la máquina y nunca sustituye una statusline
+  que ya hubieras configurado; el demonio funciona sin ninguno de ellos.
+
+---
+
 ## Por qué existe
 
 Un MacBook Pro M4 Pro trabajó toda la noche renderizando vídeo, exactamente para lo que
@@ -146,7 +168,15 @@ dejado de reportar (la marca STALE aparece a los cinco minutos de silencio).
 
 ---
 
-## Tu agente de IA puede hablar con él
+## Integraciones
+
+Todo en esta sección es opcional. El demonio protege la máquina sin nada de esto; son las
+formas en que otras herramientas del Mac pueden *preguntarle* al guard antes de calentarlo.
+Hoy eso significa terminales y agentes de programación en CLI, porque son las herramientas
+que arrancan compilaciones, codificaciones y ejecuciones de modelos en un portátil sin mirar
+el ventilador.
+
+### El skill, el hook, la statusline y la barra de menús
 
 Los agentes de programación son hoy una fuente normal de carga en un portátil y, en la
 práctica, la peor: un agente no oye el ventilador ni nota que la máquina se está calentando.
@@ -277,6 +307,21 @@ dentro del archivo.
 declarado su ritmo (`--progress-interval 300`), el guardián dirá con honradez
 «¿parada?» cuando calle el triple de lo prometido - siempre con palabras,
 nunca con señales.
+
+**También en el repositorio, para que nadie lo encuentre por accidente:**
+
+- `.claude-plugin/plugin.json` es un manifiesto de plugin para Claude Code que empaqueta este
+  mismo guard y el skill como plugin. Es un canal de distribución opcional más, no un producto
+  distinto.
+- La barra de menús tiene una fila *Claude limits: …*. Solo existe mientras la integración de
+  statusline de Claude Code escribe `~/.coffee-paladin/claude_usage_cache.json` (campos
+  filtrados, sin ids de sesión ni rutas); cuando ese archivo falta o tiene más de cinco
+  minutos, la función no devuelve nada y la fila no se dibuja. La barra nunca consulta
+  ninguna cuenta.
+- `integrations/` guarda hooks para cinco agentes de CLI (Claude Code, Codex, Gemini CLI,
+  Grok, Antigravity) junto a las integraciones de terminal. Un hook hace que el agente le
+  pregunte al guard antes de un trabajo pesado; sin el hook, el guard igual pausa ese trabajo
+  cuando el chip se calienta.
 
 ---
 
