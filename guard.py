@@ -51,10 +51,10 @@ STATUS_PATH = os.path.join(BASE, "status.json")   # snapshot for the menu bar
 HEARTBEAT_PATH = os.path.join(BASE, "heartbeat")  # live pulse; a hard shutdown leaves the last one
 CLEAN_STOP_PATH = os.path.join(BASE, "clean_stop")
 EVENTS_PATH = os.path.join(BASE, "events.log")    # black box: crashes, alarms
-# Training labels for the overheat predictor: what happened, next to history.csv
-# measurements. Separate from history.csv on purpose - hist_write rotates that
-# file on any header change, so a new column would cut old data off the profile.
-ML_EVENTS_PATH = os.path.join(BASE, "history_events.jsonl")
+# Structured event log (what happened), next to the history.csv measurements.
+# Separate from history.csv on purpose - hist_write rotates that file on any
+# header change, so a new column would cut old data off the profile.
+HISTORY_EVENTS_PATH = os.path.join(BASE, "history_events.jsonl")
 COMMAND_PATH = os.path.join(BASE, "command")      # menu bar commands
 AWAKE_PATH = os.path.join(BASE, "awake.json")     # manual menu-bar keep-awake timer/app/download
 HW_PATH = os.path.join(BASE, "hardware.json")     # detected hardware for About my Mac and calibration
@@ -1220,10 +1220,10 @@ def log(msg, tag=None):
 
 
 def event_jsonl(etype, source="guard", **fields):
-    """Append one predictor-training event to history_events.jsonl.
+    """Append one event to history_events.jsonl.
 
     Deliberately carries no command line and no paths: a full cmdline can hold
-    client names and tokens, and the predictor needs only the process name and
+    client names and tokens, and the log needs only the process name and
     timing. Telemetry must never break the guard, hence the broad except.
     """
     try:
@@ -1231,8 +1231,8 @@ def event_jsonl(etype, source="guard", **fields):
         # telemetry line must never take down do_pause with it.
         rec = {"time": ts(), "epoch": round(time.time(), 1), "type": etype, "source": source}
         rec.update({k: v for k, v in fields.items() if v is not None})
-        rotate(ML_EVENTS_PATH)
-        with open(ML_EVENTS_PATH, "a") as f:
+        rotate(HISTORY_EVENTS_PATH)
+        with open(HISTORY_EVENTS_PATH, "a") as f:
             f.write(json.dumps(rec, ensure_ascii=False) + "\n")
     except Exception:
         pass

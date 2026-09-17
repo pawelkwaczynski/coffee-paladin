@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Verify the predictor-training event stream (history_events.jsonl).
+"""Verify the structured event stream (history_events.jsonl).
 
 Contract: one JSON line per event, written by the guard (pause/resume/terminate/
 demote) and by safe-run (job_start/job_end); never a command line or a path in
@@ -51,7 +51,7 @@ def test(name, condition, detail=""):
 
 
 def events():
-    p = g.ML_EVENTS_PATH
+    p = g.HISTORY_EVENTS_PATH
     if not os.path.exists(p):
         return []
     return [json.loads(line) for line in open(p) if line.strip()]
@@ -119,7 +119,7 @@ test("9. job_start declares cores and cpu limit",
      "cores" in start and "cpu_limit_pct" in start, str(start))
 
 print("=== privacy: no command line, no paths ===")
-raw = open(g.ML_EVENTS_PATH).read()
+raw = open(g.HISTORY_EVENTS_PATH).read()
 test("10. no cmd key and no path leaks in the stream",
      '"cmd"' not in raw and "/Users/" not in raw and "sleep 0.2" not in raw)
 
@@ -150,10 +150,10 @@ test("11. managed entry has cpu_limit_pct", bool(reg) and reg.get("cpu_limit_pct
      str(reg))
 
 print("=== rotation: guard's generation scheme kicks in ===")
-with open(g.ML_EVENTS_PATH, "a") as f:
+with open(g.HISTORY_EVENTS_PATH, "a") as f:
     f.write("x" * (g.MAX_LOG_BYTES + 1024) + "\n")
 g.event_jsonl("pause_start", name="rot", pid=1)
-test("12. oversized stream rotated to .1", os.path.exists(g.ML_EVENTS_PATH + ".1"))
+test("12. oversized stream rotated to .1", os.path.exists(g.HISTORY_EVENTS_PATH + ".1"))
 test("13. fresh stream starts with the new event",
      events()[-1].get("name") == "rot", str(events()[-3:]))
 
@@ -163,13 +163,13 @@ test("15. a path passed as --name is reduced to its basename",
      sr.event_name("/Users/someone/clients/acme/render") == "render"
      and sr.event_name("") == "?" and sr.event_name("ok-name") == "ok-name"
      and "\n" not in sr.event_name("a\nb"), sr.event_name("/x/y"))
-with open(g.ML_EVENTS_PATH, "a") as f:
-    f.write("y" * (sr.ML_EVENTS_MAX_BYTES + 1024) + "\n")
-old_gen1 = os.path.getsize(g.ML_EVENTS_PATH + ".1")
+with open(g.HISTORY_EVENTS_PATH, "a") as f:
+    f.write("y" * (sr.HISTORY_EVENTS_MAX_BYTES + 1024) + "\n")
+old_gen1 = os.path.getsize(g.HISTORY_EVENTS_PATH + ".1")
 sr.event_jsonl("job_start", name="rot-sr", pid=2)
 test("16. oversized stream is rotated by safe-run itself (generations shift)",
-     os.path.exists(g.ML_EVENTS_PATH + ".2")
-     and os.path.getsize(g.ML_EVENTS_PATH + ".1") != old_gen1
+     os.path.exists(g.HISTORY_EVENTS_PATH + ".2")
+     and os.path.getsize(g.HISTORY_EVENTS_PATH + ".1") != old_gen1
      and events()[-1].get("name") == "rot-sr", str(events()[-1:]))
 
 print("=== heat ignores the file as history ===")

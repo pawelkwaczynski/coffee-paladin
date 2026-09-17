@@ -50,9 +50,9 @@ BASE = os.environ.get("TG_BASE") or os.path.join(HOME, ".coffee-paladin")
 BASE = os.path.expanduser(BASE)   # TG_BASE lets tests run in isolation.
 MANAGED_DIR = os.path.join(BASE, "managed")
 PROGRESS_DIR = os.path.join(BASE, "progress")
-ML_EVENTS_PATH = os.path.join(BASE, "history_events.jsonl")
-ML_EVENTS_MAX_BYTES = 5 * 1024 * 1024
-ML_EVENTS_GENERATIONS = 5
+HISTORY_EVENTS_PATH = os.path.join(BASE, "history_events.jsonl")
+HISTORY_EVENTS_MAX_BYTES = 5 * 1024 * 1024
+HISTORY_EVENTS_GENERATIONS = 5
 
 
 def _rotate_events(path):
@@ -62,15 +62,15 @@ def _rotate_events(path):
     disabled, a queue still running - would grow the file without bound.
     """
     try:
-        if os.path.getsize(path) <= ML_EVENTS_MAX_BYTES:
+        if os.path.getsize(path) <= HISTORY_EVENTS_MAX_BYTES:
             return
     except OSError:
         return
     try:
-        oldest = "%s.%d" % (path, ML_EVENTS_GENERATIONS)
+        oldest = "%s.%d" % (path, HISTORY_EVENTS_GENERATIONS)
         if os.path.exists(oldest):
             os.remove(oldest)
-        for n in range(ML_EVENTS_GENERATIONS - 1, 0, -1):
+        for n in range(HISTORY_EVENTS_GENERATIONS - 1, 0, -1):
             source = "%s.%d" % (path, n)
             if os.path.exists(source):
                 os.replace(source, "%s.%d" % (path, n + 1))
@@ -91,7 +91,7 @@ def event_name(name):
 
 
 def event_jsonl(etype, source="safe-run", **fields):
-    """Append one predictor-training event; same contract as guard.event_jsonl.
+    """Append one event to history_events.jsonl; same contract as guard.event_jsonl.
 
     No command line and no paths on purpose (they can hold client names and
     tokens). Telemetry must never break a start.
@@ -102,8 +102,8 @@ def event_jsonl(etype, source="safe-run", **fields):
         rec = {"time": time.strftime("%Y-%m-%d %H:%M:%S%z"),
                "epoch": round(time.time(), 1), "type": etype, "source": source}
         rec.update({k: v for k, v in fields.items() if v is not None})
-        _rotate_events(ML_EVENTS_PATH)
-        with open(ML_EVENTS_PATH, "a") as f:
+        _rotate_events(HISTORY_EVENTS_PATH)
+        with open(HISTORY_EVENTS_PATH, "a") as f:
             f.write(json.dumps(rec, ensure_ascii=False) + "\n")
     except Exception:
         pass
