@@ -9,11 +9,12 @@ itself, passed through a filter and published as is, gaps included.
 
 - `export_events.py` - the filter. It copies only the fields on its positive
   list, drops every free-text field, and keeps a process name only when it is a
-  well-known binary (`ffmpeg`, `ollama`, `llama-server`, `swiftc`, ...). Every
+  well-known binary (`ffmpeg`, `ollama`, `llama-server`, `swiftc`, ...). Research tools
+  such as SAT solvers are deliberately not on that list. Every
   other job name becomes `job-001`, `job-002`, ... in order of first appearance.
   `python3 export_events.py --self-test` feeds it a record full of things that
   must not leave the machine and checks that none of them survive.
-- `history_events_filtered.jsonl.gz` - the export itself, 7,619 events. Run the
+- `history_events_filtered.jsonl.gz` - the export itself, 7,621 events. Run the
   script against your own `~/.coffee-paladin/history_events.jsonl` to get the same
   shape for your machine.
 
@@ -27,14 +28,17 @@ Counts are what the log contains, nothing is interpolated.
 
 | Event | Count | Meaning |
 |---|---|---|
-| `job_start` / `job_end` | 698 / 689 | jobs launched through `safe-run`; 662.9 h of supervised wall time in total, 20 jobs stopped by their own `--hours` limit |
-| `pause_start` / `pause_end` | 2,163 / 1,885 | a process subtree frozen with `SIGSTOP` and resumed with `SIGCONT`; 1,950 pauses for chip temperature, 213 for battery |
-| `demote_start` / `demote_end` | 1,088 / 997 | a process moved to efficiency cores instead of being frozen (GUI apps and system services) |
-| `terminate` | 53 | a paused process that never came back, so its pause entry was closed by the guard |
-| `pause_entry_dropped` | 46 | a paused process that vanished while frozen (`process_gone`) |
+| `job_start` / `job_end` | 699 / 690 | jobs launched through `safe-run`; 663.1 h of supervised wall time in total, 20 jobs stopped by their own `--hours` limit |
+| `pause_start` / `pause_end` | 2,163 / 1,885 | a process subtree frozen with `SIGSTOP` and resumed with `SIGCONT`; 1,950 on a non-battery trigger (chip temperature, macOS thermal state or CPU throttling), 213 on a battery trigger (battery too warm, or charge at or below 10 % on battery power) |
+| `demote_start` / `demote_end` | 1,088 / 997 | a process set to background QoS with `taskpolicy -b` (efficiency cores) and restored with `taskpolicy -B` when the chip cools: hot batch jobs grinding for five minutes or more, a job at the moment it is paused so it resumes throttled, GUI apps that are never frozen, and indexing daemons that are only ever demoted |
+| `terminate` | 53 | a job still frozen when its pause budget ran out (45 min for a thermal pause, 240 min on battery) or after sustained critical level: the guard sent `SIGCONT` + `SIGTERM`, then `SIGKILL` 20 s later. All 53 here are battery pauses that hit the 240 min limit |
+| `pause_entry_dropped` | 46 | the guard went to resume a frozen job and found the pid already gone (killed from outside, or the daemon or the machine restarted while it was frozen), so it discarded the entry; two other code paths drop dead entries silently, so this undercounts |
 
-- Median pause: 80 s. Nine in ten pauses end within 493 s. The longest is 14,361 s
-  (a job frozen on a battery-only night and resumed the next morning).
+- Median pause: 80 s. Nine in ten pauses end within 493 s. The longest recorded is
+  14,361 s, but `pause_s` is the guard's own counter and it does not advance while the Mac
+  sleeps: the process behind that number was frozen for low battery on 2026-09-04 at 14:05 and
+  resumed on 2026-09-05 at 20:39, once the machine was back on mains, about 30.5 h of wall time,
+  mostly asleep. Treat `pause_s` as awake time inside one daemon run, not wall time.
 - Median chip temperature at the moment a demotion starts: 92.5 °C; nine in ten
   demotions start below 99.7 °C; the highest recorded is 102.5 °C.
 - The most paused processes are `ollama` and `llama-server` (613 each), then
@@ -45,7 +49,7 @@ Counts are what the log contains, nothing is interpolated.
 ## The gaps, because they are the point
 
 `pause_start` and `pause_end` do not balance: 278 pauses have no recorded end.
-`terminate` and `pause_entry_dropped` explain 99 of them. The rest cluster on days
+`terminate` and `pause_entry_dropped` account for 99 of them. The rest cluster on days
 when the daemon itself was restarted or the machine went down while jobs were
 frozen (for example 2026-08-26: 8 starts, 0 ends; 2026-09-04: 69 starts, 0 ends;
 2026-09-13: 24 starts, 0 ends). On those days the guard's own end-of-pause line

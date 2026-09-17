@@ -36,11 +36,13 @@ KEEP = (
 # is not here is replaced by an anonymous label.
 PUBLIC_NAMES = {
     "ffmpeg", "ab-av1", "ollama", "llama-server", "Python", "python", "python3",
-    "swiftc", "rclone", "kissat", "cadical", "drat-trim", "timeout", "bash", "sh",
+    "swiftc", "rclone", "timeout", "bash", "sh",
     "env", "node", "cargo", "rustc", "clang", "xcodebuild", "make", "ninja",
     "Google Chrome", "Google Chrome Helper (Renderer)", "mediaanalysisd",
-    "corespotlightd", "VTDecoderXPCService", "msearch2", "photoanalysisd",
+    "corespotlightd", "VTDecoderXPCService", "photoanalysisd",
 }
+# Research tools (SAT solvers, proof checkers, locally built engines) are NOT
+# listed on purpose: their names date an experiment even when the data does not.
 
 
 def filter_record(rec, labels):
