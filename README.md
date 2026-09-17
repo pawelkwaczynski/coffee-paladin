@@ -9,14 +9,14 @@
 It watches the chip temperature, the battery, the fans and the power source, and it *freezes*
 heavy jobs before the machine cooks itself - instead of letting them run until it shuts down.
 
-**What keeps a Mac hot for hours, in the order the author's own field log shows it**
-(August to September 2026, one machine): `ffmpeg` queues, Python jobs, `swiftc` builds,
-`rclone` transfers, SAT solvers, and local models - `ollama` and `llama-server` hold the GPU
-at full clock for minutes and are the two processes the guard pauses most often. Coding agents
-(Claude Code, Codex, Gemini CLI) come last on that list, as a *source* of such jobs: they start
-builds, encodes and model runs and do not feel the fan. Optional hooks and a statusline let the
-guard talk to them; the daemon itself neither needs nor knows about any of them (see
-*Integrations* below).
+**What keeps a Mac hot for hours, as the author's own field log shows it** (13 August to
+17 September 2026, one machine): the jobs launched most often through `safe-run` were `ffmpeg`
+queues, Python jobs, `swiftc` builds and `rclone` transfers; the processes the guard paused most
+often were `ollama` and `llama-server`, which hold the GPU at full clock for minutes, then
+`ffmpeg` and Python. Coding agents (Claude Code, Codex, Gemini CLI) appear in that log only as
+a *source* of such jobs: they start builds, encodes and model runs and do not feel the fan.
+Optional hooks and a statusline let the guard talk to them; the daemon itself neither needs nor
+knows about any of them (see *Integrations* below).
 
 Also for people who make Macs work for a living in other ways: render farms, post-production
 studios, CI pools of Mac minis, ML teams, and anyone leaving a laptop to compute overnight.
@@ -25,7 +25,7 @@ No `sudo`. No kernel extensions. No daemons running as root. Everything reads se
 available to a normal user process.
 
 **Requirements: Apple Silicon (M1 or newer) and macOS 14+.** Chip temperature comes from
-[`macmon`](https://github.com/vladkens/macmon), an external tool that reads IOReport, which only exists on M-series chips; on an older system the app icon shows up
+[`macmon`](https://github.com/vladkens/macmon), an external tool that supports Apple Silicon only; on an older system the app icon shows up
 crossed out because macOS blocks apps below their declared minimum version. Intel Macs are
 honestly not supported.
 
@@ -58,19 +58,27 @@ switched from the menu bar (*Settings > Language*), with `TG_LANG` or `"lang"` i
 - **No model, no training, no inference.** The daemon is one Python file on the standard
   library: it reads sensors, compares numbers with thresholds and sends `SIGSTOP` / `SIGCONT`.
   The event log it keeps (`~/.coffee-paladin/history_events.jsonl`) is a plain history of
-  what happened; no predictor is trained on it and none exists.
+  what happened; nothing is trained on it. The only forward-looking number the guard
+  produces, `eta_pause_min`, is a straight-line extrapolation of the last five minutes of
+  chip temperature kept in memory; it never reads the log.
 - **No listening port.** `thermal-metrics` writes Prometheus text for the `node_exporter`
   textfile collector; nothing in this project binds a socket.
-- **One optional outbound channel.** Phone pushes go through ntfy.sh, and only if you set
-  `ntfy_topic` in `config.json`. It is empty by default, and then the daemon makes no network
-  request at all. (`install.sh` uses Homebrew once, to fetch `macmon`.)
+- **One optional outbound channel in the daemon.** Phone pushes go through ntfy.sh, and only
+  if you set `ntfy_topic` in `config.json`. It is empty by default, and then the daemon makes no
+  network request at all. (`install.sh` uses Homebrew once, to fetch `macmon`.) The menu bar is
+  the one exception: if the external `ccusage` binary is installed, the bar runs it every ten
+  minutes for the cost row, and `ccusage` fetches model pricing online unless run with
+  `--offline`, which the bar does not pass.
 - **Not a sensor of its own.** Chip, GPU, fan and power readings come from
   [`macmon`](https://github.com/vladkens/macmon), an external open-source binary that reads
-  IOReport; the guard parses its output and falls back to battery temperature without it.
+  Apple's sensor interfaces without `sudo` (SMC for temperatures and fans, IOReport for power);
+  the guard parses its output and falls back to battery temperature without it.
 - **Not tied to any AI tool.** The agent skill, the hooks, the statusline and the plugin
-  manifest are optional integrations. `install.sh` puts each one in place only where the
-  matching tool already exists on the machine and never replaces a statusline somebody else
-  configured; the daemon runs without any of them.
+  manifest are optional integrations. `install.sh` installs the skill and wires the statusline
+  only where the matching tool already exists on the machine, and never replaces a statusline
+  somebody else configured unless you pass `--replace`. It wires no hook at all: the hook
+  adapters are copied into `~/.coffee-paladin/` and each one is switched on by hand (see the hook section below).
+  The daemon runs without any of them.
 
 ---
 
@@ -360,8 +368,12 @@ measurement timeline with the peak temperature highlighted.
 ## What the usual tools don't do
 
 There are excellent Mac monitoring tools - Stats, iStat Menus, TG Pro, Macs Fan Control. They
-show you numbers, or drive the fans harder. **None of the popular ones touches the workload itself.** When the chip
-hits 90 °C at 3 a.m., a chart of it is not protection.
+show you numbers, or drive the fans harder. **None of the popular monitoring ones touches the
+workload itself.** The exception is App Tamer, which slows and stops applications by hand or by
+CPU rule, and whose 3.0 beta adds profiles switched by CPU temperature; coffee-paladin differs in
+what it acts on: whole process trees started by batch jobs, automatically, with a pause budget,
+a black box and an admission queue. When the chip hits 90 °C at 3 a.m., a chart of it is not
+protection.
 
 coffee-paladin occupies a different category:
 
@@ -389,7 +401,7 @@ you use one while the machine is under load, it is worth knowing what happens to
 |---|---|---|---|
 | Price | free (App Store) | Pro feature of Mac 4 Breakfast, one-time (14-day trial) | **free, MIT, source open** |
 | Thermal safety | **none** | yes | **yes** |
-| What it measures | - | **battery** temperature, 45 °C default (40-55) | **chip** temperature via IOReport |
+| What it measures | - | **battery** temperature, 45 °C default (40-55) | **chip** temperature via `macmon` |
 | Reaction when hot | - | ends the awake session | **pauses the heavy processes**, resumes when cool |
 | Behaviour under CPU load | keeps the Mac awake **while the CPU is busy** | unaffected | **the hotter it gets, the sooner work is paused** |
 | Evidence for a repair shop | - | battery report | **black box: readings from before a hard shutdown** |
@@ -789,9 +801,10 @@ Off switch: `"agent_activity": false`.
 
 **Also in the repo, so that nobody finds it by accident:**
 
-- `.claude-plugin/plugin.json` is a plugin manifest for Claude Code that packages this same
-  guard and skill as a plugin. It is one more optional distribution channel, not a different
-  product.
+- `.claude-plugin/plugin.json` is a plugin manifest for Claude Code that ships the agent skill
+  (`skills/coffee-paladin/`) as a plugin. It does not install or start the guard; the daemon
+  still comes from `install.sh` or Homebrew. It is one more optional way to get the skill, not
+  a different product.
 - The menu bar has a row *Claude limits: …*. It exists only while the Claude Code statusline
   integration is writing `~/.coffee-paladin/claude_usage_cache.json` (whitelisted fields, no
   session ids or paths); when that file is missing or older than five minutes the function
@@ -809,7 +822,7 @@ processes.
 
 | Signal | Source | Notes |
 |---|---|---|
-| **Chip / GPU temperature** | [`macmon`](https://github.com/vladkens/macmon) → **IOReport** | The one route that still works without `sudo`. |
+| **Chip / GPU temperature** | [`macmon`](https://github.com/vladkens/macmon) → **SMC** (IOReport for power) | The one route that still works without `sudo`. |
 | **Fan RPM, power draw (W)** | same | Also gives per-core frequency and RAM/swap usage. |
 | **Thermal pressure** (`nominal`/`fair`/`serious`/`critical`) | `ProcessInfo.thermalState` via a tiny Swift binary | Public API, no privileges needed. |
 | **Battery temperature, cycles, cell voltages** | `ioreg -c AppleSmartBattery` | Units vary by model - see the gotcha below. |
@@ -849,7 +862,7 @@ way to read Apple Silicon temperatures without root: match HID services on usage
 usage `0x0005`, and pull `kIOHIDEventTypeTemperature`. On **macOS 26 it returns zero sensors** for
 an unentitled process - Apple closed it. A complete, working-by-the-old-rules implementation is
 kept in [`experiments/soctemp.swift`](experiments/soctemp.swift) as a reference and a warning.
-IOReport is currently the surviving path.
+SMC through `macmon` is currently the surviving path.
 
 **The battery temperature unit is not fixed.** Different battery controllers report different
 scales: hundredths of a degree on one Mac (`3081` = 30.81 °C), tenths on another (`444` = 44.4 °C),
@@ -1306,14 +1319,14 @@ student research club for computer science at AHE in Łódź (SKN Informatyki AH
 flotę.** Pilnuje temperatury chipa, baterii, wentylatorów i zasilania, a gdy robi się gorąco -
 **wstrzymuje** ciężkie zadania, zamiast pozwolić im pracować aż komputer zgaśnie.
 
-**Co trzyma Maca w gorączce godzinami, w kolejności z własnego dziennika autora**
-(sierpień i wrzesień 2026, jedna maszyna): kolejki `ffmpeg`, zadania w Pythonie, budowanie
-`swiftc`, transfery `rclone`, solvery SAT i modele lokalne - `ollama` i `llama-server`
-trzymają GPU na pełnym zegarze przez minuty i to je strażnik wstrzymuje najczęściej. Agenty
-kodujące (Claude Code, Codex, Gemini CLI) są na tej liście ostatnie, jako *źródło* takich
-zadań: odpalają budowanie, kodowanie wideo i modele, a wentylatora nie czują. Opcjonalne haki
-i statusline pozwalają strażnikowi z nimi rozmawiać; sam demon żadnego z nich nie potrzebuje
-i o żadnym nie wie (patrz *Integracje* niżej).
+**Co trzyma Maca w gorączce godzinami, tak jak pokazuje własny dziennik autora** (13 sierpnia
+do 17 września 2026, jedna maszyna): przez `safe-run` najczęściej startowały kolejki `ffmpeg`,
+zadania w Pythonie, budowanie `swiftc` i transfery `rclone`; najczęściej wstrzymywane przez
+strażnika były `ollama` i `llama-server`, które trzymają GPU na pełnym zegarze przez minuty,
+a za nimi `ffmpeg` i Python. Agenty kodujące (Claude Code, Codex, Gemini CLI) występują w tym
+dzienniku wyłącznie jako *źródło* takich zadań: odpalają budowanie, kodowanie wideo i modele,
+a wentylatora nie czują. Opcjonalne haki i statusline pozwalają strażnikowi z nimi rozmawiać;
+sam demon żadnego z nich nie potrzebuje i o żadnym nie wie (patrz *Integracje* niżej).
 
 Poza tym dla ludzi, u których Maki pracują na chleb inaczej: farmy renderujące, studia
 postprodukcji, pule Mac mini pod CI, zespoły ML, i każdy, kto zostawia laptop z obliczeniami
@@ -1322,8 +1335,8 @@ na noc.
 Bez `sudo`, bez rozszerzeń jądra, bez niczego działającego jako root.
 
 **Wymagania: Apple Silicon (M1 lub nowszy) i macOS 14+.** Temperatura chipa pochodzi
-z [`macmon`](https://github.com/vladkens/macmon), zewnętrznego narzędzia, które czyta
-IOReport, a ten istnieje tylko na M-kach; na starszym systemie ikona aplikacji będzie
+z [`macmon`](https://github.com/vladkens/macmon), zewnętrznego narzędzia, które działa
+tylko na Apple Silicon; na starszym systemie ikona aplikacji będzie
 przekreślona, bo macOS blokuje aplikacje poniżej zadeklarowanej wersji minimalnej.
 Maców na Intelu uczciwie nie wspieram.
 
@@ -1334,20 +1347,27 @@ Maców na Intelu uczciwie nie wspieram.
 - **Żadnego modelu, uczenia ani wnioskowania.** Demon to jeden plik w Pythonie na bibliotece
   standardowej: czyta czujniki, porównuje liczby z progami i wysyła `SIGSTOP` / `SIGCONT`.
   Log zdarzeń, który prowadzi (`~/.coffee-paladin/history_events.jsonl`), to zwykła historia
-  tego, co się wydarzyło; nic się na nim nie uczy i żadnego predyktora tu nie ma.
+  tego, co się wydarzyło; nic się na nim nie uczy. Jedyna liczba „w przód", jaką strażnik
+  wylicza, `eta_pause_min`, to prosta ekstrapolacja ostatnich pięciu minut temperatury chipa
+  trzymanych w pamięci; logu nigdy nie czyta.
 - **Żadnego portu nasłuchującego.** `thermal-metrics` wypisuje tekst dla Prometheusa pod
-  kolektor plikowy `node_exporter`; nic w tym projekcie nie otwiera gniazda.
-- **Jeden opcjonalny kanał na zewnątrz.** Powiadomienia na telefon idą przez ntfy.sh, i tylko
-  wtedy, gdy ustawisz `ntfy_topic` w `config.json`. Domyślnie jest puste, a wtedy demon nie
-  robi żadnego zapytania sieciowego. (`install.sh` sięga raz po Homebrew, żeby pobrać
-  `macmon`.)
-- **Nie jest własnym czujnikiem.** Odczyty chipa, GPU, wentylatorów i poboru mocy pochodzą
+  kolektor plikowy `node_exporter`; nic w tym projekcie nie nasłuchuje na żadnym gnieździe.
+- **Jeden opcjonalny kanał na zewnątrz w demonie.** Powiadomienia na telefon idą przez ntfy.sh,
+  i tylko wtedy, gdy ustawisz `ntfy_topic` w `config.json`. Domyślnie jest puste, a wtedy demon
+  nie robi żadnego zapytania sieciowego. (`install.sh` sięga raz po Homebrew, żeby pobrać
+  `macmon`.) Jedyny wyjątek to pasek menu: jeśli w systemie jest zewnętrzna binarka `ccusage`,
+  pasek uruchamia ją co dziesięć minut do wiersza z kosztem, a `ccusage` pobiera cennik modeli
+  z sieci, chyba że dostanie `--offline`, czego pasek nie przekazuje.
+- **Nie ma własnego czujnika.** Odczyty chipa, GPU, wentylatorów i poboru mocy pochodzą
   z [`macmon`](https://github.com/vladkens/macmon), zewnętrznej binarki open source, która
-  czyta IOReport; strażnik parsuje jej wyjście, a bez niej schodzi na temperaturę baterii.
+  czyta interfejsy czujników Apple bez `sudo` (SMC dla temperatur i wentylatorów, IOReport dla
+  poboru mocy); strażnik parsuje jej wyjście, a bez niej schodzi na temperaturę baterii.
 - **Nie jest przywiązany do żadnego narzędzia AI.** Skill dla agenta, haki, statusline
-  i manifest wtyczki to opcjonalne integracje. `install.sh` wykłada każdą z nich tylko tam,
-  gdzie pasujące narzędzie już jest na maszynie, i nigdy nie podmienia statusline'a, który
-  ustawił ktoś inny; demon działa bez każdej z nich.
+  i manifest wtyczki to opcjonalne integracje. `install.sh` instaluje skill i podpina
+  statusline tylko tam, gdzie pasujące narzędzie już jest na maszynie, i nigdy nie podmienia
+  statusline'a, który ustawił ktoś inny, chyba że podasz `--replace`. Żadnego haka nie podpina:
+  adaptery haków trafiają do `~/.coffee-paladin/`, a każdy włączasz ręcznie (patrz sekcja o hakach niżej).
+  Demon działa bez żadnej z nich.
 
 ---
 
@@ -1587,7 +1607,7 @@ temperatury), a bateria to trzeci termometr w delikatniejszym miejscu.
 
 macOS nie udostępnia temperatury chipa zwykłemu procesowi. Działające źródła:
 
-- **temperatura chipa i GPU, obroty wentylatorów, pobór mocy** - [`macmon`](https://github.com/vladkens/macmon) przez **IOReport**, jedyna droga bez `sudo`,
+- **temperatura chipa i GPU, obroty wentylatorów, pobór mocy** - [`macmon`](https://github.com/vladkens/macmon) przez **SMC** (IOReport dla poboru mocy), jedyna droga bez `sudo`,
 - **stan termiczny systemu** - `ProcessInfo.thermalState` przez malutką binarkę Swift,
 - **bateria** - `ioreg -c AppleSmartBattery` (uwaga: jednostki różnią się między modelami -
   raz setne stopnia, raz dziesiąte, raz całe; skalujemy do zakresu fizycznie możliwego
@@ -1604,7 +1624,11 @@ Sama bateria nie wystarcza: pomiar z czasu pisania tego pliku to **chip 53,5 °C
 
 ## Czym to się różni od Stats / iStat / TG Pro
 
-Tamte narzędzia **pokazują** liczby albo podkręcają wentylatory. Żadne nie dotyka samej pracy.
+Tamte narzędzia **pokazują** liczby albo podkręcają wentylatory. Żadne z popularnych narzędzi
+monitorujących nie dotyka samej pracy. Wyjątkiem jest App Tamer, który spowalnia i zatrzymuje
+aplikacje ręcznie albo według reguły na CPU, a w becie 3.0 dokłada profile przełączane
+temperaturą CPU; coffee-paladin różni się tym, na co działa: na całe drzewa procesów odpalone
+przez zadania wsadowe, automatycznie, z limitem pauzy, czarną skrzynką i kolejką dopuszczeń.
 Gdy chip dobija do 90 °C o trzeciej w nocy, wykres tego faktu nie jest żadną ochroną.
 
 | | Monitoring (Stats, iStat) | Sterowniki wentylatorów (TG Pro, MFC) | **coffee-paladin** |
@@ -1629,7 +1653,7 @@ wtedy z ciepłem.
 |---|---|---|---|
 | Cena | darmowa (App Store) | funkcja Pro pakietu Mac 4 Breakfast, płatność jednorazowa (14 dni triala) | **darmowy, MIT, otwarty kod** |
 | Bezpiecznik termiczny | **brak** | jest | **jest** |
-| Co mierzy | - | temperaturę **baterii**, domyślnie 45 °C (zakres 40-55) | temperaturę **chipa** przez IOReport |
+| Co mierzy | - | temperaturę **baterii**, domyślnie 45 °C (zakres 40-55) | temperaturę **chipa** przez macmon |
 | Reakcja na gorąco | - | kończy sesję czuwania | **wstrzymuje ciężkie procesy**, wznawia po ostygnięciu |
 | Zachowanie przy obciążeniu CPU | trzyma czuwanie, **dopóki CPU jest obciążony** | bez związku | **im goręcej, tym szybciej praca zostaje wstrzymana** |
 | Dowody do serwisu | - | raport baterii | **czarna skrzynka: pomiary sprzed twardego wyłączenia** |
@@ -1728,7 +1752,7 @@ nie zadziałał. Jenkins - nieprzetestowany; publikujemy to, co zmierzyliśmy.
 ## Integracje
 
 Wszystko w tej sekcji jest opcjonalne. Demon chroni maszynę bez żadnej z tych rzeczy; to są
-sposoby, na jakie inne narzędzia na Macu mogą *zapytać* strażnika, zanim go rozgrzeją. Dziś
+sposoby, na jakie inne narzędzia na Macu mogą *zapytać* strażnika, zanim ją rozgrzeją. Dziś
 znaczy to terminale i agenty kodujące w CLI, bo to one odpalają na laptopie budowanie,
 kodowanie wideo i modele, nie patrząc na wentylator.
 
@@ -1740,9 +1764,9 @@ Jeśli jesteś agentem kodującym (Claude Code, Codex, Gemini CLI, …) i zaraz 
 2. **Przeczytaj stan** (zwykły JSON, odświeżany co ~15 s). Rozstrzyga pole `level`: `0` startuj zadanie, `1` startuj, ale nie zrównoleglaj, `2` dokończ to, co biegnie, i nie zaczynaj nic nowego, `3` stop i powiedz użytkownikowi, że Mac jest za gorący.
 3. **Ufaj mu tylko wtedy, gdy jest świeży:** jeśli `time` jest starsze niż 60 s, demon nie działa, powiedz to i traktuj Maca jak niechronionego. Jeśli `dry_run` jest `true`, strażnik tylko patrzy; ostrzeż użytkownika przed czymkolwiek ciężkim.
 4. **Ciężkie zadania odpalaj przez `safe-run`**, nie wprost: `safe-run --name build -- cargo build --release`. Odmówi startu na gorącej maszynie i zarejestruje zadanie u demona. Nigdy nie dodawaj `--allow-hot` z własnej inicjatywy.
-5. **Nie walcz z pauzą.** Nazwa w `paused` to decyzja, nie zawieszenie: nie rób na niej `SIGCONT`, nie restartuj jej, nie podnoś progów w `config.json`. Wznowi się sama, gdy chip ostygnie.
+5. **Nigdy nie walcz z pauzą.** Nazwa w `paused` to decyzja, nie zawieszenie: nie rób na niej `SIGCONT`, nie restartuj jej, nie podnoś progów w `config.json`. Wznowi się sama, gdy chip ostygnie.
 
-Pełna instrukcja dla agenta jedzie jako skill: [`skills/coffee-paladin/SKILL.md`](skills/coffee-paladin/SKILL.md) (`install.sh` wykłada go do `~/.claude/skills/coffee-paladin/`).
+Pełna instrukcja dla agenta to skill: [`skills/coffee-paladin/SKILL.md`](skills/coffee-paladin/SKILL.md) (`install.sh` wykłada go do `~/.claude/skills/coffee-paladin/`).
 
 ### Skill, hak, statusline i pasek menu
 
@@ -1765,7 +1789,7 @@ instrukcja *dla agenta*, i uczy czterech rzeczy:
   (ochrona jest w tej chwili niepełna).
 - **Ciężkie zadania przez `safe-run`.** Własna grupa procesów, rejestracja u demona, odmowa
   startu na już gorącym Macu. A `--allow-hot` to decyzja człowieka, nie agenta.
-- **Nie walcz z pauzą.** Żadnego `SIGCONT` na procesie, który guard zamroził. Żadnego
+- **Nigdy nie walcz z pauzą.** Żadnego `SIGCONT` na procesie, który guard zamroził. Żadnego
   restartu zadania, które „zawisło", zanim sprawdzisz `paused`. Żadnego podnoszenia progów
   w `config.json`, żeby przepchnąć swoje. To są trzy rzeczy, które agent robi, gdy bierze
   ochronę za usterkę.
@@ -1909,9 +1933,10 @@ wielkości jednego wklejenia, z notką instalacyjną w środku.
 
 **Także w repo, żeby nikt nie znalazł tego przypadkiem:**
 
-- `.claude-plugin/plugin.json` to manifest wtyczki dla Claude Code, który pakuje tego samego
-  strażnika i ten sam skill jako wtyczkę. To jeszcze jeden opcjonalny kanał dystrybucji, nie
-  osobny produkt.
+- `.claude-plugin/plugin.json` to manifest wtyczki do Claude Code, który dostarcza skill dla
+  agenta (`skills/coffee-paladin/`) jako wtyczkę. Nie instaluje ani nie uruchamia strażnika;
+  demon nadal pochodzi z `install.sh` albo z Homebrew. To jeszcze jedna opcjonalna droga do
+  skilla, nie inny produkt.
 - W pasku menu jest wiersz *Limity Claude: …*. Istnieje tylko wtedy, gdy integracja
   statusline'a Claude Code zapisuje `~/.coffee-paladin/claude_usage_cache.json` (pola z białej
   listy, bez identyfikatorów sesji i ścieżek); gdy tego pliku nie ma albo jest starszy niż pięć

@@ -5,7 +5,7 @@ coffee-paladin - watches temperature and load on a Mac, without sudo.
 
 Every N seconds it reads:
   * macOS thermal pressure (thermalstate: nominal/fair/serious/critical)
-  * chip and GPU temperature, fan rpm and power draw (macmon -> IOReport)
+  * chip and GPU temperature, fan rpm and power draw (macmon -> SMC, IOReport for power)
   * battery temperature (ioreg AppleSmartBattery)
   * CPU throttling (pmset -g therm -> CPU_Speed_Limit)
   * load average and processes, with CPU rolled up across each process subtree (ps)
@@ -77,7 +77,7 @@ DEFAULTS = {
     "pause_on_thermal_state": "serious",   # serious | critical
     "speed_limit_pause": 60,    # CPU_Speed_Limit below this percent means heavy throttling
     # Chip temperature (SoC) reacts within seconds; the battery reacts after minutes.
-    # Read through `macmon` (IOReport, no sudo). Without macmon, these thresholds are ignored.
+    # Read through `macmon` (SMC and IOReport, no sudo). Without macmon, these thresholds are ignored.
     # These thresholds are intentionally sharper than macOS factory throttling (~100-108 C).
     # A pause cools the chip within seconds (measured: 89 -> 60 C in 19 s), so termination
     # rarely happens in practice, and SIGSTOP does not damage the job. Do not set this to
@@ -1511,7 +1511,7 @@ SOC_READ_TIMEOUT_S = 10
 def soc_sensors(max_age=10.0, allow_stale=True):
     """Return chip temperature, fans, and power draw from `macmon`.
 
-    Uses IOReport without sudo. Returns dict {"cpu": C, "gpu": C, "fans": [rpm],
+    Uses SMC and IOReport without sudo. Returns dict {"cpu": C, "gpu": C, "fans": [rpm],
     "watts": W}, or None when macmon is unavailable. The result is cached because one
     sample costs ~1 s, while the guard loop runs every 15 s and asks in several places.
 

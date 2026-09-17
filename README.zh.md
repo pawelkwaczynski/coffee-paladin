@@ -23,11 +23,11 @@
 
 ## 它不是什么
 
-- **没有模型，没有训练，没有推理。** 守护进程就是标准库写成的一个 Python 文件：读传感器、把数字和阈值比较、发出 `SIGSTOP` / `SIGCONT`。它保留的事件日志（`~/.coffee-paladin/history_events.jsonl`）只是发生过什么的一份普通记录，没有任何预测器在它上面训练，也不存在这样的东西。
-- **没有监听端口。** `thermal-metrics` 为 `node_exporter` 的 textfile collector 输出 Prometheus 文本格式，本项目里没有任何东西绑定 socket。
-- **只有一条可选的外发通道。** 手机推送走 ntfy.sh，而且只有在 `config.json` 里设置了 `ntfy_topic` 才会发生，默认为空，这时守护进程完全不发起任何网络请求。（`install.sh` 只用一次 Homebrew，用来取 `macmon`。）
-- **它自己不是传感器。** 芯片、GPU、风扇和功耗读数都来自 [`macmon`](https://github.com/vladkens/macmon)，一个读取 IOReport 的外部开源二进制程序，guard 只是解析它的输出，没有它就退回到电池温度。
-- **不绑定任何 AI 工具。** 代理 skill、钩子、状态行和插件清单都是可选的集成，`install.sh` 只在对应工具已经存在于这台机器上时才放置它们，也绝不会替换别人配置好的状态行，没有它们守护进程照样运行。
+- **没有模型，没有训练，没有推理。** 守护进程就是标准库写成的一个 Python 文件：读传感器、把数字和阈值比较、发出 `SIGSTOP` / `SIGCONT`。它保留的事件日志（`~/.coffee-paladin/history_events.jsonl`）只是发生过什么的一份普通记录，没有任何东西在它上面训练。guard 产生的唯一一个面向未来的数字 `eta_pause_min`，是对内存里最近五分钟芯片温度做的直线外推，它从不读取这份日志。
+- **没有监听端口。** `thermal-metrics` 为 `node_exporter` 的 textfile collector 输出 Prometheus 文本格式，本项目里没有任何东西在监听 socket。
+- **守护进程里只有一条可选的外发通道。** 手机推送走 ntfy.sh，而且只有在 `config.json` 里设置了 `ntfy_topic` 才会发生，默认为空，这时守护进程完全不发起任何网络请求。（`install.sh` 只用一次 Homebrew，用来取 `macmon`。）菜单栏是唯一的例外：如果装了外部的 `ccusage` 二进制程序，菜单栏每十分钟就会运行它一次来生成花费那一行，而 `ccusage` 会在线获取模型定价，除非加上 `--offline` 参数，但菜单栏并没有传这个参数。
+- **它自己不是传感器。** 芯片、GPU、风扇和功耗读数都来自 [`macmon`](https://github.com/vladkens/macmon)，一个不需要 `sudo` 就能读取苹果传感器接口的外部开源二进制程序（温度和风扇走 SMC，功耗走 IOReport），guard 只是解析它的输出，没有它就退回到电池温度。
+- **不绑定任何 AI 工具。** 代理 skill、钩子、状态行和插件清单都是可选的集成。`install.sh` 会安装 skill，并且只在对应工具已经存在于这台机器上时才接好状态行，也绝不会替换别人配置好的状态行，除非你自己传入 `--replace`。它完全不接通任何钩子：钩子适配器只是被复制进 `~/.coffee-paladin/`，要不要接通每一个都得自己动手（见下面钩子那一节）。没有它们，守护进程照样运行。
 
 ---
 
@@ -135,7 +135,7 @@ coffee-paladin 是**保险丝**，它会自己动手。
 
 ## 集成
 
-这一节里的东西全部可选。守护进程不靠其中任何一样也能保护机器，这些只是 Mac 上其他工具在把机器烤热之前，向 guard *主动询问* 的方式。目前主要是终端和命令行编码代理，因为正是这些工具会在笔记本上启动构建、编码和模型推理，却感觉不到风扇。
+这一节里的东西全部可选。守护进程不靠其中任何一样也能保护机器，这些只是 Mac 上其他工具在把机器烤热之前，向 guard *主动询问* 的方式。目前指的就是终端和命令行编码代理，因为正是这些工具会在笔记本上启动构建、编码和模型推理，却感觉不到风扇。
 
 ### 你的 AI 助手也能和它对话
 
@@ -242,8 +242,8 @@ iTerm2 的状态栏组件，每个都只有复制粘贴的大小，安装说明�
 
 **同样在仓库里，免得有人无意中才发现：**
 
-- `.claude-plugin/plugin.json` 是 Claude Code 的插件清单，把同一个 guard 和 skill 打包成插件，只是又一条可选的分发渠道，不是另一个产品。
-- 菜单栏有一行 *Claude limits: …*，它只在 Claude Code 状态行集成正在写入 `~/.coffee-paladin/claude_usage_cache.json`（白名单字段，没有会话 id 或路径）时才存在，文件缺失或超过五分钟没更新，函数就什么都不返回，这一行也不会画出来。菜单栏从不查询任何账号。
+- `.claude-plugin/plugin.json` 是 Claude Code 的插件清单，把代理 skill（`skills/coffee-paladin/`）打包成插件分发。它不会安装或启动 guard，守护进程依然来自 `install.sh` 或 Homebrew。这只是拿到 skill 的又一条可选途径，不是另一个产品。
+- 菜单栏有一行「Claude 限额：…」，它只在 Claude Code 状态行集成正在写入 `~/.coffee-paladin/claude_usage_cache.json`（白名单字段，没有会话 id 或路径）时才存在，文件缺失或超过五分钟没更新，函数就什么都不返回，这一行也不会画出来。菜单栏从不查询任何账号。
 - `integrations/` 目录为五个命令行代理（Claude Code、Codex、Gemini CLI、Grok、Antigravity）提供钩子，和终端集成放在一起。有了钩子，代理会在重活之前先问 guard，没有钩子，guard 照样会在芯片发热时暂停那个任务。
 
 ---
@@ -319,10 +319,9 @@ coffee-paladin panel           # 绕过菜单栏直接打开窗口
 
 - 暂停对**时间敏感的 I/O** 是可见的：网络对端、看门狗和许可证服务器可能会注意到。
   但不管温度的代价更大：macOS 会全面降频，极端情况下机器硬关机。
-- 芯片温度依赖 `macmon`（通过 IOReport 读取，无需 sudo）。没有它，guard 仍然工作，
+- 芯片温度依赖 `macmon`（温度经 SMC 读取，功耗经 IOReport 读取，都无需 sudo）。没有它，guard 仍然工作，
   但只能依据电池温度和系统热压力，反应会慢几分钟。
-- 只支持 **Apple Silicon** 和 **macOS 14 或更新**。Intel Mac 的传感器路径完全不同
-  （SMC 而非 IOReport），尚未实现。
+- 只支持 **Apple Silicon** 和 **macOS 14 或更新**。Intel Mac 的传感器路径完全不同，尚未实现。
 - 它不是替代散热维修的东西。如果风扇坏了，它只会更频繁地暂停你的任务，并把这件事记下来。
 
 ---

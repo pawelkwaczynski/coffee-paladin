@@ -28,19 +28,27 @@ de kernel. Sin demonios ejecutándose como root. Todo se lee con un proceso de u
   Python sobre la biblioteca estándar: lee sensores, compara números con umbrales y envía
   `SIGSTOP` / `SIGCONT`. El registro de eventos que guarda
   (`~/.coffee-paladin/history_events.jsonl`) es un historial plano de lo que pasó; no se
-  entrena ningún predictor con él y no existe ninguno.
+  entrena nada con él. El único número que mira hacia delante que produce el guard,
+  `eta_pause_min`, es una extrapolación lineal de los últimos cinco minutos de temperatura
+  del chip guardados en memoria; nunca lee el registro.
 - **Ningún puerto a la escucha.** `thermal-metrics` escribe texto Prometheus para el colector
-  de archivos de texto de `node_exporter`; nada en este proyecto abre un socket.
-- **Un solo canal de salida, opcional.** Los avisos al teléfono pasan por ntfy.sh, y solo si
-  configuras `ntfy_topic` en `config.json`. Está vacío por defecto, y entonces el demonio no
-  hace ninguna petición de red. (`install.sh` usa Homebrew una vez, para traer `macmon`.)
+  de archivos de texto de `node_exporter`; nada en este proyecto se pone a escuchar en un socket.
+- **Un solo canal de salida opcional en el demonio.** Los avisos al teléfono pasan por ntfy.sh,
+  y solo si configuras `ntfy_topic` en `config.json`. Está vacío por defecto, y entonces el
+  demonio no hace ninguna petición de red. (`install.sh` usa Homebrew una vez, para traer
+  `macmon`.) La barra de menús es la única excepción: si está instalado el binario externo
+  `ccusage`, la barra lo ejecuta cada diez minutos para la fila de coste, y `ccusage` consulta
+  precios de modelos en línea a menos que se ejecute con `--offline`, opción que la barra no pasa.
 - **No es un sensor propio.** Las lecturas de chip, GPU, ventiladores y energía vienen de
   [`macmon`](https://github.com/vladkens/macmon), un binario externo de código abierto que lee
-  IOReport; el guard interpreta su salida y, sin él, recurre a la temperatura de la batería.
+  las interfaces de sensores de Apple sin `sudo` (SMC para temperaturas y ventiladores, IOReport
+  para energía); el guard interpreta su salida y, sin él, recurre a la temperatura de la batería.
 - **No depende de ninguna herramienta de IA.** El skill para agentes, los hooks, la statusline
-  y el manifiesto del plugin son integraciones opcionales. `install.sh` coloca cada uno solo
-  donde la herramienta correspondiente ya existe en la máquina y nunca sustituye una statusline
-  que ya hubieras configurado; el demonio funciona sin ninguno de ellos.
+  y el manifiesto del plugin son integraciones opcionales. `install.sh` instala el skill y
+  cablea la statusline solo donde la herramienta correspondiente ya existe en la máquina, y
+  nunca sustituye una statusline que ya hubieras configurado a menos que pases `--replace`. No
+  cablea ningún hook: los adaptadores de hooks se copian a `~/.coffee-paladin/` y cada uno se
+  activa a mano (ver la sección de hooks más abajo). El demonio funciona sin ninguno de ellos.
 
 ---
 
@@ -310,10 +318,12 @@ nunca con señales.
 
 **También en el repositorio, para que nadie lo encuentre por accidente:**
 
-- `.claude-plugin/plugin.json` es un manifiesto de plugin para Claude Code que empaqueta este
-  mismo guard y el skill como plugin. Es un canal de distribución opcional más, no un producto
-  distinto.
-- La barra de menús tiene una fila *Claude limits: …*. Solo existe mientras la integración de
+- `.claude-plugin/plugin.json` es un manifiesto de plugin para Claude Code que empaqueta el
+  skill para agentes (`skills/coffee-paladin/`) como plugin. No instala ni arranca el guard;
+  el demonio sigue viniendo de `install.sh` o de Homebrew. Es una forma opcional más de
+  conseguir el skill, no un producto distinto.
+- La barra de menús tiene una fila *Límites de Claude: …* (*Claude limits: …* con el menú en
+  inglés). Solo existe mientras la integración de
   statusline de Claude Code escribe `~/.coffee-paladin/claude_usage_cache.json` (campos
   filtrados, sin ids de sesión ni rutas); cuando ese archivo falta o tiene más de cinco
   minutos, la función no devuelve nada y la fila no se dibuja. La barra nunca consulta
@@ -408,7 +418,8 @@ directamente en el menú principal.
   los watchdogs y los servidores de licencias pueden notarla. La alternativa es peor de
   todos modos: el calor sin gestionar hace que macOS limite todo y, en el extremo,
   que la máquina se apague en seco.
-- La temperatura del chip llega vía `macmon` (IOReport, sin sudo). Sin él el guard funciona,
+- La temperatura del chip llega vía `macmon` (SMC para temperaturas, IOReport para energía),
+  sin sudo. Sin él el guard funciona,
   pero se apoya solo en la temperatura de la batería y el estado térmico del sistema,
   y reacciona varios minutos más tarde.
 - Solo **Apple Silicon** y **macOS 14 o más nuevo**. En los Macs Intel la ruta a los
