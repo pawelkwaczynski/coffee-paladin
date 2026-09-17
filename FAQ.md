@@ -100,8 +100,10 @@ to check `~/.coffee-paladin/status.json` before heavy work: `skills/coffee-palad
 
 ### Does running a Mac hot actually damage it?
 
-Sustained heat is the expensive kind. Apple specifies 10–35 °C ambient; every 5–10 °C above
-optimum roughly doubles how fast a Li-ion battery ages; and a professional Mac data centre
+Sustained heat is the expensive kind. Apple specifies 10 to 35 °C ambient and says that above
+35 °C heat "can permanently damage battery capacity" ([Apple](https://www.apple.com/batteries/maximizing-performance/));
+Battery University's storage table puts a cell kept a year at full charge at about 80 %
+capacity at 25 °C and 65 % at 40 °C ([BU-808](https://batteryuniversity.com/article/bu-808-how-to-prolong-lithium-based-batteries)); and a professional Mac data centre
 (MacStadium) documented temperature-related failures in ordinary racks. Short spikes are
 normal — Apple Silicon throttles itself around 100–108 °C — but hours at high temperature
 age the battery and, in the worst case, end in a hard shutdown that destroys work.

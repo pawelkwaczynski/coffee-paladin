@@ -9,14 +9,14 @@
 It watches the chip temperature, the battery, the fans and the power source, and it *freezes*
 heavy jobs before the machine cooks itself - instead of letting them run until it shuts down.
 
-**The load that made this necessary is now an AI agent.** Claude Code, Codex and Gemini CLI
-run builds, encode video and drive local models for hours, and they do not feel the fan or
-notice the machine slowing down. So the guard talks to them: a hook makes the agent ask
-before it starts heavy work on a hot Mac, a statusline puts the chip temperature inside the
-session where the agent and you both see it, and the menu bar shows which AI session is
-burning how many cores, how much of your Claude limit is left and what today cost.
-A local model is the hottest thing most laptops ever run: `ollama` and `llama-server` hold
-the GPU at full clock for minutes, and that is exactly what this was built to survive.
+**What keeps a Mac hot for hours, in the order the author's own field log shows it**
+(August to September 2026, one machine): `ffmpeg` queues, Python jobs, `swiftc` builds,
+`rclone` transfers, SAT solvers, and local models - `ollama` and `llama-server` hold the GPU
+at full clock for minutes and are the two processes the guard pauses most often. Coding agents
+(Claude Code, Codex, Gemini CLI) come last on that list, as a *source* of such jobs: they start
+builds, encodes and model runs and do not feel the fan. Optional hooks and a statusline let the
+guard talk to them; the daemon itself neither needs nor knows about any of them (see
+*Integrations* below).
 
 Also for people who make Macs work for a living in other ways: render farms, post-production
 studios, CI pools of Mac minis, ML teams, and anyone leaving a laptop to compute overnight.
@@ -24,8 +24,8 @@ studios, CI pools of Mac minis, ML teams, and anyone leaving a laptop to compute
 No `sudo`. No kernel extensions. No daemons running as root. Everything reads sensors that are
 available to a normal user process.
 
-**Requirements: Apple Silicon (M1 or newer) and macOS 14+.** Chip temperature is read through
-IOReport, which only exists on M-series chips; on an older system the app icon shows up
+**Requirements: Apple Silicon (M1 or newer) and macOS 14+.** Chip temperature comes from
+[`macmon`](https://github.com/vladkens/macmon), an external tool that reads IOReport, which only exists on M-series chips; on an older system the app icon shows up
 crossed out because macOS blocks apps below their declared minimum version. Intel Macs are
 honestly not supported.
 
@@ -50,6 +50,27 @@ switched from the menu bar (*Settings > Language*), with `TG_LANG` or `"lang"` i
   <img src="docs/screens/languages.webp" alt="The same menu in English, Polish, Russian, Chinese and Spanish" width="820">
 </p>
 <p align="center"><sub>The same menu in five languages - one click in <em>Settings &gt; Language</em>.</sub></p>
+
+---
+
+## What this is not
+
+- **No model, no training, no inference.** The daemon is one Python file on the standard
+  library: it reads sensors, compares numbers with thresholds and sends `SIGSTOP` / `SIGCONT`.
+  The event log it keeps (`~/.coffee-paladin/history_events.jsonl`) is a plain history of
+  what happened; no predictor is trained on it and none exists.
+- **No listening port.** `thermal-metrics` writes Prometheus text for the `node_exporter`
+  textfile collector; nothing in this project binds a socket.
+- **One optional outbound channel.** Phone pushes go through ntfy.sh, and only if you set
+  `ntfy_topic` in `config.json`. It is empty by default, and then the daemon makes no network
+  request at all. (`install.sh` uses Homebrew once, to fetch `macmon`.)
+- **Not a sensor of its own.** Chip, GPU, fan and power readings come from
+  [`macmon`](https://github.com/vladkens/macmon), an external open-source binary that reads
+  IOReport; the guard parses its output and falls back to battery temperature without it.
+- **Not tied to any AI tool.** The agent skill, the hooks, the statusline and the plugin
+  manifest are optional integrations. `install.sh` puts each one in place only where the
+  matching tool already exists on the machine and never replaces a statusline somebody else
+  configured; the daemon runs without any of them.
 
 ---
 
@@ -146,8 +167,10 @@ And the AI boom, hyped everywhere, works these machines harder than anything eve
 before. A Mac with big unified memory (shared between CPU and GPU) is the cheapest way
 to run large models locally: 512 GB in a Mac cost $9,499, while one 80 GB H100 goes for
 about $30,000. So Macs everywhere now grind LLMs and renders for hours, chip saturated.
-Long heat is exactly what kills these units, laptops and batteries, because every
-5-10 °C above optimum roughly doubles how fast a Li-ion cell ages.
+Long heat is what ages these machines and their batteries. Apple says ambient above 35 °C
+"can permanently damage battery capacity" ([Apple, Maximizing Battery Life](https://www.apple.com/batteries/maximizing-performance/)),
+and Battery University's storage table shows a cell kept for a year at full charge retaining
+about 80 % of its capacity at 25 °C but 65 % at 40 °C ([BU-808](https://batteryuniversity.com/article/bu-808-how-to-prolong-lithium-based-batteries)).
 
 The conclusion is simple. The Mac you have cannot be re-bought quickly or at the price
 from the start of the year. That is why coffee-paladin guards it FOR FREE, in code you
@@ -385,195 +408,6 @@ as one.
 
 ---
 
----
-
-## For AI agents
-
-If you are a coding agent (Claude Code, Codex, Gemini CLI, …) about to run heavy work on this Mac, builds, `ffmpeg`, model inference, wide test suites, long loops, do this first:
-
-1. **Detect the guard:** `test -f ~/.coffee-paladin/status.json`. If the file is missing, coffee-paladin is not installed here; suggest to the user both lines, because `brew install` alone installs files but starts nothing: `brew install pawelkwaczynski/tap/coffee-paladin` followed by `bash "$(brew --prefix)/share/coffee-paladin/install.sh"`.
-2. **Read the state** (plain JSON, refreshed every ~15 s). The field `level` decides: `0` start the job, `1` start but do not parallelise, `2` finish what runs and start nothing new, `3` stop and tell the user the Mac is too hot.
-3. **Trust it only when fresh:** if `time` is older than 60 s the daemon is not running, say so and treat the Mac as unprotected. If `dry_run` is `true`, the guard only watches; warn the user before anything heavy.
-4. **Start heavy jobs through `safe-run`**, not directly: `safe-run --name build -- cargo build --release`. It refuses to start on a hot machine and registers the job with the daemon. Never pass `--allow-hot` on your own initiative.
-5. **Never fight a pause.** A name in `paused` is a decision, not a hang: do not `SIGCONT` it, do not relaunch it, do not raise thresholds in `config.json`. It resumes by itself when the chip cools.
-
-Full agent instructions ship as a skill: [`skills/coffee-paladin/SKILL.md`](skills/coffee-paladin/SKILL.md) (installed to `~/.claude/skills/coffee-paladin/` by `install.sh`).
-
-## Your AI agent can talk to it
-
-Coding agents are now a normal source of load on a laptop: they run builds, encode video,
-start model inference, launch a dozen things in parallel. They are also, in practice, the
-worst offenders - because an agent does not feel the fan and does not notice the machine
-getting hot. That is the failure this project was written for, and it deserves a better
-answer than "the guard will pause it eventually".
-
-So coffee-paladin ships a **skill for AI agents**. `install.sh` drops it into
-`~/.claude/skills/coffee-paladin/` for Claude Code, and into `~/.agents/skills/`
-(OpenClaw and everything else that reads the AgentSkills layout) and
-`~/.grok/skills/` where those trees already exist - the same plain-Markdown
-file everywhere, never planting a config tree for a tool you don't have. It is
-not documentation *about* the tool - it is instructions *for the agent*, and it
-teaches four things:
-
-- **Look before you start.** `~/.coffee-paladin/status.json` is machine-readable and refreshed
-  every ~15 s. One field decides everything: `level` - `0` start the job, `1` start but do not
-  parallelise, `2` finish what is running and start nothing new, `3` stop and tell the human.
-  Also `dry_run` (protection may be off!) and `unpausable` (protection is incomplete right now).
-- **Start heavy work through `safe-run`.** Own process group, registered with the daemon,
-  refuses to start on an already-hot Mac. And `--allow-hot` is a human's decision, not the
-  agent's.
-- **Never fight the pause.** No `SIGCONT` on a process the guard froze. No relaunching a job
-  that "hung" before checking `paused`. No editing thresholds in `config.json` to push a job
-  through. These are the three things an agent does when it mistakes protection for a bug.
-- **Do not create the heat in the first place.** No background task without a timeout and a
-  cleanup; no recursive search across iCloud-backed folders. That second rule came from a real
-  incident: a `grep` that used 13 seconds of CPU in 1 h 42 min held a fanless Mac at 90 °C,
-  because it kept `fileproviderd` and `cloudd` busy materialising files from the cloud. The
-  CPU column showed almost nothing. Nobody guesses that one; it has to be written down.
-
-The skill also treats `status.json` as a **heartbeat**: if its timestamp is older than 60 s
-the daemon is not running, and the agent is told to say so and behave as if the Mac were
-unprotected. An agent that reads a stale file and reports "level 0, all good" is worse than
-one that never looked.
-
-The agent itself is protected in return: `claude`, `codex`, `hermes`, `tmux`, `vim` and
-anything holding a terminal's foreground are on the never-touch list by name, and `node`
-processes are recognised by their **command line** - one running an agent, an MCP server or
-a language server is untouchable, while a plain `node build.js` stays pausable, which is
-exactly what a thermal guard is for. A guard that freezes the session driving it is not a guard.
-
-```bash
-cat ~/.claude/skills/coffee-paladin/SKILL.md    # what your agent was told
-```
-
-**Claude Code statusline.** The installer can also put the thermal state into
-Claude Code's status bar - refreshed live under every session, machine truth
-on the first line and the AI session on the second:
-
-```
-🛡  🌡 55°  🌀 2.4k  🧠 50%  💾 94%  ☕
-🤖 Fable 5  5h 86% ↺14:30  7d 41% ↺Thu  ctx 62%  my-project
-```
-
-The second line carries the model, **your account's rate limits** - the same
-5-hour and weekly percentages the `/usage` screen shows, straight from the
-session JSON Claude Code hands to statuslines (subscription logins; the fields
-appear after the session's first response) - plus context usage and the
-directory. Percentages turn yellow at 75 and red at 90. No limits in the JSON
-means none are shown: the line never invents a number. The same whitelisted
-snapshot lands in `~/.coffee-paladin/claude_usage_cache.json`, where the menu
-bar reads it - *Agent activity* shows the limits row while a session is alive
-(and drops it five minutes after the last refresh), so the answer to "how much
-Claude do I have left" is on the bar, not behind a slash command.
-
-<p align="center">
-  <img src="docs/screens/statusline.webp" alt="The statusline under a live Claude Code session, here with Nerd Font icons" width="740">
-</p>
-<p align="center"><sub>Under a real session: shield, chip 70°, fans, RAM, a red disk at 90%, keep-awake - then model and directory.</sub></p>
-
-The shield turns into an eye in watch-only mode and into a loud red `OFF`
-when the daemon's snapshot goes stale - the exact failure where the guard is
-unloaded and nobody notices. Elements appear only when they carry an action:
-paused jobs, jobs demoted to E-cores (running up to several times slower),
-the admission queue, a missing chip sensor, a hard shutdown within the last
-24 hours, and at hot levels the name of the process about to be paused. On a
-narrow terminal the AI line gives ground first, element by element from the
-right, and disappears entirely before a single thermal fact is dropped.
-
-The wiring is deliberately conservative: `install.sh` copies the script and
-touches `~/.claude/settings.json` only when no `statusLine` is configured
-(with a timestamped backup); an existing statusline of yours is never
-overwritten unless you run `bash install.sh --replace`, and `uninstall.sh`
-removes only the entry that points at the paladin's own script. This wires the
-user-level settings; a project's own `.claude/settings.json` statusline, where
-one exists, takes precedence by Claude Code's scope rules. Icons default
-to emoji, which every Mac renders; a patched font is opt-in:
-`COFFEE_PALADIN_STATUSLINE_ICONS=nerd` (or `ascii` for plain terminals) in
-the command line stored in settings.
-
-**One gate for every agent host.** `coffee-paladin hook-gate` implements the
-pre-execution hook contract shared - with dialect differences - by Claude
-Code, Codex CLI, Gemini CLI, Grok Build and Antigravity. It reads the
-tool-call JSON on stdin in whichever spelling the host speaks (snake_case
-`tool_input`, Grok's camelCase `toolInput`, Antigravity's
-`toolCall.args.CommandLine`) and answers the way that host listens: exit 2 with the reason
-on stderr, plus an explicit stdout `{"decision": "deny"}` for the two hosts
-that only trust that (Grok is fail-open on anything else; Antigravity has no
-exit-code contract at all). It checks process discipline, not temperature: a
-heavy tool started bare - `ffmpeg`, an encoder, a SAT solver, `ollama run` -
-is refused with the exact `safe-run` line to use instead, in milliseconds and
-fail-open on anything unexpected, because a broken gate must never hold a
-coding session hostage. `PALADIN_HOOK=off` disables it for one deliberate
-command; `hook_heavy_patterns` in config.json replaces the built-in list.
-
-Wiring stays **opt-in per host**, one adapter each, every one with the same
-manners as the Claude wiring (own entry appended under a file lock, foreign
-entries never touched, timestamped backup before every write, unwire removes
-exactly ours):
-
-```bash
-python3 ~/.coffee-paladin/settings_wire.py hook          # Claude Code
-python3 ~/.coffee-paladin/codex_hooks_wire.py hook       # Codex CLI (trust the hook on first run)
-python3 ~/.coffee-paladin/gemini_hooks_wire.py hook      # Gemini CLI
-python3 ~/.coffee-paladin/grok_hooks_wire.py hook        # Grok Build
-python3 ~/.coffee-paladin/antigravity_hooks_wire.py hook # Antigravity
-```
-
-(`unhook` reverses each one; `uninstall.sh` runs them all.) Grok additionally
-scans `~/.claude/settings.json` for hooks by default, so a Claude-wired gate
-already covers it - the native file only matters when that compatibility is
-switched off. Gemini's timeout field is in milliseconds where everyone else
-uses seconds; the adapter knows.
-
-**Running an agent swarm? You are already covered.** Multi-agent
-orchestrators that spawn their workers as regular CLI sessions -
-oh-my-claudecode teams, claude-squad, workmux, dmux panes and friends -
-inherit the gate for free: each worker is a `claude` (or codex/gemini/grok)
-process, reads the same user-level settings, and hits the same PreToolUse
-gate before starting anything heavy. No orchestrator-side configuration,
-nothing to install twice. What no orchestrator sees yet is the machine
-itself - how hot it runs and how many heavy jobs it can carry - which is
-exactly the layer the guard keeps: one `status.json` any scheduler can read
-before scaling up.
-
-**Terminals.** The same thermal line works outside agent sessions:
-`integrations/terminals/` ships a tmux `status-right` snippet, a WezTerm
-`update-status` handler and an iTerm2 status bar component, each a
-copy-paste-sized file with install notes inside.
-
-**What today burned.** If the external [`ccusage`](https://github.com/ccusage/ccusage)
-is installed, *Agent activity* gains a line with today's usage across every
-agent CLI it knows: `322M tokens · ~$312`. Tokens come first on purpose. On a
-subscription the dollar figure is not money anyone spent - it is what the same
-work would have cost through the API - so it is prefixed with `~` and can be
-dropped entirely with `"ccusage_cost": false`. The real budget on a plan is the
-5-hour and weekly percentage, which is already on the line above. We call the
-binary and cache its answer for 10 minutes rather than vendoring anyone's code
-or writing a second token counter; no `ccusage`, no line, and nothing else
-changes. `brew install ccusage`.
-
-Expanding that line breaks the day down **per agent** and **per model** - which
-CLI and which model actually spent the tokens - and shows the **active
-five-hour block** with its rate: `47M tokens · 283k/min · 94 min left`. That
-block is counted by ccusage from local logs and is deliberately labelled as
-such: it is not your account's official 5-hour limit, which has its own row
-straight from Claude Code. And one line no usage dashboard can produce, because
-it needs both halves: when the guard's own forecast says the chip will force a
-pause before the block ends, it says so.
-
-**Agent activity.** The daemon also writes `~/.coffee-paladin/
-agent_activity.json`: which AI sessions run on this Mac and the process tree
-each one started, with the thermal context. The menu bar shows it under
-*Agent activity*, and a ✨ marker appears on the bar while any session is
-alive - the marker's presence is the answer to "is an AI working right now".
-Off switch: `"agent_activity": false`.
-
-<p align="center">
-  <img src="docs/screens/agent_activity.webp" alt="Agent activity: live process trees of AI sessions, with thermal context" width="640">
-</p>
-<p align="center"><sub>Agent sessions and what each of them started - straight from the menu bar.</sub></p>
-
-
 ## Fleets: every Mac in one table
 
 <p align="center">
@@ -759,6 +593,212 @@ What this means in practice:
   a full **10 minutes** - job finished, **success**, no inactivity watchdog fired.
   **Jenkins is untested** - we publish what we measured, not what we hope. If you run
   the same experiment there, an issue with your numbers is very welcome.
+
+## Integrations
+
+Everything in this section is optional. The daemon protects the machine with none of it;
+these are the ways other tools on the Mac can *ask* the guard before they heat it.
+Today that means terminals and CLI coding agents, because those are the tools that start
+builds, encodes and model runs on a laptop without looking at the fan.
+
+### If you are an AI agent reading this
+
+If you are a coding agent (Claude Code, Codex, Gemini CLI, …) about to run heavy work on this Mac, builds, `ffmpeg`, model inference, wide test suites, long loops, do this first:
+
+1. **Detect the guard:** `test -f ~/.coffee-paladin/status.json`. If the file is missing, coffee-paladin is not installed here; suggest to the user both lines, because `brew install` alone installs files but starts nothing: `brew install pawelkwaczynski/tap/coffee-paladin` followed by `bash "$(brew --prefix)/share/coffee-paladin/install.sh"`.
+2. **Read the state** (plain JSON, refreshed every ~15 s). The field `level` decides: `0` start the job, `1` start but do not parallelise, `2` finish what runs and start nothing new, `3` stop and tell the user the Mac is too hot.
+3. **Trust it only when fresh:** if `time` is older than 60 s the daemon is not running, say so and treat the Mac as unprotected. If `dry_run` is `true`, the guard only watches; warn the user before anything heavy.
+4. **Start heavy jobs through `safe-run`**, not directly: `safe-run --name build -- cargo build --release`. It refuses to start on a hot machine and registers the job with the daemon. Never pass `--allow-hot` on your own initiative.
+5. **Never fight a pause.** A name in `paused` is a decision, not a hang: do not `SIGCONT` it, do not relaunch it, do not raise thresholds in `config.json`. It resumes by itself when the chip cools.
+
+Full agent instructions ship as a skill: [`skills/coffee-paladin/SKILL.md`](skills/coffee-paladin/SKILL.md) (installed to `~/.claude/skills/coffee-paladin/` by `install.sh`).
+
+### The skill, the hook, the statusline and the menu bar
+
+Coding agents are now a normal source of load on a laptop: they run builds, encode video,
+start model inference, launch a dozen things in parallel. They are also, in practice, the
+worst offenders - because an agent does not feel the fan and does not notice the machine
+getting hot. That is the failure this project was written for, and it deserves a better
+answer than "the guard will pause it eventually".
+
+So coffee-paladin ships a **skill for AI agents**. `install.sh` drops it into
+`~/.claude/skills/coffee-paladin/` for Claude Code, and into `~/.agents/skills/`
+(OpenClaw and everything else that reads the AgentSkills layout) and
+`~/.grok/skills/` where those trees already exist - the same plain-Markdown
+file everywhere, never planting a config tree for a tool you don't have. It is
+not documentation *about* the tool - it is instructions *for the agent*, and it
+teaches four things:
+
+- **Look before you start.** `~/.coffee-paladin/status.json` is machine-readable and refreshed
+  every ~15 s. One field decides everything: `level` - `0` start the job, `1` start but do not
+  parallelise, `2` finish what is running and start nothing new, `3` stop and tell the human.
+  Also `dry_run` (protection may be off!) and `unpausable` (protection is incomplete right now).
+- **Start heavy work through `safe-run`.** Own process group, registered with the daemon,
+  refuses to start on an already-hot Mac. And `--allow-hot` is a human's decision, not the
+  agent's.
+- **Never fight the pause.** No `SIGCONT` on a process the guard froze. No relaunching a job
+  that "hung" before checking `paused`. No editing thresholds in `config.json` to push a job
+  through. These are the three things an agent does when it mistakes protection for a bug.
+- **Do not create the heat in the first place.** No background task without a timeout and a
+  cleanup; no recursive search across iCloud-backed folders. That second rule came from a real
+  incident: a `grep` that used 13 seconds of CPU in 1 h 42 min held a fanless Mac at 90 °C,
+  because it kept `fileproviderd` and `cloudd` busy materialising files from the cloud. The
+  CPU column showed almost nothing. Nobody guesses that one; it has to be written down.
+
+The skill also treats `status.json` as a **heartbeat**: if its timestamp is older than 60 s
+the daemon is not running, and the agent is told to say so and behave as if the Mac were
+unprotected. An agent that reads a stale file and reports "level 0, all good" is worse than
+one that never looked.
+
+The agent itself is protected in return: `claude`, `codex`, `hermes`, `tmux`, `vim` and
+anything holding a terminal's foreground are on the never-touch list by name, and `node`
+processes are recognised by their **command line** - one running an agent, an MCP server or
+a language server is untouchable, while a plain `node build.js` stays pausable, which is
+exactly what a thermal guard is for. A guard that freezes the session driving it is not a guard.
+
+```bash
+cat ~/.claude/skills/coffee-paladin/SKILL.md    # what your agent was told
+```
+
+**Claude Code statusline.** The installer can also put the thermal state into
+Claude Code's status bar - refreshed live under every session, machine truth
+on the first line and the AI session on the second:
+
+```
+🛡  🌡 55°  🌀 2.4k  🧠 50%  💾 94%  ☕
+🤖 Fable 5  5h 86% ↺14:30  7d 41% ↺Thu  ctx 62%  my-project
+```
+
+The second line carries the model, **your account's rate limits** - the same
+5-hour and weekly percentages the `/usage` screen shows, straight from the
+session JSON Claude Code hands to statuslines (subscription logins; the fields
+appear after the session's first response) - plus context usage and the
+directory. Percentages turn yellow at 75 and red at 90. No limits in the JSON
+means none are shown: the line never invents a number. The same whitelisted
+snapshot lands in `~/.coffee-paladin/claude_usage_cache.json`, where the menu
+bar reads it - *Agent activity* shows the limits row while a session is alive
+(and drops it five minutes after the last refresh), so the answer to "how much
+Claude do I have left" is on the bar, not behind a slash command.
+
+<p align="center">
+  <img src="docs/screens/statusline.webp" alt="The statusline under a live Claude Code session, here with Nerd Font icons" width="740">
+</p>
+<p align="center"><sub>Under a real session: shield, chip 70°, fans, RAM, a red disk at 90%, keep-awake - then model and directory.</sub></p>
+
+The shield turns into an eye in watch-only mode and into a loud red `OFF`
+when the daemon's snapshot goes stale - the exact failure where the guard is
+unloaded and nobody notices. Elements appear only when they carry an action:
+paused jobs, jobs demoted to E-cores (running up to several times slower),
+the admission queue, a missing chip sensor, a hard shutdown within the last
+24 hours, and at hot levels the name of the process about to be paused. On a
+narrow terminal the AI line gives ground first, element by element from the
+right, and disappears entirely before a single thermal fact is dropped.
+
+The wiring is deliberately conservative: `install.sh` copies the script and
+touches `~/.claude/settings.json` only when no `statusLine` is configured
+(with a timestamped backup); an existing statusline of yours is never
+overwritten unless you run `bash install.sh --replace`, and `uninstall.sh`
+removes only the entry that points at the paladin's own script. This wires the
+user-level settings; a project's own `.claude/settings.json` statusline, where
+one exists, takes precedence by Claude Code's scope rules. Icons default
+to emoji, which every Mac renders; a patched font is opt-in:
+`COFFEE_PALADIN_STATUSLINE_ICONS=nerd` (or `ascii` for plain terminals) in
+the command line stored in settings.
+
+**One gate for every agent host.** `coffee-paladin hook-gate` implements the
+pre-execution hook contract shared - with dialect differences - by Claude
+Code, Codex CLI, Gemini CLI, Grok Build and Antigravity. It reads the
+tool-call JSON on stdin in whichever spelling the host speaks (snake_case
+`tool_input`, Grok's camelCase `toolInput`, Antigravity's
+`toolCall.args.CommandLine`) and answers the way that host listens: exit 2 with the reason
+on stderr, plus an explicit stdout `{"decision": "deny"}` for the two hosts
+that only trust that (Grok is fail-open on anything else; Antigravity has no
+exit-code contract at all). It checks process discipline, not temperature: a
+heavy tool started bare - `ffmpeg`, an encoder, a SAT solver, `ollama run` -
+is refused with the exact `safe-run` line to use instead, in milliseconds and
+fail-open on anything unexpected, because a broken gate must never hold a
+coding session hostage. `PALADIN_HOOK=off` disables it for one deliberate
+command; `hook_heavy_patterns` in config.json replaces the built-in list.
+
+Wiring stays **opt-in per host**, one adapter each, every one with the same
+manners as the Claude wiring (own entry appended under a file lock, foreign
+entries never touched, timestamped backup before every write, unwire removes
+exactly ours):
+
+```bash
+python3 ~/.coffee-paladin/settings_wire.py hook          # Claude Code
+python3 ~/.coffee-paladin/codex_hooks_wire.py hook       # Codex CLI (trust the hook on first run)
+python3 ~/.coffee-paladin/gemini_hooks_wire.py hook      # Gemini CLI
+python3 ~/.coffee-paladin/grok_hooks_wire.py hook        # Grok Build
+python3 ~/.coffee-paladin/antigravity_hooks_wire.py hook # Antigravity
+```
+
+(`unhook` reverses each one; `uninstall.sh` runs them all.) Grok additionally
+scans `~/.claude/settings.json` for hooks by default, so a Claude-wired gate
+already covers it - the native file only matters when that compatibility is
+switched off. Gemini's timeout field is in milliseconds where everyone else
+uses seconds; the adapter knows.
+
+**Running an agent swarm? You are already covered.** Multi-agent
+orchestrators that spawn their workers as regular CLI sessions -
+oh-my-claudecode teams, claude-squad, workmux, dmux panes and friends -
+inherit the gate for free: each worker is a `claude` (or codex/gemini/grok)
+process, reads the same user-level settings, and hits the same PreToolUse
+gate before starting anything heavy. No orchestrator-side configuration,
+nothing to install twice. What no orchestrator sees yet is the machine
+itself - how hot it runs and how many heavy jobs it can carry - which is
+exactly the layer the guard keeps: one `status.json` any scheduler can read
+before scaling up.
+
+**Terminals.** The same thermal line works outside agent sessions:
+`integrations/terminals/` ships a tmux `status-right` snippet, a WezTerm
+`update-status` handler and an iTerm2 status bar component, each a
+copy-paste-sized file with install notes inside.
+
+**What today burned.** If the external [`ccusage`](https://github.com/ccusage/ccusage)
+is installed, *Agent activity* gains a line with today's usage across every
+agent CLI it knows: `322M tokens · ~$312`. Tokens come first on purpose. On a
+subscription the dollar figure is not money anyone spent - it is what the same
+work would have cost through the API - so it is prefixed with `~` and can be
+dropped entirely with `"ccusage_cost": false`. The real budget on a plan is the
+5-hour and weekly percentage, which is already on the line above. We call the
+binary and cache its answer for 10 minutes rather than vendoring anyone's code
+or writing a second token counter; no `ccusage`, no line, and nothing else
+changes. `brew install ccusage`.
+
+Expanding that line breaks the day down **per agent** and **per model** - which
+CLI and which model actually spent the tokens - and shows the **active
+five-hour block** with its rate: `47M tokens · 283k/min · 94 min left`. That
+block is counted by ccusage from local logs and is deliberately labelled as
+such: it is not your account's official 5-hour limit, which has its own row
+straight from Claude Code. And one line no usage dashboard can produce, because
+it needs both halves: when the guard's own forecast says the chip will force a
+pause before the block ends, it says so.
+
+**Agent activity.** The daemon also writes `~/.coffee-paladin/
+agent_activity.json`: which AI sessions run on this Mac and the process tree
+each one started, with the thermal context. The menu bar shows it under
+*Agent activity*, and a ✨ marker appears on the bar while any session is
+alive - the marker's presence is the answer to "is an AI working right now".
+Off switch: `"agent_activity": false`.
+
+<p align="center">
+  <img src="docs/screens/agent_activity.webp" alt="Agent activity: live process trees of AI sessions, with thermal context" width="640">
+</p>
+<p align="center"><sub>Agent sessions and what each of them started - straight from the menu bar.</sub></p>
+
+**Also in the repo, so that nobody finds it by accident:**
+
+- `.claude-plugin/plugin.json` is a plugin manifest for Claude Code that packages this same
+  guard and skill as a plugin. It is one more optional distribution channel, not a different
+  product.
+- The menu bar has a row *Claude limits: …*. It exists only while the Claude Code statusline
+  integration is writing `~/.coffee-paladin/claude_usage_cache.json` (whitelisted fields, no
+  session ids or paths); when that file is missing or older than five minutes the function
+  returns nothing and the row is not drawn. The bar never queries any account.
+- `integrations/` holds hooks for five CLI agents (Claude Code, Codex, Gemini CLI, Grok,
+  Antigravity) next to the terminal integrations. A hook makes the agent ask the guard before
+  heavy work; without the hook the guard still pauses that work when the chip gets hot.
 
 ---
 
@@ -1266,14 +1306,14 @@ student research club for computer science at AHE in Łódź (SKN Informatyki AH
 flotę.** Pilnuje temperatury chipa, baterii, wentylatorów i zasilania, a gdy robi się gorąco -
 **wstrzymuje** ciężkie zadania, zamiast pozwolić im pracować aż komputer zgaśnie.
 
-**Obciążeniem, przez które to powstało, jest dziś agent AI.** Claude Code, Codex i Gemini CLI
-godzinami budują, kodują wideo i odpalają lokalne modele, a nie czują wentylatora i nie widzą,
-że maszyna zwalnia. Dlatego strażnik z nimi rozmawia: hak każe agentowi zapytać, zanim odpali
-ciężką robotę na gorącym Macu, statusline pokazuje temperaturę chipa w samej sesji, gdzie widzi
-ją i agent, i Ty, a pasek menu mówi, która sesja AI zjada ile rdzeni, ile zostało z limitu
-Claude i ile kosztował dzisiejszy dzień. Lokalny model to najgorętsza rzecz, jaka odpala się
-na większości laptopów: `ollama` i `llama-server` trzymają GPU na pełnym zegarze przez minuty,
-i właśnie to ma tu przetrwać.
+**Co trzyma Maca w gorączce godzinami, w kolejności z własnego dziennika autora**
+(sierpień i wrzesień 2026, jedna maszyna): kolejki `ffmpeg`, zadania w Pythonie, budowanie
+`swiftc`, transfery `rclone`, solvery SAT i modele lokalne - `ollama` i `llama-server`
+trzymają GPU na pełnym zegarze przez minuty i to je strażnik wstrzymuje najczęściej. Agenty
+kodujące (Claude Code, Codex, Gemini CLI) są na tej liście ostatnie, jako *źródło* takich
+zadań: odpalają budowanie, kodowanie wideo i modele, a wentylatora nie czują. Opcjonalne haki
+i statusline pozwalają strażnikowi z nimi rozmawiać; sam demon żadnego z nich nie potrzebuje
+i o żadnym nie wie (patrz *Integracje* niżej).
 
 Poza tym dla ludzi, u których Maki pracują na chleb inaczej: farmy renderujące, studia
 postprodukcji, pule Mac mini pod CI, zespoły ML, i każdy, kto zostawia laptop z obliczeniami
@@ -1281,10 +1321,35 @@ na noc.
 
 Bez `sudo`, bez rozszerzeń jądra, bez niczego działającego jako root.
 
-**Wymagania: Apple Silicon (M1 lub nowszy) i macOS 14+.** Temperatura chipa czytana jest
-przez IOReport, który istnieje tylko na M-kach; na starszym systemie ikona aplikacji będzie
+**Wymagania: Apple Silicon (M1 lub nowszy) i macOS 14+.** Temperatura chipa pochodzi
+z [`macmon`](https://github.com/vladkens/macmon), zewnętrznego narzędzia, które czyta
+IOReport, a ten istnieje tylko na M-kach; na starszym systemie ikona aplikacji będzie
 przekreślona, bo macOS blokuje aplikacje poniżej zadeklarowanej wersji minimalnej.
 Maców na Intelu uczciwie nie wspieram.
+
+---
+
+## Czym to nie jest
+
+- **Żadnego modelu, uczenia ani wnioskowania.** Demon to jeden plik w Pythonie na bibliotece
+  standardowej: czyta czujniki, porównuje liczby z progami i wysyła `SIGSTOP` / `SIGCONT`.
+  Log zdarzeń, który prowadzi (`~/.coffee-paladin/history_events.jsonl`), to zwykła historia
+  tego, co się wydarzyło; nic się na nim nie uczy i żadnego predyktora tu nie ma.
+- **Żadnego portu nasłuchującego.** `thermal-metrics` wypisuje tekst dla Prometheusa pod
+  kolektor plikowy `node_exporter`; nic w tym projekcie nie otwiera gniazda.
+- **Jeden opcjonalny kanał na zewnątrz.** Powiadomienia na telefon idą przez ntfy.sh, i tylko
+  wtedy, gdy ustawisz `ntfy_topic` w `config.json`. Domyślnie jest puste, a wtedy demon nie
+  robi żadnego zapytania sieciowego. (`install.sh` sięga raz po Homebrew, żeby pobrać
+  `macmon`.)
+- **Nie jest własnym czujnikiem.** Odczyty chipa, GPU, wentylatorów i poboru mocy pochodzą
+  z [`macmon`](https://github.com/vladkens/macmon), zewnętrznej binarki open source, która
+  czyta IOReport; strażnik parsuje jej wyjście, a bez niej schodzi na temperaturę baterii.
+- **Nie jest przywiązany do żadnego narzędzia AI.** Skill dla agenta, haki, statusline
+  i manifest wtyczki to opcjonalne integracje. `install.sh` wykłada każdą z nich tylko tam,
+  gdzie pasujące narzędzie już jest na maszynie, i nigdy nie podmienia statusline'a, który
+  ustawił ktoś inny; demon działa bez każdej z nich.
+
+---
 
 ## Skąd ta nazwa i skąd ta kawa
 
@@ -1374,8 +1439,12 @@ A hype'owany wszędzie boom na AI katuje te maszyny jak nic nigdy wcześniej. Ma
 pamięcią unified (wspólną dla procesora i grafiki) to najtańszy sposób na duże modele
 lokalnie. 512 GB w Macu kosztowało 9499 dolarów. Jedna karta H100 z 80 GB chodzi po
 około 30 tysięcy. Więc Maki na całym świecie mielą teraz LLM-y i rendery godzinami,
-pod korek. Długie grzanie to dokładnie to, co zabija te jednostki, laptopy i baterie,
-bo każde 5-10 °C ponad optimum to mniej więcej dwa razy szybsze starzenie ogniwa.
+pod korek. Długie grzanie postarza te maszyny i ich baterie. Apple pisze, że otoczenie
+powyżej 35 °C „może trwale uszkodzić pojemność baterii"
+([Apple, Maximizing Battery Life](https://www.apple.com/batteries/maximizing-performance/)),
+a tabela przechowywania z Battery University pokazuje, że ogniwo trzymane rok przy pełnym
+naładowaniu zostaje z około 80 % pojemności w 25 °C i z 65 % w 40 °C
+([BU-808](https://batteryuniversity.com/article/bu-808-how-to-prolong-lithium-based-batteries)).
 
 Wniosek jest prosty. Działającego Maca nie odkupisz dziś ani szybko, ani w cenie
 z początku roku. Dlatego coffee-paladin pilnuje go ZA DARMO, w kodzie, który możesz
@@ -1580,7 +1649,102 @@ reklamowana jako bezpiecznik.
 
 ---
 
-## Twój agent AI umie z nim rozmawiać
+## Flota: wszystkie Maki w jednej tabeli
+
+<p align="center">
+  <img src="docs/screens/fleet_pl.webp" alt="Flota Apple: dwa Maki, jeden milczy" width="620">
+</p>
+<p align="center"><sub>Dwie maszyny: jedna raportuje, druga milczy od 9 godzin. Nazwy maszyn zamazane.</sub></p>
+
+Firmy coraz częściej stawiają lokalne AI na Makach: Mac mini albo Mac Studio z dużym RAM-em,
+modele on-prem, dane bez wysyłania do chmury. Te maszyny mielą 24/7 - tak samo jak farmy
+renderujące, studia postprodukcji i pule CI. Przy kolejkach na nowe Maki rzędu 15+ tygodni
+i podwyżkach cen utrata jednej sztuki to nie drobna awaria, tylko realny przestój - każda
+uratowana maszyna to konkretny pieniądz.
+
+Flota w coffee-paladin jest prosta: każdy Mac publikuje co około minutę migawkę JSON do
+wspólnego folderu, a `fleet` i pasek menu składają z tych plików jedną tabelę: temperatura,
+wentylatory, waty, RAM, stan, wstrzymane zadania i ostatni raport. Maszyny mają własne nazwy,
+model i numer seryjny; po 5 minutach ciszy dostają znacznik `NIE RAPORTUJE`. **„Serwerem" jest
+folder, który firma już ma** - iCloud, Dropbox, SharePoint albo SMB/NAS.
+
+Nie ma serwera, kont, panelu SaaS ani danych wychodzących poza folder firmy. To ułatwia
+compliance: IT widzi zwykłe pliki JSON w miejscu, którym samo zarządza. `fleet --json` plus
+kod wyjścia wpinają się w alerty, cron, Grafanę albo Slacka, a guard na każdej maszynie sam
+pauzuje przegrzane zadania i zbiera czarną skrzynkę na wypadek awarii.
+
+Konkretnie daje to: wgląd w całą flotę bez wdrażania infrastruktury, dłuższe życie sprzętu
+pracującego pod pełnym obciążeniem, szybkie wykrycie maszyn, które przestały raportować,
+i dowody dla serwisu po twardym padzie.
+
+Świeża instalacja startuje w **trybie obserwacji**: mierzy, loguje i alarmuje,
+ale niczego nie wstrzymuje, dopóki nie włączysz ochrony - jednym kliknięciem w menu paska.
+Na pasku widać wtedy ikonę oka. Odinstalowanie: `bash uninstall.sh`.
+
+Konfiguracja floty: `fleet --setup` (wykrywa foldery synchronizowane i zapisuje wybór) albo
+ręcznie - jeden klucz na każdej maszynie: `"fleet_dir": "<ścieżka folderu>"` w
+`~/.coffee-paladin/config.json` - bez restartu, agent zacznie publikować w ciągu minuty. Potem
+na swojej maszynie: `fleet` (tabela + problemy), `fleet --watch` (odświeżanie), `fleet --json`
+(pod automaty i dashboardy). Host bez raportu od 5 minut dostaje flagę `NIE RAPORTUJE`.
+
+Co znaczy "ten sam folder": nic apple'owego. Wystarczy folder, do którego każdy Mac ma dostęp
+pod jakąkolwiek swoją ścieżką - ścieżki mogą się różnić, bo każda maszyna trzyma własny
+`fleet_dir`. iCloud Drive wymaga tego samego Apple ID na wszystkich Makach (albo folderu
+udostępnionego drugiemu Apple ID). Google Drive, OneDrive i Dropbox - tego samego konta
+zalogowanego wszędzie albo folderu udostępnionego drugiemu kontu; ich ścieżki zawierają nazwę
+konta, więc na każdej maszynie wyglądają inaczej i tak ma być. Dysk sieciowy SMB/NAS - po prostu
+podmontowany na każdym Macu.
+
+Synchronizacja nie jest natychmiastowa i to widać. Przy pobieraniu na żądanie (iCloud
+*Optymalizuj miejsce*, streaming w Drive) migawka drugiego Maca potrafi dojść z kilkuminutowym
+opóźnieniem albo leżeć jako niepobrany placeholder. Do tego czasu tamta maszyna po prostu nie
+ma jej w tabeli na tym Macu albo widnieje jako nieraportująca - dane nie zginęły, jeszcze nie
+dojechały. Siebie każdy Mac widzi od razu, bo swój plik zapisuje lokalnie.
+
+## Dla flot CI: własne runnery na Macach
+
+Mac mini pod biurkiem mielący `xcodebuild` cały dzień to dokładnie ta maszyna, dla której
+powstał ten bezpiecznik. Zmierzyliśmy więc to, o co operator CI zapyta najpierw: **co się
+dzieje z jadącym jobem, gdy strażnik wstrzyma jego proces builda?**
+
+Test na żywym self-hosted runnerze GitHub Actions (runner v2.336.0, M4 Pro, 06.08.2026),
+z tym samym `SIGSTOP`, którego używa strażnik: zamrożenie procesu builda w środku joba na
+**3 minuty** - job dokończony, **success**, w logu dziura 3 m 09 s. Zamrożenie na **10 minut** -
+także **success**, dziura 10 m 02 s, job łącznie 15 m 15 s. GitHub Actions nie ma watchdoga
+„brak outputu": połączenie trzyma `Runner.Listener`, którego strażnik nie dotyka.
+Pauza wydłuża tylko zegar ścienny, więc jedyne realne ryzyko to ciasny `timeout-minutes`
+samego joba.
+
+W praktyce: podstawowym mechanizmem dla CI jest **bramka, nie pauza** - `safe-run` odmawia
+STARTU pracy na gorącej maszynie, więc kolejka przeczekuje upał zamiast przez niego padać.
+Pauza w środku joba to przetestowany fallback (typowa pauza termiczna trwa około minuty -
+chip schodzi z 95 °C do 71 °C w ~20 s). Agenta runnera dopisz do `never_extra`
+(`Runner.Listener`, `Runner.Worker`, `gitlab-runner`, `buildkite-agent`). Czarna skrzynka
+odpowiada na pytanie, którym kończy się każdy wątek o znikających runnerach: *czemu maszyna
+zniknęła o 3 w nocy?* GitLab też przetestowany: self-managed CE (runner 19.2.1, shell,
+06.08.2026), build zamrożony w środku joba na pełne 10 minut - job zielony, żaden watchdog
+nie zadziałał. Jenkins - nieprzetestowany; publikujemy to, co zmierzyliśmy.
+
+## Integracje
+
+Wszystko w tej sekcji jest opcjonalne. Demon chroni maszynę bez żadnej z tych rzeczy; to są
+sposoby, na jakie inne narzędzia na Macu mogą *zapytać* strażnika, zanim go rozgrzeją. Dziś
+znaczy to terminale i agenty kodujące w CLI, bo to one odpalają na laptopie budowanie,
+kodowanie wideo i modele, nie patrząc na wentylator.
+
+### Jeśli czyta to agent AI
+
+Jeśli jesteś agentem kodującym (Claude Code, Codex, Gemini CLI, …) i zaraz odpalisz na tym Macu ciężką pracę, budowanie, `ffmpeg`, wnioskowanie modelu, szerokie zestawy testów, długie pętle, zrób najpierw to:
+
+1. **Wykryj strażnika:** `test -f ~/.coffee-paladin/status.json`. Jeśli pliku nie ma, coffee-paladin nie jest tu zainstalowany; podaj użytkownikowi obie linie, bo sam `brew install` wykłada pliki, ale niczego nie uruchamia: `brew install pawelkwaczynski/tap/coffee-paladin`, a po nim `bash "$(brew --prefix)/share/coffee-paladin/install.sh"`.
+2. **Przeczytaj stan** (zwykły JSON, odświeżany co ~15 s). Rozstrzyga pole `level`: `0` startuj zadanie, `1` startuj, ale nie zrównoleglaj, `2` dokończ to, co biegnie, i nie zaczynaj nic nowego, `3` stop i powiedz użytkownikowi, że Mac jest za gorący.
+3. **Ufaj mu tylko wtedy, gdy jest świeży:** jeśli `time` jest starsze niż 60 s, demon nie działa, powiedz to i traktuj Maca jak niechronionego. Jeśli `dry_run` jest `true`, strażnik tylko patrzy; ostrzeż użytkownika przed czymkolwiek ciężkim.
+4. **Ciężkie zadania odpalaj przez `safe-run`**, nie wprost: `safe-run --name build -- cargo build --release`. Odmówi startu na gorącej maszynie i zarejestruje zadanie u demona. Nigdy nie dodawaj `--allow-hot` z własnej inicjatywy.
+5. **Nie walcz z pauzą.** Nazwa w `paused` to decyzja, nie zawieszenie: nie rób na niej `SIGCONT`, nie restartuj jej, nie podnoś progów w `config.json`. Wznowi się sama, gdy chip ostygnie.
+
+Pełna instrukcja dla agenta jedzie jako skill: [`skills/coffee-paladin/SKILL.md`](skills/coffee-paladin/SKILL.md) (`install.sh` wykłada go do `~/.claude/skills/coffee-paladin/`).
+
+### Skill, hak, statusline i pasek menu
 
 Agenty kodujące to dziś zwyczajne źródło obciążenia laptopa: budują, kodują wideo, odpalają
 modele, puszczają kilkanaście rzeczy naraz. I w praktyce są najgorszym sprawcą, bo agent nie
@@ -1743,82 +1907,18 @@ scheduler może przeczytać, zanim doskaluje.
 `update-status` dla WezTerma i komponent paska statusu iTerm2 - każdy to plik
 wielkości jednego wklejenia, z notką instalacyjną w środku.
 
+**Także w repo, żeby nikt nie znalazł tego przypadkiem:**
 
-## Flota: wszystkie Maki w jednej tabeli
-
-<p align="center">
-  <img src="docs/screens/fleet_pl.webp" alt="Flota Apple: dwa Maki, jeden milczy" width="620">
-</p>
-<p align="center"><sub>Dwie maszyny: jedna raportuje, druga milczy od 9 godzin. Nazwy maszyn zamazane.</sub></p>
-
-Firmy coraz częściej stawiają lokalne AI na Makach: Mac mini albo Mac Studio z dużym RAM-em,
-modele on-prem, dane bez wysyłania do chmury. Te maszyny mielą 24/7 - tak samo jak farmy
-renderujące, studia postprodukcji i pule CI. Przy kolejkach na nowe Maki rzędu 15+ tygodni
-i podwyżkach cen utrata jednej sztuki to nie drobna awaria, tylko realny przestój - każda
-uratowana maszyna to konkretny pieniądz.
-
-Flota w coffee-paladin jest prosta: każdy Mac publikuje co około minutę migawkę JSON do
-wspólnego folderu, a `fleet` i pasek menu składają z tych plików jedną tabelę: temperatura,
-wentylatory, waty, RAM, stan, wstrzymane zadania i ostatni raport. Maszyny mają własne nazwy,
-model i numer seryjny; po 5 minutach ciszy dostają znacznik `NIE RAPORTUJE`. **„Serwerem" jest
-folder, który firma już ma** - iCloud, Dropbox, SharePoint albo SMB/NAS.
-
-Nie ma serwera, kont, panelu SaaS ani danych wychodzących poza folder firmy. To ułatwia
-compliance: IT widzi zwykłe pliki JSON w miejscu, którym samo zarządza. `fleet --json` plus
-kod wyjścia wpinają się w alerty, cron, Grafanę albo Slacka, a guard na każdej maszynie sam
-pauzuje przegrzane zadania i zbiera czarną skrzynkę na wypadek awarii.
-
-Konkretnie daje to: wgląd w całą flotę bez wdrażania infrastruktury, dłuższe życie sprzętu
-pracującego pod pełnym obciążeniem, szybkie wykrycie maszyn, które przestały raportować,
-i dowody dla serwisu po twardym padzie.
-
-Świeża instalacja startuje w **trybie obserwacji**: mierzy, loguje i alarmuje,
-ale niczego nie wstrzymuje, dopóki nie włączysz ochrony - jednym kliknięciem w menu paska.
-Na pasku widać wtedy ikonę oka. Odinstalowanie: `bash uninstall.sh`.
-
-Konfiguracja floty: `fleet --setup` (wykrywa foldery synchronizowane i zapisuje wybór) albo
-ręcznie - jeden klucz na każdej maszynie: `"fleet_dir": "<ścieżka folderu>"` w
-`~/.coffee-paladin/config.json` - bez restartu, agent zacznie publikować w ciągu minuty. Potem
-na swojej maszynie: `fleet` (tabela + problemy), `fleet --watch` (odświeżanie), `fleet --json`
-(pod automaty i dashboardy). Host bez raportu od 5 minut dostaje flagę `NIE RAPORTUJE`.
-
-Co znaczy "ten sam folder": nic apple'owego. Wystarczy folder, do którego każdy Mac ma dostęp
-pod jakąkolwiek swoją ścieżką - ścieżki mogą się różnić, bo każda maszyna trzyma własny
-`fleet_dir`. iCloud Drive wymaga tego samego Apple ID na wszystkich Makach (albo folderu
-udostępnionego drugiemu Apple ID). Google Drive, OneDrive i Dropbox - tego samego konta
-zalogowanego wszędzie albo folderu udostępnionego drugiemu kontu; ich ścieżki zawierają nazwę
-konta, więc na każdej maszynie wyglądają inaczej i tak ma być. Dysk sieciowy SMB/NAS - po prostu
-podmontowany na każdym Macu.
-
-Synchronizacja nie jest natychmiastowa i to widać. Przy pobieraniu na żądanie (iCloud
-*Optymalizuj miejsce*, streaming w Drive) migawka drugiego Maca potrafi dojść z kilkuminutowym
-opóźnieniem albo leżeć jako niepobrany placeholder. Do tego czasu tamta maszyna po prostu nie
-ma jej w tabeli na tym Macu albo widnieje jako nieraportująca - dane nie zginęły, jeszcze nie
-dojechały. Siebie każdy Mac widzi od razu, bo swój plik zapisuje lokalnie.
-
-## Dla flot CI: własne runnery na Macach
-
-Mac mini pod biurkiem mielący `xcodebuild` cały dzień to dokładnie ta maszyna, dla której
-powstał ten bezpiecznik. Zmierzyliśmy więc to, o co operator CI zapyta najpierw: **co się
-dzieje z jadącym jobem, gdy strażnik wstrzyma jego proces builda?**
-
-Test na żywym self-hosted runnerze GitHub Actions (runner v2.336.0, M4 Pro, 06.08.2026),
-z tym samym `SIGSTOP`, którego używa strażnik: zamrożenie procesu builda w środku joba na
-**3 minuty** - job dokończony, **success**, w logu dziura 3 m 09 s. Zamrożenie na **10 minut** -
-także **success**, dziura 10 m 02 s, job łącznie 15 m 15 s. GitHub Actions nie ma watchdoga
-„brak outputu": połączenie trzyma `Runner.Listener`, którego strażnik nie dotyka.
-Pauza wydłuża tylko zegar ścienny, więc jedyne realne ryzyko to ciasny `timeout-minutes`
-samego joba.
-
-W praktyce: podstawowym mechanizmem dla CI jest **bramka, nie pauza** - `safe-run` odmawia
-STARTU pracy na gorącej maszynie, więc kolejka przeczekuje upał zamiast przez niego padać.
-Pauza w środku joba to przetestowany fallback (typowa pauza termiczna trwa około minuty -
-chip schodzi z 95 °C do 71 °C w ~20 s). Agenta runnera dopisz do `never_extra`
-(`Runner.Listener`, `Runner.Worker`, `gitlab-runner`, `buildkite-agent`). Czarna skrzynka
-odpowiada na pytanie, którym kończy się każdy wątek o znikających runnerach: *czemu maszyna
-zniknęła o 3 w nocy?* GitLab też przetestowany: self-managed CE (runner 19.2.1, shell,
-06.08.2026), build zamrożony w środku joba na pełne 10 minut - job zielony, żaden watchdog
-nie zadziałał. Jenkins - nieprzetestowany; publikujemy to, co zmierzyliśmy.
+- `.claude-plugin/plugin.json` to manifest wtyczki dla Claude Code, który pakuje tego samego
+  strażnika i ten sam skill jako wtyczkę. To jeszcze jeden opcjonalny kanał dystrybucji, nie
+  osobny produkt.
+- W pasku menu jest wiersz *Limity Claude: …*. Istnieje tylko wtedy, gdy integracja
+  statusline'a Claude Code zapisuje `~/.coffee-paladin/claude_usage_cache.json` (pola z białej
+  listy, bez identyfikatorów sesji i ścieżek); gdy tego pliku nie ma albo jest starszy niż pięć
+  minut, funkcja nie zwraca nic i wiersz się nie rysuje. Pasek nigdy nie odpytuje żadnego konta.
+- `integrations/` trzyma haki do pięciu agentów CLI (Claude Code, Codex, Gemini CLI, Grok,
+  Antigravity) obok integracji terminalowych. Hak sprawia, że agent pyta strażnika przed ciężką
+  pracą; bez haka strażnik i tak wstrzyma tę pracę, gdy chip się rozgrzeje.
 
 ## Testy
 
