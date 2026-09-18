@@ -1,0 +1,24 @@
+{
+  "name": "pawelkwaczynski",
+  "owner": {
+    "name": "Paweł Kwaczyński",
+    "url": "https://github.com/pawelkwaczynski"
+  },
+  "plugins": [
+    {
+      "name": "coffee-paladin",
+      "source": "./",
+      "description": "Teaches the agent to check the Mac's thermal state before heavy work and to launch long jobs under supervision, so a build, render or model run cannot cook the machine.",
+      "version": "3.3.5",
+      "homepage": "https://github.com/pawelkwaczynski/coffee-paladin",
+      "license": "MIT",
+      "keywords": [
+        "macos",
+        "thermal",
+        "apple-silicon",
+        "safety",
+        "agents"
+      ]
+    }
+  ]
+}
