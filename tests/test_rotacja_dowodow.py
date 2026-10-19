@@ -14,7 +14,6 @@ whole case.
 Run with:  python3 tests/test_rotacja_dowodow.py
 Does not touch the real ~/.coffee-paladin; everything is in a temporary directory.
 """
-import importlib.machinery
 import io
 import os
 import shutil
@@ -23,12 +22,14 @@ import sys
 import tempfile
 import time
 
+from _load import load_source
+
 SRC = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BASE = tempfile.mkdtemp(prefix="tg-rotacja-")
 os.environ["TG_BASE"] = BASE
 os.environ.setdefault("TG_LANG", "en")
 
-g = importlib.machinery.SourceFileLoader("rot_guard", os.path.join(SRC, "guard.py")).load_module()
+g = load_source("rot_guard", os.path.join(SRC, "guard.py"))
 
 results = []
 

@@ -12,18 +12,19 @@ carries comm names only, no command lines; and the writer is atomic 0600.
 Run with:  python3 tests/test_agent_activity.py
 Pure synthetic process tables; nothing on the real machine is touched.
 """
-import importlib.machinery
 import json
 import os
 import stat
 import sys
 import tempfile
 
+from _load import load_source
+
 SRC = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BASE = tempfile.mkdtemp(prefix="tg-activity-")
 os.environ["TG_BASE"] = BASE
 os.environ["TG_LANG"] = "en"
-g = importlib.machinery.SourceFileLoader("aa_guard", os.path.join(SRC, "guard.py")).load_module()
+g = load_source("aa_guard", os.path.join(SRC, "guard.py"))
 
 passed = 0
 total = 0

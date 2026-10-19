@@ -16,19 +16,20 @@ Run with:  python3 tests/test_wariant_a.py
 On code before the change, this test fails at import because _DEMOTE_ONLY does not exist.
 Does not touch the real ~/.coffee-paladin; it works in a temporary directory.
 """
-import importlib.machinery
 import os
 import signal
 import subprocess
 import sys
 import tempfile
 
+from _load import load_source
+
 SRC = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 GUARD_SRC = os.environ.get("TG_TEST_GUARD") or os.path.join(SRC, "guard.py")
 BASE = tempfile.mkdtemp()
 os.environ["TG_BASE"] = BASE
 os.environ["TG_LANG"] = "en"
-g = importlib.machinery.SourceFileLoader("g", GUARD_SRC).load_module()
+g = load_source("g", GUARD_SRC)
 
 passed = total = 0
 children = []

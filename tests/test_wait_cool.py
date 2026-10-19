@@ -10,7 +10,6 @@ Run with:  python3 tests/test_wait_cool.py
 Does not touch the real ~/.coffee-paladin; it works in a temporary directory.
 """
 import contextlib
-import importlib.machinery
 import io
 import json
 import os
@@ -19,12 +18,14 @@ import sys
 import tempfile
 import time
 
+from _load import load_source
+
 SRC = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BASE = tempfile.mkdtemp()
 os.environ["TG_BASE"] = BASE
 os.environ["TG_LANG"] = "en"
 os.environ["SAFE_RUN_WAIT_POLL"] = "0.01"
-sr = importlib.machinery.SourceFileLoader("sr", os.path.join(SRC, "safe-run")).load_module()
+sr = load_source("sr", os.path.join(SRC, "safe-run"))
 json.dump({"soc_pause_c": 95.0, "soc_resume_c": 87.0}, open(os.path.join(BASE, "config.json"), "w"))
 
 passed = 0

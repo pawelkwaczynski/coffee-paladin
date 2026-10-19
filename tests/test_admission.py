@@ -5,7 +5,6 @@
 Everything runs in an isolated TG_BASE. Live pids come from short sleep
 children, never from real jobs. Run with: python3 tests/test_admission.py
 """
-import importlib.machinery
 import json
 import os
 import subprocess
@@ -13,6 +12,8 @@ import sys
 import tempfile
 import threading
 import time
+
+from _load import load_source
 
 SRC = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BASE = tempfile.mkdtemp(prefix="admission_")
@@ -22,8 +23,8 @@ os.environ["SAFE_RUN_ADMIT_POLL"] = "0.02"
 os.environ["SAFE_RUN_AFTER_POLL"] = "0.02"
 os.environ["SAFE_RUN_ADMIT_GRACE"] = "0.1"
 
-g = importlib.machinery.SourceFileLoader("g", os.path.join(SRC, "guard.py")).load_module()
-sr = importlib.machinery.SourceFileLoader("sr", os.path.join(SRC, "safe-run")).load_module()
+g = load_source("g", os.path.join(SRC, "guard.py"))
+sr = load_source("sr", os.path.join(SRC, "safe-run"))
 
 MANAGED = os.path.join(BASE, "managed")
 os.makedirs(MANAGED, exist_ok=True)

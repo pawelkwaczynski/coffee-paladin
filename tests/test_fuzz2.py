@@ -29,7 +29,8 @@ import tempfile
 import time
 import traceback
 from contextlib import redirect_stdout
-from importlib.machinery import SourceFileLoader
+
+from _load import load_source
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SESSION_LIMIT_SECONDS = 9.0            # Hard limit per function.
@@ -44,15 +45,11 @@ os.makedirs(os.path.join(TMP, "managed"), exist_ok=True)
 MARKER = "tgfuzz2-%d" % os.getpid()      # Used to find our own processes in pgrep.
 
 
-def load_module(name, file_path):
-    return SourceFileLoader(name, os.path.join(REPO, file_path)).load_module()
-
-
-guard = load_module("tgf2_guard", "guard.py")
-fleet = load_module("tgf2_fleet", "fleet")
-saferun = load_module("tgf2_saferun", "safe-run")
-treport = load_module("tgf2_treport", "thermal-report")
-heat = load_module("tgf2_heat", "heat")
+guard = load_source("tgf2_guard", os.path.join(REPO, "guard.py"))
+fleet = load_source("tgf2_fleet", os.path.join(REPO, "fleet"))
+saferun = load_source("tgf2_saferun", os.path.join(REPO, "safe-run"))
+treport = load_source("tgf2_treport", os.path.join(REPO, "thermal-report"))
+heat = load_source("tgf2_heat", os.path.join(REPO, "heat"))
 
 REAL_RUN = guard.run          # Needed only in the run() session.
 guard.run = lambda cmd, timeout=10: ""

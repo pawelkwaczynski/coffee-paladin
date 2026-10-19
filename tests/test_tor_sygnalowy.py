@@ -17,7 +17,6 @@ Modeled after test_demote_promote.py.
 Run with:  python3 tests/test_tor_sygnalowy.py
 Does not touch the real ~/.coffee-paladin. All test processes are cleaned up.
 """
-import importlib.machinery
 import os
 import shutil
 import signal
@@ -26,12 +25,14 @@ import sys
 import tempfile
 import time
 
+from _load import load_source
+
 SRC = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BASE = tempfile.mkdtemp(prefix="tg-sygnaly-")
 os.environ["TG_BASE"] = BASE
 os.environ.setdefault("TG_LANG", "en")
 
-g = importlib.machinery.SourceFileLoader("sg_guard", os.path.join(SRC, "guard.py")).load_module()
+g = load_source("sg_guard", os.path.join(SRC, "guard.py"))
 g.notify = lambda *a, **k: None          # No system notifications in the test.
 
 results = []

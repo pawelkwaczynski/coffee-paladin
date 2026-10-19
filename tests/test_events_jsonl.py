@@ -10,7 +10,6 @@ scheme; and heat must NOT pick the file up as measurement history.
 Run with:  python3 tests/test_events_jsonl.py
 Uses live processes in a temporary TG_BASE; does not touch ~/.coffee-paladin.
 """
-import importlib.machinery
 import json
 import os
 import signal
@@ -19,12 +18,14 @@ import sys
 import tempfile
 import time
 
+from _load import load_source
+
 SRC = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BASE = tempfile.mkdtemp(prefix="tg-events-")
 os.environ["TG_BASE"] = BASE
 os.environ.setdefault("TG_LANG", "en")
 
-g = importlib.machinery.SourceFileLoader("ev_guard", os.path.join(SRC, "guard.py")).load_module()
+g = load_source("ev_guard", os.path.join(SRC, "guard.py"))
 g.notify = lambda *a, **k: None
 
 # Shadow launchctl: TG_BASE does not isolate it, and safe-run kickstarts the
@@ -158,7 +159,7 @@ test("13. fresh stream starts with the new event",
      events()[-1].get("name") == "rot", str(events()[-3:]))
 
 print("=== safe-run alone must also rotate, and must sanitise names ===")
-sr = importlib.machinery.SourceFileLoader("ev_sr", os.path.join(SRC, "safe-run")).load_module()
+sr = load_source("ev_sr", os.path.join(SRC, "safe-run"))
 test("15. a path passed as --name is reduced to its basename",
      sr.event_name("/Users/someone/clients/acme/render") == "render"
      and sr.event_name("") == "?" and sr.event_name("ok-name") == "ok-name"

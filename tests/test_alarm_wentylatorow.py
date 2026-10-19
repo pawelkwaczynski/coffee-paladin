@@ -18,18 +18,19 @@ The rule now has two gates that must not be confused:
 Run with:  python3 tests/test_alarm_wentylatorow.py
 Does not touch the real ~/.coffee-paladin.
 """
-import importlib.machinery
 import json
 import os
 import shutil
 import sys
 import tempfile
 
+from _load import load_source
+
 SRC = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BASE = tempfile.mkdtemp()
 os.environ["TG_BASE"] = BASE
 os.environ["TG_LANG"] = "en"
-g = importlib.machinery.SourceFileLoader("g", os.path.join(SRC, "guard.py")).load_module()
+g = load_source("g", os.path.join(SRC, "guard.py"))
 
 passed = total = 0
 

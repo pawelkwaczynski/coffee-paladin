@@ -13,13 +13,14 @@ a job over progress. No declaration, no verdict.
 Run with:  python3 tests/test_progress_heartbeat.py
 Uses live processes in a temporary TG_BASE; does not touch ~/.coffee-paladin.
 """
-import importlib.machinery
 import json
 import os
 import subprocess
 import sys
 import tempfile
 import time
+
+from _load import load_source
 
 SRC = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BASE = tempfile.mkdtemp(prefix="tg-progress-")
@@ -35,7 +36,7 @@ os.chmod(os.path.join(FAKE_BIN, "launchctl"), 0o755)
 ENV = dict(os.environ, TG_BASE=BASE, TG_LANG="en",
            PATH=FAKE_BIN + os.pathsep + os.environ.get("PATH", ""))
 
-g = importlib.machinery.SourceFileLoader("hb_guard", os.path.join(SRC, "guard.py")).load_module()
+g = load_source("hb_guard", os.path.join(SRC, "guard.py"))
 g.notify = lambda *a, **k: None
 
 passed = 0

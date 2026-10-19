@@ -12,18 +12,19 @@ one a wrong number could turn into a hotter Mac:
 Run with:  python3 tests/test_profil.py
 Does not touch the real ~/.coffee-paladin.
 """
-import importlib.machinery
 import io
 import os
 import shutil
 import sys
 import tempfile
 
+from _load import load_source
+
 SRC = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BASE = tempfile.mkdtemp()
 os.environ["TG_BASE"] = BASE
 os.environ["TG_LANG"] = "en"
-heat = importlib.machinery.SourceFileLoader("heat_mod", os.path.join(SRC, "heat")).load_module()
+heat = load_source("heat_mod", os.path.join(SRC, "heat"))
 
 HEADER = ("time,thermal_state,chip_C,gpu_C,battery_C,fan_rpm,watts,battery_pct,"
           "on_ac,cpu_limit,load1,level,top_proc,top_cpu\n")

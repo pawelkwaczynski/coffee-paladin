@@ -16,7 +16,6 @@
 Run with:  python3 tests/test_bezpieczenstwo.py
 Does not touch the real ~/.coffee-paladin.
 """
-import importlib.machinery
 import io
 import json
 import os
@@ -26,13 +25,15 @@ import sys
 import tempfile
 import time
 
+from _load import load_source
+
 SRC = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BASE = tempfile.mkdtemp(prefix="tg-bezp-")
 os.environ["TG_BASE"] = BASE
 os.environ.setdefault("TG_LANG", "en")
 os.makedirs(os.path.join(BASE, "managed"), exist_ok=True)
 
-g = importlib.machinery.SourceFileLoader("bz_guard", os.path.join(SRC, "guard.py")).load_module()
+g = load_source("bz_guard", os.path.join(SRC, "guard.py"))
 
 results = []
 

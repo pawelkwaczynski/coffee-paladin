@@ -6,7 +6,6 @@ On 23.08 the last paused encoder had a PAUSE line and no RESUME line at daemon
 shutdown; the only silent path was a dead pid. Isolated TG_BASE, no real daemon.
 Run with: python3 tests/test_porzucony_wpis.py
 """
-import importlib.machinery
 import json
 import os
 import subprocess
@@ -14,11 +13,13 @@ import sys
 import tempfile
 import time
 
+from _load import load_source
+
 SRC = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BASE = tempfile.mkdtemp(prefix="drop_")
 os.environ["TG_BASE"] = BASE
 os.environ["TG_LANG"] = "en"
-g = importlib.machinery.SourceFileLoader("g", os.path.join(SRC, "guard.py")).load_module()
+g = load_source("g", os.path.join(SRC, "guard.py"))
 
 passed = total = 0
 

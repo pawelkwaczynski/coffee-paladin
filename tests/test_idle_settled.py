@@ -15,16 +15,17 @@ as skipped, and rows without timestamps are skipped, never trusted.
 Run with:  python3 tests/test_idle_settled.py
 Does not touch the real ~/.coffee-paladin.
 """
-import importlib.machinery
 import os
 import sys
 import tempfile
+
+from _load import load_source
 
 SRC = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BASE = tempfile.mkdtemp()
 os.environ["TG_BASE"] = BASE
 os.environ["TG_LANG"] = "en"
-heat = importlib.machinery.SourceFileLoader("heat_idle_mod", os.path.join(SRC, "heat")).load_module()
+heat = load_source("heat_idle_mod", os.path.join(SRC, "heat"))
 
 ok = fail = 0
 

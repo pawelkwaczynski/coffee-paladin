@@ -15,13 +15,15 @@ Run with:  python3 tests/test_spojnosc.py
 Does not touch the real ~/.coffee-paladin.
 """
 import ast
-import importlib.machinery
 import io
 import json
 import os
 import re
 import sys
 import tempfile
+
+from _load import load_source
+
 SRC = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 os.environ["TG_BASE"] = tempfile.mkdtemp()
 errors = []
@@ -48,8 +50,7 @@ for file_path in ("guard.py", "thermal-report", "fleet", "heat", "safe-run"):
     if not os.path.exists(path):
         continue
     content = io.open(path, encoding='utf-8').read()
-    mod = importlib.machinery.SourceFileLoader(
-        're_' + re.sub(r'\W', '_', file_path), path).load_module()
+    mod = load_source('re_' + re.sub(r'\W', '_', file_path), path)
     if not all(hasattr(mod, n) for n in ("PL", "RU", "ZH", "ES")):
         continue                      # File without its own dictionaries.
     called = called_T(content)
@@ -172,7 +173,7 @@ try:
     with io.open(os.path.join(_t5, "guard.log"), "w", encoding="utf-8") as _f:
         for _tag in tags:
             _f.write("%s 10:00:00+0200  [%s] proces testowy (pid 1) - powod\n" % (_today, _tag))
-    _g5 = importlib.machinery.SourceFileLoader('tag_g', os.path.join(SRC, 'guard.py')).load_module()
+    _g5 = load_source('tag_g', os.path.join(SRC, 'guard.py'))
     _stat = _g5.day_stats() if hasattr(_g5, "day_stats") else None
     if _stat is not None and not any(v for v in _stat.values()):
         errors.append("day_stats recognized NONE of the tags %s "
@@ -222,8 +223,8 @@ try:
     _p = os.path.join(_t, "history.csv")
     for _n in ("", ".1", ".2", ".3"):
         io.open(_p + _n, "w").write("x")
-    _g = importlib.machinery.SourceFileLoader('pg', os.path.join(SRC, 'guard.py')).load_module()
-    _tr = importlib.machinery.SourceFileLoader('ptr', os.path.join(SRC, 'thermal-report')).load_module()
+    _g = load_source('pg', os.path.join(SRC, 'guard.py'))
+    _tr = load_source('ptr', os.path.join(SRC, 'thermal-report'))
     if not hasattr(_tr, "generations"):
         errors.append("thermal-report lacks generations() - rotation will truncate evidence again")
     elif _g.generations(_p) != _tr.generations(_p):
@@ -244,8 +245,7 @@ try:
     _impl = {}
     for _file_path, _name in (("guard.py", "abs_epoch"), ("thermal-report", "abs_epoch"),
                           ("heat", "abs_epoch"), ("safe-run", "abs_epoch")):
-        _m = importlib.machinery.SourceFileLoader(
-            'cz_' + re.sub(r'\W', '_', _file_path), os.path.join(SRC, _file_path)).load_module()
+        _m = load_source('cz_' + re.sub(r'\W', '_', _file_path), os.path.join(SRC, _file_path))
         if not hasattr(_m, _name):
             errors.append("%s lacks %s() - timestamp with offset will break parsing" % (_file_path, _name))
             continue

@@ -11,7 +11,6 @@ cleanup catches it.
 Run with:  python3 tests/test_grupa_sprzatanie.py
 Does not touch the real ~/.coffee-paladin; it works in a temporary directory.
 """
-import importlib.machinery
 import json
 import os
 import shutil
@@ -21,11 +20,13 @@ import sys
 import tempfile
 import time
 
+from _load import load_source
+
 SRC = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BASE = tempfile.mkdtemp()
 os.environ["TG_BASE"] = BASE
 os.environ["TG_LANG"] = "en"
-sr = importlib.machinery.SourceFileLoader("sr", os.path.join(SRC, "safe-run")).load_module()
+sr = load_source("sr", os.path.join(SRC, "safe-run"))
 json.dump({}, open(os.path.join(BASE, "config.json"), "w"))
 
 passed = 0

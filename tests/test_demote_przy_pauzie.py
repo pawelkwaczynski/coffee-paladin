@@ -8,18 +8,19 @@ of work. The pause already names the heater, so it is demoted right there and pr
 keeps its hands off it for one quiet window. Isolated TG_BASE; live pids are sleep children.
 Run with: python3 tests/test_demote_przy_pauzie.py
 """
-import importlib.machinery
 import os
 import signal
 import subprocess
 import sys
 import tempfile
 
+from _load import load_source
+
 SRC = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BASE = tempfile.mkdtemp(prefix="demote_pause_")
 os.environ["TG_BASE"] = BASE
 os.environ["TG_LANG"] = "en"
-g = importlib.machinery.SourceFileLoader("g", os.path.join(SRC, "guard.py")).load_module()
+g = load_source("g", os.path.join(SRC, "guard.py"))
 
 passed = total = 0
 logged = []

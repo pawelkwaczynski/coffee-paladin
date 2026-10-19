@@ -21,7 +21,6 @@ Contract checked here:
 Run with:  python3 tests/test_strefa_czasowa.py
 Does not touch the real ~/.coffee-paladin.
 """
-import importlib.machinery
 import io
 import os
 import re
@@ -31,12 +30,14 @@ import sys
 import tempfile
 import time
 
+from _load import load_source
+
 SRC = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BASE = tempfile.mkdtemp(prefix="tg-strefa-")
 os.environ["TG_BASE"] = BASE
 os.environ.setdefault("TG_LANG", "en")
 
-g = importlib.machinery.SourceFileLoader("tz_guard", os.path.join(SRC, "guard.py")).load_module()
+g = load_source("tz_guard", os.path.join(SRC, "guard.py"))
 
 results = []
 

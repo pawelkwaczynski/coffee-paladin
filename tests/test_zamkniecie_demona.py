@@ -18,7 +18,6 @@ channel the menu bar uses.
 Run with:  python3 tests/test_zamkniecie_demona.py
 Does not touch the real ~/.coffee-paladin.
 """
-import importlib.machinery
 import io
 import json
 import os
@@ -28,6 +27,8 @@ import subprocess
 import sys
 import tempfile
 import time
+
+from _load import load_source
 
 SRC = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BASE = tempfile.mkdtemp(prefix="tg-zamkniecie-")
@@ -113,7 +114,7 @@ test("9. ...and final entry in log", "coffee-paladin stop" in log_text())
 
 # ---------------------------------------------------------------- core invariant
 print("\n=== clean shutdown MUST NOT be reported as hard shutdown ===")
-g = importlib.machinery.SourceFileLoader("zd_guard", os.path.join(SRC, "guard.py")).load_module()
+g = load_source("zd_guard", os.path.join(SRC, "guard.py"))
 try:
     events = [json.loads(l) for l in
                  io.open(file_path("events.log"), encoding="utf-8").read().splitlines() if l.strip()]

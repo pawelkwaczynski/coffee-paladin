@@ -27,7 +27,8 @@ import tempfile
 import time
 import traceback
 from contextlib import redirect_stdout
-from importlib.machinery import SourceFileLoader
+
+from _load import load_source
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LIMIT_SECONDS = 60.0          # Hard limit per function; the machine may already be hot.
@@ -40,14 +41,10 @@ os.environ.setdefault("TG_LANG", "en")
 os.makedirs(os.path.join(TMP, "managed"), exist_ok=True)
 
 
-def load_module(name, file_path):
-    return SourceFileLoader(name, os.path.join(REPO, file_path)).load_module()
-
-
-guard = load_module("tgfuzz_guard", "guard.py")
-heat = load_module("tgfuzz_heat", "heat")
-saferun = load_module("tgfuzz_saferun", "safe-run")
-treport = load_module("tgfuzz_treport", "thermal-report")
+guard = load_source("tgfuzz_guard", os.path.join(REPO, "guard.py"))
+heat = load_source("tgfuzz_heat", os.path.join(REPO, "heat"))
+saferun = load_source("tgfuzz_saferun", os.path.join(REPO, "safe-run"))
+treport = load_source("tgfuzz_treport", os.path.join(REPO, "thermal-report"))
 
 # No real processes: every `ps`/`sysctl` result is a stub.
 guard.run = lambda cmd, timeout=10: ""

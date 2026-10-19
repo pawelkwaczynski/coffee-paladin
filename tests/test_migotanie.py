@@ -17,18 +17,19 @@
 
 Run with:  python3 tests/test_migotanie.py
 """
-import importlib.machinery
 import os
 import shutil
 import sys
 import tempfile
 import time
 
+from _load import load_source
+
 SRC = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BASE = tempfile.mkdtemp()
 os.environ["TG_BASE"] = BASE
 os.environ["TG_LANG"] = "en"
-g = importlib.machinery.SourceFileLoader("g", os.path.join(SRC, "guard.py")).load_module()
+g = load_source("g", os.path.join(SRC, "guard.py"))
 
 passed = total = 0
 

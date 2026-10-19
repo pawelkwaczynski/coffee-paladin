@@ -36,7 +36,6 @@ Does not touch the real ~/.coffee-paladin; it works in a temporary directory.
 """
 import ast
 import errno
-import importlib.machinery
 import json
 import os
 import signal
@@ -46,14 +45,16 @@ import tempfile
 import time
 import types
 
+from _load import load_source
+
 SRC = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 GUARD_SRC = os.environ.get("TG_TEST_GUARD") or os.path.join(SRC, "guard.py")
 SAFERUN_SRC = os.environ.get("TG_TEST_SAFERUN") or os.path.join(SRC, "safe-run")
 BASE = tempfile.mkdtemp()
 os.environ["TG_BASE"] = BASE
 os.environ["TG_LANG"] = "en"
-g = importlib.machinery.SourceFileLoader("g", GUARD_SRC).load_module()
-sr = importlib.machinery.SourceFileLoader("sr", SAFERUN_SRC).load_module()
+g = load_source("g", GUARD_SRC)
+sr = load_source("sr", SAFERUN_SRC)
 
 passed = total = 0
 children = []

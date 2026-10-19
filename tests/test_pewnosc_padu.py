@@ -18,7 +18,6 @@ with explicit `confidence`. A service human decides.
 Run with:  python3 tests/test_pewnosc_padu.py
 Does not touch the real ~/.coffee-paladin.
 """
-import importlib.machinery
 import io
 import json
 import os
@@ -27,12 +26,14 @@ import sys
 import tempfile
 import time
 
+from _load import load_source
+
 SRC = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BASE = tempfile.mkdtemp(prefix="tg-pewnosc-")
 os.environ["TG_BASE"] = BASE
 os.environ.setdefault("TG_LANG", "en")
 
-g = importlib.machinery.SourceFileLoader("pw_guard", os.path.join(SRC, "guard.py")).load_module()
+g = load_source("pw_guard", os.path.join(SRC, "guard.py"))
 BOOT = g.boot_time()
 
 results = []

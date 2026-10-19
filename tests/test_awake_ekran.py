@@ -13,18 +13,19 @@ keep-awake regardless of the display setting.
 
 Run with:  python3 tests/test_awake_ekran.py
 """
-import importlib.machinery
 import io
 import os
 import shutil
 import sys
 import tempfile
 
+from _load import load_source
+
 SRC = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BASE = tempfile.mkdtemp(prefix="tg-awake-ekran-")
 os.environ["TG_BASE"] = BASE
 os.environ["TG_LANG"] = "en"
-g = importlib.machinery.SourceFileLoader("g", os.path.join(SRC, "guard.py")).load_module()
+g = load_source("g", os.path.join(SRC, "guard.py"))
 
 passed = total = 0
 CALLS = []

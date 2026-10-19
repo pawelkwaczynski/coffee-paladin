@@ -7,7 +7,6 @@ because 3c was only waiting for 3b and had nothing in managed/ yet. Everything r
 an isolated TG_BASE; live pids come from short sleep children and threads, never from
 real jobs. Run with: python3 tests/test_after_kolejka.py
 """
-import importlib.machinery
 import json
 import os
 import subprocess
@@ -15,14 +14,16 @@ import sys
 import tempfile
 import time
 
+from _load import load_source
+
 SRC = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BASE = tempfile.mkdtemp(prefix="after_")
 os.environ["TG_BASE"] = BASE
 os.environ["TG_LANG"] = "en"
 os.environ["SAFE_RUN_AFTER_POLL"] = "0.02"
 
-g = importlib.machinery.SourceFileLoader("g", os.path.join(SRC, "guard.py")).load_module()
-sr = importlib.machinery.SourceFileLoader("sr", os.path.join(SRC, "safe-run")).load_module()
+g = load_source("g", os.path.join(SRC, "guard.py"))
+sr = load_source("sr", os.path.join(SRC, "safe-run"))
 
 MANAGED = os.path.join(BASE, "managed")
 os.makedirs(MANAGED, exist_ok=True)
@@ -63,8 +64,10 @@ def opt(name, after=None, cores=4):
 
 
 WAITER = r"""
-import importlib.machinery, os, sys, time
-sr = importlib.machinery.SourceFileLoader("sr", sys.argv[1]).load_module()
+import importlib.machinery, importlib.util, os, sys, time
+loader = importlib.machinery.SourceFileLoader("sr", sys.argv[1])
+sr = importlib.util.module_from_spec(importlib.util.spec_from_loader("sr", loader))
+loader.exec_module(sr)
 opt = {"name": sys.argv[2], "after": sys.argv[3], "cores": 4, "priority": 5}
 p = sr.register_waiting(opt, sys.argv[3])
 print("waiting", flush=True)

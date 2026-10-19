@@ -15,16 +15,17 @@ sensor, and never outlive its grace window.
 
 Run with:  python3 tests/test_czujnik_ostatni_dobry.py
 """
-import importlib.machinery
 import os
 import sys
 import tempfile
+
+from _load import load_source
 
 SRC = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BASE = tempfile.mkdtemp()
 os.environ["TG_BASE"] = BASE
 os.environ["TG_LANG"] = "en"
-g = importlib.machinery.SourceFileLoader("g", os.path.join(SRC, "guard.py")).load_module()
+g = load_source("g", os.path.join(SRC, "guard.py"))
 
 passed = total = 0
 

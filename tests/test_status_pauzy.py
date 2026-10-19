@@ -12,13 +12,14 @@ carries structured `paused_details` plus per-job `cpu_limit_pct`.
 Run with:  python3 tests/test_status_pauzy.py
 Uses a temporary TG_BASE; reads the real sensors but signals nothing.
 """
-import importlib.machinery
 import json
 import os
 import subprocess
 import sys
 import tempfile
 import time
+
+from _load import load_source
 
 SRC = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BASE = tempfile.mkdtemp(prefix="tg-status-")
@@ -112,7 +113,7 @@ test("7c. a string cap normalises, garbage does not hide the other jobs",
      and "garbage-cap" not in duty_part, out)
 
 print("=== status.json: structured fields ===")
-g = importlib.machinery.SourceFileLoader("st_guard", os.path.join(SRC, "guard.py")).load_module()
+g = load_source("st_guard", os.path.join(SRC, "guard.py"))
 g.notify = lambda *a, **k: None
 # The daemon loop initialises this before its first status_write; a direct call
 # has to do the same.
