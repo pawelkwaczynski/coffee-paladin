@@ -164,10 +164,16 @@ PL = {
         "safe-run: SIGTERM o %s, chyba że zadanie skończy się wcześniej (--hours %.1f)",
     "safe-run: thermal state=%s, battery=%s, time budget=%.1f h":
         "safe-run: stan termiczny=%s, bateria=%s, limit czasu=%.1f h",
-    "safe-run: REFUSING TO START - the Mac is already hot. Use --wait-cool to wait, let it cool down, or pass --allow-hot.":
-        "safe-run: ODMOWA STARTU - Mac jest już gorący. Użyj --wait-cool żeby poczekać, daj mu ostygnąć albo użyj --allow-hot.",
-    "safe-run: --wait-cool - the Mac is hot (%s), waiting until it cools down (checking every 60 s)":
-        "safe-run: --wait-cool - Mac jest gorący (%s), czekam aż ostygnie (sprawdzam co 60 s)",
+    "safe-run: REFUSING TO START - %s. Use --wait-cool to wait, or pass --allow-hot.":
+        "safe-run: ODMOWA STARTU - %s. Użyj --wait-cool, żeby poczekać, albo --allow-hot.",
+    "the Mac is on battery at %d%% (threshold %d%%), plug in the charger":
+        "Mac na baterii %d %% (próg %d %%), podłącz zasilacz",
+    "chip %.1f °C, threshold %.0f °C": "chip %.1f °C, próg %.0f °C",
+    "battery %.1f °C, threshold %.0f °C": "bateria %.1f °C, próg %.0f °C",
+    ", safe-run keeps a %d °C margin": ", safe-run trzyma %d °C zapasu",
+    "guard level %s: %s": "poziom guarda %s: %s",
+    "safe-run: --wait-cool - not starting yet (%s), waiting until that clears (checking every 60 s)":
+        "safe-run: --wait-cool - jeszcze nie startuję (%s), czekam, aż to minie (sprawdzam co 60 s)",
     "safe-run: cooled down after %d min - starting the job":
         "safe-run: ostygło po %d min - startuję zadanie",
     "safe-run: --after %s - waiting until that job finishes":
@@ -214,10 +220,16 @@ RU = {
     "safe-run: SIGTERM at %s unless the job ends first (--hours %.1f)": "safe-run: SIGTERM в %s, если задача не завершится раньше (--hours %.1f)",
     "safe-run: thermal state=%s, battery=%s, time budget=%.1f h":
         "safe-run: термосостояние=%s, батарея=%s, лимит времени=%.1f ч",
-    "safe-run: REFUSING TO START - the Mac is already hot. Use --wait-cool to wait, let it cool down, or pass --allow-hot.":
-        "safe-run: ОТКАЗ ЗАПУСКА - Mac уже горячий. Используйте --wait-cool чтобы подождать, дайте ему остыть или передайте --allow-hot.",
-    "safe-run: --wait-cool - the Mac is hot (%s), waiting until it cools down (checking every 60 s)":
-        "safe-run: --wait-cool - Mac горячий (%s), жду остывания (проверка каждые 60 с)",
+    "safe-run: REFUSING TO START - %s. Use --wait-cool to wait, or pass --allow-hot.":
+        "safe-run: ОТКАЗ ЗАПУСКА - %s. Используйте --wait-cool, чтобы подождать, или передайте --allow-hot.",
+    "the Mac is on battery at %d%% (threshold %d%%), plug in the charger":
+        "Mac работает от батареи, %d%% (порог %d%%), подключите зарядку",
+    "chip %.1f °C, threshold %.0f °C": "чип %.1f °C, порог %.0f °C",
+    "battery %.1f °C, threshold %.0f °C": "батарея %.1f °C, порог %.0f °C",
+    ", safe-run keeps a %d °C margin": ", safe-run оставляет запас %d °C",
+    "guard level %s: %s": "уровень guard %s: %s",
+    "safe-run: --wait-cool - not starting yet (%s), waiting until that clears (checking every 60 s)":
+        "safe-run: --wait-cool - пока не запускаю (%s), жду, пока это пройдёт (проверка каждые 60 с)",
     "safe-run: cooled down after %d min - starting the job":
         "safe-run: остыл через %d мин - запускаю задачу",
     "safe-run: --after %s - waiting until that job finishes":
@@ -264,10 +276,16 @@ ZH = {
     "safe-run: SIGTERM at %s unless the job ends first (--hours %.1f)": "safe-run: 将在 %s 发送 SIGTERM,除非任务提前结束(--hours %.1f)",
     "safe-run: thermal state=%s, battery=%s, time budget=%.1f h":
         "safe-run: 热状态=%s, 电池=%s, 时间预算=%.1f 小时",
-    "safe-run: REFUSING TO START - the Mac is already hot. Use --wait-cool to wait, let it cool down, or pass --allow-hot.":
-        "safe-run: 拒绝启动 - Mac 已经过热。可用 --wait-cool 等待降温、让它冷却或使用 --allow-hot。",
-    "safe-run: --wait-cool - the Mac is hot (%s), waiting until it cools down (checking every 60 s)":
-        "safe-run: --wait-cool - Mac 过热 (%s), 等待降温 (每 60 秒检查一次)",
+    "safe-run: REFUSING TO START - %s. Use --wait-cool to wait, or pass --allow-hot.":
+        "safe-run: 拒绝启动 - %s。可用 --wait-cool 等待, 或使用 --allow-hot。",
+    "the Mac is on battery at %d%% (threshold %d%%), plug in the charger":
+        "Mac 正在使用电池, 电量 %d%% (阈值 %d%%), 请接上电源",
+    "chip %.1f °C, threshold %.0f °C": "芯片 %.1f °C, 阈值 %.0f °C",
+    "battery %.1f °C, threshold %.0f °C": "电池 %.1f °C, 阈值 %.0f °C",
+    ", safe-run keeps a %d °C margin": ", safe-run 保留 %d °C 余量",
+    "guard level %s: %s": "guard 级别 %s: %s",
+    "safe-run: --wait-cool - not starting yet (%s), waiting until that clears (checking every 60 s)":
+        "safe-run: --wait-cool - 暂不启动 (%s), 等待该条件解除 (每 60 秒检查一次)",
     "safe-run: cooled down after %d min - starting the job":
         "safe-run: %d 分钟后已降温 - 启动任务",
     "safe-run: --after %s - waiting until that job finishes":
@@ -314,10 +332,16 @@ ES = {
     "safe-run: SIGTERM at %s unless the job ends first (--hours %.1f)": "safe-run: SIGTERM a las %s salvo que el trabajo termine antes (--hours %.1f)",
     "safe-run: thermal state=%s, battery=%s, time budget=%.1f h":
         "safe-run: estado térmico=%s, batería=%s, límite de tiempo=%.1f h",
-    "safe-run: REFUSING TO START - the Mac is already hot. Use --wait-cool to wait, let it cool down, or pass --allow-hot.":
-        "safe-run: ME NIEGO A EMPEZAR - el Mac ya está caliente. Usa --wait-cool para esperar, déjalo enfriarse o pasa --allow-hot.",
-    "safe-run: --wait-cool - the Mac is hot (%s), waiting until it cools down (checking every 60 s)":
-        "safe-run: --wait-cool - el Mac está caliente (%s), esperando a que se enfríe (comprobando cada 60 s)",
+    "safe-run: REFUSING TO START - %s. Use --wait-cool to wait, or pass --allow-hot.":
+        "safe-run: ME NIEGO A EMPEZAR - %s. Usa --wait-cool para esperar o pasa --allow-hot.",
+    "the Mac is on battery at %d%% (threshold %d%%), plug in the charger":
+        "el Mac funciona con batería al %d%% (umbral %d%%), conecta el cargador",
+    "chip %.1f °C, threshold %.0f °C": "chip %.1f °C, umbral %.0f °C",
+    "battery %.1f °C, threshold %.0f °C": "batería %.1f °C, umbral %.0f °C",
+    ", safe-run keeps a %d °C margin": ", safe-run deja un margen de %d °C",
+    "guard level %s: %s": "nivel del guard %s: %s",
+    "safe-run: --wait-cool - not starting yet (%s), waiting until that clears (checking every 60 s)":
+        "safe-run: --wait-cool - todavía no arranco (%s), esperando a que se resuelva (comprobando cada 60 s)",
     "safe-run: cooled down after %d min - starting the job":
         "safe-run: se enfrió tras %d min - arrancando la tarea",
     "safe-run: --after %s - waiting until that job finishes":
@@ -617,6 +641,46 @@ def guard_hot():
         return False
 
 
+def start_block_reason(st, conf):
+    """Return why this guard snapshot blocks a start, with the numbers, or "".
+
+    `st` is status.json, `conf` is config.json. Name the condition the user can act on:
+    "the Mac is hot" sent people to wait hours for a cooldown on a 38 C chip, when the
+    real gate was the battery below `batt_pct_pause` and the fix was the charger. The
+    guard's own reason text is the fallback for any other level >= 2.
+    """
+    if not isinstance(st, dict):
+        return ""
+    reasons = []
+    try:
+        pct, gate = float(st.get("battery_pct")), float(conf.get("batt_pct_pause", 10))
+        # Same comparison as guard.severity(): on battery AND at or below the gate.
+        if st.get("on_ac") is False and pct <= gate:
+            reasons.append(T("the Mac is on battery at %d%% (threshold %d%%), plug in the charger")
+                           % (pct, gate))
+    except (TypeError, ValueError, OverflowError, AttributeError):
+        pass
+    thresholds = st.get("thresholds")
+    pause = (thresholds.get("pause") if isinstance(thresholds, dict) else None) or conf.get("soc_pause_c", 85.0)
+    try:
+        c, p = float(st.get("chip_c")), float(pause)
+        if c == c and c >= p - 5.0:          # c == c filters NaN; same margin as chip_already_hot
+            reasons.append(T("chip %.1f °C, threshold %.0f °C") % (c, p)
+                           + ("" if c >= p else T(", safe-run keeps a %d °C margin") % 5))
+    except (TypeError, ValueError, OverflowError):
+        pass
+    if not reasons:
+        try:
+            lvl = float(st.get("level") or 0)
+        except (TypeError, ValueError, OverflowError):
+            lvl = 0.0
+        if lvl >= 2:
+            why = st.get("reason")
+            reasons.append(T("guard level %s: %s") % (
+                "%g" % lvl, why.strip() if isinstance(why, str) and why.strip() else T("n/a")))
+    return "; ".join(reasons)
+
+
 def chip_already_hot():
     """Return whether the chip is already near the pause threshold.
 
@@ -641,7 +705,7 @@ def chip_already_hot():
         return False, "STALE"
     try:
         if float(st.get("level") or 0) >= 2:
-            return True, T("the guard reports a hot machine")
+            return True, start_block_reason(st, cfg()) or T("the guard reports a hot machine")
     except (TypeError, ValueError, OverflowError):
         pass                      # non-numeric level: continue to temperature
     chip = st.get("chip_c")
@@ -654,10 +718,24 @@ def chip_already_hot():
     try:
         c, p = float(chip), float(threshold)
         if c == c and c >= p - 5.0:          # c == c filters NaN
-            return True, "chip %.1f C" % c
+            return True, start_block_reason(st, cfg()) or "chip %.1f C" % c
     except (TypeError, ValueError, OverflowError):
         pass
     return False, ""
+
+
+def read_snapshot():
+    """Return status.json as a dict, or {} when it is missing, stale (> 120 s),
+    unreadable, or not a dict."""
+    try:
+        path = os.path.join(BASE, "status.json")
+        with open(path) as f:
+            st = json.load(f)
+        if isinstance(st, dict) and (time.time() - os.path.getmtime(path)) <= 120:
+            return st
+    except Exception:
+        pass
+    return {}
 
 
 def read_chip_state():
@@ -672,14 +750,7 @@ def read_chip_state():
     # describe a system that is not running. Level is separate because the guard
     # can stay hot for reasons chip temperature does not show, such as throttling
     # or battery state.
-    try:
-        path = os.path.join(BASE, "status.json")
-        with open(path) as f:
-            st = json.load(f)
-        if not isinstance(st, dict) or (time.time() - os.path.getmtime(path)) > 120:
-            st = {}
-    except Exception:
-        st = {}
+    st = read_snapshot()
     thresholds = st.get("thresholds")
     threshold = (thresholds.get("resume") if isinstance(thresholds, dict) else None) or cfg().get("soc_resume_c", 76.0)
     try:
@@ -730,16 +801,19 @@ def wait_for_cooldown(limit):
         # Same condition as the start gate: guard level "hot" counts even with a
         # cool chip (throttling, battery). Without it, waiting could end
         # immediately and start the job straight into a pause loop.
+        # The chip is already reported against the resume threshold, which is what
+        # this wait is for; the level says what else holds it (battery gate, guard).
         if lvl is not None and lvl >= 2:
-            reasons.append("guard level %d" % lvl)
+            snap = dict(read_snapshot(), chip_c=None)
+            reasons.append(start_block_reason(snap, cfg()) or "guard level %d" % lvl)
         if not reasons:
             return (time.time() - t0) / 60.0
         # Print once at the start and then about every 10 min. Overnight queue
         # logs must show that waiting is alive without flooding the file with
         # identical lines.
         if not last_message or time.time() - last_message >= 600.0:
-            print(T("safe-run: --wait-cool - the Mac is hot (%s), waiting until it "
-                    "cools down (checking every 60 s)") % ", ".join(reasons))
+            print(T("safe-run: --wait-cool - not starting yet (%s), waiting until that "
+                    "clears (checking every 60 s)") % ", ".join(reasons))
             sys.stdout.flush()
             last_message = time.time()
         time.sleep(WAIT_POLL_S)
@@ -1147,8 +1221,15 @@ def main():
         time.strftime("%H:%M", time.localtime(time.time() + opt["hours"] * 3600)), opt["hours"]))
     if hot and not opt["allow_hot"]:
         if not opt["wait_cool"]:
-            print(T("safe-run: REFUSING TO START - the Mac is already hot. Use --wait-cool to wait, let it cool down, or pass --allow-hot.")
-                  + ((" (%s)" % chip_reason) if chip_reason else ""))
+            # Every condition that made `hot` true, each with its numbers.
+            reasons = [chip_reason] if chip_reason else []
+            if state in HOT:
+                reasons.append("thermalState=%s" % state)
+            if temp is not None and temp >= limit - 2:
+                reasons.append(T("battery %.1f °C, threshold %.0f °C") % (temp, limit)
+                               + ("" if temp >= limit else T(", safe-run keeps a %d °C margin") % 2))
+            print(T("safe-run: REFUSING TO START - %s. Use --wait-cool to wait, or pass --allow-hot.")
+                  % "; ".join(reasons))
             drop_registration(waiting)
             return 3
         # Waiting DOES NOT consume the --hours budget: t0, the job deadline,
