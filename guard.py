@@ -3196,13 +3196,84 @@ def _shell_segments(cmd):
     `grep -E 'x265|x264'` produced a segment whose first word was a heavy name, and a
     search for a tool counted as starting it (a whole session of false blocks, 20.08).
     shlex with punctuation_chars keeps quoted text whole and returns operators as their
-    own tokens; `$(` and backticks still open a new segment because what follows runs.
-    On a lexer error (unbalanced quote) fall back to whitespace splitting of the raw text:
-    the gate must answer, not raise.
+    own tokens.
+
+    Substitutions are found by a scan that knows quotes and comments, before shlex. The
+    previous version cut on every `$(` and backtick in the raw text, so one inside quotes
+    split a string in half, and the whitespace fallback turned `bash -c "a && ffmpeg ..."`
+    under safe-run into a bare ffmpeg (3 false blocks in one session, 20.10). A
+    substitution inside double quotes runs and becomes its own segment; inside single
+    quotes or a comment it is text. An unclosed quote keeps the balanced text before it,
+    because bash runs the complete lines first. A lexer error gives no segments: the gate
+    must answer, not raise.
     """
     import shlex
+
+    def scan(start, closing=None):
+        chunks = []
+        extracted = []
+        quote = None
+        quote_start = None
+        depth = 1
+        i = start
+        while i < len(cmd):
+            ch = cmd[i]
+            if ch == "\\" and quote != "'":
+                chunks.append(cmd[i:i + 2])
+                i += 2
+                continue
+            if quote is None and ch == "#" and (i == 0 or cmd[i - 1].isspace()
+                                                or cmd[i - 1] in ";|&("):
+                end = cmd.find("\n", i)
+                i = len(cmd) if end < 0 else end
+                continue
+            if quote == "'":
+                chunks.append(ch)
+                if ch == "'":
+                    quote = None
+                    quote_start = None
+                i += 1
+                continue
+            if ch == "'" and quote is None:
+                quote = "'"
+                quote_start = len(chunks)
+            elif ch == '"':
+                if quote == '"':
+                    quote = None
+                    quote_start = None
+                else:
+                    quote = '"'
+                    quote_start = len(chunks)
+            elif ch == "`":
+                if closing == "`" and quote is None:
+                    return "".join(chunks), extracted, i + 1
+                body, nested, i = scan(i + 1, "`")
+                extracted.append(body)
+                extracted.extend(nested)
+                chunks.append("_")
+                continue
+            elif ch == "$" and cmd[i:i + 2] == "$(":
+                body, nested, i = scan(i + 2, ")")
+                extracted.append(body)
+                extracted.extend(nested)
+                chunks.append("_")
+                continue
+            elif quote is None and closing == ")":
+                if ch == "(":
+                    depth += 1
+                elif ch == ")":
+                    depth -= 1
+                    if depth == 0:
+                        return "".join(chunks), extracted, i + 1
+            chunks.append(ch)
+            i += 1
+        if quote:
+            chunks = chunks[:quote_start]
+        return "".join(chunks), extracted, i
+
+    outer, extracted, _ = scan(0)
     segments = []
-    for chunk in re.split(r"`|\$\(", cmd):
+    for chunk in [outer] + extracted:
         lex = shlex.shlex(chunk, posix=True, punctuation_chars=";|&\n)")
         lex.whitespace = " \t\r"        # a newline separates commands, so it is an operator
         lex.whitespace_split = True
@@ -3210,7 +3281,7 @@ def _shell_segments(cmd):
         try:
             tokens = list(lex)
         except ValueError:
-            tokens = chunk.replace("|", " | ").replace(";", " ; ").split()
+            return []
         current = []
         for tok in tokens:
             if tok and set(tok) <= set(";|&)\n"):
@@ -3224,7 +3295,7 @@ def _shell_segments(cmd):
     return segments
 
 
-def _hook_command_hit(cmd, patterns):
+def _hook_command_hit(cmd, patterns, with_segment=False):
     """Return the heavy pattern a shell command would EXECUTE bare, or None.
 
     The command is split into simple segments (;, &&, ||, |, newlines,
@@ -3234,8 +3305,10 @@ def _hook_command_hit(cmd, patterns):
     `grep ffmpeg README.md` is grep, not ffmpeg, and `echo safe-run; ffmpeg`
     does not borrow supervision from a word in a neighbouring segment. A
     segment whose argv[0] is safe-run is supervised as a whole, and a matched
-    tool followed by a version/help flag is a question, not work.
+    tool followed by an informational flag is a question, not work.
     """
+    import shlex
+
     # A heredoc body is data, not commands: `cat > run.sh <<'EOF'` followed by a line
     # starting with ffmpeg writes a file. Splitting on newlines made each body line a
     # segment and blocked the write (4 false blocks in one session, 19.08).
@@ -3265,8 +3338,30 @@ def _hook_command_hit(cmd, patterns):
             if words[1:] and rest[:len(words) - 1] != words[1:]:
                 continue
             after = rest[len(words) - 1:] if words[1:] else rest
-            if after and re.match(r"^-{1,2}(version|help|h)$", after[0]):
+            if argv0 in ("ffmpeg", "ffprobe"):
+                after = ["-" + t[2:] if t.startswith("--") else t for t in after]
+                j = 0
+                while j < len(after):
+                    if after[j] in ("-hide_banner", "-nostdin", "-y", "-n"):
+                        j += 1
+                    elif after[j] in ("-v", "-loglevel") and j + 1 < len(after):
+                        j += 2
+                    else:
+                        break
+                query = after[j:]
+                simple = ("-version", "-filters", "-codecs", "-encoders", "-decoders",
+                          "-formats", "-muxers", "-demuxers", "-pix_fmts", "-buildconf",
+                          "-protocols", "-hwaccels", "-bsfs", "-layouts",
+                          "-sample_fmts", "-colors", "-devices")
+                if ("-i" not in after and
+                    ((len(query) == 1 and query[0] in simple)
+                        or (query and query[0] in ("-help", "-h") and len(query) <= 2)
+                        or (len(query) == 2 and query[0] in ("-sources", "-sinks")))):
+                    continue
+            elif after and re.match(r"^-{1,2}(version|help|h)$", after[0]):
                 continue
+            if with_segment:
+                return pat, shlex.join(tokens)
             return pat
     return None
 
@@ -3321,7 +3416,7 @@ def hook_gate(cfg):
         return 0
     patterns = [str(p).lower() for p in (cfg.get("hook_heavy_patterns") or HOOK_HEAVY_DEFAULT)]
     try:
-        hit = _hook_command_hit(cmd, patterns)
+        hit = _hook_command_hit(cmd, patterns, with_segment=True)
     except Exception:
         return 0                  # fail-open: see the docstring
     if not hit:
@@ -3330,11 +3425,42 @@ def hook_gate(cfg):
         if antigravity:
             sys.stdout.write(json.dumps({"decision": "allow"}) + "\n")
         return 0
-    reason = (
-        "coffee-paladin: '%s' is heavy and would run unsupervised. Start it under "
-        "the thermal guard instead:\n  safe-run -- %s\nDetails: "
-        "~/.claude/skills/coffee-paladin/SKILL.md. If the human explicitly wants "
-        "it bare, set PALADIN_HOOK=off for that one command." % (hit, cmd[:200]))
+    name, segment = hit
+    import shlex
+    words = shlex.split(segment)
+    assignment_count = 0
+    while (assignment_count < len(words)
+           and re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", words[assignment_count])):
+        assignment_count += 1
+    assignments = []
+    for word in words[:assignment_count]:
+        key, value = word.split("=", 1)
+        assignments.append(key + "=" + shlex.quote(value))
+    hint = (" ".join(assignments) + " " if assignments else "")
+    hint += "safe-run -- " + shlex.join(words[assignment_count:])
+    messages = {
+        "en": "coffee-paladin: '%s' would run unsupervised.\nSegment: %s\n"
+              "Run this segment under the thermal guard:\n  %s\n"
+              "Details: ~/.claude/skills/coffee-paladin/SKILL.md. If the human "
+              "explicitly wants to run it bare, set PALADIN_HOOK=off for that command.",
+        "pl": "coffee-paladin: '%s' uruchomiłby się bez nadzoru.\nFragment: %s\n"
+              "Uruchom ten fragment pod kontrolą strażnika temperatury:\n  %s\n"
+              "Szczegóły: ~/.claude/skills/coffee-paladin/SKILL.md. Jeśli użytkownik "
+              "wyraźnie chce uruchomić go bez nadzoru, ustaw PALADIN_HOOK=off dla tego polecenia.",
+        "ru": "coffee-paladin: '%s' запустится без контроля.\nФрагмент: %s\n"
+              "Запустите этот фрагмент под контролем тепловой защиты:\n  %s\n"
+              "Подробнее: ~/.claude/skills/coffee-paladin/SKILL.md. Если пользователь "
+              "явно разрешил запуск без контроля, задайте PALADIN_HOOK=off для этой команды.",
+        "zh": "coffee-paladin：'%s' 将在没有监控的情况下运行。\n命令片段：%s\n"
+              "请用温度保护器运行此片段：\n  %s\n"
+              "详情：~/.claude/skills/coffee-paladin/SKILL.md。如果用户明确要求直接运行，"
+              "请仅为该命令设置 PALADIN_HOOK=off。",
+        "es": "coffee-paladin: '%s' se ejecutaría sin supervisión.\nSegmento: %s\n"
+              "Ejecuta este segmento bajo la protección térmica:\n  %s\n"
+              "Detalles: ~/.claude/skills/coffee-paladin/SKILL.md. Si el usuario pide "
+              "expresamente ejecutarlo sin supervisión, establece PALADIN_HOOK=off para ese comando.",
+    }
+    reason = messages.get(LANG, messages["en"]) % (name, segment[:200], hint[:200])
     if antigravity or os.environ.get("GROK_HOOK_EVENT"):
         # Grok is fail-open on anything but an explicit decision, and
         # Antigravity blocks ONLY on a stdout decision; Claude Code, on the

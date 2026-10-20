@@ -148,6 +148,81 @@ r = gate(bash("git status"))
 test("24. outside Antigravity a light command keeps stdout CLEAN",
      r.returncode == 0 and r.stdout.strip() == "", repr(r.stdout[:60]))
 
+print("=== quoted substitutions and informational queries ===")
+for name, cmd, blocked in [
+    ("single-quoted bash body stays supervised",
+     "safe-run -- bash -c 'a; ffmpeg -i x y; echo \"$(ffprobe z)\"'", None),
+    ("double-quoted bash body stays supervised",
+     'safe-run -- bash -c "ffmpeg -i a b && ffmpeg -i c d"; echo "$(basename x)"', None),
+    ("field command with an outer double-quoted bash body",
+     'mkdir -p "$D" && safe-run --cpu-limit 50 -- bash -c '
+     '"ffmpeg -i a.mp3 x.m4a && ffmpeg -i a.mp3 y.m4a"; '
+     'for f in "$D"/*.m4a; do echo "$(basename $f): $(safe-run -- ffprobe $f) s"; done', None),
+    ("field command with a single-quoted bash body",
+     'safe-run --cpu-limit 50 -- bash -c '
+     '\'ffmpeg -i a.mp3 x.m4a; ffmpeg -i a.mp3 y.m4a; '
+     'for f in "$D"/*.m4a; do echo "$(basename "$f"): $(ffprobe "$f") s"; done\'', None),
+    ("backticks in a single-quoted assignment are text",
+     "L='see `ffmpeg -hide_banner -filters` for the list'", None),
+    ("double-quoted substitution executes ffmpeg", 'echo "$(ffmpeg -i x y)"', "ffmpeg"),
+    ("assignment substitution executes ffmpeg", "x=$(ffmpeg -i a b)", "ffmpeg"),
+    ("backtick substitution executes ffmpeg", "echo `ffmpeg -i a b`", "ffmpeg"),
+    ("nested substitution executes ffmpeg", 'echo "a $(echo "$(ffmpeg -i a b)")"', "ffmpeg"),
+    ("single-quoted substitution is text", "echo 'it is $(ffmpeg -i a b)'", None),
+    ("ffmpeg filters is informational", "ffmpeg -hide_banner -filters", None),
+    ("ffmpeg encoders is informational", "ffmpeg -v quiet -encoders", None),
+    ("ffmpeg help topic is informational", "ffmpeg -h encoder=libx264", None),
+    ("ffmpeg input still runs", "ffmpeg -hide_banner -i a.mp4 b.mkv", "ffmpeg"),
+]:
+    r = gate(bash(cmd))
+    if blocked:
+        ok = r.returncode == 2 and "'%s'" % blocked in r.stderr
+    else:
+        ok = r.returncode == 0 and "deny" not in r.stdout
+    test(name, ok, "rc=%s %r" % (r.returncode, r.stderr[:160]))
+
+r = gate(bash("cd /x && S=1; ffmpeg -i a b"))
+test("hint names the offending segment",
+     r.returncode == 2 and "safe-run -- ffmpeg -i a b" in r.stderr
+     and "safe-run -- cd" not in r.stderr,
+     "rc=%s %r" % (r.returncode, r.stderr[:200]))
+
+print("=== comments, incomplete input and double-dash queries ===")
+for name, cmd, blocked in [
+    ("apostrophe in a trailing comment", "ffmpeg -i in.mp4 out.mkv  # don't forget", "ffmpeg"),
+    ("substitution text in a trailing comment",
+     "ffmpeg -i a b | tee log # it's $(fine)", "ffmpeg"),
+    ("complete line before an unterminated quote",
+     'ffmpeg -i a b\necho "unterminated', "ffmpeg"),
+    ("ffmpeg double-dash help", "ffmpeg --help", None),
+    ("ffmpeg double-dash version", "ffmpeg --version", None),
+    ("ffmpeg double-dash filters", "ffmpeg --hide_banner --filters", None),
+    ("ffmpeg help with an input still runs", "ffmpeg --help -i a b", "ffmpeg"),
+    ("simple trailing comment", "ffmpeg -i a b # note", "ffmpeg"),
+    ("heavy command in a comment is ignored", "echo hi # ffmpeg -i a b", None),
+    ("substitution in a comment is ignored", "echo hi # $(ffmpeg -i a b)", None),
+    ("hash inside quotes is text", 'echo "# not a comment"; ffmpeg -i a b', "ffmpeg"),
+    ("hash inside a word is text", "echo a#b; ffmpeg -i a b", "ffmpeg"),
+    ("substitution before its own comment executes",
+     'echo "$(ffmpeg -i a b # x)"', "ffmpeg"),
+]:
+    r = gate(bash(cmd))
+    if blocked:
+        ok = r.returncode == 2 and "'%s'" % blocked in r.stderr
+    else:
+        ok = r.returncode == 0 and "deny" not in r.stdout
+    test(name, ok, "rc=%s %r" % (r.returncode, r.stderr[:160]))
+
+r = gate(bash("S=1 ffmpeg -i a b"))
+test("assignment precedes safe-run in the hint",
+     r.returncode == 2 and "Segment: S=1 ffmpeg -i a b" in r.stderr
+     and "S=1 safe-run -- ffmpeg -i a b" in r.stderr,
+     "rc=%s %r" % (r.returncode, r.stderr[:220]))
+r = gate(bash("S='a b' ffmpeg -i a b"))
+test("assignment value with spaces stays a shell assignment in the hint",
+     r.returncode == 2 and "S='a b' safe-run -- ffmpeg -i a b" in r.stderr,
+     "rc=%s %r" % (r.returncode, r.stderr[:220]))
+
 print("=== config override ===")
 json.dump({"hook_heavy_patterns": ["sleep"]}, open(os.path.join(BASE, "config.json"), "w"))
 r = gate(bash("sleep 999"))
