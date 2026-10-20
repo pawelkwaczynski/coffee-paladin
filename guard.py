@@ -3143,12 +3143,14 @@ def trend_and_forecast(cfg, soc_t):
 # hours. Deliberately NOT including bare "python": the false-deny rate would
 # make agents (and their humans) disable the gate, which protects nobody.
 HOOK_HEAVY_DEFAULT = ("ffmpeg", "x265", "x264", "ab-av1", "handbrakecli",
-                      "kissat", "cadical", "ollama run", "mlx_lm.lora", "whisper")
+                      "kissat", "cadical", "ollama run", "mlx_lm.lora", "whisper",
+                      "mlx_whisper", "whisper-cli", "whisperx")
 # Wrappers that pass execution through to their argument: skipping them finds
 # the real argv[0]. Anything NOT on this list (grep, cat, echo...) is itself
 # the command, and a heavy name in its arguments is data, not execution.
 _HOOK_WRAPPERS = frozenset(("nice", "env", "taskpolicy", "caffeinate", "timeout",
-                            "time", "command", "exec", "nohup", "stdbuf", "arch"))
+                            "gtimeout", "time", "exec", "nohup", "stdbuf",
+                            "gstdbuf", "arch", "noglob", "nocorrect"))
 
 
 _HEREDOC_RE = re.compile(r"(?<![<>])<<(-?)\s*(?:'([^']+)'|\"([^\"]+)\"|\\([^\s]+)|([A-Za-z0-9_.-]+))")
@@ -3158,7 +3160,7 @@ def _strip_heredocs(cmd):
     """Drop heredoc bodies from a command, keeping anything a shell would still execute.
 
     A QUOTED tag (<<'EOF', <<"EOF", <<\\EOF) makes the body pure data: dropped whole. An
-    unquoted tag leaves `$(...)` and backticks live inside the body, so those lines stay
+    unquoted tag leaves `$(...)` and backticks live, so those substitution bodies stay
     and go through the normal segment split. Several heredocs on one line are consumed
     in order. An unterminated heredoc is a shell error, not a command: nothing is dropped,
     so a `<<EOF` hiding inside a string cannot swallow the real commands after it.
@@ -3178,25 +3180,30 @@ def _strip_heredocs(cmd):
             j = i
             while j < len(lines):
                 probe = lines[j].lstrip("\t") if dash else lines[j]
-                if probe == tag:
+                if probe == tag or probe == tag + ")":
                     break
                 j += 1
             if j >= len(lines):
                 return "\n".join(out + lines[i:])     # unterminated: keep the rest
             if not quoted:
-                out.extend(b for b in lines[i:j] if "$(" in b or "`" in b)
+                # 20.10: an unquoted heredoc expands substitutions, but its lines
+                # are data; only the substitution body can execute a command.
+                # A backslash keeps $( and ` literal: a script written with
+                # `\$(ffmpeg ...)` and then started under safe-run was blocked (20.10).
+                for body_line in lines[i:j]:
+                    out.extend(re.findall(r"(?<!\\)(?:\\\\)*\$\(([^()]*)\)", body_line))
+                    out.extend(re.findall(r"(?<!\\)(?:\\\\)*`([^`]*)`", body_line))
             i = j + 1
     return "\n".join(out)
 
 
-def _shell_segments(cmd):
+def _shell_segments(cmd, with_source=False):
     """Split a shell command into simple commands, each a token list, honouring quotes.
 
     The old splitter cut on `|`, `;` and `&` anywhere, so `pgrep -fl 'ffmpeg|ab-av1'` and
     `grep -E 'x265|x264'` produced a segment whose first word was a heavy name, and a
     search for a tool counted as starting it (a whole session of false blocks, 20.08).
-    shlex with punctuation_chars keeps quoted text whole and returns operators as their
-    own tokens.
+    The quote-aware split keeps quoted text whole and separates operators from words.
 
     Substitutions are found by a scan that knows quotes and comments, before shlex. The
     previous version cut on every `$(` and backtick in the raw text, so one inside quotes
@@ -3208,6 +3215,20 @@ def _shell_segments(cmd):
     must answer, not raise.
     """
     import shlex
+
+    # 20.10: the shell removes continued newlines before parsing and CRLF input
+    # must have the same separators as LF input.
+    cmd = cmd.replace("\r\n", "\n")
+    cmd = re.sub(r"\\\n[ \t]*", " ", cmd)
+    # 20.10: arithmetic expressions are values, not commands, even when their
+    # first operand happens to be x265 or x264.
+    cmd = re.sub(r"\$?\(\([^()]*\)\)", "_", cmd)
+    substitutions = {}
+
+    def placeholder(raw):
+        key = "__HOOK_SUB_%d__" % len(substitutions)
+        substitutions[key] = raw
+        return key
 
     def scan(start, closing=None):
         chunks = []
@@ -3247,16 +3268,25 @@ def _shell_segments(cmd):
             elif ch == "`":
                 if closing == "`" and quote is None:
                     return "".join(chunks), extracted, i + 1
+                first = i
                 body, nested, i = scan(i + 1, "`")
                 extracted.append(body)
                 extracted.extend(nested)
-                chunks.append("_")
+                chunks.append(placeholder(cmd[first:i]))
                 continue
             elif ch == "$" and cmd[i:i + 2] == "$(":
+                first = i
                 body, nested, i = scan(i + 2, ")")
                 extracted.append(body)
                 extracted.extend(nested)
-                chunks.append("_")
+                chunks.append(placeholder(cmd[first:i]))
+                continue
+            elif quote is None and ch in "<>" and cmd[i:i + 2] in ("<(", ">("):
+                first = i
+                body, nested, i = scan(i + 2, ")")
+                extracted.append(body)
+                extracted.extend(nested)
+                chunks.append(placeholder(cmd[first:i]))
                 continue
             elif quote is None and closing == ")":
                 if ch == "(":
@@ -3274,24 +3304,52 @@ def _shell_segments(cmd):
     outer, extracted, _ = scan(0)
     segments = []
     for chunk in [outer] + extracted:
-        lex = shlex.shlex(chunk, posix=True, punctuation_chars=";|&\n)")
-        lex.whitespace = " \t\r"        # a newline separates commands, so it is an operator
-        lex.whitespace_split = True
-        lex.commenters = ""
-        try:
-            tokens = list(lex)
-        except ValueError:
-            return []
-        current = []
-        for tok in tokens:
-            if tok and set(tok) <= set(";|&)\n"):
-                if current:
-                    segments.append(current)
-                current = []
-            else:
-                current.append(tok)
-        if current:
-            segments.append(current)
+        # 20.10: & belongs to fd redirections (2>&1, &>, &>> and <&),
+        # otherwise the old lexer invented a new command after the ampersand.
+        # 20.10: retain each simple command's exact spelling for a runnable
+        # hint; shlex removes "$f" quotes and changes expansion semantics.
+        parts = []
+        start = 0
+        quote = None
+        escaped = False
+        case_pattern = bool(re.search(r"\bcase\b.*\bin\s+", chunk))
+        for pos, ch in enumerate(chunk):
+            if escaped:
+                escaped = False
+                continue
+            if ch == "\\" and quote != "'":
+                escaped = True
+                continue
+            if ch in ("'", '"'):
+                if quote is None:
+                    quote = ch
+                elif quote == ch:
+                    quote = None
+                continue
+            if quote is None and ch in ";|&)\n":
+                if case_pattern and ch == "|":
+                    continue
+                if case_pattern and ch == ")":
+                    case_pattern = False
+                if ch == "&" and (pos + 1 < len(chunk) and chunk[pos + 1] == ">"
+                                      or pos and chunk[pos - 1] in "<>"):
+                    continue
+                parts.append(chunk[start:pos])
+                start = pos + 1
+        parts.append(chunk[start:])
+        for part in parts:
+            lex = shlex.shlex(part, posix=True)
+            lex.whitespace_split = True
+            lex.commenters = ""
+            try:
+                tokens = list(lex)
+            except ValueError:
+                return []
+            if tokens:
+                raw = part.strip()
+                for key, value in substitutions.items():
+                    raw = raw.replace(key, value)
+                segments.append((tokens, raw) if with_source else tokens)
     return segments
 
 
@@ -3312,25 +3370,189 @@ def _hook_command_hit(cmd, patterns, with_segment=False):
     # A heredoc body is data, not commands: `cat > run.sh <<'EOF'` followed by a line
     # starting with ffmpeg writes a file. Splitting on newlines made each body line a
     # segment and blocked the write (4 false blocks in one session, 19.08).
-    cmd = _strip_heredocs(cmd)
-    for tokens in _shell_segments(cmd):
+    def result(pat, tokens, raw):
+        raw = re.sub(r"^(?:(?:do|then|else|elif|if|while|until|!|\{|function)\s+)+",
+                     "", raw).strip()
+        return (pat, raw or shlex.join(tokens)) if with_segment else pat
+
+    def without_redirections(tokens):
+        clean = []
+        i = 0
+        while i < len(tokens):
+            tok = tokens[i]
+            if re.match(r"^(?:\d*>>?|\d*<<?|&>>?|<>|\d*>&\d*|\d*<&\d*)$", tok):
+                i += 1 if re.search(r"[&][0-9]+$", tok) else 2
+            elif re.match(r"^(?:\d*>>?|\d*<|&>>?)\S+$", tok):
+                i += 1
+            else:
+                clean.append(tok)
+                i += 1
+        return clean
+
+    def option_end(tokens, start, value_options, long_values=()):
+        i = start
+        while i < len(tokens) and tokens[i].startswith("-"):
+            tok = tokens[i]
+            if tok == "--":
+                return i + 1
+            if tok in value_options or tok in long_values:
+                i += 2
+            elif (any(tok.startswith(opt) and len(tok) > len(opt)
+                      for opt in value_options if len(opt) == 2)
+                  or any(tok.startswith(opt + "=") for opt in long_values)):
+                i += 1
+            else:
+                i += 1
+        return i
+
+    def inspect(tokens, depth, raw=None):
+        if depth > 4:
+            return None
+        raw = raw or shlex.join(tokens)
+        tokens = without_redirections(tokens)
+        if tokens[:1] == ["function"] and "{" in tokens:
+            j = tokens.index("{")
+            return inspect(tokens[j + 1:], depth + 1,
+                           raw.split("{", 1)[1].strip())
         i = 0
         while i < len(tokens):
             tok = tokens[i]
             base = os.path.basename(tok.strip("\"'")).lower()
             if re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", tok):
+                if tok.split("=", 1)[0] == "PALADIN_HOOK" and tok.split("=", 1)[1].lower() in ("off", "0", "false"):
+                    return None
                 i += 1
                 continue
-            if base in _HOOK_WRAPPERS or tok.startswith("-") or tok.replace(".", "").isdigit():
+            # `do ffmpeg` and `(ffmpeg` execute the next word; a loop's `in ffmpeg`
+            # is only input data and must not be mistaken for an invocation.
+            if tok in ("do", "then", "else", "elif", "if", "while", "until", "!", "{", "function"):
                 i += 1
+                continue
+            if tok.startswith("("):
+                tokens = tokens[:i] + [tok.lstrip("(")] + tokens[i + 1:]
+                if not tokens[i]:
+                    i += 1
+                continue
+            if tok in ("for", "case", "select") or tok.endswith("("):
+                return None
+            if base == "command" and any(t in ("-v", "-V") for t in tokens[i + 1:i + 4]):
+                return None
+            if base in _HOOK_WRAPPERS:
+                value_flags = {
+                    "nice": ("-n",), "env": ("-u", "-P", "-S"),
+                    "taskpolicy": ("-c",), "timeout": ("-s", "-k"),
+                    "gtimeout": ("-s", "-k"), "time": ("-o", "-f"),
+                    "stdbuf": ("-i", "-o", "-e"),
+                    "gstdbuf": ("-i", "-o", "-e"), "arch": ("-arch",),
+                }.get(base, ())
+                j = i + 1
+                while j < len(tokens):
+                    flag = tokens[j]
+                    if flag in value_flags:
+                        if base == "env" and flag == "-S" and j + 1 < len(tokens):
+                            return analyze(tokens[j + 1], depth + 1)
+                        j += 2
+                    elif (flag.startswith("-") and flag != "--"):
+                        j += 1
+                    elif base in ("timeout", "gtimeout") and re.match(r"^\d+(?:\.\d+)?[smhd]?$", flag):
+                        j += 1
+                        break
+                    elif base == "env" and re.match(r"^[A-Za-z_]\w*=", flag):
+                        j += 1
+                    else:
+                        break
+                i = j
+                continue
+            if base == "command":
+                i = option_end(tokens, i + 1, ())
                 continue
             break
         if i >= len(tokens):
-            continue
+            return None
         argv0 = os.path.basename(tokens[i].strip("\"'")).lower()
         if argv0 == "safe-run":
-            continue
+            return None
+        args = tokens[i + 1:]
+        if argv0 in ("bash", "sh", "zsh", "dash", "ksh"):
+            j = i + 1
+            command_flag = False
+            while j < len(tokens) and tokens[j].startswith("-"):
+                if tokens[j] == "--":
+                    j += 1
+                    break
+                command_flag |= (not tokens[j].startswith("--")
+                                 and "c" in tokens[j][1:])
+                j += 2 if tokens[j] in ("-o", "-O") or tokens[j].endswith("o") and tokens[j].startswith("-e") else 1
+            # `bash run.sh` is opaque; only -c makes the following word shell code.
+            if command_flag and j < len(tokens):
+                return analyze(tokens[j], depth + 1)
+            return None
+        if argv0 == "eval":
+            return analyze(" ".join(args), depth + 1)
+        if argv0 in ("uv", "uvx", "pipx"):
+            j = i + 1
+            if argv0 in ("uv", "pipx") and j < len(tokens) and tokens[j] == "run":
+                j += 1
+            if argv0 == "uv" and (j == i + 1 or tokens[i + 1] != "run"):
+                return None
+            if argv0 == "pipx" and (j == i + 1 or tokens[i + 1] != "run"):
+                return None
+            j = option_end(tokens, j, (), ("--from", "--python", "--with"))
+            return inspect(tokens[j:], depth + 1) if j < len(tokens) else None
+        if re.match(r"^python(?:3(?:\.\d+)?)?$", argv0):
+            if "-m" in args:
+                j = tokens.index("-m", i + 1)
+                if j + 1 < len(tokens):
+                    return inspect(tokens[j + 1:], depth + 1)
+            return None
+        if argv0 == "screen":
+            j = i + 1
+            while j < len(tokens) and tokens[j].startswith("-"):
+                flag = tokens[j]
+                j += 2 if flag in ("-S", "-h", "-t") or flag.endswith("S") else 1
+            return inspect(tokens[j:], depth + 1) if j < len(tokens) else None
+        if argv0 == "tmux" and args[:1] in (["new"], ["new-session"]):
+            j = option_end(tokens, i + 2, ("-s", "-n", "-c", "-t"))
+            return analyze(tokens[j], depth + 1) if j < len(tokens) else None
+        if argv0 in ("sudo", "doas"):
+            j = option_end(tokens, i + 1, ("-u", "-g", "-C", "-h", "-p", "-r", "-t"),
+                           ("--user", "--group", "--chdir", "--host", "--prompt"))
+            return inspect(tokens[j:], depth + 1) if j < len(tokens) else None
+        if argv0 == "xargs":
+            j = option_end(tokens, i + 1, ("-I", "-L", "-n", "-P", "-s", "-E", "-d", "-a"),
+                           ("--replace", "--max-lines", "--max-args", "--max-procs",
+                            "--max-chars", "--eof", "--delimiter", "--arg-file"))
+            return inspect(tokens[j:], depth + 1) if j < len(tokens) else None
+        if argv0 == "parallel":
+            if "--dry-run" in args or "--dryrun" in args:
+                return None
+            j = option_end(tokens, i + 1, ("-j",), ("--jobs",))
+            end = next((k for k in range(j, len(tokens))
+                        if tokens[k] in (":::" , "::::", ":::+")), len(tokens))
+            if j < end and len(tokens[j:end]) == 1:
+                return analyze(tokens[j], depth + 1)
+            return inspect(tokens[j:end], depth + 1) if j < end else None
+        if argv0 == "watch":
+            j = option_end(tokens, i + 1, ("-n",), ("--interval",))
+            if j >= len(tokens):
+                return None
+            # `watch 'ffmpeg -i a b'` passes one command string, unlike argv words.
+            if len(tokens[j:]) == 1:
+                return analyze(tokens[j], depth + 1)
+            return inspect(tokens[j:], depth + 1)
+        if argv0 == "find":
+            for j in range(i + 1, len(tokens)):
+                if tokens[j] in ("-exec", "-execdir", "-ok", "-okdir"):
+                    end = next((k for k in range(j + 1, len(tokens))
+                                if tokens[k] in ("-exec", "-execdir", "-ok", "-okdir", ";", "+")),
+                               len(tokens))
+                    found = inspect(tokens[j + 1:end], depth + 1)
+                    if found:
+                        return found
+            return None
         rest = [t.lower() for t in tokens[i + 1:]]
+        if argv0 == "mlx_lm" and rest[:1] == ["lora"]:
+            argv0, rest = "mlx_lm.lora", rest[1:]
         for pat in patterns:
             words = pat.split()
             if argv0 != words[0]:
@@ -3358,12 +3580,51 @@ def _hook_command_hit(cmd, patterns, with_segment=False):
                         or (query and query[0] in ("-help", "-h") and len(query) <= 2)
                         or (len(query) == 2 and query[0] in ("-sources", "-sinks")))):
                     continue
-            elif after and re.match(r"^-{1,2}(version|help|h)$", after[0]):
+            elif (after and any(re.match(r"^-{1,2}(version|help|h)$", t) for t in after)
+                  and argv0 == "ab-av1" or after and re.match(r"^-{1,2}(version|help|h)$", after[0])):
                 continue
-            if with_segment:
-                return pat, shlex.join(tokens)
-            return pat
-    return None
+            assignments = [t for t in tokens[:i]
+                           if re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", t)]
+            return result(pat, assignments + tokens[i:], raw)
+        return None
+
+    def analyze(source, depth):
+        # Nested `eval` and `sh -c` stop at a fixed depth so hostile input cannot
+        # exhaust the hook's stack or hold up the shell while it asks permission.
+        if depth > 4:
+            return None
+        if len(source) > 50000:
+            return None
+        source = source.replace("\r\n", "\n")
+        # 20.10: case arms and array literals choose data; treating their
+        # labels or elements as argv0 blocked a safe-run selection script.
+        source = re.sub(r"\b[A-Za-z_]\w*=\([^)]*\)", "_", source)
+        if re.search(r"\bcase\b", source):
+            source = re.sub(r"(\bin\s+)[^;\n)]*\)", r"\1_)", source)
+            source = re.sub(r"(?m)^(\s*)[^\s;()]+\)", r"\1_)", source)
+        # 20.10: a shell with stdin from a heredoc executes its body; cat
+        # writing the same bytes to a file does not.
+        for m in _HEREDOC_RE.finditer(source):
+            before = source[:m.start()].split("\n")[-1]
+            if re.search(r"(?:^|\s)(?:bash|sh|zsh|dash|ksh)\s*$", before):
+                tag = m.group(2) or m.group(3) or m.group(4) or m.group(5)
+                body = source[m.end():]
+                if body.startswith("\n") and "\n" + tag in body:
+                    found = analyze(body.split("\n" + tag, 1)[0], depth + 1)
+                    if found:
+                        return found
+        for m in re.finditer(r"\b(?:bash|sh|zsh|dash|ksh)\s+<<<\s*(['\"])(.*?)\1", source, re.S):
+            found = analyze(m.group(2), depth + 1)
+            if found:
+                return found
+        source = _strip_heredocs(source)
+        for tokens, raw in _shell_segments(source, with_source=True):
+            found = inspect(tokens, depth, raw)
+            if found:
+                return found
+        return None
+
+    return analyze(cmd, 0)
 
 
 def hook_gate(cfg):
@@ -3379,7 +3640,8 @@ def hook_gate(cfg):
     timeouts, so the answer must take milliseconds, and exactly one process
     (the daemon) keeps deciding thermally. Fail-open on anything unexpected:
     a broken gate must never take a coding session hostage. PALADIN_HOOK=off
-    disables it; the reason text tells the agent both outs.
+    in the hook environment or as a leading assignment for one command
+    disables it; the reason text gives the exact one-command form.
     """
     if os.environ.get("PALADIN_HOOK", "").lower() in ("off", "0", "false"):
         return 0
@@ -3409,70 +3671,87 @@ def hook_gate(cfg):
         if not isinstance(ti, dict):
             ti = data.get("toolInput")
         cmd = str((ti.get("command") if isinstance(ti, dict) else "") or "")
-    if tool not in ("bash", "shell", "run_shell_command", "run_terminal_command",
+    # Claude Code's Monitor tool runs a background command under the same rules
+    # as Bash, so a bare encoder started there needs the same answer (20.10).
+    if tool not in ("bash", "monitor", "shell", "run_shell_command", "run_terminal_command",
                     "run_command", "exec_command", "local_shell"):
         return 0
     if not cmd.strip():
         return 0
-    patterns = [str(p).lower() for p in (cfg.get("hook_heavy_patterns") or HOOK_HEAVY_DEFAULT)]
     try:
+        configured = cfg.get("hook_heavy_patterns", HOOK_HEAVY_DEFAULT)
+        if not isinstance(configured, (list, tuple)) or not all(
+                isinstance(p, str) and p.strip() for p in configured):
+            return 0
+        patterns = [p.lower() for p in configured]
         hit = _hook_command_hit(cmd, patterns, with_segment=True)
-    except Exception:
-        return 0                  # fail-open: see the docstring
-    if not hit:
+        if not hit:
         # Antigravity documents no exit-code contract at all: the decision
         # field on stdout is the ONLY channel, for allow as much as for deny.
-        if antigravity:
-            sys.stdout.write(json.dumps({"decision": "allow"}) + "\n")
-        return 0
-    name, segment = hit
-    import shlex
-    words = shlex.split(segment)
-    assignment_count = 0
-    while (assignment_count < len(words)
-           and re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", words[assignment_count])):
-        assignment_count += 1
-    assignments = []
-    for word in words[:assignment_count]:
-        key, value = word.split("=", 1)
-        assignments.append(key + "=" + shlex.quote(value))
-    hint = (" ".join(assignments) + " " if assignments else "")
-    hint += "safe-run -- " + shlex.join(words[assignment_count:])
-    messages = {
-        "en": "coffee-paladin: '%s' would run unsupervised.\nSegment: %s\n"
-              "Run this segment under the thermal guard:\n  %s\n"
-              "Details: ~/.claude/skills/coffee-paladin/SKILL.md. If the human "
-              "explicitly wants to run it bare, set PALADIN_HOOK=off for that command.",
-        "pl": "coffee-paladin: '%s' uruchomiłby się bez nadzoru.\nFragment: %s\n"
-              "Uruchom ten fragment pod kontrolą strażnika temperatury:\n  %s\n"
-              "Szczegóły: ~/.claude/skills/coffee-paladin/SKILL.md. Jeśli użytkownik "
-              "wyraźnie chce uruchomić go bez nadzoru, ustaw PALADIN_HOOK=off dla tego polecenia.",
-        "ru": "coffee-paladin: '%s' запустится без контроля.\nФрагмент: %s\n"
-              "Запустите этот фрагмент под контролем тепловой защиты:\n  %s\n"
-              "Подробнее: ~/.claude/skills/coffee-paladin/SKILL.md. Если пользователь "
-              "явно разрешил запуск без контроля, задайте PALADIN_HOOK=off для этой команды.",
-        "zh": "coffee-paladin：'%s' 将在没有监控的情况下运行。\n命令片段：%s\n"
-              "请用温度保护器运行此片段：\n  %s\n"
-              "详情：~/.claude/skills/coffee-paladin/SKILL.md。如果用户明确要求直接运行，"
-              "请仅为该命令设置 PALADIN_HOOK=off。",
-        "es": "coffee-paladin: '%s' se ejecutaría sin supervisión.\nSegmento: %s\n"
-              "Ejecuta este segmento bajo la protección térmica:\n  %s\n"
-              "Detalles: ~/.claude/skills/coffee-paladin/SKILL.md. Si el usuario pide "
-              "expresamente ejecutarlo sin supervisión, establece PALADIN_HOOK=off para ese comando.",
-    }
-    reason = messages.get(LANG, messages["en"]) % (name, segment[:200], hint[:200])
-    if antigravity or os.environ.get("GROK_HOOK_EVENT"):
+            if antigravity:
+                sys.stdout.write(json.dumps({"decision": "allow"}) + "\n")
+            return 0
+        name, segment = hit
+        # 20.10: preserve original shell spelling, including expansions,
+        # wrappers and redirections; re-quoting tokens changed "$f" to '$f'.
+        assignment_re = re.compile(r"\s*[A-Za-z_][A-Za-z0-9_]*=(?:'[^']*'|\"[^\"]*\"|[^\s]+)")
+        pos = 0
+        while True:
+            match = assignment_re.match(segment, pos)
+            if not match:
+                break
+            pos = match.end()
+        assignments = segment[:pos].strip()
+        command = segment[pos:].strip()
+        hint = (assignments + " " if assignments else "") + "safe-run -- " + command
+        messages = {
+            "en": "coffee-paladin: '%s' would run unsupervised.\nSegment: %s\n"
+                  "Run this segment under the thermal guard:\n  %s\n"
+                  "Details: ~/.claude/skills/coffee-paladin/SKILL.md. If the human "
+                  "explicitly wants to run it bare, use PALADIN_HOOK=off <command>.",
+            "pl": "coffee-paladin: '%s' uruchomiłby się bez nadzoru.\nFragment: %s\n"
+                  "Uruchom ten fragment pod kontrolą strażnika temperatury:\n  %s\n"
+                  "Szczegóły: ~/.claude/skills/coffee-paladin/SKILL.md. Jeśli użytkownik "
+                  "wyraźnie chce uruchomić go bez nadzoru, użyj PALADIN_HOOK=off <command>.",
+            "ru": "coffee-paladin: '%s' запустится без контроля.\nФрагмент: %s\n"
+                  "Запустите этот фрагмент под контролем тепловой защиты:\n  %s\n"
+                  "Подробнее: ~/.claude/skills/coffee-paladin/SKILL.md. Если пользователь "
+                  "явно разрешил запуск без контроля, используйте PALADIN_HOOK=off <command>.",
+            "zh": "coffee-paladin：'%s' 将在没有监控的情况下运行。\n命令片段：%s\n"
+                  "请用温度保护器运行此片段：\n  %s\n"
+                  "详情：~/.claude/skills/coffee-paladin/SKILL.md。如果用户明确要求直接运行，"
+                  "请使用 PALADIN_HOOK=off <command>。",
+            "es": "coffee-paladin: '%s' se ejecutaría sin supervisión.\nSegmento: %s\n"
+                  "Ejecuta este segmento bajo la protección térmica:\n  %s\n"
+                  "Detalles: ~/.claude/skills/coffee-paladin/SKILL.md. Si el usuario pide "
+                  "expresamente ejecutarlo sin supervisión, usa PALADIN_HOOK=off <command>.",
+        }
+        reason = messages.get(LANG, messages["en"]) % (name, segment[:200], hint[:200])
+        if re.search(r"\b(?:for|while|until|if)\b", cmd):
+            # 20.10: a command inside a loop or conditional may rely on its
+            # surrounding shell variables; wrapping the whole body keeps them.
+            loop_notes = {
+                "en": " For loops and conditionals, wrap the whole command: safe-run -- bash -c '<the whole command>'.",
+                "pl": " Dla pętli i warunków obejmij całe polecenie: safe-run -- bash -c '<całe polecenie>'.",
+                "ru": " Для циклов и условий оберните всю команду: safe-run -- bash -c '<вся команда>'.",
+                "zh": " 对于循环和条件语句，请包装整个命令：safe-run -- bash -c '<完整命令>'。",
+                "es": " Para bucles y condiciones, envuelve todo el comando: safe-run -- bash -c '<comando completo>'.",
+            }
+            reason += loop_notes.get(LANG, loop_notes["en"])
+        if antigravity or os.environ.get("GROK_HOOK_EVENT"):
         # Grok is fail-open on anything but an explicit decision, and
         # Antigravity blocks ONLY on a stdout decision; Claude Code, on the
         # other hand, may parse stdout as its own (different) decision schema -
         # so the JSON is emitted ONLY for hosts positively identified by their
         # payload shape or env marker, never speculatively.
-        sys.stdout.write(json.dumps({"decision": "deny", "reason": reason}) + "\n")
-    sys.stderr.write(reason + "\n")
+            sys.stdout.write(json.dumps({"decision": "deny", "reason": reason}) + "\n")
+        sys.stderr.write(reason + "\n")
     # Antigravity documents NO exit-code contract: the stdout decision is the
     # whole answer, and a nonzero exit could read as "hook crashed" rather
     # than "deny" (caught by the Codex review round before release).
-    return 0 if antigravity else 2
+        return 0 if antigravity else 2
+    except Exception:
+        return 0                  # even a malformed hint must fail open
 
 
 # AI coding sessions, recognised the same way agent PROTECTION recognises them:

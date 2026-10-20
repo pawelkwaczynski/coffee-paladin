@@ -188,7 +188,7 @@ def hook_wire():
         if isinstance(group, dict) and any(_is_gate_hook(h) for h in group.get("hooks") or []):
             print("ok")
             return
-    pre.append({"matcher": "Bash",
+    pre.append({"matcher": "Bash|Monitor",
                 "hooks": [{"type": "command", "command": HOOK_COMMAND, "timeout": 10}]})
     hooks["PreToolUse"] = pre
     settings["hooks"] = hooks
