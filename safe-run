@@ -184,8 +184,8 @@ PL = {
         "safe-run: czekam na wpuszczenie (zadeklarowane rdzenie: %d, zadań przede mną: %d)",
     "safe-run: WARNING - admission control is on but the guard's snapshot is stale; starting without admission":
         "safe-run: UWAGA - admission control włączone, ale migawka bezpiecznika jest nieświeża; startuję bez wpuszczania",
-    "safe-run: --cores %d caps the CPU limit at %d%%":
-        "safe-run: --cores %d ogranicza limit CPU do %d%%",
+    "safe-run: --cores %d: macOS does not pin a job to cores, so this becomes a %d%% CPU limit for the whole machine":
+        "safe-run: --cores %d: macOS nie przypina zadania do rdzeni, więc przeliczam to na limit %d%% CPU całej maszyny",
     "safe-run: cleaning up %d leftover process(es) from the job's group (SIGTERM, then SIGKILL after %d s)":
         "safe-run: sprzątam %d proces(y) pozostałe w grupie zadania (SIGTERM, po %d s SIGKILL)",
     "safe-run: WARNING - the job left %d process(es) running in its group (pids: %s) - no time budget applies to them":
@@ -240,8 +240,8 @@ RU = {
         "safe-run: жду допуска (заявлено ядер: %d, задач впереди: %d)",
     "safe-run: WARNING - admission control is on but the guard's snapshot is stale; starting without admission":
         "safe-run: ВНИМАНИЕ - admission control включён, но снимок защитника устарел; запускаю без допуска",
-    "safe-run: --cores %d caps the CPU limit at %d%%":
-        "safe-run: --cores %d ограничивает лимит CPU до %d%%",
+    "safe-run: --cores %d: macOS does not pin a job to cores, so this becomes a %d%% CPU limit for the whole machine":
+        "safe-run: --cores %d: macOS не привязывает задачу к ядрам, поэтому это лимит %d%% CPU всей машины",
     "safe-run: cleaning up %d leftover process(es) from the job's group (SIGTERM, then SIGKILL after %d s)":
         "safe-run: убираю %d оставшихся процессов из группы задачи (SIGTERM, через %d с SIGKILL)",
     "safe-run: WARNING - the job left %d process(es) running in its group (pids: %s) - no time budget applies to them":
@@ -296,8 +296,8 @@ ZH = {
         "safe-run: 等待准入 (声明核心数: %d, 前面还有 %d 个任务)",
     "safe-run: WARNING - admission control is on but the guard's snapshot is stale; starting without admission":
         "safe-run: 警告 - 已启用准入控制, 但守护进程快照已过期; 不经准入直接启动",
-    "safe-run: --cores %d caps the CPU limit at %d%%":
-        "safe-run: --cores %d 将 CPU 限制压到 %d%%",
+    "safe-run: --cores %d: macOS does not pin a job to cores, so this becomes a %d%% CPU limit for the whole machine":
+        "safe-run: --cores %d: macOS 不会把任务固定到指定核心,因此换算为整机 %d%% 的 CPU 限制",
     "safe-run: cleaning up %d leftover process(es) from the job's group (SIGTERM, then SIGKILL after %d s)":
         "safe-run: 清理任务进程组中残留的 %d 个进程 (SIGTERM, %d 秒后 SIGKILL)",
     "safe-run: WARNING - the job left %d process(es) running in its group (pids: %s) - no time budget applies to them":
@@ -352,8 +352,8 @@ ES = {
         "safe-run: esperando admisión (núcleos declarados: %d, tareas por delante: %d)",
     "safe-run: WARNING - admission control is on but the guard's snapshot is stale; starting without admission":
         "safe-run: AVISO - admission control está activo pero la instantánea del guardián está caducada; arrancando sin admisión",
-    "safe-run: --cores %d caps the CPU limit at %d%%":
-        "safe-run: --cores %d limita el CPU al %d%%",
+    "safe-run: --cores %d: macOS does not pin a job to cores, so this becomes a %d%% CPU limit for the whole machine":
+        "safe-run: --cores %d: macOS no fija la tarea a núcleos, así que queda como un límite del %d%% de CPU de toda la máquina",
     "safe-run: cleaning up %d leftover process(es) from the job's group (SIGTERM, then SIGKILL after %d s)":
         "safe-run: limpiando %d proceso(s) restantes del grupo de la tarea (SIGTERM, SIGKILL tras %d s)",
     "safe-run: WARNING - the job left %d process(es) running in its group (pids: %s) - no time budget applies to them":
@@ -1033,6 +1033,12 @@ def limited_wait(proc, pct, deadline):
         try:
             os.killpg(proc.pid, signal.SIGSTOP)
             time.sleep(min(stop_t, max(deadline - time.time(), 0.05)))
+        except (ProcessLookupError, PermissionError):
+            # The job ended between poll() and killpg(). For a group that holds
+            # only the unreaped leader macOS answers EPERM, not ESRCH. The next
+            # pass reaps it and returns its exit code.
+            if proc.poll() is None:
+                raise
         finally:
             # Do not wake a job frozen by the guard or while the guard publishes
             # "hot" (level >=2). In that state, resume belongs only to the guard.
@@ -1199,7 +1205,8 @@ def main():
         cap = max(10, round(100.0 * opt["cores"] / (os.cpu_count() or 8)))
         if cap < opt["cpu_limit"]:
             opt["cpu_limit"] = float(cap)
-            print(T("safe-run: --cores %d caps the CPU limit at %d%%")
+            print(T("safe-run: --cores %d: macOS does not pin a job to cores, so this "
+                    "becomes a %d%% CPU limit for the whole machine")
                   % (opt["cores"], int(cap)))
 
     state, temp = thermal_state(), batt_temp()
