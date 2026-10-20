@@ -3157,23 +3157,38 @@ _HEREDOC_RE = re.compile(r"(?<![<>])<<(-?)\s*(?:'([^']+)'|\"([^\"]+)\"|\\([^\s]+
 
 
 def _strip_heredocs(cmd):
-    """Drop heredoc bodies from a command, keeping anything a shell would still execute.
+    """Drop heredoc bodies and return their owning command lines for inspection.
 
     A QUOTED tag (<<'EOF', <<"EOF", <<\\EOF) makes the body pure data: dropped whole. An
-    unquoted tag leaves `$(...)` and backticks live, so those substitution bodies stay
-    and go through the normal segment split. Several heredocs on one line are consumed
-    in order. An unterminated heredoc is a shell error, not a command: nothing is dropped,
-    so a `<<EOF` hiding inside a string cannot swallow the real commands after it.
-    `<<<` (here-string) is not matched.
+    Several heredocs on one line are consumed in order. An unterminated heredoc
+    is a shell error, not a command: nothing is dropped. `<<<` is not matched.
     """
     lines = cmd.split("\n")
     out = []
+    bodies = []
     i = 0
     while i < len(lines):
         line = lines[i]
         out.append(line)
         i += 1
+        quote = None
+        escaped = False
+        active = set()
+        for pos, ch in enumerate(line):
+            if escaped:
+                escaped = False
+            elif ch == "\\" and quote != "'":
+                escaped = True
+            elif ch in ("'", '"'):
+                if quote == ch:
+                    quote = None
+                elif quote is None:
+                    quote = ch
+            elif quote is None:
+                active.add(pos)
         for m in _HEREDOC_RE.finditer(line):
+            if m.start() not in active:
+                continue
             dash = m.group(1) == "-"
             quoted = m.group(2) is not None or m.group(3) is not None or m.group(4) is not None
             tag = m.group(2) or m.group(3) or m.group(4) or m.group(5)
@@ -3184,20 +3199,41 @@ def _strip_heredocs(cmd):
                     break
                 j += 1
             if j >= len(lines):
-                return "\n".join(out + lines[i:])     # unterminated: keep the rest
-            if not quoted:
-                # 20.10: an unquoted heredoc expands substitutions, but its lines
-                # are data; only the substitution body can execute a command.
-                # A backslash keeps $( and ` literal: a script written with
-                # `\$(ffmpeg ...)` and then started under safe-run was blocked (20.10).
-                for body_line in lines[i:j]:
-                    out.extend(re.findall(r"(?<!\\)(?:\\\\)*\$\(([^()]*)\)", body_line))
-                    out.extend(re.findall(r"(?<!\\)(?:\\\\)*`([^`]*)`", body_line))
+                return "\n".join(out + lines[i:]), bodies
+            bodies.append((line[:m.start()], line[m.end():], "\n".join(lines[i:j]), quoted))
             i = j + 1
-    return "\n".join(out)
+    return "\n".join(out), bodies
 
 
-def _shell_segments(cmd, with_source=False):
+def _case_command_starts(source):
+    """Find unquoted `case` words at the start of simple commands."""
+    starts = []
+    quote = None
+    escaped = False
+    command_start = True
+    i = 0
+    while i < len(source):
+        ch = source[i]
+        if escaped:
+            escaped = False
+        elif ch == "\\" and quote != "'":
+            escaped = True
+        elif ch in ("'", '"'):
+            quote = None if quote == ch else (ch if quote is None else quote)
+            command_start = False
+        elif quote is None:
+            if ch in ";|&\n":
+                command_start = True
+            elif not ch.isspace():
+                if command_start and source.startswith("case", i) and \
+                        i + 4 < len(source) and source[i + 4].isspace():
+                    starts.append(i)
+                command_start = False
+        i += 1
+    return starts
+
+
+def _shell_segments(cmd, with_source=False, substitutions_only=False):
     """Split a shell command into simple commands, each a token list, honouring quotes.
 
     The old splitter cut on `|`, `;` and `&` anywhere, so `pgrep -fl 'ffmpeg|ab-av1'` and
@@ -3219,7 +3255,10 @@ def _shell_segments(cmd, with_source=False):
     # 20.10: the shell removes continued newlines before parsing and CRLF input
     # must have the same separators as LF input.
     cmd = cmd.replace("\r\n", "\n")
-    cmd = re.sub(r"\\\n[ \t]*", " ", cmd)
+    # 20.10: `safe-run -- \\` joins lines, but `echo dir\\\\` ends its
+    # command before the next line's bare ffmpeg; only odd backslash runs join.
+    cmd = re.sub(r"\\+\n[ \t]*", lambda m: (m.group().split("\n", 1)[0][:-1] + " "
+                 if len(m.group().split("\n", 1)[0]) % 2 else m.group()), cmd)
     # 20.10: arithmetic expressions are values, not commands, even when their
     # first operand happens to be x265 or x264.
     cmd = re.sub(r"\$?\(\([^()]*\)\)", "_", cmd)
@@ -3303,7 +3342,7 @@ def _shell_segments(cmd, with_source=False):
 
     outer, extracted, _ = scan(0)
     segments = []
-    for chunk in [outer] + extracted:
+    for chunk in (extracted if substitutions_only else [outer] + extracted):
         # 20.10: & belongs to fd redirections (2>&1, &>, &>> and <&),
         # otherwise the old lexer invented a new command after the ampersand.
         # 20.10: retain each simple command's exact spelling for a runnable
@@ -3312,8 +3351,13 @@ def _shell_segments(cmd, with_source=False):
         start = 0
         quote = None
         escaped = False
-        case_pattern = bool(re.search(r"\bcase\b.*\bin\s+", chunk))
+        # 20.10: quoted "case in point" is an argument, and cannot turn
+        # earlier pipeline bars into case-pattern separators.
+        case_starts = [pos + 4 for pos in _case_command_starts(chunk)]
+        case_pattern = False
         for pos, ch in enumerate(chunk):
+            if pos in case_starts:
+                case_pattern = True
             if escaped:
                 escaped = False
                 continue
@@ -3373,6 +3417,9 @@ def _hook_command_hit(cmd, patterns, with_segment=False):
     def result(pat, tokens, raw):
         raw = re.sub(r"^(?:(?:do|then|else|elif|if|while|until|!|\{|function)\s+)+",
                      "", raw).strip()
+        # 20.10: `(ffmpeg ...)` is a subshell; the inserted supervisor must
+        # be inside its parentheses, where the original command still runs.
+        raw = re.sub(r"^\(\s*", "", raw)
         return (pat, raw or shlex.join(tokens)) if with_segment else pat
 
     def without_redirections(tokens):
@@ -3435,26 +3482,42 @@ def _hook_command_hit(cmd, patterns, with_segment=False):
                 continue
             if tok in ("for", "case", "select") or tok.endswith("("):
                 return None
-            if base == "command" and any(t in ("-v", "-V") for t in tokens[i + 1:i + 4]):
-                return None
+            if base == "command":
+                # 20.10: `command ffmpeg -v error` runs ffmpeg; only flags
+                # directly after `command` request a lookup.
+                j = i + 1
+                if j < len(tokens) and tokens[j] == "-p":
+                    j += 1
+                if j < len(tokens) and tokens[j] in ("-v", "-V"):
+                    return None
+                if j == i + 1 and j < len(tokens) and tokens[j] in ("-pv", "-pV"):
+                    return None
             if base in _HOOK_WRAPPERS:
                 value_flags = {
                     "nice": ("-n",), "env": ("-u", "-P", "-S"),
-                    "taskpolicy": ("-c",), "timeout": ("-s", "-k"),
-                    "gtimeout": ("-s", "-k"), "time": ("-o", "-f"),
+                    "taskpolicy": ("-c", "-t", "-l", "-m"),
+                    "caffeinate": ("-t", "-w"),
+                    "timeout": ("-s", "-k", "--kill-after", "--signal"),
+                    "gtimeout": ("-s", "-k", "--kill-after", "--signal"),
+                    "time": ("-o", "-f"),
                     "stdbuf": ("-i", "-o", "-e"),
                     "gstdbuf": ("-i", "-o", "-e"), "arch": ("-arch",),
                 }.get(base, ())
                 j = i + 1
                 while j < len(tokens):
                     flag = tokens[j]
+                    if flag == "--":
+                        j += 1
+                        continue
                     if flag in value_flags:
                         if base == "env" and flag == "-S" and j + 1 < len(tokens):
                             return analyze(tokens[j + 1], depth + 1)
                         j += 2
+                    elif any(flag.startswith(v + "=") for v in value_flags if v.startswith("--")):
+                        j += 1
                     elif (flag.startswith("-") and flag != "--"):
                         j += 1
-                    elif base in ("timeout", "gtimeout") and re.match(r"^\d+(?:\.\d+)?[smhd]?$", flag):
+                    elif base in ("timeout", "gtimeout") and re.match(r"^(?:\d+(?:\.\d*)?|\.\d+)[smhd]?$", flag):
                         j += 1
                         break
                     elif base == "env" and re.match(r"^[A-Za-z_]\w*=", flag):
@@ -3482,7 +3545,11 @@ def _hook_command_hit(cmd, patterns, with_segment=False):
                     break
                 command_flag |= (not tokens[j].startswith("--")
                                  and "c" in tokens[j][1:])
-                j += 2 if tokens[j] in ("-o", "-O") or tokens[j].endswith("o") and tokens[j].startswith("-e") else 1
+                # 20.10: `-uo pipefail` and `-Eeuo pipefail` consume the
+                # following word before -c supplies the executable script.
+                j += 2 if tokens[j] in ("-o", "-O") or (tokens[j].startswith("-")
+                        and not tokens[j].startswith("--") and
+                        any(c in tokens[j][1:] for c in "oO")) else 1
             # `bash run.sh` is opaque; only -c makes the following word shell code.
             if command_flag and j < len(tokens):
                 return analyze(tokens[j], depth + 1)
@@ -3497,13 +3564,24 @@ def _hook_command_hit(cmd, patterns, with_segment=False):
                 return None
             if argv0 == "pipx" and (j == i + 1 or tokens[i + 1] != "run"):
                 return None
-            j = option_end(tokens, j, (), ("--from", "--python", "--with"))
+            j = option_end(tokens, j, (), ("--from", "--python", "--with", "--spec"))
             return inspect(tokens[j:], depth + 1) if j < len(tokens) else None
         if re.match(r"^python(?:3(?:\.\d+)?)?$", argv0):
-            if "-m" in args:
-                j = tokens.index("-m", i + 1)
-                if j + 1 < len(tokens):
+            # 20.10: `bench.py -m whisper` passes an argument to the script;
+            # Python's module switch is meaningful only before a script or -c.
+            j = i + 1
+            while j < len(tokens):
+                flag = tokens[j]
+                if flag == "-m" and j + 1 < len(tokens):
                     return inspect(tokens[j + 1:], depth + 1)
+                if flag in ("-c", "--"):
+                    return None
+                if flag in ("-X", "-W"):
+                    j += 2
+                elif flag.startswith("-"):
+                    j += 1
+                else:
+                    break
             return None
         if argv0 == "screen":
             j = i + 1
@@ -3519,14 +3597,14 @@ def _hook_command_hit(cmd, patterns, with_segment=False):
                            ("--user", "--group", "--chdir", "--host", "--prompt"))
             return inspect(tokens[j:], depth + 1) if j < len(tokens) else None
         if argv0 == "xargs":
-            j = option_end(tokens, i + 1, ("-I", "-L", "-n", "-P", "-s", "-E", "-d", "-a"),
+            j = option_end(tokens, i + 1, ("-I", "-J", "-R", "-L", "-n", "-P", "-s", "-E", "-d", "-a"),
                            ("--replace", "--max-lines", "--max-args", "--max-procs",
                             "--max-chars", "--eof", "--delimiter", "--arg-file"))
             return inspect(tokens[j:], depth + 1) if j < len(tokens) else None
         if argv0 == "parallel":
             if "--dry-run" in args or "--dryrun" in args:
                 return None
-            j = option_end(tokens, i + 1, ("-j",), ("--jobs",))
+            j = option_end(tokens, i + 1, ("-j", "-I"), ("--jobs", "--joblog"))
             end = next((k for k in range(j, len(tokens))
                         if tokens[k] in (":::" , "::::", ":::+")), len(tokens))
             if j < end and len(tokens[j:end]) == 1:
@@ -3596,28 +3674,63 @@ def _hook_command_hit(cmd, patterns, with_segment=False):
         if len(source) > 50000:
             return None
         source = source.replace("\r\n", "\n")
-        # 20.10: case arms and array literals choose data; treating their
-        # labels or elements as argv0 blocked a safe-run selection script.
-        source = re.sub(r"\b[A-Za-z_]\w*=\([^)]*\)", "_", source)
-        if re.search(r"\bcase\b", source):
-            source = re.sub(r"(\bin\s+)[^;\n)]*\)", r"\1_)", source)
-            source = re.sub(r"(?m)^(\s*)[^\s;()]+\)", r"\1_)", source)
-        # 20.10: a shell with stdin from a heredoc executes its body; cat
-        # writing the same bytes to a file does not.
-        for m in _HEREDOC_RE.finditer(source):
-            before = source[:m.start()].split("\n")[-1]
-            if re.search(r"(?:^|\s)(?:bash|sh|zsh|dash|ksh)\s*$", before):
-                tag = m.group(2) or m.group(3) or m.group(4) or m.group(5)
-                body = source[m.end():]
-                if body.startswith("\n") and "\n" + tag in body:
-                    found = analyze(body.split("\n" + tag, 1)[0], depth + 1)
-                    if found:
-                        return found
-        for m in re.finditer(r"\b(?:bash|sh|zsh|dash|ksh)\s+<<<\s*(['\"])(.*?)\1", source, re.S):
-            found = analyze(m.group(2), depth + 1)
+        # 20.10: a case arm is data only when `case` starts a command;
+        # quoted "edge case in parser" must not mask an earlier xargs pipe.
+        case_starts = _case_command_starts(source)
+        if case_starts:
+            head, tail = source[:case_starts[0]], source[case_starts[0]:]
+            tail = re.sub(r"(\bin\s+)[^;\n)]*\)", r"\1_)", tail)
+            tail = re.sub(r"(?m)^(\s*)[^\s;()]+\)", r"\1_)", tail)
+            source = head + tail
+        # 20.10: a data heredoc may contain an entire shell script, while
+        # `cat <<EOF | bash` feeds one to bash. Check the command owning stdin.
+        source, bodies = _strip_heredocs(source)
+        for before, after, body, quoted in bodies:
+            owners = _shell_segments(before, with_source=True)
+            owner = owners[-1][0] if owners else []
+            consumers = _shell_segments(after, with_source=True)
+            if after.lstrip().startswith("|") and consumers:
+                found = inspect(consumers[-1][0] + ["-c", body], depth + 1)
+            elif owner:
+                found = inspect(owner + ["-c", body], depth + 1)
+            else:
+                found = None
             if found:
                 return found
-        source = _strip_heredocs(source)
+            if not quoted:
+                # 20.10: `$(cd /tmp && (ffmpeg ...))` expands in data;
+                # the shell scanner sees nested parentheses and escaped $(.
+                for tokens, raw in _shell_segments(body, with_source=True,
+                                                   substitutions_only=True):
+                    found = inspect(tokens, depth + 1, raw)
+                    if found:
+                        return found
+        # 20.10: `<<<` inside a quoted commit message is text; only an
+        # operator after a shell command can feed executable input.
+        for line in source.split("\n"):
+            quote = None
+            escaped = False
+            for pos, ch in enumerate(line):
+                if escaped:
+                    escaped = False
+                    continue
+                if ch == "\\" and quote != "'":
+                    escaped = True
+                    continue
+                if ch in ("'", '"'):
+                    quote = None if quote == ch else (ch if quote is None else quote)
+                if quote is None and line[pos:pos + 3] == "<<<":
+                    owners = _shell_segments(line[:pos], with_source=True)
+                    owner = owners[-1][0] if owners else []
+                    try:
+                        content = shlex.split(line[pos + 3:].strip())[0]
+                    except (ValueError, IndexError):
+                        break
+                    if owner:
+                        found = inspect(owner + ["-c", content], depth + 1)
+                        if found:
+                            return found
+                    break
         for tokens, raw in _shell_segments(source, with_source=True):
             found = inspect(tokens, depth, raw)
             if found:
@@ -3694,16 +3807,46 @@ def hook_gate(cfg):
         name, segment = hit
         # 20.10: preserve original shell spelling, including expansions,
         # wrappers and redirections; re-quoting tokens changed "$f" to '$f'.
-        assignment_re = re.compile(r"\s*[A-Za-z_][A-Za-z0-9_]*=(?:'[^']*'|\"[^\"]*\"|[^\s]+)")
         pos = 0
         while True:
-            match = assignment_re.match(segment, pos)
+            start = pos
+            while pos < len(segment) and segment[pos].isspace():
+                pos += 1
+            match = re.match(r"[A-Za-z_][A-Za-z0-9_]*=", segment[pos:])
             if not match:
+                pos = start
                 break
-            pos = match.end()
+            pos += match.end()
+            quote = None
+            escaped = False
+            parens = 0
+            while pos < len(segment):
+                ch = segment[pos]
+                if escaped:
+                    escaped = False
+                elif ch == "\\" and quote != "'":
+                    escaped = True
+                elif ch in ("'", '"'):
+                    quote = None if quote == ch else (ch if quote is None else quote)
+                elif quote is None:
+                    if ch == "(" and pos and segment[pos - 1] == "$":
+                        parens += 1
+                    elif ch == "(" and parens:
+                        parens += 1
+                    elif ch == ")" and parens:
+                        parens -= 1
+                    elif ch.isspace() and not parens:
+                        break
+                pos += 1
         assignments = segment[:pos].strip()
         command = segment[pos:].strip()
-        hint = (assignments + " " if assignments else "") + "safe-run -- " + command
+        # 20.10: `exec ffmpeg` needs `exec safe-run`, while an escaped space
+        # or $(date +%s) inside an assignment belongs before the supervisor.
+        if command.startswith("exec "):
+            command = "exec safe-run -- " + command[5:]
+            hint = (assignments + " " if assignments else "") + command
+        else:
+            hint = (assignments + " " if assignments else "") + "safe-run -- " + command
         messages = {
             "en": "coffee-paladin: '%s' would run unsupervised.\nSegment: %s\n"
                   "Run this segment under the thermal guard:\n  %s\n"
