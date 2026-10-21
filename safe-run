@@ -9,7 +9,7 @@ What it does that a plain launch does not:
   3. gives it its own process group, so coffee-paladin can pause it together with its children,
   4. registers it in ~/.coffee-paladin/managed/ so the guard knows the job explicitly and
      never has to recognise it by name,
-  5. enforces a time budget (6 h by default) - then SIGTERM, and SIGKILL 30 s later,
+  5. enforces a time budget (20 h by default) - then SIGTERM, and SIGKILL 30 s later,
   6. prints a summary at the end: duration, peak temperature, whether it was ever paused.
 
 Usage:
@@ -25,6 +25,7 @@ Usage:
   safe-run --efficiency -- ...     # efficiency cores only (overrides job_cores_mode)
   safe-run --cpu-limit 80 -- ...   # cap the job at 80% duty (overrides job_cpu_percent)
   safe-run --allow-sleep -- ...    # do not hold the Mac awake for this job
+  safe-run --quiet -- ...          # log routine notices instead of using stderr
   safe-run --progress-interval 300 -- ...  # the job promises to touch $PALADIN_PROGRESS
                                    # about every 300 s; the guard may then say
                                    # "this job may be stalled" (advisory, never a signal)
@@ -45,11 +46,29 @@ import subprocess
 import sys
 import time
 
+# 21.10: A caller may close fd 2; Python then sets stderr to None, and print
+# would spill wrapper notices into the job's stdout before Popen fails.
+if sys.stderr is None:
+    sys.stderr = open(os.devnull, "w")
+
 
 def eprint(*args):
     # 21.10: stdout belongs to the job. `safe-run -- ffmpeg ... -f wav - | sox ...`
     # got the wrapper's status lines in the middle of the audio stream.
     print(*args, file=sys.stderr, flush=True)
+
+
+def routine(opt, message):
+    # 21.10: ffmpeg -v error and yt-dlp read stderr as an error channel; keep
+    # routine notices in a timestamped file when the caller asks for quiet.
+    if not opt["quiet"]:
+        eprint(message)
+        return
+    try:
+        with open(os.path.join(BASE, "safe-run.log"), "a") as f:
+            f.write("%.3f %s\n" % (time.time(), message))
+    except OSError:
+        pass
 
 
 HOME = os.path.expanduser("~")
@@ -166,6 +185,8 @@ def _lang():
 LANG = _lang()
 
 PL = {
+    "safe-run: cannot register the job, it runs without the guard's registration":
+        "safe-run: nie mogę zarejestrować zadania; działa bez rejestracji w guardzie",
     "safe-run: unknown option %s": "safe-run: nieznana opcja %s",
     "safe-run: SIGTERM at %s unless the job ends first (--hours %.1f)":
         "safe-run: SIGTERM o %s, chyba że zadanie skończy się wcześniej (--hours %.1f)",
@@ -223,6 +244,8 @@ PL = {
 }
 
 RU = {
+    "safe-run: cannot register the job, it runs without the guard's registration":
+        "safe-run: не удалось зарегистрировать задачу; она работает без регистрации у сторожа",
     "safe-run: unknown option %s": "safe-run: неизвестный параметр %s",
     "safe-run: SIGTERM at %s unless the job ends first (--hours %.1f)": "safe-run: SIGTERM в %s, если задача не завершится раньше (--hours %.1f)",
     "safe-run: thermal state=%s, battery=%s, time budget=%.1f h":
@@ -279,6 +302,8 @@ RU = {
 }
 
 ZH = {
+    "safe-run: cannot register the job, it runs without the guard's registration":
+        "safe-run: 无法注册任务；任务将在没有守护程序注册的情况下运行",
     "safe-run: unknown option %s": "safe-run: 未知选项 %s",
     "safe-run: SIGTERM at %s unless the job ends first (--hours %.1f)": "safe-run: 将在 %s 发送 SIGTERM,除非任务提前结束(--hours %.1f)",
     "safe-run: thermal state=%s, battery=%s, time budget=%.1f h":
@@ -335,6 +360,8 @@ ZH = {
 }
 
 ES = {
+    "safe-run: cannot register the job, it runs without the guard's registration":
+        "safe-run: no se puede registrar la tarea; se ejecuta sin registro en el guardián",
     "safe-run: unknown option %s": "safe-run: opción desconocida %s",
     "safe-run: SIGTERM at %s unless the job ends first (--hours %.1f)": "safe-run: SIGTERM a las %s salvo que el trabajo termine antes (--hours %.1f)",
     "safe-run: thermal state=%s, battery=%s, time budget=%.1f h":
@@ -456,8 +483,13 @@ def guard_running():
 
 def start_guard():
     uid = os.getuid()
-    subprocess.call(["launchctl", "kickstart", "-k", "gui/%d/%s" % (uid, AGENT_LABEL)],
-                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    # 21.10: An inconclusive process-list query must not use -k, which kills
+    # a guard that may already be running before starting another instance.
+    try:
+        subprocess.call(["launchctl", "kickstart", "gui/%d/%s" % (uid, AGENT_LABEL)],
+                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except OSError:
+        pass
     time.sleep(1)
     return guard_running()
 
@@ -469,6 +501,7 @@ def parse():
     # cold multi-hour transfers whose failure then looked like the network (23.08). A day
     # still ends an agent loop nobody is watching; SAFE_RUN_HOURS or --hours set the rest.
     opt = {"hours": float(os.environ.get("SAFE_RUN_HOURS", 20)), "name": None,
+           "quiet": os.environ.get("SAFE_RUN_QUIET") == "1",
            "allow_hot": False, "allow_sleep": False, "wait_cool": False,
            # Defaults from config.json; the menu bar controls them with toggles.
            "normal": (c.get("job_cores_mode") or "efficiency") == "all",
@@ -516,6 +549,8 @@ def parse():
             opt["normal"] = False; i += 1
         elif a == "--allow-sleep":
             opt["allow_sleep"] = True; i += 1
+        elif a == "--quiet":
+            opt["quiet"] = True; i += 1
         elif a in ("-h", "--help"):
             print(__doc__); sys.exit(0)
         elif a.startswith("-"):
@@ -1031,10 +1066,19 @@ def limited_wait(proc, pct, deadline):
         if time.time() > deadline:
             return None, True
         if stop_t < 0.02 or guard_paused(proc.pid):
-            time.sleep(2)
+            # 21.10: A short true/ffmpeg job must wake the wrapper on exit,
+            # even when no CPU pause is due or the guard owns the pause.
+            try:
+                return proc.wait(timeout=min(2.0, max(deadline - time.time(), 0.001))), False
+            except subprocess.TimeoutExpired:
+                pass
             continue
-        # No sleep may outlive the time budget; maximum overrun is 50 ms.
-        time.sleep(min(run_t, max(deadline - time.time(), 0.05)))
+        # 21.10: A short job at the default 95% limit can end inside the run
+        # slice; waiting on its exit avoids a nearly two-second idle tail.
+        try:
+            return proc.wait(timeout=min(run_t, max(deadline - time.time(), 0.001))), False
+        except subprocess.TimeoutExpired:
+            pass
         if proc.poll() is not None or guard_paused(proc.pid):
             continue
         try:
@@ -1135,12 +1179,30 @@ def guard_alive():
     Check the PID column, matching install.sh (`has_pid`). Fall back to the real
     binary name, not only "guard.py".
     """
-    for line in sh(["launchctl", "list"]).splitlines():
-        parts = line.split()
-        if len(parts) >= 3 and parts[2] == AGENT_LABEL and parts[0] != "-":
+    # 21.10: Seatbelt can deny pgrep's process list (rc 3). A fresh guard
+    # heartbeat then proves more than an unavailable process-list query.
+    unknown = False
+    for cmd in (["launchctl", "list"], ["pgrep", "-f", "coffee-paladin$"],
+                ["pgrep", "-f", "guard.py"]):
+        try:
+            p = subprocess.run(cmd, capture_output=True, timeout=15)
+        except (OSError, subprocess.TimeoutExpired):
+            unknown = True
+            continue
+        if p.returncode not in (0, 1):
+            unknown = True
+            continue
+        out = p.stdout.decode("utf-8", "replace")
+        if cmd[0] == "launchctl":
+            for line in out.splitlines():
+                parts = line.split()
+                if len(parts) >= 3 and parts[2] == AGENT_LABEL and parts[0] != "-":
+                    return True
+        elif p.returncode == 0 and out.strip():
             return True
-    return bool(sh(["pgrep", "-f", "coffee-paladin$"]).strip()
-                or sh(["pgrep", "-f", "guard.py"]).strip())
+    if unknown:
+        return snapshot_fresh("status.json", 30)
+    return False
 
 
 def main():
@@ -1173,7 +1235,7 @@ def main():
             # The inner job has no registration of its own, so a chain can see
             # this wrapper only while it waits; that ends here, before exec.
             drop_registration(waiting)
-        eprint(T("safe-run: already inside a supervised job - running the command directly"))
+        routine(opt, T("safe-run: already inside a supervised job - running the command directly"))
         sys.stderr.flush()
         try:
             os.execvp(cmd[0], cmd)
@@ -1212,7 +1274,7 @@ def main():
         cap = max(10, round(100.0 * opt["cores"] / (os.cpu_count() or 8)))
         if cap < opt["cpu_limit"]:
             opt["cpu_limit"] = float(cap)
-            eprint(T("safe-run: --cores %d: macOS does not pin a job to cores, so this "
+            routine(opt, T("safe-run: --cores %d: macOS does not pin a job to cores, so this "
                     "becomes a %d%% CPU limit for the whole machine")
                   % (opt["cores"], int(cap)))
 
@@ -1225,13 +1287,13 @@ def main():
                 "not running. This job will start, but NOTHING will supervise its "
                 "temperature."), file=sys.stderr)
     hot = state in HOT or (temp is not None and temp >= limit - 2) or chip_hot
-    eprint(T("safe-run: thermal state=%s, battery=%s, time budget=%.1f h") % (
+    routine(opt, T("safe-run: thermal state=%s, battery=%s, time budget=%.1f h") % (
         state, ("%.1f C" % temp) if temp else T("n/a"), opt["hours"]))
-    eprint(T("safe-run: cores=%s, CPU limit=%d%%") % (
+    routine(opt, T("safe-run: cores=%s, CPU limit=%d%%") % (
         T("all") if opt["normal"] else T("efficiency only"), int(opt["cpu_limit"])))
     # The clock time, not only the number of hours: "budget 6.0 h" printed at 09:00 did not
     # connect with a transfer that died at 15:00 and was blamed on the network.
-    eprint(T("safe-run: SIGTERM at %s unless the job ends first (--hours %.1f)") % (
+    routine(opt, T("safe-run: SIGTERM at %s unless the job ends first (--hours %.1f)") % (
         time.strftime("%H:%M", time.localtime(time.time() + opt["hours"] * 3600)), opt["hours"]))
     if hot and not opt["allow_hot"]:
         if not opt["wait_cool"]:
@@ -1261,7 +1323,7 @@ def main():
         eprint(T("safe-run: coffee-paladin is not running - trying to start it..."))
         if not start_guard():
             eprint(T("safe-run: WARNING - the guard did not start, this job will NOT be supervised.")
-                  + "  launchctl kickstart -k gui/$UID/%s" % AGENT_LABEL)
+                  + "  launchctl kickstart gui/$UID/%s" % AGENT_LABEL)
 
     # The waiting placeholder lives at the same path as the admission one, so
     # admission_wait simply overwrites it; without admission it stays until the
@@ -1291,6 +1353,24 @@ def main():
             pass
     except OSError:
         progress_path = None      # no heartbeat is a lost feature, not a lost job
+    # 21.10: SIGHUP to safe-run's group must reach the setsid job too; nohup
+    # keeps its inherited SIG_IGN, so only install handlers for live signals.
+    proc = None
+    pending_signals = []
+
+    def forward(signum, frame):
+        if proc is None:
+            pending_signals.append(signum)
+            return
+        try:
+            os.killpg(proc.pid, signum)
+        except OSError:
+            pass
+
+    for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP, signal.SIGQUIT):
+        if signal.getsignal(sig) != signal.SIG_IGN:
+            signal.signal(sig, forward)
+
     try:
         env = dict(os.environ)
         env["TG_SAFE_RUN_PGID"] = str(os.getpid())   # see note in main()
@@ -1311,6 +1391,9 @@ def main():
                 pass
         return 4
 
+    for sig in pending_signals:
+        forward(sig, None)
+
     # Sleep in the middle of a job leaves it stuck until morning.
     # `caffeinate -is -w PID` exits with the job, so there is nothing to track or
     # clean up.
@@ -1325,18 +1408,23 @@ def main():
     # 0600: the file contains the FULL command line: project paths, file names,
     # and sometimes tokens in arguments. On a Mac with multiple accounts, only
     # the owner should read it.
-    _fd = os.open(reg, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(_fd, "w") as f:
-        # "normal": the user explicitly asked for all cores. The guard must not
-        # silently undo that decision five minutes later by demoting the job to
-        # E-cores.
-        json.dump({"pid": proc.pid, "pgid": proc.pid, "name": opt["name"],
-                   "cmd": cmd, "started": t0, "hours": opt["hours"],
-                   "cores": opt["cores"], "priority": opt["priority"],
-                   "cpu_limit_pct": opt["cpu_limit"],
-                   "progress_path": progress_path,
-                   "progress_interval_s": opt["progress_interval"],
-                   "normal": bool(opt["normal"])}, f, indent=1)
+    try:
+        _fd = os.open(reg, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(_fd, "w") as f:
+            # "normal": the user explicitly asked for all cores. The guard must not
+            # silently undo that decision five minutes later by demoting the job to
+            # E-cores.
+            json.dump({"pid": proc.pid, "pgid": proc.pid, "name": opt["name"],
+                       "cmd": cmd, "started": t0, "hours": opt["hours"],
+                       "cores": opt["cores"], "priority": opt["priority"],
+                       "cpu_limit_pct": opt["cpu_limit"],
+                       "progress_path": progress_path,
+                       "progress_interval_s": opt["progress_interval"],
+                       "normal": bool(opt["normal"])}, f, indent=1)
+    except OSError:
+        # 21.10: Read-only managed/ can reject registration after Popen; keep
+        # supervising that child and report the single missing-guard warning.
+        eprint(T("safe-run: cannot register the job, it runs without the guard's registration"))
     event_jsonl("job_start", name=event_name(opt["name"]), pid=proc.pid,
                 pgid=proc.pid, cores=opt["cores"], cpu_limit_pct=opt["cpu_limit"])
     if placeholder:
@@ -1346,15 +1434,6 @@ def main():
             os.unlink(placeholder)
         except OSError:
             pass
-
-    def forward(signum, frame):
-        try:
-            os.killpg(proc.pid, signum)
-        except Exception:
-            pass
-
-    signal.signal(signal.SIGINT, forward)
-    signal.signal(signal.SIGTERM, forward)
 
     deadline = t0 + opt["hours"] * 3600
     rc, killed_by_time = limited_wait(proc, opt["cpu_limit"], deadline)
@@ -1417,7 +1496,7 @@ def main():
     event_jsonl("job_end", name=event_name(opt["name"]), pid=proc.pid,
                 pgid=proc.pid, exit_code=final,
                 killed_by_time=killed_by_time or None, duration_s=round(dur))
-    eprint(T("safe-run: %s - exit code %s, took %dh %dm, peak temperature %s%s") % (
+    routine(opt, T("safe-run: %s - exit code %s, took %dh %dm, peak temperature %s%s") % (
         opt["name"], final, int(dur // 3600), int(dur % 3600 // 60),
         ("%.1f C" % mx) if mx else T("n/a"),
         (", " + T("terminated by the time budget")) if killed_by_time else ""))
