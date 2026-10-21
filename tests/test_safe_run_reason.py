@@ -130,7 +130,7 @@ def refusal(mod, st, state="nominal", temp=None):
     mod.thermal_state, mod.batt_temp = (lambda: state), (lambda: temp)
     sys.argv = ["safe-run", "--", "true"]
     try:
-        with contextlib.redirect_stdout(io.StringIO()) as out:
+        with contextlib.redirect_stderr(io.StringIO()) as out:
             rc = mod.main()
     finally:
         mod.thermal_state, mod.batt_temp, sys.argv = saved
@@ -172,7 +172,7 @@ def wait_message(mod, st, after):
     saved = mod.thermal_state, mod.batt_temp, mod.time.sleep
     mod.thermal_state, mod.batt_temp, mod.time.sleep = (lambda: "nominal"), (lambda: None), fake_sleep
     try:
-        with contextlib.redirect_stdout(io.StringIO()) as out:
+        with contextlib.redirect_stderr(io.StringIO()) as out:
             mod.wait_for_cooldown(40.0)
     finally:
         mod.thermal_state, mod.batt_temp, mod.time.sleep = saved

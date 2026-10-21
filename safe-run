@@ -45,6 +45,13 @@ import subprocess
 import sys
 import time
 
+
+def eprint(*args):
+    # 21.10: stdout belongs to the job. `safe-run -- ffmpeg ... -f wav - | sox ...`
+    # got the wrapper's status lines in the middle of the audio stream.
+    print(*args, file=sys.stderr, flush=True)
+
+
 HOME = os.path.expanduser("~")
 BASE = os.environ.get("TG_BASE") or os.path.join(HOME, ".coffee-paladin")
 BASE = os.path.expanduser(BASE)   # TG_BASE lets tests run in isolation.
@@ -512,12 +519,12 @@ def parse():
         elif a in ("-h", "--help"):
             print(__doc__); sys.exit(0)
         elif a.startswith("-"):
-            print(T("safe-run: unknown option %s") % a); sys.exit(2)
+            eprint(T("safe-run: unknown option %s") % a); sys.exit(2)
         else:
             break
     cmd = args[i:]
     if not cmd:
-        print(__doc__)
+        eprint(__doc__)
         sys.exit(2)
     opt["name"] = opt["name"] or os.path.basename(cmd[0])
     opt["cpu_limit"] = min(max(opt["cpu_limit"], 10.0), 100.0)
@@ -812,9 +819,9 @@ def wait_for_cooldown(limit):
         # logs must show that waiting is alive without flooding the file with
         # identical lines.
         if not last_message or time.time() - last_message >= 600.0:
-            print(T("safe-run: --wait-cool - not starting yet (%s), waiting until that "
+            eprint(T("safe-run: --wait-cool - not starting yet (%s), waiting until that "
                     "clears (checking every 60 s)") % ", ".join(reasons))
-            sys.stdout.flush()
+            sys.stderr.flush()
             last_message = time.time()
         time.sleep(WAIT_POLL_S)
 
@@ -924,8 +931,8 @@ def wait_for_job(job_name):
     last_message = 0.0
     while job_named_alive(job_name):
         if not last_message or time.time() - last_message >= 600.0:
-            print(T("safe-run: --after %s - waiting until that job finishes") % job_name)
-            sys.stdout.flush()
+            eprint(T("safe-run: --after %s - waiting until that job finishes") % job_name)
+            sys.stderr.flush()
             last_message = time.time()
         time.sleep(AFTER_POLL_S)
 
@@ -986,8 +993,8 @@ def admission_wait(opt):
                 fd = os.open(reg, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
                 with os.fdopen(fd, "w") as f:
                     json.dump(entry, f)
-                print(T("safe-run: admitted - starting the job"))
-                sys.stdout.flush()
+                eprint(T("safe-run: admitted - starting the job"))
+                sys.stderr.flush()
                 return reg
             if not last_message or time.time() - last_message >= 600.0:
                 ahead = 0
@@ -995,9 +1002,9 @@ def admission_wait(opt):
                     if q.get("pid") == my_pid:
                         break
                     ahead += 1
-                print(T("safe-run: waiting for admission (declared %d core(s), "
+                eprint(T("safe-run: waiting for admission (declared %d core(s), "
                         "%d job(s) ahead)") % (opt["cores"], ahead))
-                sys.stdout.flush()
+                sys.stderr.flush()
                 last_message = time.time()
             time.sleep(ADMIT_POLL_S)
     finally:
@@ -1166,8 +1173,8 @@ def main():
             # The inner job has no registration of its own, so a chain can see
             # this wrapper only while it waits; that ends here, before exec.
             drop_registration(waiting)
-        print(T("safe-run: already inside a supervised job - running the command directly"))
-        sys.stdout.flush()
+        eprint(T("safe-run: already inside a supervised job - running the command directly"))
+        sys.stderr.flush()
         try:
             os.execvp(cmd[0], cmd)
         except OSError as e:
@@ -1205,7 +1212,7 @@ def main():
         cap = max(10, round(100.0 * opt["cores"] / (os.cpu_count() or 8)))
         if cap < opt["cpu_limit"]:
             opt["cpu_limit"] = float(cap)
-            print(T("safe-run: --cores %d: macOS does not pin a job to cores, so this "
+            eprint(T("safe-run: --cores %d: macOS does not pin a job to cores, so this "
                     "becomes a %d%% CPU limit for the whole machine")
                   % (opt["cores"], int(cap)))
 
@@ -1218,13 +1225,13 @@ def main():
                 "not running. This job will start, but NOTHING will supervise its "
                 "temperature."), file=sys.stderr)
     hot = state in HOT or (temp is not None and temp >= limit - 2) or chip_hot
-    print(T("safe-run: thermal state=%s, battery=%s, time budget=%.1f h") % (
+    eprint(T("safe-run: thermal state=%s, battery=%s, time budget=%.1f h") % (
         state, ("%.1f C" % temp) if temp else T("n/a"), opt["hours"]))
-    print(T("safe-run: cores=%s, CPU limit=%d%%") % (
+    eprint(T("safe-run: cores=%s, CPU limit=%d%%") % (
         T("all") if opt["normal"] else T("efficiency only"), int(opt["cpu_limit"])))
     # The clock time, not only the number of hours: "budget 6.0 h" printed at 09:00 did not
     # connect with a transfer that died at 15:00 and was blamed on the network.
-    print(T("safe-run: SIGTERM at %s unless the job ends first (--hours %.1f)") % (
+    eprint(T("safe-run: SIGTERM at %s unless the job ends first (--hours %.1f)") % (
         time.strftime("%H:%M", time.localtime(time.time() + opt["hours"] * 3600)), opt["hours"]))
     if hot and not opt["allow_hot"]:
         if not opt["wait_cool"]:
@@ -1235,7 +1242,7 @@ def main():
             if temp is not None and temp >= limit - 2:
                 reasons.append(T("battery %.1f °C, threshold %.0f °C") % (temp, limit)
                                + ("" if temp >= limit else T(", safe-run keeps a %d °C margin") % 2))
-            print(T("safe-run: REFUSING TO START - %s. Use --wait-cool to wait, or pass --allow-hot.")
+            eprint(T("safe-run: REFUSING TO START - %s. Use --wait-cool to wait, or pass --allow-hot.")
                   % "; ".join(reasons))
             drop_registration(waiting)
             return 3
@@ -1247,13 +1254,13 @@ def main():
         except KeyboardInterrupt:
             drop_registration(waiting)
             return 130
-        print(T("safe-run: cooled down after %d min - starting the job") % round(minutes))
-        sys.stdout.flush()
+        eprint(T("safe-run: cooled down after %d min - starting the job") % round(minutes))
+        sys.stderr.flush()
 
     if not guard_running():
-        print(T("safe-run: coffee-paladin is not running - trying to start it..."))
+        eprint(T("safe-run: coffee-paladin is not running - trying to start it..."))
         if not start_guard():
-            print(T("safe-run: WARNING - the guard did not start, this job will NOT be supervised.")
+            eprint(T("safe-run: WARNING - the guard did not start, this job will NOT be supervised.")
                   + "  launchctl kickstart -k gui/$UID/%s" % AGENT_LABEL)
 
     # The waiting placeholder lives at the same path as the admission one, so
@@ -1289,9 +1296,11 @@ def main():
         env["TG_SAFE_RUN_PGID"] = str(os.getpid())   # see note in main()
         if progress_path:
             env["PALADIN_PROGRESS"] = progress_path
+        # 21.10: Flush the wrapper's notices before the child inherits stderr.
+        sys.stderr.flush()
         proc = subprocess.Popen(wrapped, preexec_fn=os.setsid, env=env)
     except Exception as e:
-        print(T("safe-run: cannot start: %r") % (e,))
+        eprint(T("safe-run: cannot start: %r") % (e,))
         drop_registration(placeholder)
         # The heartbeat file was created before the fork; a failed start must
         # not leave an orphan for the daemon's sweeper to explain.
@@ -1350,7 +1359,7 @@ def main():
     deadline = t0 + opt["hours"] * 3600
     rc, killed_by_time = limited_wait(proc, opt["cpu_limit"], deadline)
     if killed_by_time:
-        print(T("safe-run: TIME BUDGET %.1f h reached - terminating the job (SIGTERM)") % opt["hours"])
+        eprint(T("safe-run: TIME BUDGET %.1f h reached - terminating the job (SIGTERM)") % opt["hours"])
         # Cleanup checks the WHOLE group, not proc.poll(): if the leader died
         # while grandchildren were alive, SIGKILL used to be skipped and the
         # grandchildren stayed forever.
@@ -1371,11 +1380,11 @@ def main():
     if leftovers:
         died_from_signal = rc is not None and (rc < 0 or rc >= 128)
         if died_from_signal and not killed_by_time:
-            print(T("safe-run: cleaning up %d leftover process(es) from the job's group (SIGTERM, then SIGKILL after %d s)")
+            eprint(T("safe-run: cleaning up %d leftover process(es) from the job's group (SIGTERM, then SIGKILL after %d s)")
                   % (len(leftovers), int(opt["grace"])))
             sweep_group(proc.pid, opt["grace"])
         else:
-            print(T("safe-run: WARNING - the job left %d process(es) running in its group (pids: %s) - no time budget applies to them")
+            eprint(T("safe-run: WARNING - the job left %d process(es) running in its group (pids: %s) - no time budget applies to them")
                   % (len(leftovers), ", ".join(str(p) for p in leftovers)))
 
     try:
@@ -1408,13 +1417,13 @@ def main():
     event_jsonl("job_end", name=event_name(opt["name"]), pid=proc.pid,
                 pgid=proc.pid, exit_code=final,
                 killed_by_time=killed_by_time or None, duration_s=round(dur))
-    print(T("safe-run: %s - exit code %s, took %dh %dm, peak temperature %s%s") % (
+    eprint(T("safe-run: %s - exit code %s, took %dh %dm, peak temperature %s%s") % (
         opt["name"], final, int(dur // 3600), int(dur % 3600 // 60),
         ("%.1f C" % mx) if mx else T("n/a"),
         (", " + T("terminated by the time budget")) if killed_by_time else ""))
     if (not killed_by_time and rc is not None and rc < 0
             and -rc in (signal.SIGTERM, signal.SIGKILL)):
-        print(T("safe-run: the job was stopped by signal %d - check ~/.coffee-paladin/guard.log") % -rc)
+        eprint(T("safe-run: the job was stopped by signal %d - check ~/.coffee-paladin/guard.log") % -rc)
     return final
 
 

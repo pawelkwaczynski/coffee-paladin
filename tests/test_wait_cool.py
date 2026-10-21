@@ -113,7 +113,7 @@ def wait(chip_sequence, state="nominal", battery=30.0, level_sequence=None):
     sr.read_chip_state = fake_chip
     sr.time.sleep = lambda s: sleeps.append(s)
     try:
-        with contextlib.redirect_stdout(io.StringIO()) as out:
+        with contextlib.redirect_stderr(io.StringIO()) as out:
             minuty = sr.wait_for_cooldown(40.0)
         return minuty, len(sleeps), out.getvalue()
     finally:
@@ -153,7 +153,7 @@ sr.read_chip_state = lambda: (50.0, 87.0, 0)
 sr.time.sleep = lambda s: sleeps.append(s)
 sleeps.clear()
 try:
-    with contextlib.redirect_stdout(io.StringIO()) as out_bat:
+    with contextlib.redirect_stderr(io.StringIO()) as out_bat:
         sr.wait_for_cooldown(40.0)
 finally:
     sr.thermal_state, sr.batt_temp, sr.read_chip_state, sr.time.sleep = real_values
@@ -164,7 +164,7 @@ test("hot battery keeps waiting despite cool chip, cooling battery ends it",
 # --- main() routing: without flag, refusal rc 3 before anything starts ---
 snapshot(92.0)
 sys.argv = ["safe-run", "--", "true"]
-with contextlib.redirect_stdout(io.StringIO()) as out:
+with contextlib.redirect_stderr(io.StringIO()) as out:
     rc = sr.main()
 test("without --wait-cool hot snapshot = rc 3 (retry_run.sh contract)",
      rc == 3 and "REFUSING" in out.getvalue(), "rc=%s %s" % (rc, out.getvalue().strip()[:80]))

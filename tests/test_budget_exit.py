@@ -56,8 +56,8 @@ r = run(["--hours", "0.001", "--grace", "1", "--",
          sys.executable, "-c",
          "import signal,time; signal.signal(signal.SIGTERM, signal.SIG_IGN); time.sleep(120)"])
 test("1. TERM-ignoring child under budget -> 124", r.returncode == 124,
-     "rc=%s out=%s" % (r.returncode, r.stdout[-300:]))
-test("2. budget ending is announced", "TIME BUDGET" in r.stdout, r.stdout[-300:])
+     "rc=%s out=%s" % (r.returncode, r.stderr[-300:]))
+test("2. budget ending is announced", "TIME BUDGET" in r.stderr, r.stderr[-300:])
 
 # 2. A polite child that exits 0 on SIGTERM is still a budget ending: 124, not 0.
 r = run(["--hours", "0.001", "--grace", "5", "--",
@@ -80,7 +80,7 @@ test("4. external kill -> 143, not 124", p.returncode == 143, "rc=%s" % p.return
 r = run(["--hours", "1", "--", sys.executable, "-c", "raise SystemExit(124)"])
 test("5. child's own 124 passes through", r.returncode == 124, "rc=%s" % r.returncode)
 test("6. ...without the budget label",
-     "terminated by the time budget" not in r.stdout, r.stdout[-300:])
+     "terminated by the time budget" not in r.stderr, r.stderr[-300:])
 
 # 5. A clean, fast child still exits 0.
 r = run(["--hours", "1", "--", "true"])
