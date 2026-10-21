@@ -170,6 +170,15 @@ DEFAULTS = {
     # inside an .app pauses exactly as before. The net closes again in an emergency: fan
     # failure alarm, battery at its kill threshold, or thermal state critical.
     "gui_apps_never_pause": True,
+    # 21.10: A Zoom call or OBS recording loses audio/video when backgrounded or frozen.
+    # Match bundle names, including the parent bundle of a nested helper.
+    "protected_apps": ["zoom.us", "Microsoft Teams", "Microsoft Teams (work or school)",
+                       "Microsoft Teams classic", "FaceTime", "Webex", "Cisco Webex Meetings",
+                       "Skype", "Discord", "Slack", "OBS", "Loom", "Screen Studio",
+                       "QuickTime Player", "Audio Hijack", "Rogue Amoeba Loopback",
+                       "MacWhisper", "superwhisper", "Aiko", "1Password", "1Password 7",
+                       "Bitwarden", "KeePassXC", "Tailscale", "WireGuard", "Mullvad VPN",
+                       "ProtonVPN", "NordVPN"],
     "notify": True,
     "notify_min_gap_s": 300,
     # Critical-level banner: a normal notification is easy to miss (Focus, fullscreen app).
@@ -545,7 +554,7 @@ def load_cfg():
         # Corrections disappeared because the file was fixed; status must not warn forever.
         _ostatnio_odrzucone["v"] = []
     for key in ("never_patterns", "never_arg_patterns", "never_extra",
-                  "managed_patterns", "system_demote_patterns"):
+                  "managed_patterns", "system_demote_patterns", "protected_apps"):
         items = [w for w in (cfg.get(key) or []) if isinstance(w, str) and w.strip()]
         if key in ("never_patterns", "never_arg_patterns"):
             for name in OWN_NAMES:
@@ -658,6 +667,7 @@ PL = {
     "manual resume (from the menu bar)": "wznowienie ręczne (z paska menu)",
     "conditions are back to normal": "warunki wrocily do normy",
     "%s heats the Mac at %.0f%% CPU - a desktop app: slowed down, never frozen": "%s grzeje Maca na %.0f%% CPU - aplikacja okienkowa: spowolniona, nigdy nie zamrazana",
+    "%s heats the Mac at %.0f%% CPU - protected app (call/recording/passwords): left alone": "%s grzeje Maca na %.0f%% CPU - chroniona aplikacja (rozmowa/nagrywanie/hasla): bez ingerencji",
     "%s heats the Mac at %.0f%% CPU - a macOS service: named, left alone": "%s grzeje Maca na %.0f%% CPU - usluga macOS: nazwana, zostawiona w spokoju",
     "DEMOTED %s (pid %d) at pause -> comes back on E-cores, not at full speed":
         "DEMOTE %s (pid %d) przy pauzie -> wroci na rdzeniach E, nie z pelna moca",
@@ -781,6 +791,7 @@ RU = {
     "manual resume (from the menu bar)": "ручное возобновление (из строки меню)",
     "conditions are back to normal": "условия вернулись в норму",
     "%s heats the Mac at %.0f%% CPU - a desktop app: slowed down, never frozen": "%s греет Mac на %.0f%% CPU - оконное приложение: замедлено, никогда не замораживается",
+    "%s heats the Mac at %.0f%% CPU - protected app (call/recording/passwords): left alone": "%s нагревает Mac при %.0f%% CPU - защищённое приложение (звонок/запись/пароли): без вмешательства",
     "%s heats the Mac at %.0f%% CPU - a macOS service: named, left alone": "%s греет Mac на %.0f%% CPU - служба macOS: названа, оставлена в покое",
     "DEMOTED %s (pid %d) at pause -> comes back on E-cores, not at full speed": "ПОНИЖЕН %s (pid %d) при паузе -> вернётся на E-ядрах, не на полной скорости",
     "flapping: %s paused again %d time(s) in a row - holding at least %d s this time": "дребезг: %s снова приостановлен, %d-й раз подряд - в этот раз держу не меньше %d с",
@@ -918,6 +929,7 @@ ZH = {
     "manual resume (from the menu bar)": "手动恢复(来自菜单栏)",
     "conditions are back to normal": "条件已恢复正常",
     "%s heats the Mac at %.0f%% CPU - a desktop app: slowed down, never frozen": "%s 以 %.0f%% CPU 让 Mac 发热 - 桌面应用：已减速，绝不冻结",
+    "%s heats the Mac at %.0f%% CPU - protected app (call/recording/passwords): left alone": "%s 以 %.0f%% CPU 让 Mac 发热 - 受保护应用（通话/录制/密码）：不作处理",
     "%s heats the Mac at %.0f%% CPU - a macOS service: named, left alone": "%s 以 %.0f%% CPU 让 Mac 发热 - macOS 服务：已点名，不做处理",
     "DEMOTED %s (pid %d) at pause -> comes back on E-cores, not at full speed": "已降级 %s (pid %d),暂停时 -> 将在 E 核上恢复,而非全速",
     "flapping: %s paused again %d time(s) in a row - holding at least %d s this time": "抖动：%s 再次被暂停，连续第 %d 次 - 这次至少保持 %d 秒",
@@ -1055,6 +1067,7 @@ ES = {
     "manual resume (from the menu bar)": "reanudación manual (desde la barra de menús)",
     "conditions are back to normal": "las condiciones volvieron a la normalidad",
     "%s heats the Mac at %.0f%% CPU - a desktop app: slowed down, never frozen": "%s calienta el Mac al %.0f%% de CPU - aplicacion de escritorio: ralentizada, nunca congelada",
+    "%s heats the Mac at %.0f%% CPU - protected app (call/recording/passwords): left alone": "%s calienta el Mac al %.0f%% de CPU - aplicación protegida (llamada/grabación/contraseñas): sin intervención",
     "%s heats the Mac at %.0f%% CPU - a macOS service: named, left alone": "%s calienta el Mac al %.0f%% de CPU - servicio de macOS: nombrado, sin tocar",
     "DEMOTED %s (pid %d) at pause -> comes back on E-cores, not at full speed": "DEGRADADO %s (pid %d) en la pausa -> volverá en núcleos E, no a plena velocidad",
     "flapping: %s paused again %d time(s) in a row - holding at least %d s this time": "oscilacion: %s pausado de nuevo, %d veces seguidas - esta vez lo retengo al menos %d s",
@@ -2192,7 +2205,10 @@ def say_hot_apps(cfg, st, gui_hot, system_hot, gap_s=600):
     for pid, cpu, comm, _pgid in gui_hot:
         if t - _HOT_APP_SAID.get(pid, 0) > gap_s:
             _HOT_APP_SAID[pid] = t
-            log(T("%s heats the Mac at %.0f%% CPU - a desktop app: slowed down, never frozen")
+            message = ("%s heats the Mac at %.0f%% CPU - protected app "
+                       "(call/recording/passwords): left alone") if pid in _PROTECTED_HOT else (
+                       "%s heats the Mac at %.0f%% CPU - a desktop app: slowed down, never frozen")
+            log(T(message)
                 % (comm, cpu))
     for pid, cpu, comm, _pgid in system_hot:
         if t - _HOT_APP_SAID.get(pid, 0) > gap_s:
@@ -2201,6 +2217,11 @@ def say_hot_apps(cfg, st, gui_hot, system_hot, gap_s=600):
                 % (comm, cpu))
     if len(_HOT_APP_SAID) > 512:
         _HOT_APP_SAID.clear()
+
+
+def gui_hot_status(gui_hot):
+    return [{"name": comm, "cpu": round(cpu), "protected": pid in _PROTECTED_HOT}
+            for pid, cpu, comm, _pgid in gui_hot]
 
 
 def _log_untouchable_match(comm, pattern, cpu):
@@ -2221,6 +2242,7 @@ def _log_untouchable_match(comm, pattern, cpu):
 
 _DEMOTE_ONLY = []   # filled on every pick_targets; read by snapshot()
 _GUI_HOT = []       # unknown-heavy processes from .app bundles: slow down, name, never freeze
+_PROTECTED_HOT = set()
 _SYSTEM_HOT = []    # unknown-heavy macOS services: name, leave alone
 _EMERGENCY = {"on": False}   # set by the main loop; reopens the net for GUI apps
 _EXE_CACHE = {}
@@ -2259,6 +2281,18 @@ def app_kind(path):
     return None
 
 
+def protected_app(cfg, pid):
+    """Whether the executable sits inside a configured protected .app bundle."""
+    names = {name.casefold() for name in cfg.get("protected_apps", [])
+             if isinstance(name, str) and name}
+    if not names:
+        return False
+    path = exe_path(pid)
+    # 21.10: CptHost inside zoom.us.app must inherit call protection from zoom.us.
+    return "/Contents/MacOS/" in path and any(
+        part[:-4].casefold() in names for part in path.split("/") if part.endswith(".app"))
+
+
 def pick_targets(cfg, procs, saferun):
     """Return pausable processes sorted by descending CPU.
 
@@ -2270,6 +2304,7 @@ def pick_targets(cfg, procs, saferun):
     me = os.getpid()
     del _DEMOTE_ONLY[:]
     del _GUI_HOT[:]
+    _PROTECTED_HOT.clear()
     del _SYSTEM_HOT[:]
     system_demote = [p.lower() for p in (cfg.get("system_demote_patterns") or [])]
     never = [p.lower() for p in list(cfg["never_patterns"]) + list(cfg.get("never_extra") or [])]
@@ -2283,6 +2318,11 @@ def pick_targets(cfg, procs, saferun):
         if cpu < cfg["cpu_min_percent"]:
             continue
         low = comm.lower()
+        # 21.10: A live call stays responsive even if a managed name or emergency net matches.
+        if protected_app(cfg, pid):
+            _PROTECTED_HOT.add(pid)
+            _GUI_HOT.append((pid, cpu, comm, None))
+            continue
         if pid in saferun:
             # Untouchable stays untouchable REGARDLESS of source. A managed/ entry used
             # to bypass every list, so a stale or planted registration could freeze the
@@ -2553,6 +2593,8 @@ def do_pause(cfg, st, targets, reason, manual=False, critical_level=False,
     changed = False
     failed = []
     for pid, cpu, comm, pgid in targets:
+        if protected_app(cfg, pid):
+            continue
         key = str(pid)
         if key in st["paused"] or pid in _nie_da_sie:
             continue
@@ -2773,6 +2815,8 @@ def do_terminate(cfg, st, reason, only_keys=None):
         if info.get("manual"):
             continue
         pid = int(key)
+        if protected_app(cfg, pid):
+            continue
         if not alive(pid):
             del st["paused"][key]
             continue
@@ -2846,6 +2890,8 @@ def do_demote(cfg, st, targets, cpu_hist, soc_t, saferun_normal=frozenset(), imm
     """
     limit = 0 if immediate else cfg["demote_after_minutes"] * 60
     for pid, cpu, comm, pgid in targets:
+        if protected_app(cfg, pid):
+            continue
         if pid in _demote_nie_da_sie or (not immediate and cpu < cfg["demote_cpu_percent"]):
             continue
         # safe-run --normal means a human explicitly chose all cores. Demoting it 5 minutes
@@ -2877,6 +2923,8 @@ def demote_pid(cfg, st, pid, comm, pgid, cpu, soc_t, message):
     # taskpolicy only, no renice: once nice is raised, it cannot be returned without
     # root because Unix lets unprivileged users only increase nice. taskpolicy -b/-B is
     # fully reversible, and background QoS is what does the work here (E-cores).
+    if protected_app(cfg, pid):
+        return False
     rc = subprocess.call(["taskpolicy", "-b", "-p", str(pid)],
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     if rc != 0:
@@ -5515,7 +5563,7 @@ def main():
                 LEVELS.get(state, 1) >= 3
                 or (temp is not None and temp >= cfg["batt_kill_c"])
                 or _fan_zero["n"] >= cfg.get("fan_alert_polls", 3))
-            st["_gui_hot"] = [{"name": c, "cpu": round(u)} for _p, u, c, _g in gui_hot]
+            st["_gui_hot"] = gui_hot_status(gui_hot)
             st["_system_hot"] = [{"name": c, "cpu": round(u)} for _p, u, c, _g in system_hot]
             say_hot_apps(cfg, st, gui_hot, system_hot)
             # Sensor returned after startup? Finish deferred calibration. Without this, a
