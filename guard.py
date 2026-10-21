@@ -28,6 +28,7 @@ Language of messages: TG_LANG=en|pl, or "lang" in config.json. Default: en.
 """
 
 import datetime
+import ctypes
 import json
 import os
 import re
@@ -579,6 +580,15 @@ LANG = _lang()
 # Translation catalog. Keys are the English originals from code, so a missing entry simply
 # displays English instead of becoming an error.
 PL = {
+    'nominal': 'nominalny',
+    'moderate': 'umiarkowany',
+    'heavy': 'wysoki',
+    'trapping': 'ograniczający',
+    'sleeping': 'usypiający',
+    "unknown": 'nieznany',
+    "pid %d of %s now belongs to another process - entry dropped, no signal": 'pid %d procesu %s należy teraz do innego procesu - wpis usunięty, bez sygnału',
+    "thermal pressure: %s": 'presja termiczna: %s',
+    "   thermal pressure: %s (level %d)": '   presja termiczna: %s (poziom %d)',
     "PAUSED %s (pid %d, %.0f%% CPU) - %s": "PAUZA  %s (pid %d, %.0f%% CPU) - %s",
     "[DRY-RUN] would pause %s (pid %d, %.0f%% CPU) - %s": "[DRY-RUN] pauza %s (pid %d, %.0f%% CPU) - %s",
     "FAILED to pause %s (pid %d) - not permitted to send the signal": "NIE UDALO SIE wstrzymac %s (pid %d) - brak uprawnien do sygnalu",
@@ -673,8 +683,8 @@ PL = {
     " | battery: pause>=%.0fC kill>=%.0fC | state>=%s | battery gate: <=%d%% on battery":
         "coffee-paladin start | chip: pauza>=%.0fC wznow<=%.0fC ubicie>=%.0fC (czujnik: %s)"
         " | bateria: pauza>=%.0fC ubicie>=%.0fC | stan>=%s | bramka baterii: <=%d%% bez zasilacza",
-    "state=%s chip=%s battery=%s fans=%s power=%s CPU_limit=%d%% load1=%.2f level=%d (%s)":
-        "stan=%s chip=%s bateria=%s wentylatory=%s zasilanie=%s CPU_limit=%d%% load1=%.2f poziom=%d (%s)",
+    "state=%s chip=%s battery=%s fans=%s power=%s CPU_limit=%s load1=%.2f level=%d (%s)":
+        "stan=%s chip=%s bateria=%s wentylatory=%s zasilanie=%s CPU_limit=%s load1=%.2f poziom=%d (%s)",
     "  candidate: %-20s pid=%-7d %.0f%% CPU": "  kandydat: %-20s pid=%-7d %.0f%% CPU",
     "AC": "AC",
     "battery %s%%": "bateria %s%%",
@@ -726,6 +736,15 @@ PL = {
 # the human sees, such as notifications, banners, and reasons. Technical logs stay in
 # English/Polish.
 RU = {
+    'nominal': 'номинальное',
+    'moderate': 'умеренное',
+    'heavy': 'высокое',
+    'trapping': 'ограничивающее',
+    'sleeping': 'сон',
+    "unknown": 'неизвестно',
+    "pid %d of %s now belongs to another process - entry dropped, no signal": 'pid %d процесса %s теперь принадлежит другому процессу - запись удалена, без сигнала',
+    "thermal pressure: %s": 'тепловое давление: %s',
+    "   thermal pressure: %s (level %d)": '   тепловое давление: %s (уровень %d)',
     "Thermal guard: hot": "Thermal guard: горячо",
     "Thermal guard: job slowed down": "Thermal guard: задача замедлена",
     "%s moved to E-cores (up to several times slower) - returns to full speed when the machine cools":
@@ -820,7 +839,7 @@ RU = {
     "yes": "да",
     "NO (macmon missing - running on battery temperature only)": "НЕТ (нет macmon - работаем только по температуре батареи)",
     "coffee-paladin start | chip: pause>=%.0fC resume<=%.0fC kill>=%.0fC (sensor: %s) | battery: pause>=%.0fC kill>=%.0fC | state>=%s | battery gate: <=%d%% on battery": "coffee-paladin старт | чип: пауза>=%.0fC возобновление<=%.0fC завершение>=%.0fC (датчик: %s) | батарея: пауза>=%.0fC завершение>=%.0fC | состояние>=%s | порог батареи: <=%d%% без зарядки",
-    "state=%s chip=%s battery=%s fans=%s power=%s CPU_limit=%d%% load1=%.2f level=%d (%s)": "состояние=%s чип=%s батарея=%s вентиляторы=%s питание=%s лимит_CPU=%d%% load1=%.2f уровень=%d (%s)",
+    "state=%s chip=%s battery=%s fans=%s power=%s CPU_limit=%s load1=%.2f level=%d (%s)": "состояние=%s чип=%s батарея=%s вентиляторы=%s питание=%s лимит_CPU=%s load1=%.2f уровень=%d (%s)",
     "  candidate: %-20s pid=%-7d %.0f%% CPU": "  кандидат: %-20s pid=%-7d %.0f%% CPU",
     "AC": "сеть",
     "battery %s%%": "батарея %s%%",
@@ -855,6 +874,15 @@ RU = {
 }
 
 ZH = {
+    'nominal': '正常',
+    'moderate': '中等',
+    'heavy': '较高',
+    'trapping': '限制中',
+    'sleeping': '休眠中',
+    "unknown": '未知',
+    "pid %d of %s now belongs to another process - entry dropped, no signal": 'pid %d 的 %s 现在属于其他进程 - 记录已删除，未发送信号',
+    "thermal pressure: %s": '热压力: %s',
+    "   thermal pressure: %s (level %d)": '   热压力: %s (级别 %d)',
     "Thermal guard: hot": "Thermal guard：过热",
     "Thermal guard: job slowed down": "Thermal guard：任务已降速",
     "%s moved to E-cores (up to several times slower) - returns to full speed when the machine cools":
@@ -947,7 +975,7 @@ ZH = {
     "yes": "是",
     "NO (macmon missing - running on battery temperature only)": "否(缺少 macmon - 仅依据电池温度运行)",
     "coffee-paladin start | chip: pause>=%.0fC resume<=%.0fC kill>=%.0fC (sensor: %s) | battery: pause>=%.0fC kill>=%.0fC | state>=%s | battery gate: <=%d%% on battery": "coffee-paladin 启动 | 芯片:暂停>=%.0fC 恢复<=%.0fC 终止>=%.0fC(传感器:%s)| 电池:暂停>=%.0fC 终止>=%.0fC | 状态>=%s | 电池阈值:未接电源时 <=%d%%",
-    "state=%s chip=%s battery=%s fans=%s power=%s CPU_limit=%d%% load1=%.2f level=%d (%s)": "状态=%s 芯片=%s 电池=%s 风扇=%s 电源=%s CPU限制=%d%% load1=%.2f 级别=%d (%s)",
+    "state=%s chip=%s battery=%s fans=%s power=%s CPU_limit=%s load1=%.2f level=%d (%s)": "状态=%s 芯片=%s 电池=%s 风扇=%s 电源=%s CPU限制=%s load1=%.2f 级别=%d (%s)",
     "  candidate: %-20s pid=%-7d %.0f%% CPU": "  候选:%-20s pid=%-7d %.0f%% CPU",
     "AC": "电源",
     "battery %s%%": "电池 %s%%",
@@ -982,6 +1010,15 @@ ZH = {
 }
 
 ES = {
+    'nominal': 'nominal',
+    'moderate': 'moderada',
+    'heavy': 'alta',
+    'trapping': 'restrictiva',
+    'sleeping': 'reposo',
+    "unknown": 'desconocido',
+    "pid %d of %s now belongs to another process - entry dropped, no signal": 'pid %d de %s ahora pertenece a otro proceso - entrada eliminada, sin señal',
+    "thermal pressure: %s": 'presión térmica: %s',
+    "   thermal pressure: %s (level %d)": '   presión térmica: %s (nivel %d)',
     "Thermal guard: hot": "Thermal guard: caliente",
     "Thermal guard: job slowed down": "Thermal guard: tarea ralentizada",
     "%s moved to E-cores (up to several times slower) - returns to full speed when the machine cools":
@@ -1076,7 +1113,7 @@ ES = {
     "yes": "sí",
     "NO (macmon missing - running on battery temperature only)": "NO (falta macmon - funcionando solo con la temperatura de la batería)",
     "coffee-paladin start | chip: pause>=%.0fC resume<=%.0fC kill>=%.0fC (sensor: %s) | battery: pause>=%.0fC kill>=%.0fC | state>=%s | battery gate: <=%d%% on battery": "coffee-paladin inicio | chip: pausa>=%.0fC reanudación<=%.0fC cierre>=%.0fC (sensor: %s) | batería: pausa>=%.0fC cierre>=%.0fC | estado>=%s | umbral de batería: <=%d%% sin cargador",
-    "state=%s chip=%s battery=%s fans=%s power=%s CPU_limit=%d%% load1=%.2f level=%d (%s)": "estado=%s chip=%s batería=%s ventiladores=%s alimentación=%s límite_CPU=%d%% load1=%.2f nivel=%d (%s)",
+    "state=%s chip=%s battery=%s fans=%s power=%s CPU_limit=%s load1=%.2f level=%d (%s)": "estado=%s chip=%s batería=%s ventiladores=%s alimentación=%s límite_CPU=%s load1=%.2f nivel=%d (%s)",
     "  candidate: %-20s pid=%-7d %.0f%% CPU": "  candidato: %-20s pid=%-7d %.0f%% CPU",
     "AC": "red",
     "battery %s%%": "batería %s%%",
@@ -1449,6 +1486,30 @@ def thermal_state():
     return "unknown"
 
 
+_PRESSURE_NAMES = ("nominal", "moderate", "heavy", "trapping", "sleeping")
+_last_pressure = {"level": None}
+
+
+def thermal_pressure():
+    """Read the five-level Darwin thermal notification, or return None."""
+    token = ctypes.c_int()
+    try:
+        lib = ctypes.CDLL(None)
+        name = b"com.apple.system.thermalpressurelevel"
+        if lib.notify_register_check(name, ctypes.byref(token)) != 0:
+            return None
+        try:
+            state = ctypes.c_uint64()
+            if lib.notify_get_state(token, ctypes.byref(state)) != 0:
+                return None
+            level = int(state.value)
+            return (level, _PRESSURE_NAMES[level]) if 0 <= level < 5 else None
+        finally:
+            lib.notify_cancel(token)
+    except Exception:
+        return None
+
+
 def normalize_batt_temp(raw):
     """Return cell temperature in C, independent of controller units.
 
@@ -1621,10 +1682,12 @@ def power_source():
 
 
 def cpu_speed_limit():
-    """Return available CPU power percent according to macOS, where 100 means no throttling."""
+    """Return reported CPU power percent, or None when pmset has no reading."""
     out = run(["pmset", "-g", "therm"])
     m = re.search(r"CPU_Speed_Limit\s*=\s*(\d+)", out)
-    return int(m.group(1)) if m else 100
+    # 21.10: Apple Silicon can report no CPU power status at all; calling that
+    # 100 percent makes an absent measurement look like proof of no throttling.
+    return int(m.group(1)) if m else None
 
 
 def load_avg():
@@ -2392,6 +2455,61 @@ def sig(pid, pgid, s):
         return ex.errno or error or _e.EPERM
 
 
+_boot_session = {"id": None}
+
+
+def boot_session_id():
+    if _boot_session["id"] is None:
+        _boot_session["id"] = run(["sysctl", "-n", "kern.bootsessionuuid"]).strip() or None
+    return _boot_session["id"]
+
+
+def process_identity(pid):
+    """Return (start epoch, command, group) from one unprivileged ps lookup."""
+    # 21.10: lstart follows the locale ("śr. 21 paź" under pl_PL, "水 10/21" under ja_JP),
+    # so without LC_ALL=C every identity read failed on a non-English Mac.
+    out = run(["/usr/bin/env", "LC_ALL=C", "LANG=C", "ps", "-o", "lstart=,pgid=,comm=", "-c",
+               "-p", str(pid)]).strip()
+    try:
+        born = time.mktime(time.strptime(out[:24], "%a %b %d %H:%M:%S %Y"))
+        pgid, comm = out[24:].strip().split(None, 1)
+        return born, os.path.basename(comm), int(pgid)
+    except (ValueError, IndexError, OverflowError):
+        return None
+
+
+def entry_identity_ok(st, key, info, resume=False):
+    """Return whether this pause entry may be signalled now.
+
+    True: the pid still belongs to the paused process (or the entry predates identities).
+    False: skip this signal. The entry is dropped only when the pid PROVABLY belongs to
+    another process; an unreadable identity keeps it for the next cycle.
+    """
+    if not info.get("born"):
+        return True  # Older pause entries did not record an identity.
+    current = process_identity(int(key))
+    boot = boot_session_id()
+    if current is None or boot is None:
+        # 21.10: ps or sysctl can fail for a moment. Dropping the entry then would leave a
+        # frozen job frozen with nobody to resume it, so wait for a readable answer. A
+        # SIGCONT may go ahead: it cannot freeze or kill anything.
+        return resume
+    expected_group = info.get("pgid")
+    same = (boot == info.get("boot_session")
+            and abs(current[0] - info["born"]) <= 1
+            and current[1] == os.path.basename(info.get("comm") or "")
+            and (not expected_group or current[2] == int(expected_group)))
+    if same:
+        return True
+    # 21.10: a crashed frozen job can hand its PID or group to another job before
+    # the next STOP, CONT, TERM, or KILL; the stale note must never signal the new owner.
+    log(T("pid %d of %s now belongs to another process - entry dropped, no signal")
+        % (int(key), info.get("comm", "?")))
+    event_jsonl("pause_entry_dropped", name=info.get("comm"), pid=int(key), reason="pid_reused")
+    st["paused"].pop(key, None)
+    return False
+
+
 _nie_da_sie = {}          # pid -> comm: processes that CANNOT be paused (EPERM)
 
 
@@ -2462,12 +2580,26 @@ def do_pause(cfg, st, targets, reason, manual=False, critical_level=False,
             hold_s, flaps = max(0, int(cfg.get("min_pause_seconds", 60))), 0
         else:
             hold_s, flaps = repause_hold_s(cfg, st, key)
+        identity = process_identity(pid)
+        boot = boot_session_id()
+        if identity and (identity[1] != os.path.basename(comm) or (pgid and identity[2] != pgid)):
+            # 21.10: the pid from this cycle's ps scan already runs another command or sits
+            # in another group; pausing it would freeze the wrong program.
+            log("pause skipped: pid %d is no longer %s" % (pid, comm))
+            continue
+        # 21.10: an unreadable identity does not block the pause. The guard is here to stop
+        # the heat now; such an entry has no "born" and is signalled as before.
+        born = identity[0] if identity and boot else None
         st["paused"][key] = {"since": now(), "since_mono": time.monotonic(),
                              "mono_id": _MONO_ID,
                              "powod": "bateria" if battery_reason else "termika",
-                             "comm": comm, "pgid": pgid, "cpu": cpu, "manual": manual,
+                             "comm": comm, "pgid": pgid, "born": born,
+                             "boot_session": boot if born else None, "cpu": cpu, "manual": manual,
                              "hold_s": hold_s, "flaps": flaps}
         save_state(st)
+        if not entry_identity_ok(st, key, st["paused"][key]):
+            save_state(st)
+            continue
         error = sig(pid, pgid, signal.SIGSTOP)
         if error == 0:
             changed = True
@@ -2539,6 +2671,8 @@ def do_resume(cfg, st, reason, only_keys=None, after_cooling=False):
             continue          # the rest stays frozen deliberately: min pause time or manual
         pid = int(key)
         if alive(pid):
+            if not entry_identity_ok(st, key, info, resume=True):
+                continue
             error = sig(pid, info.get("pgid"), signal.SIGCONT)
             status = run(["ps", "-o", "stat=", "-p", str(pid)]).strip()
             if error == 0 and not status.startswith("T"):
@@ -2590,6 +2724,16 @@ def do_resume(cfg, st, reason, only_keys=None, after_cooling=False):
     return True
 
 
+def reassert_paused(cfg, st):
+    """Repeat STOP for entries still owned by their original process."""
+    if cfg["dry_run"]:
+        return
+    for key, info in list(st["paused"].items()):
+        pid = int(key)
+        if alive(pid) and entry_identity_ok(st, key, info):
+            sig(pid, info.get("pgid"), signal.SIGSTOP)
+
+
 def _pause_age(v):
     """Return how many seconds this pause has lasted.
 
@@ -2632,6 +2776,8 @@ def do_terminate(cfg, st, reason, only_keys=None):
         if not alive(pid):
             del st["paused"][key]
             continue
+        if not entry_identity_ok(st, key, info):
+            continue
         if cfg["dry_run"]:
             log(T("[DRY-RUN] would terminate %s (pid %d) - %s") % (info.get("comm"), pid, reason))
             continue
@@ -2640,9 +2786,11 @@ def do_terminate(cfg, st, reason, only_keys=None):
                   "- resumed outside the guard") % (info.get("comm", "?"), key))
             del st["paused"][key]
             continue
+        if not entry_identity_ok(st, key, info):
+            continue
         sig(pid, info.get("pgid"), signal.SIGCONT)
         sig(pid, info.get("pgid"), signal.SIGTERM)
-        victims.append((pid, info))
+        victims.append((key, info))
         log(T("TERMINATED (SIGTERM) %s (pid %d) - %s") % (info.get("comm", "?"), pid, reason), tag="KILL")
         event_jsonl("terminate", name=info.get("comm"), pid=pid,
                     pgid=info.get("pgid"), reason_code=info.get("powod"),
@@ -2654,10 +2802,13 @@ def do_terminate(cfg, st, reason, only_keys=None):
                T("Jobs terminated (%s). Resume from a checkpoint once the Mac has cooled down.")
                % reason, "kill")
         time.sleep(20)
-        for pid, info in victims:
+        for key, info in victims:
+            pid = int(key)
             # The group may live after the leader dies because children ignore TERM. killpg
             # on a dead group simply bounces with an error that we swallow.
-            if info.get("pgid") or alive(pid):
+            # A dead leader has no identity left to read; its group was checked a few seconds
+            # ago before the SIGTERM, and the children that ignored TERM still need the KILL.
+            if (info.get("pgid") or alive(pid)) and (not alive(pid) or entry_identity_ok(st, key, info)):
                 if sig(pid, info.get("pgid"), signal.SIGKILL) == 0:
                     log("SIGKILL %s (pid %d)" % (info.get("comm", "?"), pid))
     return bool(victims)
@@ -2832,7 +2983,7 @@ def severity(cfg, state, temp, speed, soc=None, ac=True, pct=None, soc_stale=Fal
             lvl = max(lvl, 2); why.append(T("battery %.1f C") % temp)
         elif temp >= cfg["batt_pause_c"] - 3:
             lvl = max(lvl, 1); why.append(T("battery %.1f C") % temp)
-    if speed < cfg["speed_limit_pause"]:
+    if speed is not None and speed < cfg["speed_limit_pause"]:
         lvl = max(lvl, 2); why.append(T("CPU throttled to %d%%") % speed)
     return lvl, ", ".join(why)
 
@@ -4270,11 +4421,33 @@ def hardware_info():
     def sysctl(k):
         return run(["sysctl", "-n", k]).strip()
 
+    count_raw = sysctl("hw.nperflevels")
+    tiers = []
+    try:
+        count = int(count_raw)
+        if not 0 < count <= 16:
+            raise ValueError(count)
+        for i in range(count):
+            name = sysctl("hw.perflevel%d.name" % i)
+            cores = int(sysctl("hw.perflevel%d.physicalcpu" % i))
+            if not name or cores < 0:
+                raise ValueError("incomplete CPU tier")
+            tiers.append({"name": name, "physicalcpu": cores})
+    except (TypeError, ValueError):
+        tiers = []
+    # 21.10: on a Max chip perflevel1 can mean Performance, not Efficiency;
+    # count named tiers so admission includes Super cores and does not invent E-cores.
+    p_cores = (sum(t["physicalcpu"] for t in tiers if t["name"] != "Efficiency")
+               if tiers else int(sysctl("hw.perflevel0.physicalcpu") or 0))
+    e_cores = (sum(t["physicalcpu"] for t in tiers if t["name"] == "Efficiency")
+               if tiers else int(sysctl("hw.perflevel1.physicalcpu") or 0))
+
     hw = {
         "chip": sysctl("machdep.cpu.brand_string") or "Apple Silicon",
         "model_id": sysctl("hw.model"),
-        "p_cores": int(sysctl("hw.perflevel0.physicalcpu") or 0),
-        "e_cores": int(sysctl("hw.perflevel1.physicalcpu") or 0),
+        "p_cores": p_cores,
+        "e_cores": e_cores,
+        "cpu_tiers": tiers,
         "cores": int(sysctl("hw.ncpu") or 0),
         "ram_gb": round(int(sysctl("hw.memsize") or 0) / 1024.0 ** 3),
         "macos": run(["sw_vers", "-productVersion"]).strip(),
@@ -4732,8 +4905,17 @@ def status_write(state, temp, soc, soc_t, ac, pct, speed, load, lvl, why, target
     # because filtering targets created broken protection for process trees.
     display_targets = display if display is not None else (targets or [])
     top = targets[0] if targets else None
+    pressure = thermal_pressure()
+    if pressure is not None and pressure[0] != _last_pressure["level"]:
+        # 21.10: ProcessInfo calls both moderate and heavy "fair"; log the
+        # five-step notification only on a transition so each poll stays quiet.
+        log(T("thermal pressure: %s") % T(pressure[1]))
+        _last_pressure["level"] = pressure[0]
     data = {
-        "time": ts(), "thermal_state": state, "level": lvl, "reason": why,
+        "time": ts(), "thermal_state": state,
+        "thermal_pressure": ({"level": pressure[0], "name": pressure[1]}
+                             if pressure is not None else None),
+        "level": lvl, "reason": why,
         "chip_c": round(soc_t, 1) if soc_t else None,
         # True when chip_c comes from the last known good sample instead of a fresh one.
         # Readers must be able to tell a measurement from a memory of one.
@@ -5160,11 +5342,14 @@ def main():
          soc, soc_t, ac, pct, _saferun_normal, _pokaz, _demote_only,
          _gui_hot, _system_hot) = snapshot(cfg)
         fans = ",".join(str(x) for x in (soc.get("fans") if soc else [])) or "n/d"
-        print(T("state=%s chip=%s battery=%s fans=%s power=%s CPU_limit=%d%% load1=%.2f level=%d (%s)") % (
+        print(T("state=%s chip=%s battery=%s fans=%s power=%s CPU_limit=%s load1=%.2f level=%d (%s)") % (
             state, ("%.1f C" % soc_t) if soc_t else "n/d",
             ("%.1f C" % temp) if temp else "n/d", fans,
             (T("AC") if ac else T("battery %s%%") % (pct if pct is not None else "?")),
-            speed, load, lvl, why or T("calm")))
+            ("%d%%" % speed) if speed is not None else T("unknown"), load, lvl, why or T("calm")))
+        pressure = thermal_pressure()
+        if pressure is not None:
+            print(T("   thermal pressure: %s (level %d)") % (T(pressure[1]), pressure[0]))
         for pid, cpu, comm, _ in targets[:5]:
             print(T("  candidate: %-20s pid=%-7d %.0f%% CPU") % (comm, pid, cpu))
         # Two different situations look identical in `ps` (state T): a guard
@@ -5416,11 +5601,8 @@ def main():
             # state.json write, the safe-run duty limiter or a manual kill -CONT can wake a
             # job while it remains "paused" in memory, so it would never be frozen again.
             # STOP on an already stopped process is harmless and cheap.
-            if lvl >= 2 and not cfg["dry_run"]:
-                for key, info in st["paused"].items():
-                    pid = int(key)
-                    if alive(pid):
-                        sig(pid, info.get("pgid"), signal.SIGSTOP)
+            if lvl >= 2:
+                reassert_paused(cfg, st)
 
             # System-state confirmation. When the only reason for level >=2 is
             # `thermalState` and the chip threshold is NOT crossed, require several

@@ -40,8 +40,14 @@ def test(name, condition, detail=""):
         print("  [FAIL] %s  -> %s" % (name, detail))
 
 
+FAKE_FFMPEG = os.path.join(tempfile.mkdtemp(prefix="tg-demote-bin-"), "ffmpeg")
+os.symlink("/bin/sleep", FAKE_FFMPEG)
+
+
 def child():
-    p = subprocess.Popen(["sleep", "60"])
+    # 21.10: the guard now checks that the pid still runs the command and group its scan
+    # saw, so the stand-in really is "ffmpeg" (a symlink to sleep) in its own group.
+    p = subprocess.Popen([FAKE_FFMPEG, "60"], start_new_session=True)
     children.append(p)
     return p
 

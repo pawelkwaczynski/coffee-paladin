@@ -85,8 +85,14 @@ def _lang():
 LANG = _lang()
 
 PL = {
-    "%s thermal state: %s   chip: %s   battery: %s   CPU available: %d%%   load: %.2f / %.2f (%d cores)":
-        "%s stan termiczny: %s   chip: %s   bateria: %s   CPU dostępne: %d%%   load: %.2f / %.2f (rdzeni %d)",
+    'nominal': 'nominalny',
+    'moderate': 'umiarkowany',
+    'heavy': 'wysoki',
+    'trapping': 'ograniczający',
+    'sleeping': 'usypiający',
+    "   thermal pressure: %s (level %d)": '   presja termiczna: %s (poziom %d)',
+    "%s thermal state: %s   chip: %s   battery: %s   CPU available: %s   load: %.2f / %.2f (%d cores)":
+        "%s stan termiczny: %s   chip: %s   bateria: %s   CPU dostępne: %s   load: %.2f / %.2f (rdzeni %d)",
     "n/a": "n/d",
     "stopped": "stoi",
     "%d rpm": "%d obr/min",
@@ -172,8 +178,14 @@ PL = {
 }
 
 RU = {
-    "%s thermal state: %s   chip: %s   battery: %s   CPU available: %d%%   load: %.2f / %.2f (%d cores)":
-        "%s термосостояние: %s   чип: %s   батарея: %s   CPU доступно: %d%%   load: %.2f / %.2f (ядер %d)",
+    'nominal': 'номинальное',
+    'moderate': 'умеренное',
+    'heavy': 'высокое',
+    'trapping': 'ограничивающее',
+    'sleeping': 'сон',
+    "   thermal pressure: %s (level %d)": '   тепловое давление: %s (уровень %d)',
+    "%s thermal state: %s   chip: %s   battery: %s   CPU available: %s   load: %.2f / %.2f (%d cores)":
+        "%s термосостояние: %s   чип: %s   батарея: %s   CPU доступно: %s   load: %.2f / %.2f (ядер %d)",
     "n/a": "н/д",
     "stopped": "стоит",
     "%d rpm": "%d об/мин",
@@ -258,8 +270,14 @@ RU = {
 }
 
 ZH = {
-    "%s thermal state: %s   chip: %s   battery: %s   CPU available: %d%%   load: %.2f / %.2f (%d cores)":
-        "%s 热状态: %s   芯片: %s   电池: %s   CPU 可用: %d%%   负载: %.2f / %.2f (%d 核)",
+    'nominal': '正常',
+    'moderate': '中等',
+    'heavy': '较高',
+    'trapping': '限制中',
+    'sleeping': '休眠中',
+    "   thermal pressure: %s (level %d)": '   热压力: %s (级别 %d)',
+    "%s thermal state: %s   chip: %s   battery: %s   CPU available: %s   load: %.2f / %.2f (%d cores)":
+        "%s 热状态: %s   芯片: %s   电池: %s   CPU 可用: %s   负载: %.2f / %.2f (%d 核)",
     "n/a": "无",
     "stopped": "停转",
     "%d rpm": "%d 转/分",
@@ -344,8 +362,14 @@ ZH = {
 }
 
 ES = {
-    "%s thermal state: %s   chip: %s   battery: %s   CPU available: %d%%   load: %.2f / %.2f (%d cores)":
-        "%s estado térmico: %s   chip: %s   batería: %s   CPU disponible: %d%%   carga: %.2f / %.2f (%d núcleos)",
+    'nominal': 'nominal',
+    'moderate': 'moderada',
+    'heavy': 'alta',
+    'trapping': 'restrictiva',
+    'sleeping': 'reposo',
+    "   thermal pressure: %s (level %d)": '   presión térmica: %s (nivel %d)',
+    "%s thermal state: %s   chip: %s   battery: %s   CPU available: %s   load: %.2f / %.2f (%d cores)":
+        "%s estado térmico: %s   chip: %s   batería: %s   CPU disponible: %s   carga: %.2f / %.2f (%d núcleos)",
     "n/a": "n/d",
     "stopped": "parado",
     "%d rpm": "%d rpm",
@@ -1160,7 +1184,7 @@ def main():
     mmax = re.search(r'"MaximumTemperature"\s*=\s*(\d+)', ioreg)
     lifetime = normalize_batt_temp(mmax.group(1)) if mmax else None
     sl = re.search(r"CPU_Speed_Limit\s*=\s*(\d+)", sh(["pmset", "-g", "therm"]))
-    speed = int(sl.group(1)) if sl else 100
+    speed = int(sl.group(1)) if sl else None
     try:
         l1, _l5, l15 = os.getloadavg()   # the 5-minute average is not used
     except Exception:
@@ -1203,11 +1227,15 @@ def main():
         }, ensure_ascii=False))
         return 0
 
-    print(T("%s thermal state: %s   chip: %s   battery: %s   CPU available: %d%%   load: %.2f / %.2f (%d cores)")
+    print(T("%s thermal state: %s   chip: %s   battery: %s   CPU available: %s   load: %.2f / %.2f (%d cores)")
           % (ICON.get(state, "⚪️"), state,
              (("%.1f °C" % chip) + (T(" (remembered)") if chip_stale else "")) if chip
              else T("n/a"),
-             ("%.1f °C" % temp) if temp else T("n/a"), speed, l1, l15, ncpu))
+             ("%.1f °C" % temp) if temp else T("n/a"),
+             ("%d%%" % speed) if speed is not None else T("n/a"), l1, l15, ncpu))
+    pressure = snap.get("thermal_pressure")
+    if isinstance(pressure, dict) and isinstance(pressure.get("level"), int) and pressure.get("name"):
+        print(T("   thermal pressure: %s (level %d)") % (T(pressure["name"]), pressure["level"]))
 
     if fans:
         description = ", ".join(T("stopped") if f == 0 else T("%d rpm") % f for f in fans)
