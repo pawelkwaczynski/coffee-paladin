@@ -228,9 +228,10 @@ nie ma pojęcia, jaką temperaturę ma mój Mac. Blokada snu bez bezpiecznika te
 obietnica dalszego grzania.
 
 > **Cała różnica w jednym zdaniu:** każda aplikacja tej kategorii umie trzymać Maca
-> w czuwaniu. Tylko ta **odstawia kubek, gdy robi się gorąco** - pozostałe wiernie
-> podtrzymają czuwanie także wtedy, gdy Mac gotuje się w plecaku. To nie jest wariant
-> tej samej funkcji, to odwrotna filozofia - i cała reszta narzędzia stoi na niej.
+> w czuwaniu, a kilka potrafi już je puścić, gdy robi się gorąco. coffee-paladin
+> **odstawia kubek i wstrzymuje zadanie, które grzeje Maca**, a gdy chip ostygnie,
+> wznawia je. Samo puszczenie czuwania zostawia to zadanie w pełnym biegu. To nie jest
+> wariant tej samej funkcji, to odwrotna filozofia - i cała reszta narzędzia stoi na niej.
 
 | | Caffeine | Amphetamine | coffee-paladin |
 |---|---|---|---|
@@ -302,8 +303,9 @@ To jeden kawałek krzemu, ale różne rejony, osobne czujniki i różne zadania:
    (Neural Engine też tam siedzi, ale Apple nie daje do niego publicznego czujnika.
    Gdy mieli, jego ciepło i tak widać pośrednio w odczycie CPU.)
 2. **Paladyn i tak patrzy na gorętszą.** Do decyzji o pauzie bierze max(CPU, GPU),
-   czyli „najgorętszy punkt układu" (`soc_temp_c` w `guard.py`). Obojętne, która
-   połowa chipa się gotuje, ochrona działa tak samo.
+   czyli gorętszą z dwóch średnich, które podaje macmon (`soc_temp_c` w `guard.py`),
+   a nie pojedynczy najgorętszy punkt. Obojętne, która połowa chipa się gotuje,
+   ochrona działa tak samo.
 3. **Bateria to zupełnie inna liga.** Osobny fizyczny podzespół, który grzeje się
    wolno (od ładowania i ciepła obudowy), ale ma dużo niższe granice: lit-jon
    degraduje się już powyżej ~40 °C. Dlatego jej próg pauzy to 40 °C, gdy chip może
@@ -629,8 +631,8 @@ oh-my-claudecode, claude-squad, workmux, panele dmux i podobne - dziedziczą
 bramkę za darmo: każdy worker to proces `claude` (albo codex/gemini/grok),
 czyta te same ustawienia użytkownika i trafia na tę samą bramkę PreToolUse,
 zanim odpali cokolwiek ciężkiego. Zero konfiguracji po stronie orkiestratora,
-niczego nie instalujesz drugi raz. Czego żaden orkiestrator jeszcze nie
-widzi, to sama maszyna - jak gorąco pracuje i ile ciężkich zadań uniesie -
+niczego nie instalujesz drugi raz. Czego większość orkiestratorów jeszcze
+nie widzi, to sama maszyna - jak gorąco pracuje i ile ciężkich zadań uniesie -
 a to jest dokładnie warstwa strażnika: jeden `status.json`, który każdy
 scheduler może przeczytać, zanim doskaluje.
 

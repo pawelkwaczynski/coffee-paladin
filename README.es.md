@@ -299,7 +299,7 @@ que lanzan sus workers como sesiones CLI normales (equipos de
 oh-my-claudecode, claude-squad, workmux, paneles de dmux) heredan la puerta
 gratis: cada worker es un proceso `claude`, `codex`, `gemini` o `grok`, lee los
 mismos ajustes de usuario y choca con el mismo PreToolUse. No hay nada que
-configurar del lado del orquestador. Lo que ningún orquestador ve todavía es la
+configurar del lado del orquestador. Lo que la mayoría de los orquestadores todavía no ve es la
 máquina misma: cuánto calienta y cuántos trabajos pesados aguanta. Justo esa es
 la capa que sostiene el guardián: un `status.json` que cualquier planificador
 puede leer antes de escalar.

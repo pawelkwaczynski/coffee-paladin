@@ -290,9 +290,10 @@ it will faithfully hold your Mac awake while the machine is hot, in a bag, on a 
 I uninstalled it the day I understood that my keep-awake tool had no idea what temperature my
 Mac was. A wake lock without a thermal fuse is a promise to keep heating.
 
-> **The whole difference in one line:** every app in this category can hold a Mac awake.
-> Only this one **puts the cup down when it gets hot** - the others will faithfully keep a
-> Mac awake while it cooks in a backpack. That is not a variant of the same feature;
+> **The whole difference in one line:** every app in this category can hold a Mac awake,
+> and several now let go when it runs hot. coffee-paladin **puts the cup down and pauses
+> the job that is heating the Mac**, then resumes it when the chip cools - a released wake
+> lock alone leaves that job burning. That is not a variant of the same feature;
 > it is the opposite philosophy, and everything else here is built on top of it.
 
 | | Caffeine | Amphetamine | coffee-paladin |
@@ -778,7 +779,7 @@ oh-my-claudecode teams, claude-squad, workmux, dmux panes and friends -
 inherit the gate for free: each worker is a `claude` (or codex/gemini/grok)
 process, reads the same user-level settings, and hits the same PreToolUse
 gate before starting anything heavy. No orchestrator-side configuration,
-nothing to install twice. What no orchestrator sees yet is the machine
+nothing to install twice. What most orchestrators do not see yet is the machine
 itself - how hot it runs and how many heavy jobs it can carry - which is
 exactly the layer the guard keeps: one `status.json` any scheduler can read
 before scaling up.
@@ -863,8 +864,9 @@ It is one piece of silicon, but different regions, separate sensors and differen
    no public sensor for it - when it grinds, its heat shows up indirectly in the CPU
    reading anyway.)
 2. **The paladin watches the hotter one.** For the pause decision the guard takes
-   max(CPU, GPU) - "the hottest point of the die" (`soc_temp_c` in `guard.py`) - so it
-   does not matter which half of the chip is cooking, the protection works the same.
+   max(CPU, GPU) - the hotter of the two averages macmon reports (`soc_temp_c` in
+   `guard.py`), not a single hotspot - so it does not matter which half of the chip is
+   cooking, the protection works the same.
 3. **The battery is a different league entirely.** A separate physical component that
    heats slowly (from charging and from case heat), but with much lower limits:
    lithium-ion degrades above ~40 °C. That is why its pause threshold is 40 °C while

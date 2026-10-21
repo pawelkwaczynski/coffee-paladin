@@ -228,7 +228,7 @@ Gemini 的超时字段用的是毫秒，而别家都用秒 - 适配器知道这�
 编排器（oh-my-claudecode 的 team、claude-squad、workmux、dmux 的窗格）天然
 继承这道闸门：每个 worker 都是一个 `claude`、`codex`、`gemini` 或 `grok`
 进程，读同一份用户级设置，撞上同一个 PreToolUse。编排器那边什么都不用配。
-目前没有任何编排器看得见的，是机器本身：它有多热、还扛得住几个重活。而这
+目前大多数编排器还看不见的，是机器本身：它有多热、还扛得住几个重活。而这
 恰恰是守护者守住的那一层：一份任何调度器在扩容前都能读的 `status.json`。
 
 **终端。** 同一条热状态行在代理会话之外也能用：`integrations/terminals/`
