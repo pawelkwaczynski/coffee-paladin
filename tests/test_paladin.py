@@ -324,14 +324,17 @@ test("18. screenshots: README links point to files, directory below 2 MB",
 
 # 19. README describes the agent skill in both languages, and the description matches
 #     the skill. A description promising behavior the skill omits is worse than none.
-description_en = "## Your AI agent can talk to it" in rd
-description_pl = "## Twój agent AI umie z nim rozmawiać" in rd
+#     Since 17.09 the skill lives under "## Integrations", and since 18.09 the Polish
+#     text is README.pl.md, so look for the section and the link, not old headings.
+rd_pl = read_file("README.pl.md")
+description_en = "## Integrations" in rd and "skills/coffee-paladin/SKILL.md" in rd
+description_pl = "## Integracje" in rd_pl and "skills/coffee-paladin/SKILL.md" in rd_pl
 agreement = all(
-    (k in rd and k in sk) for k in ("status.json", "safe-run", "SIGCONT", "dry_run", "unpausable")
+    (k in rd and k in rd_pl and k in sk) for k in ("status.json", "safe-run", "SIGCONT", "dry_run", "unpausable")
 )
 test("19. README describes the skill (EN+PL) and does not promise more than the skill says",
      description_en and description_pl and agreement
-     and "~/.claude/skills/coffee-paladin" in rd,
+     and "~/.claude/skills/coffee-paladin" in rd and "~/.claude/skills/coffee-paladin" in rd_pl,
      "EN=%s PL=%s agreement=%s" % (description_en, description_pl, agreement))
 
 # 20. README in three additional languages exists, is truly translated rather than

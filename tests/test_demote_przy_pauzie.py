@@ -8,6 +8,7 @@ of work. The pause already names the heater, so it is demoted right there and pr
 keeps its hands off it for one quiet window. Isolated TG_BASE; live pids are sleep children.
 Run with: python3 tests/test_demote_przy_pauzie.py
 """
+import atexit
 import os
 import signal
 import subprocess
@@ -28,6 +29,21 @@ g.notify = lambda *a, **k: None
 g.event_jsonl = lambda *a, **k: None
 g.log = lambda msg, *a, **k: logged.append(msg)
 children = []
+
+
+def cleanup():
+    # 22.10: also when the test dies half way. Cleanup used to run only after the last
+    # section, and a crash in between left stopped "ffmpeg" children behind (4 found).
+    for p in children:
+        try:
+            os.kill(p.pid, signal.SIGCONT)
+            p.kill()
+            p.wait()
+        except Exception:
+            pass
+
+
+atexit.register(cleanup)
 
 
 def test(name, condition, detail=""):
@@ -125,12 +141,6 @@ test("five-minute path demotes", p.pid in st["demoted"], st["demoted"])
 test("without a hold: promotes at the first cool reading",
      (g.do_promote(cfg, st, hist, 60.0), p.pid not in st["demoted"])[1], st["demoted"])
 
-for p in children:
-    try:
-        os.kill(p.pid, signal.SIGCONT)
-        p.kill()
-        p.wait()
-    except Exception:
-        pass
+cleanup()
 print("\n%d/%d" % (passed, total))
 sys.exit(0 if passed == total else 1)

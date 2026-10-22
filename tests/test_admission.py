@@ -162,8 +162,12 @@ def snapshot(admission):
     d = {"level": 0, "chip_c": 60.0}
     if admission is not None:
         d["admission"] = admission
-    json.dump(d, open(p, "w"))
-    os.utime(p)
+    # 22.10: written atomically; a truncate-then-write let the polling wrapper read an
+    # empty file now and then, call it stale and start without admission (1 run in 11).
+    tmp = p + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump(d, f)
+    os.replace(tmp, p)
 
 
 clean()
