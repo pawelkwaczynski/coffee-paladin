@@ -1237,7 +1237,7 @@ def generations(path):
 _SILENT_FAILURES = {}
 
 
-def silent_failure(location, e):
+def silent_failure(location, e, cause=None, every_s=600):
     """Record a swallowed exception from a critical path.
 
     In a safety daemon, `except Exception: pass` while writing evidence or state means the
@@ -1246,11 +1246,16 @@ def silent_failure(location, e):
     must keep running when the disk is full. Each failure is logged once per 10 min per
     location and counted in status.json. Exceptions are still swallowed, but no longer
     silently.
+
+    22.10: a failure that repeats every cycle for weeks (fleet_write: 1042 lines of the
+    same refusal in guard.log) passes `cause` and a longer `every_s`, so each distinct
+    cause is logged at once and then at most once per `every_s`; the count still grows
+    every time.
     """
     _SILENT_FAILURES[location] = _SILENT_FAILURES.get(location, 0) + 1
-    marker = "_ostatni_log_" + location
+    marker = "_ostatni_log_" + location + ("|" + cause if cause else "")
     current_time = now()
-    if current_time - _SILENT_FAILURES.get(marker, 0) >= 600:
+    if current_time - _SILENT_FAILURES.get(marker, 0) >= every_s:
         _SILENT_FAILURES[marker] = current_time
         try:
             log("SWALLOWED in %s: %s: %s (%d time(s) so far)"
@@ -4003,6 +4008,44 @@ def _hook_command_hit(cmd, patterns, with_segment=False):
     return analyze(cmd, 0)
 
 
+def _hook_unread(tool, data, antigravity=False):
+    """Allow a tool call the gate could not read, and say so (22.10).
+
+    A Copilot CLI hook sends the command inside a JSON string (toolArgs) and
+    Cursor's beforeShellExecution sends it with no tool name at all; both
+    used to end as "nothing to check", exit 0 and not a word, so a gate wired
+    into them looked wired and checked nothing. The answer stays fail-open,
+    but it is now visible: one line on stderr for the host and one [HOOK?]
+    line in guard.log, naming the tool and the top-level field names only -
+    never values, so no command text lands in the log.
+    """
+    try:
+        name = re.sub(r"[^A-Za-z0-9_.-]", "", str(tool or ""))[:40] or "-"
+        keys = sorted({re.sub(r"[^A-Za-z0-9_]", "", str(k))[:32] for k in data} - {""}) \
+            if isinstance(data, dict) else []
+        fields = ", ".join(keys[:8]) + (", ..." if len(keys) > 8 else "") if keys else "-"
+        messages = {
+            "en": "coffee-paladin: hook-gate could not read this tool call (tool: %s; fields: %s) "
+                  "and allowed it without a check.",
+            "pl": "coffee-paladin: hook-gate nie odczytał tego wywołania narzędzia (narzędzie: %s; "
+                  "pola: %s) i przepuścił je bez sprawdzenia.",
+            "ru": "coffee-paladin: hook-gate не смог прочитать этот вызов инструмента (инструмент: %s; "
+                  "поля: %s) и пропустил его без проверки.",
+            "zh": "coffee-paladin：hook-gate 无法读取此次工具调用（工具：%s；字段：%s），已不经检查放行。",
+            "es": "coffee-paladin: hook-gate no pudo leer esta llamada a una herramienta (herramienta: %s; "
+                  "campos: %s) y la dejó pasar sin comprobarla.",
+        }
+        msg = messages.get(LANG, messages["en"]) % (name, fields)
+        if antigravity:
+            # Antigravity reads only the stdout decision, so the allow is said there too.
+            sys.stdout.write(json.dumps({"decision": "allow"}) + "\n")
+        sys.stderr.write(msg + "\n")
+        log(msg, tag="HOOK?")
+    except Exception:
+        pass
+    return 0
+
+
 def hook_gate(cfg):
     """Pre-exec gate for AI coding agents (the PreToolUse/BeforeTool contract).
 
@@ -4024,9 +4067,9 @@ def hook_gate(cfg):
     try:
         data = json.loads(sys.stdin.read() or "{}")
     except (ValueError, OSError):
-        return 0
+        data = None
     if not isinstance(data, dict):
-        return 0
+        return _hook_unread("", data)
     # Field names differ per host: Claude Code, Codex CLI and Gemini CLI speak
     # snake_case (tool_name/tool_input), Grok Build speaks camelCase
     # (toolName/toolInput) and Antigravity wraps everything in toolCall with
@@ -4039,19 +4082,26 @@ def hook_gate(cfg):
     if antigravity:
         tool = str(call.get("name") or "").lower()
         args = call.get("args")
-        cmd = str((args.get("CommandLine") if isinstance(args, dict) else "") or "")
+        cmd = args.get("CommandLine") if isinstance(args, dict) else None
     else:
         tool = str(data.get("tool_name") or data.get("toolName")
                    or data.get("tool") or "").lower()
         ti = data.get("tool_input")
         if not isinstance(ti, dict):
             ti = data.get("toolInput")
-        cmd = str((ti.get("command") if isinstance(ti, dict) else "") or "")
+        cmd = ti.get("command") if isinstance(ti, dict) else None
+    # 22.10: no tool name at all (Cursor's beforeShellExecution) or a shell tool
+    # without a command string (Copilot's toolArgs is a JSON string) is a call
+    # the gate cannot read, not a call with nothing to check.
+    if not tool:
+        return _hook_unread(tool, data, antigravity)
     # Claude Code's Monitor tool runs a background command under the same rules
     # as Bash, so a bare encoder started there needs the same answer (20.10).
     if tool not in ("bash", "monitor", "shell", "run_shell_command", "run_terminal_command",
                     "run_command", "exec_command", "local_shell"):
         return 0
+    if not isinstance(cmd, str):
+        return _hook_unread(tool, data, antigravity)
     if not cmd.strip():
         return 0
     try:
@@ -4151,6 +4201,9 @@ def hook_gate(cfg):
         # so the JSON is emitted ONLY for hosts positively identified by their
         # payload shape or env marker, never speculatively.
             sys.stdout.write(json.dumps({"decision": "deny", "reason": reason}) + "\n")
+        # 22.10: Codex gets exactly this - exit 2 and the reason on stderr, never
+        # a JSON "ask": its PreToolUse parser marks "ask" unsupported and runs the
+        # command anyway, and exit 2 with an empty stderr counts as a failed hook.
         sys.stderr.write(reason + "\n")
     # Antigravity documents NO exit-code contract: the stdout decision is the
     # whole answer, and a nonzero exit could read as "hook crashed" rather
@@ -4956,6 +5009,13 @@ def _fleet_sweep_tmp(d, older_than_s=3600):
         pass
 
 
+# 22.10: a snapshot name macOS refused to replace is tried again after this long, not
+# every cycle: each try is one more refused privacy request in the system log.
+FLEET_LOCKED_RETRY_S = 3600
+_FLEET_LOCKED = {}             # snapshot path -> now() of the last refused replace
+_FLEET_FALLBACK_SWEPT = set()  # fallbacks already removed after the main name worked again
+
+
 def fleet_write(cfg, status):
     """Write this host's snapshot to the configured shared fleet folder."""
     d = os.path.expanduser(cfg.get("fleet_dir") or "")
@@ -4964,6 +5024,19 @@ def fleet_write(cfg, status):
     try:
         if not os.path.isdir(d):
             os.makedirs(d, 0o755)
+        primary = os.path.join(d, "%s.json" % hostname())
+        # 22.10: on the owner's Mac every replace of <host>.json in iCloud Drive has
+        # failed with EPERM since 03.10, the first write after a system update. The
+        # kernel log names the cause: the privacy check for files managed by iCloud
+        # Drive wanted to ask the user, a background daemon cannot be asked, so the
+        # answer was no. Creating a new file in the folder kept working, so the
+        # snapshot goes to a second name that `fleet` folds into the same machine by
+        # the host field inside.
+        fallback = os.path.join(d, "%s.fallback.json" % hostname())
+        names = [p for p in (primary, fallback)
+                 if now() - _FLEET_LOCKED.get(p, 0) >= FLEET_LOCKED_RETRY_S]
+        if not names:
+            return
         out = dict(status)
         out["host"] = (cfg.get("fleet_label") or "").strip() or hostname()
         hw = _hw_cache_fleet()
@@ -4987,7 +5060,28 @@ def fleet_write(cfg, status):
         with os.fdopen(fd, "w") as f:
             json.dump(out, f, ensure_ascii=False)
         os.chmod(tmp, 0o644)
-        os.replace(tmp, os.path.join(d, "%s.json" % hostname()))
+        for path in names:
+            try:
+                os.replace(tmp, path)
+            except PermissionError as e:
+                _FLEET_LOCKED[path] = now()
+                silent_failure("fleet_write", e, every_s=86400,
+                               cause="%s %s" % ("fallback" if path == fallback else "main", e.errno))
+                continue
+            _FLEET_LOCKED.pop(path, None)
+            if path == fallback:
+                _FLEET_FALLBACK_SWEPT.discard(fallback)
+            elif fallback not in _FLEET_FALLBACK_SWEPT:
+                # The main name works (again); a fallback left from before would only
+                # be a stale twin in a folder other Macs read.
+                _FLEET_FALLBACK_SWEPT.add(fallback)
+                try:
+                    os.unlink(fallback)
+                except OSError:
+                    pass
+            break
+        else:
+            os.unlink(tmp)       # every name refused: do not leave the snapshot behind
         _fleet_sweep_tmp(d)
     except Exception as e:
         # Swallowed, because the fleet is an add-on and must never take down the guard -
@@ -4996,7 +5090,10 @@ def fleet_write(cfg, status):
         # three seconds, the fleet table said "not reporting", and there was nothing
         # anywhere to say which of the two was right. On a rack that is the difference
         # between a machine nobody is watching and a machine everybody assumes is fine.
-        silent_failure("fleet_write", e)
+        # 22.10: once per cause, then daily - the same refusal every ten minutes for
+        # weeks buried everything else in guard.log.
+        silent_failure("fleet_write", e, every_s=86400,
+                       cause="%s %s" % (type(e).__name__, getattr(e, "errno", "")))
         # A temporary file left behind by a failed rename is not harmless: it keeps a full
         # snapshot, serial number included, under a name no cleanup ever looks at.
         try:

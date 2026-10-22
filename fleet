@@ -95,6 +95,8 @@ PL = {
         "fleet: --set-dir wymaga ścieżki do folderu",
     "fleet: --dir needs a folder path":
         "fleet: --dir wymaga ścieżki do folderu",
+    "%d older snapshot file(s) of the same machines not shown (iCloud conflict copies, renamed or fallback files)":
+        "pominięto %d starszy(ch) plik(ów) migawek tych samych maszyn (kopie konfliktów iCloud, pliki po zmianie nazwy albo zastępcze)",
 }
 
 RU = {
@@ -141,6 +143,8 @@ RU = {
         "fleet: --set-dir требует путь к папке",
     "fleet: --dir needs a folder path":
         "fleet: --dir требует путь к папке",
+    "%d older snapshot file(s) of the same machines not shown (iCloud conflict copies, renamed or fallback files)":
+        "старые файлы снимков тех же машин не показаны: %d (копии конфликтов iCloud, переименованные или резервные файлы)",
 }
 
 ZH = {
@@ -187,6 +191,8 @@ ZH = {
         "fleet: --set-dir 需要文件夹路径",
     "fleet: --dir needs a folder path":
         "fleet: --dir 需要文件夹路径",
+    "%d older snapshot file(s) of the same machines not shown (iCloud conflict copies, renamed or fallback files)":
+        "未显示同一机器的 %d 个较旧快照文件（iCloud 冲突副本、改名文件或备用文件）",
 }
 
 ES = {
@@ -233,6 +239,8 @@ ES = {
         "fleet: --set-dir necesita una ruta de carpeta",
     "fleet: --dir needs a folder path":
         "fleet: --dir necesita una ruta de carpeta",
+    "%d older snapshot file(s) of the same machines not shown (iCloud conflict copies, renamed or fallback files)":
+        "no se muestran %d archivo(s) de instantánea más antiguo(s) de las mismas máquinas (copias de conflicto de iCloud, archivos renombrados o de reserva)",
 }
 
 DICTS = {"pl": PL, "ru": RU, "zh": ZH, "es": ES}
@@ -329,6 +337,7 @@ def load_hosts(d):
     must not take down the whole fleet table (numbers as strings, level
     outside 0-3, and so on)."""
     hosts = []
+    seen = {}
     for name in sorted(os.listdir(d)):
         if name.endswith(".json.icloud"):
             # evicted by iCloud: the host exists, its data is not at hand
@@ -428,7 +437,23 @@ def load_hosts(d):
             snap["on_ac"] = True if v is None else str(v).strip().lower() in ("1", "true", "yes", "tak")
         snap["_age"] = max(_snapshot_age(snap, path), 0.0)   # another machine's clock can run ahead
         snap.setdefault("host", _clean_text(name[:-5], 18))
-        hosts.append(snap)
+        # 22.10: one row per machine, decided by what the snapshot says, not by its file
+        # name. The owner's folder held 26 files for 2 Macs: 23 iCloud conflict copies
+        # "<host> 2.json" .. "25.json" and the old file of a renamed Mac, and the guard
+        # now adds "<host>.fallback.json". Same host field and serial = same machine,
+        # the newest snapshot stands for it, the rest are counted in _duplicates. Two Macs that
+        # share a label keep two rows when their serials differ; an unreadable or evicted
+        # file has nothing to compare and is never folded away.
+        key = (snap["host"], str(snap.get("serial") or ""))
+        i = seen.get(key)
+        if i is None:
+            seen[key] = len(hosts)
+            hosts.append(snap)
+            continue
+        folded = hosts[i].get("_duplicates", 0) + 1
+        if snap["_age"] < hosts[i]["_age"]:
+            hosts[i] = snap
+        hosts[i]["_duplicates"] = folded
     return hosts
 
 
@@ -551,6 +576,12 @@ def render(d):
     for r in rows:
         print(fmt % r)
     print()
+    folded = sum(h.get("_duplicates", 0) for h in hosts)
+    if folded:
+        # 22.10: folded copies are counted, never hidden without a word.
+        print(T("%d older snapshot file(s) of the same machines not shown (iCloud conflict copies, "
+                "renamed or fallback files)") % folded)
+        print()
     if attention:
         print(T("%d machine(s) need attention:") % len(attention))
         for host, probs in attention:

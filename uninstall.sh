@@ -53,16 +53,25 @@ fi
 # this machine's snapshot in the SHARED fleet folder carries a serial number -
 # after uninstall there is no reason for it to stay there forever
 /usr/bin/python3 - <<'PY' 2>/dev/null || true
-import json, os, socket
+import json, os, re, socket, subprocess
 cfg = os.path.expanduser("~/.coffee-paladin/config.json")
 try:
     d = json.load(open(cfg)).get("fleet_dir") or ""
 except Exception:
     d = ""
 if d:
-    host = socket.gethostname().split(".")[0]
+    # 22.10: the name guard.py publishes under (ComputerName, sanitised the same way),
+    # not the network host name: on the owner's Mac that was "MacPro" against
+    # "Pawel_s MacBook Pro.json", so the snapshot was never removed. The fallback name
+    # carries the same serial number.
+    try:
+        host = subprocess.run(["scutil", "--get", "ComputerName"], capture_output=True,
+                              text=True).stdout.strip()
+    except Exception:
+        host = ""
+    host = re.sub(r"[^A-Za-z0-9._ -]", "_", host or socket.gethostname()) or "mac"
     for nazwa in os.listdir(os.path.expanduser(d)):
-        if nazwa in (host + ".json",):
+        if nazwa in (host + ".json", host + ".fallback.json"):
             os.remove(os.path.join(os.path.expanduser(d), nazwa))
             print("  🗑  usunieta migawka floty: %s" % nazwa)
 PY
