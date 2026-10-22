@@ -41,6 +41,7 @@ Language: TG_LANG=en|pl, or "lang" in ~/.coffee-paladin/config.json. Default: en
 import datetime
 import json
 import os
+import shutil
 import signal
 import subprocess
 import sys
@@ -241,6 +242,12 @@ PL = {
         "safe-run: jesteśmy już w nadzorowanym zadaniu - uruchamiam polecenie wprost",
     "safe-run: WARNING - the guard's snapshot is stale, the daemon is probably not running. This job will start, but NOTHING will supervise its temperature.":
         "safe-run: UWAGA - migawka bezpiecznika jest nieświeża, demon najpewniej nie działa. Zadanie wystartuje, ale NIKT nie będzie pilnował jego temperatury.",
+    "safe-run: %s is a protected app (call/recording/passwords) - no CPU limit and no efficiency cores for this job":
+        "safe-run: %s to chroniona aplikacja (rozmowa/nagrywanie/hasła) - bez limitu CPU i bez rdzeni energooszczędnych dla tego zadania",
+    "safe-run: %s in the job's group is a protected app (call/recording/passwords) - the CPU limit leaves it running":
+        "safe-run: %s w grupie zadania to chroniona aplikacja (rozmowa/nagrywanie/hasła) - limit CPU jej nie zatrzymuje",
+    "safe-run: %s in the job's group is a protected app (call/recording/passwords) - the CPU limit leaves it running, but it inherited efficiency cores; start such jobs with --normal":
+        "safe-run: %s w grupie zadania to chroniona aplikacja (rozmowa/nagrywanie/hasła) - limit CPU jej nie zatrzymuje, ale odziedziczyła rdzenie energooszczędne; takie zadania uruchamiaj z --normal",
 }
 
 RU = {
@@ -299,6 +306,12 @@ RU = {
         "safe-run: уже внутри контролируемой задачи - запускаю команду напрямую",
     "safe-run: WARNING - the guard's snapshot is stale, the daemon is probably not running. This job will start, but NOTHING will supervise its temperature.":
         "safe-run: ВНИМАНИЕ - снимок защиты устарел, демон скорее всего не работает. Задача запустится, но НИКТО не будет следить за её температурой.",
+    "safe-run: %s is a protected app (call/recording/passwords) - no CPU limit and no efficiency cores for this job":
+        "safe-run: %s - защищённое приложение (звонок/запись/пароли) - без лимита CPU и без энергоэффективных ядер для этой задачи",
+    "safe-run: %s in the job's group is a protected app (call/recording/passwords) - the CPU limit leaves it running":
+        "safe-run: %s в группе задачи - защищённое приложение (звонок/запись/пароли) - лимит CPU его не останавливает",
+    "safe-run: %s in the job's group is a protected app (call/recording/passwords) - the CPU limit leaves it running, but it inherited efficiency cores; start such jobs with --normal":
+        "safe-run: %s в группе задачи - защищённое приложение (звонок/запись/пароли) - лимит CPU его не останавливает, но оно унаследовало энергоэффективные ядра; запускайте такие задачи с --normal",
 }
 
 ZH = {
@@ -357,6 +370,12 @@ ZH = {
         "safe-run: 已在受监管的任务中 - 直接运行该命令",
     "safe-run: WARNING - the guard's snapshot is stale, the daemon is probably not running. This job will start, but NOTHING will supervise its temperature.":
         "safe-run: 警告 - 守护的快照已过期,守护进程很可能没有运行。任务会启动,但没有任何程序会监控其温度。",
+    "safe-run: %s is a protected app (call/recording/passwords) - no CPU limit and no efficiency cores for this job":
+        "safe-run: %s 是受保护的应用（通话/录制/密码）- 此任务不设 CPU 限制，也不使用能效核心",
+    "safe-run: %s in the job's group is a protected app (call/recording/passwords) - the CPU limit leaves it running":
+        "safe-run: 任务进程组中的 %s 是受保护的应用（通话/录制/密码）- CPU 限制不会暂停它",
+    "safe-run: %s in the job's group is a protected app (call/recording/passwords) - the CPU limit leaves it running, but it inherited efficiency cores; start such jobs with --normal":
+        "safe-run: 任务进程组中的 %s 是受保护的应用（通话/录制/密码）- CPU 限制不会暂停它，但它继承了能效核心；此类任务请用 --normal 启动",
 }
 
 ES = {
@@ -415,6 +434,12 @@ ES = {
         "safe-run: ya dentro de una tarea supervisada - ejecuto el comando directamente",
     "safe-run: WARNING - the guard's snapshot is stale, the daemon is probably not running. This job will start, but NOTHING will supervise its temperature.":
         "safe-run: AVISO - la instantanea del guardian esta obsoleta, el demonio probablemente no esta en marcha. La tarea arrancara, pero NADIE vigilara su temperatura.",
+    "safe-run: %s is a protected app (call/recording/passwords) - no CPU limit and no efficiency cores for this job":
+        "safe-run: %s es una aplicación protegida (llamada/grabación/contraseñas) - sin límite de CPU ni núcleos de eficiencia para esta tarea",
+    "safe-run: %s in the job's group is a protected app (call/recording/passwords) - the CPU limit leaves it running":
+        "safe-run: %s en el grupo de la tarea es una aplicación protegida (llamada/grabación/contraseñas) - el límite de CPU no la detiene",
+    "safe-run: %s in the job's group is a protected app (call/recording/passwords) - the CPU limit leaves it running, but it inherited efficiency cores; start such jobs with --normal":
+        "safe-run: %s en el grupo de la tarea es una aplicación protegida (llamada/grabación/contraseñas) - el límite de CPU no la detiene, pero heredó los núcleos de eficiencia; inicia esas tareas con --normal",
 }
 
 DICTS = {"pl": PL, "ru": RU, "zh": ZH, "es": ES}
@@ -434,6 +459,66 @@ def cfg():
     except Exception:
         pass
     return d
+
+
+# 22.10: `safe-run -- obs --startrecording` put the recording on efficiency cores and under
+# the CPU limiter's SIGSTOP, which kept it frozen for as long as the guard reported level 2.
+# The guard never slows or freezes these apps; neither may its wrapper. A deliberate copy of
+# guard.DEFAULTS["protected_apps"] (safe-run does not import the daemon);
+# tests/test_protected_20261022.py keeps the two equal.
+PROTECTED_APPS = ["zoom.us", "Microsoft Teams", "Microsoft Teams (work or school)",
+                  "Microsoft Teams classic", "FaceTime", "Webex", "Cisco Webex Meetings",
+                  "Skype", "Discord", "Slack", "OBS", "Loom", "Screen Studio",
+                  "QuickTime Player", "Audio Hijack", "Loopback",
+                  "MacWhisper", "superwhisper", "Aiko", "1Password", "1Password 7",
+                  "Bitwarden", "KeePassXC", "Tailscale", "WireGuard", "Mullvad VPN",
+                  "ProtonVPN", "NordVPN",
+                  "Cap", "WhatsApp", "Telegram", "Signal", "Tunnelblick", "Phone", "Passwords",
+                  "Voice Memos", "VoiceMemos", "Photo Booth", "Screenshot", "Windows App",
+                  "Jump Desktop", "RustDesk", "Logic Pro", "GarageBand", "MainStage"]
+
+
+def bundle_stem(name):
+    """Same as guard.bundle_stem: ' OBS' and 'obs.APP ' both mean OBS.app."""
+    name = name.strip()
+    if name[-4:].casefold() == ".app":
+        name = name[:-4].strip()
+    return name
+
+
+def protected_names(conf):
+    """Protected bundle names as the guard resolves them from config.json.
+
+    protected_apps replaces the defaults, protected_apps_extra adds to them, and a value
+    of the wrong type falls back to the default, as in guard.load_cfg.
+    """
+    apps = conf.get("protected_apps", PROTECTED_APPS)
+    extra = conf.get("protected_apps_extra")
+    apps = apps if isinstance(apps, list) else PROTECTED_APPS
+    extra = extra if isinstance(extra, list) else []
+    return frozenset(bundle_stem(n).casefold() for n in apps + extra
+                     if isinstance(n, str) and bundle_stem(n))
+
+
+def protected_bundle(path, names):
+    """Return the protected bundle a path sits in ("OBS"), or ""; matches like guard.bundle_protected."""
+    for part in (path or "").split("/"):
+        if part.endswith(".app") and part[:-4].casefold() in names:
+            return part[:-4]
+    return ""
+
+
+def group_paths(pgid):
+    """Return {pid: executable path} for a process group; {} when ps cannot answer."""
+    members = {}
+    out = sh(["/usr/bin/env", "LC_ALL=C", "LANG=C", "ps", "-g", str(pgid), "-o", "pid=,comm="])
+    for line in out.splitlines():
+        parts = line.strip().split(None, 1)
+        try:
+            members[int(parts[0])] = parts[1] if len(parts) > 1 else ""
+        except (IndexError, ValueError):
+            continue
+    return members
 
 
 def sh(cmd, timeout=15):
@@ -1050,15 +1135,58 @@ def admission_wait(opt):
                 pass
 
 
-def limited_wait(proc, pct, deadline):
+# The stops the CPU limiter itself holds right now: the whole group, or members
+# stopped one by one. "ending" is set once a terminating signal was forwarded.
+_LIMITER = {"group": False, "pids": set(), "ending": False}
+
+
+def release_limiter(pgid):
+    """SIGCONT every stop the limiter made in this group, unless the guard owns a pause of it.
+
+    22.10: on exit the limiter used to skip SIGCONT whenever the guard reported level 2,
+    although the guard had paused nothing, so a job or its leftover children stayed
+    stopped after safe-run returned. If the group SIGCONT fails (one unsignalable member
+    fails the whole killpg), the members stopped one by one are released one by one.
+    """
+    if not (_LIMITER["group"] or _LIMITER["pids"]) or guard_paused(pgid):
+        return
+    try:
+        os.killpg(pgid, signal.SIGCONT)
+    except OSError:
+        for m in sorted(_LIMITER["pids"]):
+            try:
+                if os.getpgid(m) == pgid:
+                    os.kill(m, signal.SIGCONT)
+            except OSError:
+                pass
+    _LIMITER["group"] = False
+    _LIMITER["pids"].clear()
+
+
+def limited_wait(proc, pct, deadline, opt=None):
     """Wait for the job and enforce a CPU limit with process-group micro-pauses.
 
     The window is 2 s. At pct=95, the group gets SIGSTOP for 100 ms and then
     SIGCONT. At pct>=100, this is a normal wait. Return (rc, killed_by_time).
+    A protected app in the group (OBS started by the job's script) is left out
+    of the SIGSTOP; `opt` carries --quiet and --normal for the notice. Every
+    stop the limiter made is released on every way out.
     """
+    _LIMITER["group"] = False
+    _LIMITER["pids"].clear()
+    try:
+        return _limited_wait(proc, pct, deadline, opt)
+    finally:
+        release_limiter(proc.pid)
+
+
+def _limited_wait(proc, pct, deadline, opt):
     window = 2.0
     run_t = window * pct / 100.0
     stop_t = window - run_t
+    opt = opt or {"quiet": os.environ.get("SAFE_RUN_QUIET") == "1"}
+    names = protected_names(cfg()) if stop_t >= 0.02 else frozenset()
+    said = set()
     while True:
         rc = proc.poll()
         if rc is not None:
@@ -1081,8 +1209,41 @@ def limited_wait(proc, pct, deadline):
             pass
         if proc.poll() is not None or guard_paused(proc.pid):
             continue
+        # 22.10: a script under safe-run that started OBS froze the recording with the
+        # job, and at guard level 2 it stayed frozen. Protected members are skipped and
+        # the rest of the group is stopped one by one, as guard.sig() does. If ps cannot
+        # list the group, killpg as before.
+        members = group_paths(proc.pid) if names else {}
+        spared = {m: protected_bundle(path, names) for m, path in members.items()}
+        spared = {m: bundle for m, bundle in spared.items() if bundle}
+        for m in sorted(set(spared) - said):
+            said.add(m)
+            if opt.get("normal", True):
+                routine(opt, T("safe-run: %s in the job's group is a protected app (call/recording/"
+                               "passwords) - the CPU limit leaves it running") % spared[m])
+            else:
+                routine(opt, T("safe-run: %s in the job's group is a protected app (call/recording/"
+                               "passwords) - the CPU limit leaves it running, but it inherited "
+                               "efficiency cores; start such jobs with --normal") % spared[m])
+        # 22.10: after a protected member was seen, a failed listing must not fall back to
+        # killpg, which would stop it too; this window's micro-pause is simply skipped.
+        # A forwarded SIGTERM ends the limiting: the job must be awake to receive it.
+        if _LIMITER["ending"] or (names and not members and said):
+            continue
         try:
-            os.killpg(proc.pid, signal.SIGSTOP)
+            if spared:
+                for m in members:
+                    try:
+                        # The pid must still be in the job's group: it may have
+                        # exited and been reused since ps listed it.
+                        if m not in spared and os.getpgid(m) == proc.pid:
+                            _LIMITER["pids"].add(m)
+                            os.kill(m, signal.SIGSTOP)
+                    except OSError:
+                        pass
+            else:
+                _LIMITER["group"] = True
+                os.killpg(proc.pid, signal.SIGSTOP)
             time.sleep(min(stop_t, max(deadline - time.time(), 0.05)))
         except (ProcessLookupError, PermissionError):
             # The job ended between poll() and killpg(). For a group that holds
@@ -1093,11 +1254,9 @@ def limited_wait(proc, pct, deadline):
         finally:
             # Do not wake a job frozen by the guard or while the guard publishes
             # "hot" (level >=2). In that state, resume belongs only to the guard.
-            if not guard_paused(proc.pid) and not guard_hot():
-                try:
-                    os.killpg(proc.pid, signal.SIGCONT)
-                except Exception:
-                    pass
+            # limited_wait() still releases the limiter's own stops on its way out.
+            if not guard_hot() or _LIMITER["ending"]:
+                release_limiter(proc.pid)
 
 
 def max_temp_since(t0):
@@ -1278,6 +1437,18 @@ def main():
                     "becomes a %d%% CPU limit for the whole machine")
                   % (opt["cores"], int(cap)))
 
+    # 22.10: a protected app as the command itself gets neither the efficiency-core wrapper
+    # nor the CPU limiter. Both the path PATH finds and where a symlink there leads count:
+    # a command in a bin directory may be a link to OBS.app/Contents/MacOS/OBS.
+    found = shutil.which(cmd[0]) or ""
+    names = protected_names(cfg())
+    bundle = (protected_bundle(found, names)
+              or protected_bundle(os.path.realpath(found) if found else "", names))
+    if bundle:
+        opt["normal"], opt["cpu_limit"] = True, 100.0
+        routine(opt, T("safe-run: %s is a protected app (call/recording/passwords) - no CPU limit "
+                       "and no efficiency cores for this job") % bundle)
+
     state, temp = thermal_state(), batt_temp()
     limit = cfg().get("batt_pause_c", 40.0)
     chip_hot, chip_reason = chip_already_hot()
@@ -1366,6 +1537,10 @@ def main():
             os.killpg(proc.pid, signum)
         except OSError:
             pass
+        # 22.10: a SIGTERM forwarded to a job the limiter held stopped stayed pending for
+        # as long as the guard reported level 2, and safe-run never exited.
+        _LIMITER["ending"] = True
+        release_limiter(proc.pid)
 
     for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP, signal.SIGQUIT):
         if signal.getsignal(sig) != signal.SIG_IGN:
@@ -1436,7 +1611,7 @@ def main():
             pass
 
     deadline = t0 + opt["hours"] * 3600
-    rc, killed_by_time = limited_wait(proc, opt["cpu_limit"], deadline)
+    rc, killed_by_time = limited_wait(proc, opt["cpu_limit"], deadline, opt)
     if killed_by_time:
         eprint(T("safe-run: TIME BUDGET %.1f h reached - terminating the job (SIGTERM)") % opt["hours"])
         # Cleanup checks the WHOLE group, not proc.poll(): if the leader died

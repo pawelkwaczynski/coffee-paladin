@@ -187,6 +187,12 @@ DEFAULTS = {
     # Extends protected_apps instead of replacing it, like never_extra: one custom entry in
     # protected_apps silently dropped Zoom and every other default.
     "protected_apps_extra": [],
+    # 22.10: FaceTime.app was protected, but the call runs in avconferenced, callservicesd and
+    # FTConversationService, and screen recording in replayd and screencaptureui, all outside
+    # any .app bundle; in an emergency they were pause targets mid-call. Exact executable names.
+    "protected_daemons": ["avconferenced", "callservicesd",
+                          "com.apple.FaceTime.FTConversationService", "replayd",
+                          "screencaptureui"],
     "notify": True,
     "notify_min_gap_s": 300,
     # Critical-level banner: a normal notification is easy to miss (Focus, fullscreen app).
@@ -563,13 +569,17 @@ def load_cfg():
         _ostatnio_odrzucone["v"] = []
     for key in ("never_patterns", "never_arg_patterns", "never_extra",
                   "managed_patterns", "system_demote_patterns", "protected_apps",
-                  "protected_apps_extra"):
+                  "protected_apps_extra", "protected_daemons"):
         items = [w for w in (cfg.get(key) or []) if isinstance(w, str) and w.strip()]
         if key in ("never_patterns", "never_arg_patterns"):
             for name in OWN_NAMES:
                 if name not in items:
                     items.append(name)
+        if key in ("protected_apps", "protected_apps_extra"):
+            # 22.10: "OBS.app" and " OBS" matched nothing, and the guard said nothing.
+            items = [w for w in (bundle_stem(w) for w in items) if w]
         cfg[key] = items
+    say_unmatched_protected(cfg)
     return cfg
 
 
@@ -683,6 +693,8 @@ PL = {
     "%s heats the Mac at %.0f%% CPU - protected app (call/recording/passwords): left alone": "%s grzeje Maca na %.0f%% CPU - chroniona aplikacja (rozmowa/nagrywanie/hasla): bez ingerencji",
     "protected app in process group %d; signaling the other members one by one": "chroniona aplikacja w grupie procesow %d; sygnal idzie osobno do pozostalych",
     "%s heats the Mac at %.0f%% CPU - a macOS service: named, left alone": "%s grzeje Maca na %.0f%% CPU - usluga macOS: nazwana, zostawiona w spokoju",
+    "protected_apps: %s matches no app in /Applications, ~/Applications or /System/Applications - use the app name Finder shows":
+        "protected_apps: %s nie pasuje do żadnej aplikacji w /Applications, ~/Applications ani /System/Applications - wpisz nazwę aplikacji tak, jak pokazuje ją Finder",
     "DEMOTED %s (pid %d) at pause -> comes back on E-cores, not at full speed":
         "DEMOTE %s (pid %d) przy pauzie -> wroci na rdzeniach E, nie z pelna moca",
     "flapping: %s paused again %d time(s) in a row - holding at least %d s this time": "migotanie: %s zapauzowany ponownie, %d. raz z rzedu - tym razem trzymam co najmniej %d s",
@@ -812,6 +824,8 @@ RU = {
     "%s heats the Mac at %.0f%% CPU - protected app (call/recording/passwords): left alone": "%s нагревает Mac при %.0f%% CPU - защищённое приложение (звонок/запись/пароли): без вмешательства",
     "protected app in process group %d; signaling the other members one by one": "защищённое приложение в группе процессов %d; сигнал отправляется остальным по отдельности",
     "%s heats the Mac at %.0f%% CPU - a macOS service: named, left alone": "%s греет Mac на %.0f%% CPU - служба macOS: названа, оставлена в покое",
+    "protected_apps: %s matches no app in /Applications, ~/Applications or /System/Applications - use the app name Finder shows":
+        "protected_apps: %s не совпадает ни с одним приложением в /Applications, ~/Applications или /System/Applications - укажите имя приложения так, как его показывает Finder",
     "DEMOTED %s (pid %d) at pause -> comes back on E-cores, not at full speed": "ПОНИЖЕН %s (pid %d) при паузе -> вернётся на E-ядрах, не на полной скорости",
     "flapping: %s paused again %d time(s) in a row - holding at least %d s this time": "дребезг: %s снова приостановлен, %d-й раз подряд - в этот раз держу не меньше %d с",
     "paused for longer than %d min": "в паузе дольше %d мин",
@@ -955,6 +969,8 @@ ZH = {
     "%s heats the Mac at %.0f%% CPU - protected app (call/recording/passwords): left alone": "%s 以 %.0f%% CPU 让 Mac 发热 - 受保护应用（通话/录制/密码）：不作处理",
     "protected app in process group %d; signaling the other members one by one": "进程组 %d 中有受保护的应用；分别向其他进程发送信号",
     "%s heats the Mac at %.0f%% CPU - a macOS service: named, left alone": "%s 以 %.0f%% CPU 让 Mac 发热 - macOS 服务：已点名，不做处理",
+    "protected_apps: %s matches no app in /Applications, ~/Applications or /System/Applications - use the app name Finder shows":
+        "protected_apps: %s 与 /Applications、~/Applications 或 /System/Applications 中的任何应用都不匹配 - 请使用 Finder 显示的应用名称",
     "DEMOTED %s (pid %d) at pause -> comes back on E-cores, not at full speed": "已降级 %s (pid %d),暂停时 -> 将在 E 核上恢复,而非全速",
     "flapping: %s paused again %d time(s) in a row - holding at least %d s this time": "抖动：%s 再次被暂停，连续第 %d 次 - 这次至少保持 %d 秒",
     "paused for longer than %d min": "暂停超过 %d 分钟",
@@ -1098,6 +1114,8 @@ ES = {
     "%s heats the Mac at %.0f%% CPU - protected app (call/recording/passwords): left alone": "%s calienta el Mac al %.0f%% de CPU - aplicación protegida (llamada/grabación/contraseñas): sin intervención",
     "protected app in process group %d; signaling the other members one by one": "aplicacion protegida en el grupo de procesos %d; la senal va por separado a los demas",
     "%s heats the Mac at %.0f%% CPU - a macOS service: named, left alone": "%s calienta el Mac al %.0f%% de CPU - servicio de macOS: nombrado, sin tocar",
+    "protected_apps: %s matches no app in /Applications, ~/Applications or /System/Applications - use the app name Finder shows":
+        "protected_apps: %s no coincide con ninguna app de /Applications, ~/Applications ni /System/Applications - usa el nombre que muestra Finder",
     "DEMOTED %s (pid %d) at pause -> comes back on E-cores, not at full speed": "DEGRADADO %s (pid %d) en la pausa -> volverá en núcleos E, no a plena velocidad",
     "flapping: %s paused again %d time(s) in a row - holding at least %d s this time": "oscilacion: %s pausado de nuevo, %d veces seguidas - esta vez lo retengo al menos %d s",
     "paused for longer than %d min": "en pausa durante más de %d min",
@@ -2341,16 +2359,65 @@ def protected_names(cfg):
                      if isinstance(name, str) and name)
 
 
+def bundle_stem(name):
+    """The bundle name a config entry means: ' OBS' and 'obs.APP ' both mean OBS.app."""
+    name = name.strip()
+    if name[-4:].casefold() == ".app":
+        name = name[:-4].strip()
+    return name
+
+
+_PROTECTED_UNMATCHED = {"entries": None}
+
+
+def say_unmatched_protected(cfg):
+    """Log the user's protected entries that match no installed bundle, once per change.
+
+    22.10: "OBS Studio" protects nothing (the bundle is OBS.app), and a custom protected_apps
+    also drops every default, so a typo cost Zoom its protection without a word. load_cfg
+    runs every cycle, so the same answer is not repeated. Default names are skipped: most of
+    them are simply not installed on a given Mac. No aliases are guessed.
+    """
+    defaults = {n.casefold() for n in DEFAULTS["protected_apps"]}
+    entries = tuple(n for n in list(cfg.get("protected_apps") or [])
+                    + list(cfg.get("protected_apps_extra") or []) if n.casefold() not in defaults)
+    if entries == _PROTECTED_UNMATCHED["entries"]:
+        return
+    _PROTECTED_UNMATCHED["entries"] = entries
+    places = ("/Applications", os.path.expanduser("~/Applications"), "/System/Applications")
+    places += tuple(os.path.join(p, "Utilities") for p in places)
+    missing = [n for n in entries
+               if not any(os.path.isdir(os.path.join(p, n + ".app")) for p in places)]
+    if missing:
+        log(T("protected_apps: %s matches no app in /Applications, ~/Applications or "
+              "/System/Applications - use the app name Finder shows")
+            % ", ".join('"%s"' % n for n in missing))
+
+
 def bundle_protected(path, names):
     # 21.10: CptHost inside zoom.us.app must inherit call protection from zoom.us.
-    return bool(names) and "/Contents/MacOS/" in path and any(
+    # 22.10: and so must executables outside Contents/MacOS: Teams runs
+    # Contents/Helpers/com.microsoft.teams2.respawn, which was paused as a CLI job.
+    return bool(names) and any(
         part[:-4].casefold() in names for part in path.split("/") if part.endswith(".app"))
 
 
+def protected_daemon_names(cfg):
+    return frozenset(name.strip().casefold() for name in cfg.get("protected_daemons") or []
+                     if isinstance(name, str) and name.strip())
+
+
+def daemon_protected(path, names):
+    return bool(names) and bool(path) and os.path.basename(path).casefold() in names
+
+
 def protected_app(cfg, pid):
-    """Whether the executable sits inside a configured protected .app bundle."""
-    names = protected_names(cfg)
-    return bool(names) and bundle_protected(exe_path(pid), names)
+    """Whether the executable sits inside a protected .app bundle or is a protected daemon."""
+    names, daemons = protected_names(cfg), protected_daemon_names(cfg)
+    if not names and not daemons:
+        return False
+    path = exe_path(pid)
+    return bundle_protected(path, names) or daemon_protected(path, daemons)
 
 
 # The names sig() checks before a group signal; pick_targets refreshes them every cycle,
@@ -2400,8 +2467,16 @@ def pick_targets(cfg, procs, saferun):
         low = comm.lower()
         # 21.10: A live call stays responsive even if a managed name or emergency net matches.
         if protected_app(cfg, pid):
-            _PROTECTED_HOT.add(pid)
-            _GUI_HOT.append((pid, cpu, comm, None))
+            # 22.10: named only past the gates every other GUI app passes; an ordinary Zoom
+            # call at 25% CPU was logged as heating the Mac every 10 minutes. The protected
+            # daemons are named where they were before, as macOS services.
+            if (cpu >= cfg.get("unknown_cpu_percent", 50.0)
+                    and proc_age_seconds(pid) >= cfg.get("unknown_min_seconds", 120)):
+                if daemon_protected(exe_path(pid), protected_daemon_names(cfg)):
+                    _SYSTEM_HOT.append((pid, cpu, comm, None))
+                else:
+                    _PROTECTED_HOT.add(pid)
+                    _GUI_HOT.append((pid, cpu, comm, None))
             continue
         if pid in saferun:
             # Untouchable stays untouchable REGARDLESS of source. A managed/ entry used
@@ -2580,6 +2655,10 @@ def sig(pid, pgid, s):
                 if m in spared:
                     continue
                 try:
+                    # 22.10: the pid may have exited and been reused by an unrelated
+                    # process since ps listed the group; signal only a current member.
+                    if os.getpgid(m) != pgid:
+                        continue
                     os.kill(m, s)
                     sent += 1
                 except OSError as ex:
