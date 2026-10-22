@@ -20,6 +20,7 @@ Usage:
 Language: TG_LANG=en|pl, or "lang" in ~/.coffee-paladin/config.json. Default: en.
 """
 
+import ctypes
 import datetime
 import json
 import os
@@ -37,6 +38,7 @@ STATE = os.path.join(BASE, "state.json")
 AGENT = "pl.pawel.coffee-paladin"
 
 ICON = {"nominal": "🟢", "fair": "🟡", "serious": "🟠", "critical": "🔴", "unknown": "⚪️"}
+PRESSURE_NAMES = ("nominal", "moderate", "heavy", "trapping", "sleeping")
 
 
 SUPPORTED_LANGS = ("en", "pl", "ru", "zh", "es")
@@ -171,6 +173,10 @@ PL = {
         '   ten Mac siegnal juz progu ubicia co najmniej raz, wiec nie ma tu zapasu do rozdania. Zostaw progi, a ciezkim zadaniom daj mniej rdzeni.',
     '   throttling:      cannot tell - %d busy samples carry no CPU limit reading':
         '   dlawienie:       nie wiadomo - %d probek pod obciazeniem nie ma odczytu limitu CPU',
+    '   macOS reports no CPU limit on this Mac; throttling is unknown.':
+        '   macOS nie podaje limitu CPU na tym Macu; dławienie pozostaje nieznane.',
+    '   the plateau reaches the pause threshold; CPU throttling is unknown, so review this threshold advice before applying it.':
+        '   plateau sięga progu pauzy; dławienie CPU jest nieznane, więc sprawdź tę poradę przed zmianą progów.',
     '   the plateau reaches the pause threshold, and this history does not say whether macOS was holding the CPU back. Unknown is not the same as fine, so nothing is advised here.':
         '   plateau siega progu pauzy, a ta historia nie mowi, czy macOS przyhamowywal CPU. Nie wiadomo to nie to samo co w porzadku, wiec nic tu nie doradzam.',
     '   menu bar: running. Cannot see the thermometer? `coffee-paladin panel` opens a window without it.':
@@ -263,6 +269,10 @@ RU = {
         '   этот Mac уже как минимум раз доставал до порога убийства, значит запаса раздавать нечего. Оставьте пороги, а тяжелым задачам дайте меньше ядер.',
     '   throttling:      cannot tell - %d busy samples carry no CPU limit reading':
         '   троттлинг:       неизвестно - у %d нагруженных замеров нет чтения лимита CPU',
+    '   macOS reports no CPU limit on this Mac; throttling is unknown.':
+        '   macOS не сообщает лимит CPU на этом Mac; троттлинг неизвестен.',
+    '   the plateau reaches the pause threshold; CPU throttling is unknown, so review this threshold advice before applying it.':
+        '   плато достигает порога паузы; троттлинг CPU неизвестен, поэтому проверьте совет перед изменением порогов.',
     '   the plateau reaches the pause threshold, and this history does not say whether macOS was holding the CPU back. Unknown is not the same as fine, so nothing is advised here.':
         '   плато достает до порога паузы, а эта история не говорит, придерживал ли macOS процессор. Неизвестно - это не то же самое, что нормально, поэтому советов тут нет.',
     '   menu bar: running. Cannot see the thermometer? `coffee-paladin panel` opens a window without it.':
@@ -355,6 +365,10 @@ ZH = {
         '   这台 Mac 至少有一次已经触到终止阈值，所以这里没有余量可分。保持阈值不变，改为给重任务更少的核心。',
     '   throttling:      cannot tell - %d busy samples carry no CPU limit reading':
         '   降频：           无法判断 - %d 个负载样本没有 CPU 限制读数',
+    '   macOS reports no CPU limit on this Mac; throttling is unknown.':
+        '   macOS 未报告这台 Mac 的 CPU 限制；降频状态未知。',
+    '   the plateau reaches the pause threshold; CPU throttling is unknown, so review this threshold advice before applying it.':
+        '   温度平台达到暂停阈值；CPU 降频情况未知，应用此阈值建议前请先核查。',
     '   the plateau reaches the pause threshold, and this history does not say whether macOS was holding the CPU back. Unknown is not the same as fine, so nothing is advised here.':
         '   平台值触到暂停阈值，而这段历史没有说明 macOS 当时是否在压制 CPU。未知不等于没事，所以这里不给建议。',
     '   menu bar: running. Cannot see the thermometer? `coffee-paladin panel` opens a window without it.':
@@ -447,6 +461,10 @@ ES = {
         '   este Mac ya alcanzo el umbral de terminacion al menos una vez, asi que no hay margen que repartir. Manten los umbrales y da menos nucleos a los trabajos pesados.',
     '   throttling:      cannot tell - %d busy samples carry no CPU limit reading':
         '   limitacion:      no se puede saber - %d muestras con carga no traen lectura del limite de CPU',
+    '   macOS reports no CPU limit on this Mac; throttling is unknown.':
+        '   macOS no informa del límite de CPU en este Mac; se desconoce si hay reducción de frecuencia.',
+    '   the plateau reaches the pause threshold; CPU throttling is unknown, so review this threshold advice before applying it.':
+        '   la temperatura estable alcanza el umbral de pausa; se desconoce la reducción de frecuencia, así que revise este consejo antes de cambiar los umbrales.',
     '   the plateau reaches the pause threshold, and this history does not say whether macOS was holding the CPU back. Unknown is not the same as fine, so nothing is advised here.':
         '   la meseta llega al umbral de pausa y este historial no dice si macOS frenaba la CPU. Desconocido no es lo mismo que correcto, asi que aqui no aconsejo nada.',
     '   menu bar: running. Cannot see the thermometer? `coffee-paladin panel` opens a window without it.':
@@ -497,6 +515,46 @@ def sh(cmd, timeout=15):
             except Exception:
                 pass
         return ""
+
+
+def thermal_pressure():
+    """Read the five-level Darwin thermal notification, or return None."""
+    token = ctypes.c_int()
+    try:
+        lib = ctypes.CDLL(None)
+        if lib.notify_register_check(b"com.apple.system.thermalpressurelevel",
+                                     ctypes.byref(token)) != 0:
+            return None
+        try:
+            state = ctypes.c_uint64()
+            if lib.notify_get_state(token, ctypes.byref(state)) != 0:
+                return None
+            level = int(state.value)
+            return (level, PRESSURE_NAMES[level]) if 0 <= level < 5 else None
+        finally:
+            lib.notify_cancel(token)
+    except Exception:
+        return None
+
+
+# The same limit thermal-metrics and fleet use to call a guard down: an older snapshot
+# describes a Mac that may have cooled or heated since.
+SNAPSHOT_DOWN_AFTER_S = 300
+
+
+def fresh_pressure(snap):
+    """Use a snapshot pressure only while its timestamp is current."""
+    try:
+        stamp = float(snap.get("epoch")) if snap.get("epoch") else abs_epoch(snap.get("time"))
+    except (TypeError, ValueError):
+        return None
+    pressure = snap.get("thermal_pressure")
+    if not (0 <= time.time() - stamp < SNAPSHOT_DOWN_AFTER_S and isinstance(pressure, dict)):
+        return None
+    level = pressure.get("level")
+    if type(level) is int and 0 <= level < len(PRESSURE_NAMES):
+        return (level, PRESSURE_NAMES[level])
+    return None
 
 
 PALADIN_COLOR = """
@@ -962,9 +1020,9 @@ def thermal_profile(rows):
     idle, idle_skipped = settled_idle(rows)
     throttled = [cell(r, "chip_C") for r in rows
                  if (cell(r, "cpu_limit") or 100) < 100 and cell(r, "chip_C")]
-    # An unreadable cpu_limit is NOT evidence of no throttling. Counting unknown
-    # as 100 would let a corrupted or truncated history unlock the one piece of
-    # advice that makes a Mac run hotter.
+    # An unreadable cpu_limit is NOT evidence of no throttling, so it is counted as
+    # unknown, never as 100. 22.10: Apple Silicon Macs without a pmset reading never
+    # have one, so the count no longer blocks the advice; print_profile says so instead.
     throttle_unknown = sum(1 for r in rows if _working(r) and cell(r, "cpu_limit") is None)
     spinning = [r for r in rows if (cell(r, "fan_rpm") or 0) > 0]
     fan_start = fan_start_temp(rows)
@@ -1028,11 +1086,11 @@ def suggest_thresholds(prof, cfg):
     if plateau >= pause:
         # The machine lives at the threshold, so the guard fires during ordinary
         # work. Room above the plateau is only worth taking while the chip is not
-        # being throttled - that is the sign it is coping.
+        # being throttled - that is the sign it is coping. 22.10: an unknown reading
+        # no longer blocks the advice (since 21.10 every new row on an M4 Pro is
+        # unknown, so heat had stopped advising); the uncertainty is printed next to it.
         if prof["throttled_samples"]:
             return dict(keep, verdict="throttling")
-        if prof.get("throttle_unknown"):
-            return dict(keep, verdict="throttle_unknown")
         want = min(plateau + 2.0, ceiling)
         # The suggestion has to CLEAR the plateau. One that lands under it changes
         # nothing except the margin to kill: the guard keeps interrupting, only
@@ -1083,8 +1141,7 @@ def print_profile(prof, sug, cfg):
         print(T("   throttling from: %5.1f °C   (%d samples with the CPU held back)")
               % (prof["throttle_from_c"], prof["throttled_samples"]))
     elif prof.get("throttle_unknown"):
-        print(T("   throttling:      cannot tell - %d busy samples carry no CPU limit reading")
-              % prof["throttle_unknown"])
+        print(T("   macOS reports no CPU limit on this Mac; throttling is unknown."))
     else:
         print(T("   throttling:      never seen - macOS did not have to hold the CPU back"))
 
@@ -1111,7 +1168,10 @@ def print_profile(prof, sug, cfg):
         "reacts_late": T("   this Mac has no fans and stays far below the pause threshold, so the "
                          "guard reacts late: the chip climbs a long way before anything happens."),
     }[sug["verdict"]]
-    print(reason)
+    if sug["verdict"] == "pauses_during_work" and prof.get("throttle_unknown"):
+        print(T("   the plateau reaches the pause threshold; CPU throttling is unknown, so review this threshold advice before applying it."))
+    else:
+        print(reason)
     if (sug["pause"], sug["resume"]) != (now[0], now[1]):
         print(T("   pause  %5.1f °C  (now %.1f)") % (sug["pause"], now[0]))
         print(T("   resume %5.1f °C  (now %.1f)") % (sug["resume"], now[1]))
@@ -1198,6 +1258,8 @@ def main():
             snap = json.load(f)
     except Exception:
         pass
+    live_pressure = thermal_pressure()
+    pressure = live_pressure or fresh_pressure(snap)
     def _num(v):
         try:
             return float(v)
@@ -1218,6 +1280,8 @@ def main():
     if "--json" in sys.argv:
         print(json.dumps({
             "measured": {"thermal_state": state,
+                         "thermal_pressure": ({"level": live_pressure[0], "name": live_pressure[1]}
+                                              if live_pressure else None),
                          "battery_c": temp,
                          "battery_lifetime_max_c": lifetime,
                          "cpu_limit": speed,
@@ -1233,9 +1297,8 @@ def main():
              else T("n/a"),
              ("%.1f °C" % temp) if temp else T("n/a"),
              ("%d%%" % speed) if speed is not None else T("n/a"), l1, l15, ncpu))
-    pressure = snap.get("thermal_pressure")
-    if isinstance(pressure, dict) and isinstance(pressure.get("level"), int) and pressure.get("name"):
-        print(T("   thermal pressure: %s (level %d)") % (T(pressure["name"]), pressure["level"]))
+    if pressure:
+        print(T("   thermal pressure: %s (level %d)") % (T(pressure[1]), pressure[0]))
 
     if fans:
         description = ", ".join(T("stopped") if f == 0 else T("%d rpm") % f for f in fans)

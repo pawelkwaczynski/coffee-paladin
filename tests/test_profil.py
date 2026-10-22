@@ -267,8 +267,9 @@ write(os.path.join(BASE, "history.csv"),
       [r.replace(",100,3.0,", ",nan,3.0,") for r in busy(96.0, 400)])
 unknown = heat.thermal_profile(heat.read_history())
 blind = heat.suggest_thresholds(unknown, CFG)
-check("32. an unreadable cpu_limit is not read as 'never throttled'",
-      unknown["throttle_unknown"] > 0 and blind["pause"] == CFG["soc_pause_c"],
+check("32. an unreadable cpu_limit stays unknown while advice remains available",
+      unknown["throttle_unknown"] > 0 and blind["verdict"] == "pauses_during_work"
+      and blind["pause"] > CFG["soc_pause_c"],
       "unknown %s advice %s" % (unknown["throttle_unknown"], blind))
 
 write(os.path.join(BASE, "history.csv"), busy(96.0, 400))
@@ -300,9 +301,9 @@ with io.open(os.path.join(BASE, "history.csv"), "w", encoding="utf-8") as f:
                 % (1 + (i % 10), i % 24))
 old = heat.thermal_profile(heat.read_history())
 old_advice = heat.suggest_thresholds(old, CFG)
-check("37. a history without the cpu_limit column is 'unknown', never 'never throttled'",
-      old["throttle_unknown"] == 400 and old_advice["pause"] == CFG["soc_pause_c"]
-      and old_advice["verdict"] == "throttle_unknown",
+check("37. a history without the cpu_limit column still gives advice",
+      old["throttle_unknown"] == 400 and old_advice["pause"] > CFG["soc_pause_c"]
+      and old_advice["verdict"] == "pauses_during_work",
       "unknown %s advice %s" % (old["throttle_unknown"], old_advice))
 
 # The bound has to BITE, not merely exist as a positive constant.

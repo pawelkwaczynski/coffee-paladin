@@ -64,6 +64,8 @@ PL = {
     "STALE - not reporting": "NIE RAPORTUJE",
     "hard shutdown %s": "twardy pad %s",
     "throttled to %d%%": "dławiony do %d%%",
+    "macOS thermal pressure: %s": "presja termiczna macOS: %s",
+    "heavy": "wysoka", "trapping": "ograniczająca", "sleeping": "usypiająca",
     "fans dead at %.0f C": "wentylatory stoją przy %.0f C",
     "battery %d%% unplugged": "bateria %d%% bez zasilacza",
     "disk %d%% full": "dysk zapełniony w %d%%",
@@ -108,6 +110,8 @@ RU = {
     "STALE - not reporting": "НЕ ОТЧИТЫВАЕТСЯ",
     "hard shutdown %s": "жёсткое выключение %s",
     "throttled to %d%%": "ограничен до %d%%",
+    "macOS thermal pressure: %s": "тепловое давление macOS: %s",
+    "heavy": "высокое", "trapping": "ограничивающее", "sleeping": "сон",
     "fans dead at %.0f C": "вентиляторы стоят при %.0f C",
     "battery %d%% unplugged": "батарея %d%% без адаптера",
     "disk %d%% full": "диск заполнен на %d%%",
@@ -152,6 +156,8 @@ ZH = {
     "STALE - not reporting": "未上报",
     "hard shutdown %s": "硬关机 %s",
     "throttled to %d%%": "降频至 %d%%",
+    "macOS thermal pressure: %s": "macOS 热压力：%s",
+    "heavy": "高", "trapping": "限制中", "sleeping": "休眠中",
     "fans dead at %.0f C": "%.0f C 时风扇停转",
     "battery %d%% unplugged": "电池 %d%% 且未接电源",
     "disk %d%% full": "磁盘已满 %d%%",
@@ -196,6 +202,8 @@ ES = {
     "STALE - not reporting": "SIN REPORTAR",
     "hard shutdown %s": "apagado brusco %s",
     "throttled to %d%%": "limitado al %d%%",
+    "macOS thermal pressure: %s": "presión térmica de macOS: %s",
+    "heavy": "alta", "trapping": "limitante", "sleeping": "en reposo",
     "fans dead at %.0f C": "ventiladores parados a %.0f C",
     "battery %d%% unplugged": "batería %d%% sin adaptador",
     "disk %d%% full": "disco al %d%%",
@@ -465,6 +473,11 @@ def issues_for(h):
         out.append(T("hard shutdown %s") % crash["time"])
     if h.get("cpu_limit") is not None and h["cpu_limit"] < 100:
         out.append(T("throttled to %d%%") % h["cpu_limit"])
+    pressure = h.get("thermal_pressure")
+    if isinstance(pressure, dict) and type(pressure.get("level")) is int:
+        if 2 <= pressure["level"] <= 4:
+            name = ("heavy", "trapping", "sleeping")[pressure["level"] - 2]
+            out.append(T("macOS thermal pressure: %s") % T(name))
     fans = h.get("fans") or []
     chip = h.get("chip_c")
     # `chip_stale` means the host published a remembered reading because its sensor did not

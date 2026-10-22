@@ -23,12 +23,14 @@ socket. The project's promise is "no sudo, no kernel extension, no root daemon",
 opening a port would be a new attack surface on every machine in a rack for the sake of a
 scrape that a textfile collector already does.
 
-Two numbers matter more than the temperature and are easy to miss:
+Important metrics and their caveats:
   coffee_paladin_up ............... 0 when the snapshot is stale, i.e. the guard died and
                                     every other reading below it is a fossil
   coffee_paladin_dry_run .......... 1 when the guard only watches and pauses NOTHING.
                                     A rack where this is 1 is unprotected while looking
                                     perfectly healthy on every other metric.
+  coffee_paladin_cpu_limit_percent . macOS pmset CPU_Speed_Limit; the series is absent
+                                    when macOS reports no limit.
 """
 import argparse
 import json
@@ -227,7 +229,13 @@ def collect(reg, snap, path, labels, readable=True):
     reg.add("load1", snap.get("load1"), labels=labels,
             help_text="One-minute load average")
     reg.add("cpu_limit_percent", snap.get("cpu_limit"), labels=labels,
-            help_text="Duty cycle the guard currently allows heavy jobs")
+            help_text="macOS CPU_Speed_Limit from pmset; absent when macOS reports none")
+    pressure = snap.get("thermal_pressure")
+    if isinstance(pressure, dict) and type(pressure.get("level")) is int:
+        level = pressure["level"]
+        if 0 <= level <= 4:
+            reg.add("thermal_pressure_level", level, labels=labels,
+                    help_text="macOS thermal pressure: 0 nominal through 4 sleeping")
     reg.add("level", snap.get("level"), labels=labels,
             help_text="Guard severity: 0 nominal, higher means closer to intervening")
 

@@ -2582,7 +2582,8 @@ struct Snap {
     var fans: [Int] = []
     var ramUsed: Double?, ramTotal: Double?, swap: Double?
     var diskUsed: Int?, diskTotal: Int?, diskPct: Int?
-    var pct: Int?, onAC = true, level = 0, load = 0.0, cpuLimit = 100
+    var pct: Int?, onAC = true, level = 0, load = 0.0
+    var cpuLimit: Int?
     var reason = "", topProc: String?, topCPU: Int?
     var paused: [String] = []
     var manualPause = false
@@ -2630,7 +2631,7 @@ func readSnap() -> Snap? {
     s.onAC = (j["on_ac"] as? Bool) ?? true
     s.level = numInt(j["level"]) ?? 0
     s.load = num(j["load1"]) ?? 0
-    s.cpuLimit = numInt(j["cpu_limit"]) ?? 100
+    s.cpuLimit = numInt(j["cpu_limit"])
     s.heavyCount = numInt(j["heavy_count"]) ?? 0
     s.reason = (j["reason"] as? String) ?? ""
     s.topProc = j["top_proc"] as? String
@@ -3787,7 +3788,7 @@ final class Bar: NSObject, NSMenuDelegate {
         if prefs.enabled(.disk), let p = s.diskPct {
             gap(); out.append(icon("internaldrive", fallback: "SSD")); text(" \(p)%")
         }
-        if prefs.enabled(.throttle), s.cpuLimit < 100 {
+        if prefs.enabled(.throttle), let c = s.cpuLimit, c < 100 {
             gap(); out.append(icon("tortoise.fill", fallback: "slow"))
         }
         // In watch-only mode, the EYE icon is leading, not tucked at the end: the bar
@@ -3986,8 +3987,8 @@ final class Bar: NSObject, NSMenuDelegate {
         // "CPU available: 100%" was misleading: this is CPU_Speed_Limit from pmset
         // (clock throttling), not free capacity. Show the row ONLY when throttling is
         // real; at 100% it is noise, and the label now states the meaning directly.
-        if s.cpuLimit < 100 {
-            row(String(format: T("Throttling: CPU capped at %d%% speed"), s.cpuLimit))
+        if let c = s.cpuLimit, c < 100 {
+            row(String(format: T("Throttling: CPU capped at %d%% speed"), c))
         }
         if let chart = ChartRow.make() {
             m.addItem(.separator())
