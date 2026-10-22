@@ -48,18 +48,21 @@ def run(env, args, **kwargs):
 
 
 # 21.10: A short command must not pay for a whole CPU-limit window.
+# 22.10: the bound is 1.5 s, not 0.8 s: under a loaded test run 0.803 s failed it, and the
+# regression it guards against (a blind sleep(2) before the first check) takes over 2 s.
+FAST_EXIT_S = 1.5
 base, binary, env = setup()
 t0 = time.monotonic()
 r = run(env, ["--", "/usr/bin/true"])
 elapsed = time.monotonic() - t0
-check("RT-1 prompt default exit", r.returncode == 0 and elapsed < 0.8,
+check("RT-1 prompt default exit", r.returncode == 0 and elapsed < FAST_EXIT_S,
       "rc=%s elapsed=%.3f stderr=%r" % (r.returncode, elapsed, r.stderr[-200:]))
 with open(os.path.join(base, "config.json"), "w") as f:
     json.dump({"job_cpu_percent": 100}, f)
 t0 = time.monotonic()
 r = run(env, ["--", "/usr/bin/true"])
 elapsed = time.monotonic() - t0
-check("RT-1 prompt uncapped exit", r.returncode == 0 and elapsed < 0.8,
+check("RT-1 prompt uncapped exit", r.returncode == 0 and elapsed < FAST_EXIT_S,
       "rc=%s elapsed=%.3f stderr=%r" % (r.returncode, elapsed, r.stderr[-200:]))
 r = run(env, ["--", "/bin/sh", "-c", "exit 7"])
 check("RT-1 exit code", r.returncode == 7, "rc=%s" % r.returncode)
