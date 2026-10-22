@@ -605,6 +605,10 @@ PL = {
     'sleeping': 'usypiająca',
     "unknown": 'nieznany',
     "pid %d of %s now belongs to another process - entry dropped, no signal": 'pid %d procesu %s należy teraz do innego procesu - wpis usunięty, bez sygnału',
+    "RESUMED what is left of %s (process group %d; pid %d itself is gone) - %s":
+        "WZNOWIONA reszta %s (grupa procesów %d; sam pid %d już nie istnieje) - %s",
+    "pid %d of %s now belongs to another process - demotion forgotten, priority left alone":
+        "pid %d procesu %s należy teraz do innego procesu - wpis o spowolnieniu usunięty, priorytet bez zmian",
     "thermal pressure: %s": 'presja termiczna: %s',
     "   thermal pressure: %s (level %d)": '   presja termiczna: %s (poziom %d)',
     "PAUSED %s (pid %d, %.0f%% CPU) - %s": "PAUZA  %s (pid %d, %.0f%% CPU) - %s",
@@ -763,6 +767,10 @@ RU = {
     'sleeping': 'сон',
     "unknown": 'неизвестно',
     "pid %d of %s now belongs to another process - entry dropped, no signal": 'pid %d процесса %s теперь принадлежит другому процессу - запись удалена, без сигнала',
+    "RESUMED what is left of %s (process group %d; pid %d itself is gone) - %s":
+        "ВОЗОБНОВЛЕНО то, что осталось от %s (группа процессов %d; сам pid %d уже завершён) - %s",
+    "pid %d of %s now belongs to another process - demotion forgotten, priority left alone":
+        "pid %d процесса %s теперь принадлежит другому процессу - запись о понижении удалена, приоритет не тронут",
     "thermal pressure: %s": 'тепловое давление: %s',
     "   thermal pressure: %s (level %d)": '   тепловое давление: %s (уровень %d)',
     "Thermal guard: hot": "Thermal guard: горячо",
@@ -903,6 +911,10 @@ ZH = {
     'sleeping': '休眠中',
     "unknown": '未知',
     "pid %d of %s now belongs to another process - entry dropped, no signal": 'pid %d 的 %s 现在属于其他进程 - 记录已删除，未发送信号',
+    "RESUMED what is left of %s (process group %d; pid %d itself is gone) - %s":
+        "已恢复 %s 的剩余部分(进程组 %d;pid %d 本身已退出) - %s",
+    "pid %d of %s now belongs to another process - demotion forgotten, priority left alone":
+        "pid %d 的 %s 现在属于其他进程 - 降级记录已删除,优先级保持不变",
     "thermal pressure: %s": '热压力: %s',
     "   thermal pressure: %s (level %d)": '   热压力: %s (级别 %d)',
     "Thermal guard: hot": "Thermal guard：过热",
@@ -1041,6 +1053,10 @@ ES = {
     'sleeping': 'reposo',
     "unknown": 'desconocido',
     "pid %d of %s now belongs to another process - entry dropped, no signal": 'pid %d de %s ahora pertenece a otro proceso - entrada eliminada, sin señal',
+    "RESUMED what is left of %s (process group %d; pid %d itself is gone) - %s":
+        "REANUDADO lo que queda de %s (grupo de procesos %d; el propio pid %d ya no existe) - %s",
+    "pid %d of %s now belongs to another process - demotion forgotten, priority left alone":
+        "pid %d de %s ahora pertenece a otro proceso - degradación olvidada, prioridad sin cambios",
     "thermal pressure: %s": 'presión térmica: %s',
     "   thermal pressure: %s (level %d)": '   presión térmica: %s (nivel %d)',
     "Thermal guard: hot": "Thermal guard: caliente",
@@ -2044,6 +2060,18 @@ def stopped_now():
     return pids, groups
 
 
+def gone_entries(paused, stopped):
+    """Return entries whose process is gone and that hold nothing stopped, to be deleted.
+
+    22.10: a leader killed from outside can leave stopped members in its group, and the
+    entry is the only note that can resume them. It stays while its group has a stopped
+    member, and while ps cannot tell (`stopped` is None).
+    """
+    return [k for k, v in paused.items()
+            if not alive(int(k))
+            and not (v.get("pgid") and (stopped is None or entry_stopped(k, v, *stopped)))]
+
+
 def stale_entries(paused, stopped):
     """Return entries for jobs resumed outside guard, to be deleted."""
     if stopped is None:
@@ -2145,7 +2173,12 @@ def entry_stopped(key, info, pids, groups):
 
     Unknown state, such as a vanished process or unresponsive `ps`, means "not stopped":
     termination requires proof that something is stopped, not a lack of proof that it is not.
+    22.10: an entry that already got SIGTERM and still owes the SIGKILL (`term_sent`, see
+    do_terminate) counts as stopped: it runs because the guard sent SIGCONT before TERM,
+    and the termination must be finished, not mistaken for a job resumed outside the guard.
     """
+    if (info or {}).get("term_sent"):
+        return True
     try:
         if int(key) in pids:
             return True
@@ -2574,8 +2607,52 @@ def boot_session_id():
     return _boot_session["id"]
 
 
-def process_identity(pid):
-    """Return (start epoch, command, group) from one unprivileged ps lookup."""
+DEFUNCT = "<defunct>"   # what ps prints as the command of a zombie, whatever it ran
+
+
+def process_table():
+    """Return {pid: (lstart, command, group, stat)} for every process from ONE ps call.
+
+    22.10: reassert_paused forked one identity ps per paused entry on every hot cycle, and
+    do_terminate and do_resume up to three per entry. One listing now serves a whole call.
+    lstart stays raw text (fixed width under LC_ALL=C); only the pids someone asks about are
+    parsed. An empty dict means ps failed.
+    """
+    out = run(["/usr/bin/env", "LC_ALL=C", "LANG=C", "ps", "-Ao",
+               "pid=,pgid=,stat=,lstart=,comm=", "-c"])
+    table = {}
+    for line in out.splitlines():
+        try:
+            pid, pgid, stat, rest = line.split(None, 3)
+            comm = DEFUNCT if stat.startswith("Z") else os.path.basename(rest[24:].strip())
+            table[int(pid)] = (rest[:24], comm, int(pgid), stat)
+        except ValueError:
+            continue
+    # 22.10: a listing that does not even show this process is broken; it counts as a
+    # failed read, not as a list of who is still alive.
+    return table if os.getpid() in table else {}
+
+
+def process_identity(pid, table=None):
+    """Return (start epoch, command, group) from one unprivileged ps lookup.
+
+    With `table` from process_table() nothing is forked: a failed listing is unknown (None)
+    for every pid. A pid missing from it gets one targeted read of its own, and only that
+    read can prove the pid now belongs to another process.
+    """
+    if table is not None:
+        if not table:
+            return None
+        row = table.get(pid)
+        if row is None:
+            # 22.10: a listing cut short after our own row made every later paused pid
+            # look gone; the entry was dropped as a reused pid and its group stayed
+            # stopped. The normal case still costs one ps per cycle.
+            return process_identity(pid)
+        try:
+            return time.mktime(time.strptime(row[0], "%a %b %d %H:%M:%S %Y")), row[1], row[2]
+        except (ValueError, OverflowError):
+            return None
     # 21.10: lstart follows the locale ("śr. 21 paź" under pl_PL, "水 10/21" under ja_JP),
     # so without LC_ALL=C every identity read failed on a non-English Mac.
     out = run(["/usr/bin/env", "LC_ALL=C", "LANG=C", "ps", "-o", "lstart=,pgid=,comm=", "-c",
@@ -2588,22 +2665,30 @@ def process_identity(pid):
         return None
 
 
-def entry_identity_ok(st, key, info, resume=False):
+def entry_identity_ok(st, key, info, resume=False, table=None):
     """Return whether this pause entry may be signalled now.
 
     True: the pid still belongs to the paused process (or the entry predates identities).
     False: skip this signal. The entry is dropped only when the pid PROVABLY belongs to
-    another process; an unreadable identity keeps it for the next cycle.
+    another process; an unreadable identity keeps it for the next cycle, and so does a
+    zombie (see leader_dead). `table` is the caller's process_table(); without one, this
+    pid is read on its own.
     """
     if not info.get("born"):
         return True  # Older pause entries did not record an identity.
-    current = process_identity(int(key))
+    current = process_identity(int(key), table)
     boot = boot_session_id()
     if current is None or boot is None:
         # 21.10: ps or sysctl can fail for a moment. Dropping the entry then would leave a
         # frozen job frozen with nobody to resume it, so wait for a readable answer. A
         # SIGCONT may go ahead: it cannot freeze or kill anything.
         return resume
+    if current[1] == DEFUNCT:
+        # 22.10: a zombie is the paused process itself, dead and not yet reaped. Its
+        # "<defunct>" never matched the recorded command, so the entry was dropped as a
+        # reused pid and the stopped rest of its group lost the only note that could resume
+        # it. Nothing goes to the dead pid; callers handle its group through leader_dead.
+        return False
     expected_group = info.get("pgid")
     same = (boot == info.get("boot_session")
             and abs(current[0] - info["born"]) <= 1
@@ -2617,6 +2702,64 @@ def entry_identity_ok(st, key, info, resume=False):
         % (int(key), info.get("comm", "?")))
     event_jsonl("pause_entry_dropped", name=info.get("comm"), pid=int(key), reason="pid_reused")
     st["paused"].pop(key, None)
+    return False
+
+
+def leader_dead(pid, table):
+    """Return whether a paused process has exited: reaped already, or a zombie in `table`."""
+    if not alive(pid):
+        return True
+    if table and pid not in table:
+        # 22.10: missing from the listing: ask about this pid alone (see process_identity).
+        return run(["ps", "-o", "stat=", "-p", str(pid)]).strip().startswith("Z")
+    row = table.get(pid) if table else None
+    return bool(row) and row[1] == DEFUNCT
+
+
+def group_stopped(pgid, table):
+    """Return whether process group `pgid` has a stopped member.
+
+    `table` can say yes; a no is checked with one targeted ps of the group, because a
+    listing cut short can lose exactly that group (22.10, as in process_identity).
+    """
+    try:
+        pgid = int(pgid)
+    except (TypeError, ValueError):
+        return False
+    if not pgid:
+        return False
+    if any(row[2] == pgid and row[3].startswith("T") for row in table.values()):
+        return True
+    return any(s.startswith("T") for s in run(["ps", "-g", str(pgid), "-o", "stat="]).split())
+
+
+def demoted_identity_ok(st, pid, info):
+    """Return whether a demoted pid still runs the process the guard demoted.
+
+    22.10: do_promote and the shutdown undo ran taskpolicy -B on any live pid in
+    st["demoted"]. A note left from before a restart promoted a process somebody else had
+    put in the background, and the log named a program that was not there. Start time and
+    boot prove the pid was not reused; the command is not compared then, because exec
+    changes it and a wrapper that execs its encoder would stay on E-cores for life. A note
+    from before identities has only the command, and a different one is proof enough.
+    An unreadable identity lets the undo go ahead, as SIGCONT does: it cannot freeze or
+    kill anything, and keeping a job slowed down is what promotion exists to prevent.
+    """
+    current = process_identity(pid)
+    boot = boot_session_id()
+    if current is None or boot is None:
+        return True
+    if info.get("born"):
+        same = boot == info.get("boot_session") and abs(current[0] - info["born"]) <= 1
+    else:
+        same = not info.get("comm") or current[1] == os.path.basename(info["comm"])
+    if same:
+        return True
+    log(T("pid %d of %s now belongs to another process - demotion forgotten, priority left alone")
+        % (pid, info.get("comm", "?")))
+    if pid in st.get("demoted", []):
+        st["demoted"].remove(pid)
+    st.get("demoted_info", {}).pop(str(pid), None)
     return False
 
 
@@ -2777,12 +2920,14 @@ def do_resume(cfg, st, reason, only_keys=None, after_cooling=False):
     """
     if not st["paused"]:
         return False
+    # 22.10: one listing for every entry: identity, start time, zombie and stopped group.
+    table = process_table()
     for key, info in list(st["paused"].items()):
         if only_keys is not None and key not in only_keys:
             continue          # the rest stays frozen deliberately: min pause time or manual
         pid = int(key)
-        if alive(pid):
-            if not entry_identity_ok(st, key, info, resume=True):
+        if not leader_dead(pid, table):
+            if not entry_identity_ok(st, key, info, resume=True, table=table):
                 continue
             error = sig(pid, info.get("pgid"), signal.SIGCONT)
             status = run(["ps", "-o", "stat=", "-p", str(pid)]).strip()
@@ -2792,8 +2937,10 @@ def do_resume(cfg, st, reason, only_keys=None, after_cooling=False):
                 # automatic thermal pause. Manual resumes, startup and shutdown are not
                 # the regulator oscillating.
                 if after_cooling and not info.get("manual") and info.get("powod") != "bateria":
+                    # 22.10: the start time comes from the listing above, not one more ps.
+                    known = process_identity(pid, table)
                     st.setdefault("_last_resume", {})[key] = {
-                        "at": now(), "born": proc_start_epoch(pid),
+                        "at": now(), "born": known[0] if known and known[0] else proc_start_epoch(pid),
                         "hold": info.get("hold_s", cfg.get("min_pause_seconds", 60)),
                         "flaps": info.get("flaps", 0)}
                 event_jsonl("pause_end", name=info.get("comm"), pid=pid,
@@ -2823,13 +2970,42 @@ def do_resume(cfg, st, reason, only_keys=None, after_cooling=False):
                 log("giving up on resuming %s (pid %d) after 5 attempts"
                     % (info.get("comm", "?"), pid))
         else:
-            # Said out loud: the last paused encoder of 23.08 had a PAUSE line and no
-            # RESUME line at shutdown, and the only silent path was this one. An audit
-            # a week later could not tell "never resumed" from "already dead".
-            log(T("dropped pause entry for %s (pid %d) - process gone, nothing left to resume")
-                % (info.get("comm", "?"), pid))
-            event_jsonl("pause_entry_dropped", name=info.get("comm"), pid=pid,
-                        reason="process_gone", pause_s=round(_pause_age(info)))
+            pgid = info.get("pgid")
+            # 22.10: a leader killed from outside, reaped or a zombie, can leave the rest of
+            # its group stopped, and the macOS kernel does not wake an orphaned stopped
+            # group. Resume what is still stopped; with no listing, send the SIGCONT anyway
+            # (it cannot freeze or kill anything).
+            error = errno.ESRCH
+            if pgid and (not table or group_stopped(pgid, table)):
+                # killpg itself, not sig(): its fallback to the dead pid answers ESRCH and
+                # would hide why the group refused.
+                try:
+                    os.killpg(int(pgid), signal.SIGCONT)
+                    error = 0
+                except OSError as ex:
+                    error = ex.errno
+            if error == 0:
+                log(T("RESUMED what is left of %s (process group %d; pid %d itself is gone) - %s")
+                    % (info.get("comm", "?"), int(pgid), pid, reason), tag="RESUME")
+                event_jsonl("pause_end", name=info.get("comm"), pid=pid, pgid=pgid,
+                            pause_s=round(_pause_age(info)))
+            elif error != errno.ESRCH:
+                # 22.10: the group is there but refused SIGCONT (EPERM and the like). Same
+                # rule as a live entry: keep it and try again, give up after the fifth.
+                log("FAILED to resume %s (pid %d) - errno %d" % (info.get("comm", "?"), pid, error))
+                info["proby_wznowienia"] = info.get("proby_wznowienia", 0) + 1
+                if info["proby_wznowienia"] < 5:
+                    continue
+                log("giving up on resuming %s (pid %d) after 5 attempts"
+                    % (info.get("comm", "?"), pid))
+            else:
+                # Said out loud: the last paused encoder of 23.08 had a PAUSE line and no
+                # RESUME line at shutdown, and the only silent path was this one. An audit
+                # a week later could not tell "never resumed" from "already dead".
+                log(T("dropped pause entry for %s (pid %d) - process gone, nothing left to resume")
+                    % (info.get("comm", "?"), pid))
+                event_jsonl("pause_entry_dropped", name=info.get("comm"), pid=pid,
+                            reason="process_gone", pause_s=round(_pause_age(info)))
         del st["paused"][key]
     notify(cfg, T("Thermal guard: cooled down"), T("Resumed paused jobs (%s)") % reason, "resume")
     return True
@@ -2837,11 +3013,12 @@ def do_resume(cfg, st, reason, only_keys=None, after_cooling=False):
 
 def reassert_paused(cfg, st):
     """Repeat STOP for entries still owned by their original process."""
-    if cfg["dry_run"]:
+    if cfg["dry_run"] or not st["paused"]:
         return
+    table = process_table()
     for key, info in list(st["paused"].items()):
         pid = int(key)
-        if alive(pid) and entry_identity_ok(st, key, info):
+        if alive(pid) and entry_identity_ok(st, key, info, table=table):
             sig(pid, info.get("pgid"), signal.SIGSTOP)
 
 
@@ -2877,6 +3054,8 @@ def do_terminate(cfg, st, reason, only_keys=None):
     if stopped is None:
         log("ps unavailable - postponing termination decisions")
         return False
+    # 22.10: one listing for every entry; the second identity check below is a lookup in it.
+    table = process_table()
     victims = []
     for key, info in list(st["paused"].items()):
         if only_keys is not None and key not in only_keys:
@@ -2886,10 +3065,21 @@ def do_terminate(cfg, st, reason, only_keys=None):
         pid = int(key)
         if protected_app(cfg, pid):
             continue
-        if not alive(pid):
+        # 22.10: a leader killed from outside, reaped or a zombie, can leave stopped members
+        # in its group. They are the same job and their pause expired too, so they get
+        # CONT, TERM and the KILL through the group; the entry goes only when nothing of
+        # the group is stopped.
+        dead = leader_dead(pid, table)
+        if dead and not (info.get("pgid") and entry_stopped(key, info, *stopped)):
             del st["paused"][key]
             continue
-        if not entry_identity_ok(st, key, info):
+        if dead and not table:
+            # 22.10: without a listing nothing says whose group this is now. Same rule as
+            # an unreadable identity: no TERM or KILL, the entry waits for the next cycle.
+            # No SIGCONT either: it would set an expired job running hot with no entry
+            # able to freeze it again.
+            continue
+        if not dead and not entry_identity_ok(st, key, info, table=table):
             continue
         if cfg["dry_run"]:
             log(T("[DRY-RUN] would terminate %s (pid %d) - %s") % (info.get("comm"), pid, reason))
@@ -2899,7 +3089,7 @@ def do_terminate(cfg, st, reason, only_keys=None):
                   "- resumed outside the guard") % (info.get("comm", "?"), key))
             del st["paused"][key]
             continue
-        if not entry_identity_ok(st, key, info):
+        if not dead and not entry_identity_ok(st, key, info, table=table):
             continue
         sig(pid, info.get("pgid"), signal.SIGCONT)
         sig(pid, info.get("pgid"), signal.SIGTERM)
@@ -2915,15 +3105,27 @@ def do_terminate(cfg, st, reason, only_keys=None):
                T("Jobs terminated (%s). Resume from a checkpoint once the Mac has cooled down.")
                % reason, "kill")
         time.sleep(20)
+        table = process_table()
         for key, info in victims:
             pid = int(key)
             # The group may live after the leader dies because children ignore TERM. killpg
             # on a dead group simply bounces with an error that we swallow.
             # A dead leader has no identity left to read; its group was checked a few seconds
             # ago before the SIGTERM, and the children that ignored TERM still need the KILL.
-            if (info.get("pgid") or alive(pid)) and (not alive(pid) or entry_identity_ok(st, key, info)):
+            # 22.10: a leader that died on the TERM is usually a zombie for a moment, and
+            # its "<defunct>" once read as a reused pid, so the KILL never came.
+            if ((info.get("pgid") and leader_dead(pid, table))
+                    or (alive(pid) and entry_identity_ok(st, key, info, table=table))):
                 if sig(pid, info.get("pgid"), signal.SIGKILL) == 0:
                     log("SIGKILL %s (pid %d)" % (info.get("comm", "?"), pid))
+            elif not table and alive(pid):
+                # 22.10: the listing after the grace failed, so the KILL is skipped; a child
+                # that ignores TERM would then run on with no record left. The entry comes
+                # back marked, and the next do_terminate repeats TERM and the KILL.
+                log("ps unavailable after SIGTERM - SIGKILL of %s (pid %d) postponed"
+                    % (info.get("comm", "?"), pid))
+                info["term_sent"] = now()
+                st["paused"][key] = info
     return bool(victims)
 
 
@@ -3009,7 +3211,13 @@ def demote_pid(cfg, st, pid, comm, pgid, cpu, soc_t, message):
     st.setdefault("demoted", []).append(pid)
     # Name in state: demotion can cut throughput by 11x, so humans and agents MUST see
     # it in status.json. A PID alone tells them nothing.
-    st.setdefault("demoted_info", {})[str(pid)] = {"comm": comm}
+    # 22.10: and who the pid is, so promotion and the shutdown undo can tell a reused one
+    # (demoted_identity_ok).
+    identity = process_identity(pid)
+    boot = boot_session_id()
+    born = identity[0] if identity and boot else None
+    st.setdefault("demoted_info", {})[str(pid)] = {"comm": comm, "born": born,
+                                                  "boot_session": boot if born else None}
     log(message, tag="DEMOTE")
     event_jsonl("demote_start", name=comm, pid=pid, pgid=pgid,
                 chip_c=soc_t, cpu_pct=round(cpu or 0))
@@ -3038,6 +3246,8 @@ def do_promote(cfg, st, cpu_hist, soc_t):
         # Demoted at pause: a cool reading right after the resume is the pause talking,
         # not the process. Keep it throttled for one quiet window.
         if now() < float(info.get("hold_until") or 0):
+            continue
+        if not demoted_identity_ok(st, pid, info):
             continue
         subprocess.call(["taskpolicy", "-B", "-p", str(pid)],
                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -5608,12 +5818,16 @@ def main():
     # before --once/status handling, so `coffee-paladin status` resumed everything paused by
     # the RUNNING daemon and cleared its state.json while the daemon still believed it held
     # those processes frozen.
-    if st["paused"]:
+    # 22.10: demotions too. The branch for state from before boot ran only when something
+    # was paused, so a demoted pid from before a reboot waited for do_promote to put
+    # whoever holds that number now back on P-cores.
+    if st["paused"] or st["demoted"] or st["demoted_info"]:
         try:
             state_mtime = os.path.getmtime(STATE_PATH)
         except Exception:
             state_mtime = 0
-        if state_mtime >= boot_time():
+        fresh = state_mtime >= boot_time()
+        if fresh and st["paused"]:
             # Measure BEFORE resuming anything. Daemon restart (update, kickstart) can
             # happen on a hot machine. Blind resume gave a hot job ~15 s at full speed above
             # the chip threshold before the first loop cycle froze it again. Use the same
@@ -5623,11 +5837,12 @@ def main():
             else:
                 log("startup: machine still hot - %d paused entr(ies) stay frozen, "
                     "the loop will resume them after cooling" % len(st["paused"]))
-        else:
+        elif not fresh:
             # State from before reboot: PIDs may belong to completely unrelated processes.
-            log("stale state from before boot - dropping %d paused entries without signaling"
-                % len(st["paused"]))
+            log("stale state from before boot - dropping %d paused entries and %d demotions "
+                "without signaling" % (len(st["paused"]), len(st["demoted"])))
             st["paused"] = {}
+            st["demoted"], st["demoted_info"] = [], {}
         save_state(st)
 
     stop = {"flag": False}
@@ -5876,7 +6091,7 @@ def main():
                 # an absorbing state: a manual freeze, external kill, entry stays forever,
                 # `reczna_pauza` stays forever, and from then on guard PAUSES but NEVER
                 # resumes, so every later job gets SIGTERM after the time limit.
-                for _k in [k for k in list(st["paused"]) if not alive(int(k))]:
+                for _k in gone_entries(st["paused"], stopped):
                     del st["paused"][_k]
                 # Entries woken outside guard. The machine is cool, so the process may run;
                 # and if it already runs because a human sent `kill -CONT` or safe-run duty
@@ -5908,7 +6123,9 @@ def main():
                 # freezes have priority and are not touched.
                 ready_keys = [k for k, v in st["paused"].items()
                           if _pause_age(v) >= max(min_p, v.get("hold_s", 0)) and not v.get("manual")
-                          and (powered or v.get("powod") != "bateria")]
+                          and (powered or v.get("powod") != "bateria")
+                          # 22.10: an entry that owes its SIGKILL (term_sent) is not resumed.
+                          and not v.get("term_sent")]
                 if ready_keys and cool:
                     do_resume(cfg, st, T("conditions are back to normal"), only_keys=ready_keys,
                               after_cooling=True)
@@ -6017,11 +6234,16 @@ def main():
     # E-core demotion survived daemon shutdown: the process stayed pinned to E-cores for
     # the rest of its life, invisible in temperature and visible only in throughput. Undo it
     # just like pause.
-    for _pid in list(st.get("demoted_info") or {}):
+    for _pid, _info in list((st.get("demoted_info") or {}).items()):
         try:
-            run(["taskpolicy", "-B", "-p", str(_pid)], timeout=5)
+            # 22.10: only a pid that still runs what the guard demoted.
+            if alive(int(_pid)) and demoted_identity_ok(st, int(_pid), _info):
+                run(["taskpolicy", "-B", "-p", str(_pid)], timeout=5)
         except Exception:
             pass
+    # 22.10: the undo is done. A list left behind named pids for the next start to
+    # promote, whoever holds those numbers by then.
+    st["demoted"], st["demoted_info"] = [], {}
     # `caffeinate -is` is a daemon CHILD but survives it. After the guard dies, launchd
     # adopts it and the Mac never sleeps, with no visible trace in the interface.
     try:
