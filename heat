@@ -85,11 +85,11 @@ def _lang():
 LANG = _lang()
 
 PL = {
-    'nominal': 'nominalny',
-    'moderate': 'umiarkowany',
-    'heavy': 'wysoki',
-    'trapping': 'ograniczający',
-    'sleeping': 'usypiający',
+    'nominal': 'nominalna',
+    'moderate': 'umiarkowana',
+    'heavy': 'wysoka',
+    'trapping': 'ograniczająca',
+    'sleeping': 'usypiająca',
     "   thermal pressure: %s (level %d)": '   presja termiczna: %s (poziom %d)',
     "%s thermal state: %s   chip: %s   battery: %s   CPU available: %s   load: %.2f / %.2f (%d cores)":
         "%s stan termiczny: %s   chip: %s   bateria: %s   CPU dostępne: %s   load: %.2f / %.2f (rdzeni %d)",

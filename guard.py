@@ -175,10 +175,18 @@ DEFAULTS = {
     "protected_apps": ["zoom.us", "Microsoft Teams", "Microsoft Teams (work or school)",
                        "Microsoft Teams classic", "FaceTime", "Webex", "Cisco Webex Meetings",
                        "Skype", "Discord", "Slack", "OBS", "Loom", "Screen Studio",
-                       "QuickTime Player", "Audio Hijack", "Rogue Amoeba Loopback",
+                       "QuickTime Player", "Audio Hijack", "Loopback",
                        "MacWhisper", "superwhisper", "Aiko", "1Password", "1Password 7",
                        "Bitwarden", "KeePassXC", "Tailscale", "WireGuard", "Mullvad VPN",
-                       "ProtonVPN", "NordVPN"],
+                       "ProtonVPN", "NordVPN",
+                       # 21.10: found installed and unprotected on the owner's Mac (calls, recording,
+                       # remote desktop, passwords); the macOS apps live in /System/Applications.
+                       "Cap", "WhatsApp", "Telegram", "Signal", "Tunnelblick", "Phone", "Passwords",
+                       "Voice Memos", "VoiceMemos", "Photo Booth", "Screenshot", "Windows App",
+                       "Jump Desktop", "RustDesk", "Logic Pro", "GarageBand", "MainStage"],
+    # Extends protected_apps instead of replacing it, like never_extra: one custom entry in
+    # protected_apps silently dropped Zoom and every other default.
+    "protected_apps_extra": [],
     "notify": True,
     "notify_min_gap_s": 300,
     # Critical-level banner: a normal notification is easy to miss (Focus, fullscreen app).
@@ -554,7 +562,8 @@ def load_cfg():
         # Corrections disappeared because the file was fixed; status must not warn forever.
         _ostatnio_odrzucone["v"] = []
     for key in ("never_patterns", "never_arg_patterns", "never_extra",
-                  "managed_patterns", "system_demote_patterns", "protected_apps"):
+                  "managed_patterns", "system_demote_patterns", "protected_apps",
+                  "protected_apps_extra"):
         items = [w for w in (cfg.get(key) or []) if isinstance(w, str) and w.strip()]
         if key in ("never_patterns", "never_arg_patterns"):
             for name in OWN_NAMES:
@@ -589,11 +598,11 @@ LANG = _lang()
 # Translation catalog. Keys are the English originals from code, so a missing entry simply
 # displays English instead of becoming an error.
 PL = {
-    'nominal': 'nominalny',
-    'moderate': 'umiarkowany',
-    'heavy': 'wysoki',
-    'trapping': 'ograniczający',
-    'sleeping': 'usypiający',
+    'nominal': 'nominalna',
+    'moderate': 'umiarkowana',
+    'heavy': 'wysoka',
+    'trapping': 'ograniczająca',
+    'sleeping': 'usypiająca',
     "unknown": 'nieznany',
     "pid %d of %s now belongs to another process - entry dropped, no signal": 'pid %d procesu %s należy teraz do innego procesu - wpis usunięty, bez sygnału',
     "thermal pressure: %s": 'presja termiczna: %s',
@@ -668,6 +677,7 @@ PL = {
     "conditions are back to normal": "warunki wrocily do normy",
     "%s heats the Mac at %.0f%% CPU - a desktop app: slowed down, never frozen": "%s grzeje Maca na %.0f%% CPU - aplikacja okienkowa: spowolniona, nigdy nie zamrazana",
     "%s heats the Mac at %.0f%% CPU - protected app (call/recording/passwords): left alone": "%s grzeje Maca na %.0f%% CPU - chroniona aplikacja (rozmowa/nagrywanie/hasla): bez ingerencji",
+    "protected app in process group %d; signaling the other members one by one": "chroniona aplikacja w grupie procesow %d; sygnal idzie osobno do pozostalych",
     "%s heats the Mac at %.0f%% CPU - a macOS service: named, left alone": "%s grzeje Maca na %.0f%% CPU - usluga macOS: nazwana, zostawiona w spokoju",
     "DEMOTED %s (pid %d) at pause -> comes back on E-cores, not at full speed":
         "DEMOTE %s (pid %d) przy pauzie -> wroci na rdzeniach E, nie z pelna moca",
@@ -792,6 +802,7 @@ RU = {
     "conditions are back to normal": "условия вернулись в норму",
     "%s heats the Mac at %.0f%% CPU - a desktop app: slowed down, never frozen": "%s греет Mac на %.0f%% CPU - оконное приложение: замедлено, никогда не замораживается",
     "%s heats the Mac at %.0f%% CPU - protected app (call/recording/passwords): left alone": "%s нагревает Mac при %.0f%% CPU - защищённое приложение (звонок/запись/пароли): без вмешательства",
+    "protected app in process group %d; signaling the other members one by one": "защищённое приложение в группе процессов %d; сигнал отправляется остальным по отдельности",
     "%s heats the Mac at %.0f%% CPU - a macOS service: named, left alone": "%s греет Mac на %.0f%% CPU - служба macOS: названа, оставлена в покое",
     "DEMOTED %s (pid %d) at pause -> comes back on E-cores, not at full speed": "ПОНИЖЕН %s (pid %d) при паузе -> вернётся на E-ядрах, не на полной скорости",
     "flapping: %s paused again %d time(s) in a row - holding at least %d s this time": "дребезг: %s снова приостановлен, %d-й раз подряд - в этот раз держу не меньше %d с",
@@ -930,6 +941,7 @@ ZH = {
     "conditions are back to normal": "条件已恢复正常",
     "%s heats the Mac at %.0f%% CPU - a desktop app: slowed down, never frozen": "%s 以 %.0f%% CPU 让 Mac 发热 - 桌面应用：已减速，绝不冻结",
     "%s heats the Mac at %.0f%% CPU - protected app (call/recording/passwords): left alone": "%s 以 %.0f%% CPU 让 Mac 发热 - 受保护应用（通话/录制/密码）：不作处理",
+    "protected app in process group %d; signaling the other members one by one": "进程组 %d 中有受保护的应用；分别向其他进程发送信号",
     "%s heats the Mac at %.0f%% CPU - a macOS service: named, left alone": "%s 以 %.0f%% CPU 让 Mac 发热 - macOS 服务：已点名，不做处理",
     "DEMOTED %s (pid %d) at pause -> comes back on E-cores, not at full speed": "已降级 %s (pid %d),暂停时 -> 将在 E 核上恢复,而非全速",
     "flapping: %s paused again %d time(s) in a row - holding at least %d s this time": "抖动：%s 再次被暂停，连续第 %d 次 - 这次至少保持 %d 秒",
@@ -1068,6 +1080,7 @@ ES = {
     "conditions are back to normal": "las condiciones volvieron a la normalidad",
     "%s heats the Mac at %.0f%% CPU - a desktop app: slowed down, never frozen": "%s calienta el Mac al %.0f%% de CPU - aplicacion de escritorio: ralentizada, nunca congelada",
     "%s heats the Mac at %.0f%% CPU - protected app (call/recording/passwords): left alone": "%s calienta el Mac al %.0f%% de CPU - aplicación protegida (llamada/grabación/contraseñas): sin intervención",
+    "protected app in process group %d; signaling the other members one by one": "aplicacion protegida en el grupo de procesos %d; la senal va por separado a los demas",
     "%s heats the Mac at %.0f%% CPU - a macOS service: named, left alone": "%s calienta el Mac al %.0f%% de CPU - servicio de macOS: nombrado, sin tocar",
     "DEMOTED %s (pid %d) at pause -> comes back on E-cores, not at full speed": "DEGRADADO %s (pid %d) en la pausa -> volverá en núcleos E, no a plena velocidad",
     "flapping: %s paused again %d time(s) in a row - holding at least %d s this time": "oscilacion: %s pausado de nuevo, %d veces seguidas - esta vez lo retengo al menos %d s",
@@ -2259,7 +2272,10 @@ def exe_path(pid):
         path = run(["ps", "-o", "comm=", "-p", str(pid)]).strip()
         if len(_EXE_CACHE) > 512:
             _EXE_CACHE.clear()
-        _EXE_CACHE[pid] = path
+        # 21.10: one failed read cached as "" stripped a call app of its protection for
+        # good; an unknown path is asked again next time.
+        if path:
+            _EXE_CACHE[pid] = path
     return path
 
 
@@ -2281,16 +2297,37 @@ def app_kind(path):
     return None
 
 
+def protected_names(cfg):
+    return frozenset(name.casefold() for name in list(cfg.get("protected_apps") or [])
+                     + list(cfg.get("protected_apps_extra") or [])
+                     if isinstance(name, str) and name)
+
+
+def bundle_protected(path, names):
+    # 21.10: CptHost inside zoom.us.app must inherit call protection from zoom.us.
+    return bool(names) and "/Contents/MacOS/" in path and any(
+        part[:-4].casefold() in names for part in path.split("/") if part.endswith(".app"))
+
+
 def protected_app(cfg, pid):
     """Whether the executable sits inside a configured protected .app bundle."""
-    names = {name.casefold() for name in cfg.get("protected_apps", [])
-             if isinstance(name, str) and name}
-    if not names:
-        return False
-    path = exe_path(pid)
-    # 21.10: CptHost inside zoom.us.app must inherit call protection from zoom.us.
-    return "/Contents/MacOS/" in path and any(
-        part[:-4].casefold() in names for part in path.split("/") if part.endswith(".app"))
+    names = protected_names(cfg)
+    return bool(names) and bundle_protected(exe_path(pid), names)
+
+
+# The names sig() checks before a group signal; pick_targets refreshes them every cycle,
+# because sig() is called from many places that do not carry the config.
+_PROTECTED_NAMES = {"names": frozenset()}
+_PROTECTED_GROUP_SAID = set()
+
+
+def group_members(pgid):
+    """PIDs in a process group, or [] when ps cannot answer."""
+    out = run(["/usr/bin/env", "LC_ALL=C", "LANG=C", "ps", "-g", str(pgid), "-o", "pid="])
+    try:
+        return [int(x) for x in out.split()]
+    except ValueError:
+        return []
 
 
 def pick_targets(cfg, procs, saferun):
@@ -2305,6 +2342,11 @@ def pick_targets(cfg, procs, saferun):
     del _DEMOTE_ONLY[:]
     del _GUI_HOT[:]
     _PROTECTED_HOT.clear()
+    _PROTECTED_NAMES["names"] = protected_names(cfg)
+    # A cached path belongs to a pid that may since have been reused; keep only live ones.
+    live = {p[0] for p in procs}
+    for old in [k for k in _EXE_CACHE if k not in live]:
+        _EXE_CACHE.pop(old, None)
     del _SYSTEM_HOT[:]
     system_demote = [p.lower() for p in (cfg.get("system_demote_patterns") or [])]
     never = [p.lower() for p in list(cfg["never_patterns"]) + list(cfg.get("never_extra") or [])]
@@ -2482,6 +2524,29 @@ def sig(pid, pgid, s):
     """
     import errno as _e
     error = 0
+    if pgid and s != signal.SIGCONT and _PROTECTED_NAMES["names"]:
+        # 21.10: OBS started by a script under safe-run sits in the job's group, and killpg
+        # froze or killed the recording with the job. Signal the other members one by one.
+        # If ps cannot list the group, fall through to killpg as before: losing the pause
+        # would leave the heat running.
+        members = group_members(pgid)
+        spared = {m for m in members
+                  if bundle_protected(exe_path(m), _PROTECTED_NAMES["names"])}
+        if spared:
+            if pgid not in _PROTECTED_GROUP_SAID:
+                _PROTECTED_GROUP_SAID.add(pgid)
+                log(T("protected app in process group %d; signaling the other members one by one")
+                    % pgid)
+            sent = 0
+            for m in members:
+                if m in spared:
+                    continue
+                try:
+                    os.kill(m, s)
+                    sent += 1
+                except OSError as ex:
+                    error = error or ex.errno
+            return 0 if sent else (error or _e.ESRCH)
     if pgid:
         try:
             os.killpg(pgid, s)
@@ -2639,9 +2704,8 @@ def do_pause(cfg, st, targets, reason, manual=False, critical_level=False,
                              "boot_session": boot if born else None, "cpu": cpu, "manual": manual,
                              "hold_s": hold_s, "flaps": flaps}
         save_state(st)
-        if not entry_identity_ok(st, key, st["paused"][key]):
-            save_state(st)
-            continue
+        # The identity was read a moment ago; a second read here could fail and leave a
+        # saved entry with no SIGSTOP behind it (status then showed a running job as paused).
         error = sig(pid, pgid, signal.SIGSTOP)
         if error == 0:
             changed = True
@@ -5076,7 +5140,9 @@ def hist_row(state, soc, soc_t, temp, fans, pct, ac, speed, load, lvl, top):
             max(fans) if fans and measured else "",
             "%.1f" % measured["watts"] if measured else "",
             pct if pct is not None else "", 1 if ac else 0,
-            speed, "%.2f" % load, lvl,
+            # 21.10: an unknown CPU limit is an empty cell, the file's own "not measured";
+            # str(None) put the word "None" into the repair-shop report.
+            "" if speed is None else speed, "%.2f" % load, lvl,
             top[2] if top else "", "%.0f" % top[1] if top else ""]
 
 
