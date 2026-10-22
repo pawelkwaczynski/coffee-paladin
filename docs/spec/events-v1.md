@@ -104,6 +104,7 @@ at daemon start (restoring a pause left by a previous run) and at daemon shutdow
 |---|---|---|
 | `name` | string | the resumed process |
 | `pid` | integer | its pid |
+| `pgid` | integer | present only when the paused process itself had already exited and the guard resumed what was left of its process group; `pid` is then the dead leader's pid |
 | `pause_s` | integer | how long it was paused |
 
 ### `pause_entry_dropped`
