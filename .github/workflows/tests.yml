@@ -1,0 +1,54 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    # Apple Silicon, like the tool itself. The runner has no guard installed, no macmon and
+    # no LaunchAgent: this checks the source, every test isolates itself with TG_BASE.
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Python tests (system python3, standard library only)
+        shell: bash
+        run: |
+          # Tests that need a guard installed on the machine, so they cannot pass here.
+          skip=(
+            tests/test_paladin.py  # runs ~/.local/bin/heat and reads the live ~/.coffee-paladin
+            tests/test_zegar_i_czujnik.py  # item 4 expects one macmon read; without macmon the guard tries both paths
+          )
+          /usr/bin/python3 --version
+          failed=()
+          for f in tests/test_*.py; do
+            if [[ " ${skip[*]} " == *" $f "* ]]; then
+              echo "skipped: $f"
+              continue
+            fi
+            echo "::group::$f"
+            /usr/bin/python3 "$f" || failed+=("$f")
+            echo "::endgroup::"
+          done
+          if [ ${#failed[@]} -gt 0 ]; then
+            printf 'FAILED: %s\n' "${failed[@]}"
+            exit 1
+          fi
+
+      - name: Swift syntax check
+        run: |
+          swiftc -parse heatbar.swift
+          swiftc -parse thermalstate.swift
+
+      - name: Lint (syntax errors and undefined names)
+        # ruff is a lint tool for CI only, fetched by pipx; the product stays stdlib-only.
+        run: pipx run ruff==0.15.5 check --select E9,F .
