@@ -18,6 +18,7 @@ Run with:  python3 tests/test_tor_sygnalowy.py
 Does not touch the real ~/.coffee-paladin. All test processes are cleaned up.
 """
 import os
+import resource
 import shutil
 import signal
 import subprocess
@@ -45,10 +46,16 @@ def test(name, condition, detail=""):
                            ("  -> " + detail) if detail and not condition else ""))
 
 
+def cpu_capped():
+    # 22.10: the load dies on its own after 60 s of CPU even when this test crashes or
+    # cannot clean up; eight orphaned `yes` from interrupted runs burned 100% for an hour.
+    resource.setrlimit(resource.RLIMIT_CPU, (60, 65))
+
+
 def launch(own_group=True):
     """Start a live cheap process; `yes` burns CPU so load effects are visible."""
     p = subprocess.Popen(["yes"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                         start_new_session=own_group)
+                         start_new_session=own_group, preexec_fn=cpu_capped)
     CHILDREN.append(p)
     time.sleep(0.25)
     return p

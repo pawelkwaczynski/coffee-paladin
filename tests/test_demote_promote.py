@@ -12,6 +12,7 @@ the system effect with `ps -o pri`, not just the guard's memory.
 Run with:  python3 testy/test_demote_promote.py
 """
 import os
+import resource
 import subprocess
 import sys
 import tempfile
@@ -58,8 +59,14 @@ CFG = {
 }
 
 
+def cpu_capped():
+    # 22.10: the load dies on its own after 60 s of CPU even when this test crashes or
+    # cannot clean up; eight orphaned `yes` from interrupted runs burned 100% for an hour.
+    resource.setrlimit(resource.RLIMIT_CPU, (60, 65))
+
+
 def main():
-    proc = subprocess.Popen(["yes"], stdout=subprocess.DEVNULL)
+    proc = subprocess.Popen(["yes"], stdout=subprocess.DEVNULL, preexec_fn=cpu_capped)
     try:
         pid = proc.pid
         targets = [(pid, 99.0, "yes", None)]

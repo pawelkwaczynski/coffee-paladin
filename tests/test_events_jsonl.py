@@ -12,6 +12,7 @@ Uses live processes in a temporary TG_BASE; does not touch ~/.coffee-paladin.
 """
 import json
 import os
+import resource
 import signal
 import subprocess
 import sys
@@ -58,9 +59,15 @@ def events():
     return [json.loads(line) for line in open(p) if line.strip()]
 
 
+def cpu_capped():
+    # 22.10: the load dies on its own after 60 s of CPU even when this test crashes or
+    # cannot clean up; eight orphaned `yes` from interrupted runs burned 100% for an hour.
+    resource.setrlimit(resource.RLIMIT_CPU, (60, 65))
+
+
 def launch():
     p = subprocess.Popen(["yes"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                         start_new_session=True)
+                         start_new_session=True, preexec_fn=cpu_capped)
     CHILDREN.append(p)
     time.sleep(0.25)
     return p
