@@ -3101,6 +3101,11 @@ def reassert_paused(cfg, st):
         return
     table = process_table()
     for key, info in list(st["paused"].items()):
+        # 23.10: an entry that got SIGCONT and SIGTERM and owes its SIGKILL (term_sent) is
+        # being ended, not paused. A STOP from a hot cycle froze it in the middle of its
+        # SIGTERM cleanup, and the next do_terminate had to wake it again.
+        if info.get("term_sent"):
+            continue
         pid = int(key)
         if alive(pid) and entry_identity_ok(st, key, info, table=table):
             sig(pid, info.get("pgid"), signal.SIGSTOP)
@@ -3592,7 +3597,11 @@ def handle_command(cfg, st, targets):
                    T("No heavy job meets the conditions"), key="freeze")
     elif command == "resume":
         st["reczna_pauza"] = False
-        do_resume(cfg, st, T("manual resume (from the menu bar)"))
+        # 23.10: an entry that owes its SIGKILL (term_sent) is not a pause to undo. Resuming
+        # it deleted the entry, and with it the only record that the KILL was still due.
+        keys = [k for k, v in st["paused"].items() if not v.get("term_sent")]
+        if keys:
+            do_resume(cfg, st, T("manual resume (from the menu bar)"), only_keys=keys)
 
 
 _CHIP_PROFILE = {"at": 0.0, "data": None}
@@ -5439,10 +5448,13 @@ def status_write(state, temp, soc, soc_t, ac, pct, speed, load, lvl, why, target
         "paused": [v.get("comm") for v in st.get("paused", {}).values()],
         # Structured pause entries so the bar, agents, and `status` can tell a
         # ticking guard pause from anything else without parsing state.json.
-        "paused_details": [{"name": v.get("comm"), "pid": int(k),
-                            "since": v.get("since"), "reason": v.get("powod"),
-                            "manual": bool(v.get("manual")),
-                            "age_s": round(_pause_age(v))}
+        # 23.10: "terminating" marks an entry that already got SIGCONT and SIGTERM and still
+        # owes its SIGKILL (term_sent): the process may be running. Absent for a real pause.
+        "paused_details": [dict({"name": v.get("comm"), "pid": int(k),
+                                 "since": v.get("since"), "reason": v.get("powod"),
+                                 "manual": bool(v.get("manual")),
+                                 "age_s": round(_pause_age(v))},
+                                **({"terminating": True} if v.get("term_sent") else {}))
                            for k, v in st.get("paused", {}).items()],
         # E-core demotion is INVISIBLE in temperature (44 C looks like cooling success) but
         # can cut job speed by 11x. It must be explicit in the snapshot.
