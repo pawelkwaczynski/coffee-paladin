@@ -84,6 +84,12 @@ test("metrics-v1.md lists guard_version in status.json",
 row = next((x for x in spec.splitlines() if x.startswith("| `coffee_paladin_build_info`")), "")
 test("the build_info row no longer says the local machine has no sample",
      "local machine" in row and "has no sample" not in row, row)
+# 23.10: both rows said the field is absent "up to and including 3.3.5" while GUARD_VERSION was
+# still 3.3.5 and this very code wrote it. A release number there is wrong until the bump and
+# easy to forget after it; the rows say "an older daemon" instead.
+gv_row = next((x for x in status_part.splitlines() if re.match(r"\|\s*`guard_version`\s*\|", x)), "")
+test("neither row names the current version as one that lacks guard_version",
+     gv_row and g.GUARD_VERSION not in gv_row and g.GUARD_VERSION not in row, (gv_row, row))
 
 print("\nRESULT: %d/%d" % (passed, total))
 sys.exit(0 if passed == total else 1)
