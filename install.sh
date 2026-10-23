@@ -357,8 +357,8 @@ if [ -f "$SRC/integrations/claude-code/statusline.sh" ]; then
   cp "$SRC/integrations/claude-code/agent_hook.py" "$BASE/agent_hook.py"
   chmod 0755 "$BASE/statusline.sh" "$BASE/settings_wire.py" "$BASE/agent_hook.py"
   # Gate adapters for the other agent CLIs (Codex, Gemini, Grok, Antigravity,
-  # Copilot). Copied so `coffee-paladin-wire` and uninstall.sh can run them
-  # later; the gate stays OPT-IN for each of them except Copilot CLI below.
+  # Copilot). Copied so they can be run by hand (README) and by uninstall.sh;
+  # the gate stays OPT-IN for each of them except Copilot CLI below.
   # Cursor's adapter is not copied until it has been tried on a live Cursor.
   for AGENT_WIRE in codex gemini grok antigravity copilot; do
     if [ -f "$SRC/integrations/$AGENT_WIRE/hooks_wire.py" ]; then
@@ -369,14 +369,28 @@ if [ -f "$SRC/integrations/claude-code/statusline.sh" ]; then
   # 23.10: Copilot CLI is wired here, but only where the `copilot` command is on
   # PATH. A ~/.copilot directory proves nothing: the IDE extension leaves one
   # behind, and VS Code reads ~/.copilot/hooks through a harness of its own.
+  # The command alone proves nothing either - AWS Copilot CLI installs a
+  # `copilot` too - so it also takes a trace only the CLI leaves (session-state/
+  # or command-history-state/, per GitHub's config directory reference), and
+  # an earlier `unhook` is a choice every later install keeps.
   # The hook lives in its own file, answers on stdout and ends in `|| true`,
   # so a missing or broken gate lets every tool call through.
   if command -v copilot >/dev/null 2>&1 && [ -f "$BASE/copilot_hooks_wire.py" ]; then
-    case "$(/usr/bin/python3 "$BASE/copilot_hooks_wire.py" hook 2>/dev/null)" in
-      ok)   echo "  ✅ Copilot CLI: hook-gate wired (restart running copilot sessions to load it)" ;;
-      skip) echo "  ℹ️  Copilot CLI found, but its config directory does not exist yet - after the first"
-            echo "     copilot run:  python3 $BASE/copilot_hooks_wire.py hook" ;;
-    esac
+    COPILOT_DIR="${COPILOT_HOME:-$HOME/.copilot}"
+    if [ -e "$BASE/copilot_hook_off" ]; then
+      echo "  ℹ️  Copilot CLI: hook-gate left off, as switched off with unhook - to wire it again:"
+      echo "     python3 $BASE/copilot_hooks_wire.py hook"
+    elif [ ! -d "$COPILOT_DIR/session-state" ] && [ ! -d "$COPILOT_DIR/command-history-state" ]; then
+      echo "  ℹ️  a copilot command is on PATH, but GitHub Copilot CLI has left no session in $COPILOT_DIR"
+      echo "     (another tool may share the name) - after a first copilot run:  python3 $BASE/copilot_hooks_wire.py hook"
+    else
+      case "$(/usr/bin/python3 "$BASE/copilot_hooks_wire.py" hook 2>/dev/null)" in
+        ok)      echo "  ✅ Copilot CLI: hook-gate wired (restart running copilot sessions to load it)" ;;
+        foreign) echo "  ⚠️  Copilot CLI: $COPILOT_DIR/hooks/coffee-paladin.json is not the paladin's own - left"
+                 echo "     untouched, hook-gate NOT wired" ;;
+        *)       echo "  ⚠️  Copilot CLI: hook-gate NOT wired - run:  python3 $BASE/copilot_hooks_wire.py hook" ;;
+      esac
+    fi
   fi
   if [ -d "$HOME/.claude" ]; then
     REPLACE_FLAG=""

@@ -96,6 +96,11 @@ fi
 # The other hosts' gate registrations: same dangling-entry logic, one adapter
 # per dialect. Each prints none/skip harmlessly where it was never wired.
 # 23.10: cursor's adapter is there only if it was copied by hand (README).
+# Copilot's unhook records a "switched off" choice that install.sh keeps; one
+# made here would only be uninstall's, so it goes, and one the user made stays.
+COPILOT_OFF="$HOME/.coffee-paladin/copilot_hook_off"
+COPILOT_OFF_BEFORE=""
+[ -e "$COPILOT_OFF" ] && COPILOT_OFF_BEFORE=1
 for AGENT_WIRE in codex gemini grok antigravity copilot cursor; do
   if [ -f "$HOME/.coffee-paladin/${AGENT_WIRE}_hooks_wire.py" ]; then
     case "$(/usr/bin/python3 "$HOME/.coffee-paladin/${AGENT_WIRE}_hooks_wire.py" unhook 2>/dev/null)" in
@@ -103,6 +108,7 @@ for AGENT_WIRE in codex gemini grok antigravity copilot cursor; do
     esac
   fi
 done
+[ -z "$COPILOT_OFF_BEFORE" ] && rm -f "$COPILOT_OFF"
 rm -f "$HOME/.coffee-paladin/statusline.sh" "$HOME/.coffee-paladin/settings_wire.py" "$HOME/.coffee-paladin/agent_hook.py"
 rm -f "$HOME/.coffee-paladin/"*_hooks_wire.py
 # old names from versions <=2.1.0 (compatibility symlinks, no longer created)

@@ -97,8 +97,9 @@ switched from the menu bar (*Settings > Language*), with `TG_LANG` or `"lang"` i
 - **Not tied to any AI tool.** The agent skill, the hooks, the statusline and the plugin
   manifest are optional integrations. `install.sh` installs the skill and wires the statusline
   only where the matching tool already exists on the machine, and never replaces a statusline
-  somebody else configured unless you pass `--replace`. It wires no hook at all: the hook
-  adapters are copied into `~/.coffee-paladin/` and each one is switched on by hand (see the hook section below).
+  somebody else configured unless you pass `--replace`. It wires one hook on its own, GitHub
+  Copilot CLI's, and only where that CLI is installed and has run; every other hook adapter is
+  copied into `~/.coffee-paladin/` and switched on by hand (see the hook section below).
   The daemon runs without any of them.
 
 ---
@@ -760,12 +761,21 @@ with exit 0; a call that may run gets an empty stdout, never an "allow". Both
 are checked against the payloads in each host's documentation, not yet in a
 live session.
 
-Wiring stays **opt-in per host**, one adapter each, every one with the same
-manners as the Claude wiring (own entry appended under a file lock, foreign
-entries never touched, timestamped backup before every write, unwire removes
-exactly ours). The one exception is Copilot CLI: `install.sh` wires it when
-the `copilot` command is on PATH (a `~/.copilot` directory alone does not
-count), in a file of its own under `~/.copilot/hooks/`.
+Wiring stays **opt-in per host**, one adapter each. Where the host keeps its
+hooks in a file shared with the user's own (Claude Code, Codex, Gemini,
+Antigravity, Cursor), the adapter has the manners of the Claude wiring: own
+entry appended under a file lock, foreign entries never touched, timestamped
+backup before every write, unwire removes exactly ours. Grok and Copilot CLI
+read a whole directory of hook files, so there the paladin writes one file of
+its own, `coffee-paladin.json`, and opens no other; the Copilot adapter also
+leaves alone a file of that name that it did not write.
+
+The one exception to opt-in is Copilot CLI: `install.sh` wires it when the
+`copilot` command is on PATH and GitHub Copilot CLI has left a session in
+`~/.copilot` (the directory alone, which the IDE extension creates, does not
+count, and neither does another vendor's `copilot`). `copilot_hooks_wire.py
+unhook` switches it off for good: later installs leave it off until `hook` is
+run again.
 
 ```bash
 python3 ~/.coffee-paladin/settings_wire.py hook          # Claude Code
@@ -775,14 +785,20 @@ python3 ~/.coffee-paladin/grok_hooks_wire.py hook        # Grok Build
 python3 ~/.coffee-paladin/antigravity_hooks_wire.py hook # Antigravity
 python3 ~/.coffee-paladin/copilot_hooks_wire.py hook     # Copilot CLI (install.sh does this; restart copilot)
 
-# Cursor, experimental, not yet tried on a live Cursor; from the repository directory:
-cp integrations/cursor/hooks_wire.py ~/.coffee-paladin/cursor_hooks_wire.py
+# Cursor, experimental, not yet tried on a live Cursor (from a source checkout, copy
+# integrations/cursor/hooks_wire.py instead):
+cp "$(brew --prefix)/share/coffee-paladin/integrations/cursor/hooks_wire.py" ~/.coffee-paladin/cursor_hooks_wire.py
 python3 ~/.coffee-paladin/cursor_hooks_wire.py hook
 ```
 
 (`unhook` reverses each one; `uninstall.sh` runs them all.) Copilot CLI does
 not read `~/.claude/settings.json`, so the Claude wiring does not cover it.
-Grok additionally
+VS Code reads the same `~/.copilot/hooks/` directory for sessions on its
+Copilot harness, so the Copilot file reaches those sessions too (not tried in
+a live VS Code yet). Cursor, with its Third-Party Imports setting on (the
+default), also runs the hooks in `~/.claude/settings.json`, so a gate wired for
+Claude Code may already run there, and wiring the Cursor adapter on top of it
+would run the gate twice. Grok additionally
 scans `~/.claude/settings.json` for hooks by default, so a Claude-wired gate
 already covers it - the native file only matters when that compatibility is
 switched off. Gemini's timeout field is in milliseconds where everyone else
