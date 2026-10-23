@@ -8,7 +8,9 @@ one beforeShellExecution entry; a file that is not a JSON object is never "repai
 a byte changed); a schema we do not know (no version 1, hooks not an object, the event not a
 list) is "foreign" and left alone; our entry is appended after the user's, every write leaves a
 timestamped backup, wiring is idempotent, unwire removes exactly ours and the events we
-emptied, and version stays. End to end, the command from the file, run through sh -c with a
+emptied, and version stays. 23.10: "ours" is exactly our command under beforeShellExecution; a
+stranger's entry that only mentions "coffee-paladin hook-gate", there or under another event, is
+theirs. End to end, the command from the file, run through sh -c with a
 beforeShellExecution payload, denies a bare encoder with Cursor's JSON and exit 0, and exits 0
 with an empty stdout when the binary is gone.
 
@@ -129,7 +131,8 @@ def hook(payload):
 
 
 r = hook(payload)
-test("10. without the binary: exit 0 and an empty stdout", r.returncode == 0 and r.stdout == "",
+test("10. without the binary: exit 0 and an empty stdout, the same answer as an allow (whether"
+     " Cursor reads it as one is open until a live pilot)", r.returncode == 0 and r.stdout == "",
      (r.returncode, r.stdout[:120]))
 os.makedirs(os.path.dirname(binary))
 os.symlink(os.path.join(SRC, "guard.py"), binary)
@@ -187,6 +190,28 @@ r = subprocess.run([sys.executable, WIRE, "unhook"], env=env_for(spaced), captur
                    timeout=30)
 data = json.load(open(os.path.join(spaced, ".cursor", "hooks.json")))
 test("23. ...and unhook finds it", r.stdout.strip() == "ok" and data["hooks"] == {}, repr(data))
+
+print("=== a stranger's entry that mentions the gate ===")
+home = tempfile.mkdtemp(prefix="tg-cursorwire-")
+os.makedirs(os.path.join(home, ".cursor"))
+path = os.path.join(home, ".cursor", "hooks.json")
+ours = {"command": os.path.join(home, ".local", "bin", "coffee-paladin") + " hook-gate || true",
+        "timeout": 10}
+wrapper = {"command": "./hooks/audit.sh --then coffee-paladin hook-gate", "timeout": 20}
+logger = {"command": "echo coffee-paladin hook-gate >> ~/hook.log"}
+mentions = {"version": 1, "hooks": {"beforeShellExecution": [wrapper], "afterShellExecution": [logger]}}
+open(path, "w").write(json.dumps(mentions))
+r = run(home, "hook")
+data = json.load(open(path))
+test("24. a stranger's wrapper that mentions the gate is not taken for ours: ours is appended",
+     r.stdout.strip() == "ok" and data["hooks"]["beforeShellExecution"] == [wrapper, ours], repr(data))
+r = run(home, "unhook")
+data = json.load(open(path))
+test("25. unhook removes ours only: the wrapper and the other event's entry stay",
+     r.stdout.strip() == "ok" and data == mentions, repr(data))
+r = run(home, "unhook")
+test("26. ...and a second unhook finds nothing of ours", r.stdout.strip() == "none"
+     and json.load(open(path)) == mentions, r.stdout)
 
 print("\nRESULT: %d/%d" % (passed, total))
 sys.exit(0 if passed == total else 1)

@@ -13,14 +13,22 @@ Registered shape (read 23.10 from cursor.com/docs/hooks): ``{"version": 1,
 the timeout in seconds. The gate recognises Cursor's payload by its
 cursor_version field and answers a deny with Cursor's own JSON and exit 0. No
 matcher (for this event it filters the command text, which is the gate's job)
-and no failClosed: a broken gate must let work through. The command ends in
-``|| true`` like the Copilot one, so no exit code of ours is ever read as a
-verdict.
+and no failClosed: a broken gate must let work through.
+
+23.10: an entry is ours only when it sits under beforeShellExecution and its
+command is exactly the one this script writes. A stranger's script that merely
+mentions "coffee-paladin hook-gate" is theirs and is never removed.
 
 Not tried against a live Cursor yet, which is why install.sh does not run it:
 the docs leave open whether an empty stdout at exit 0 - the gate's way of
 saying "allowed" - counts as no output or as invalid JSON, which Cursor treats
-as a block for permission hooks.
+as a block for permission hooks. The command ends in ``|| true`` like the
+Copilot one, and here that is a trade, not a guarantee: it stops a stray exit
+2 from reading as a deny, but Cursor already lets other non-zero exits through,
+and ``|| true`` turns a missing binary's 127 into exit 0 with an empty stdout -
+the same open question as an allow. Pilot on a live Cursor before calling it
+wired: a light command (echo) runs, a bare encoder is refused with the hint,
+and with the binary renamed away echo still runs.
 
 Prints one word the caller can branch on: ok / foreign / skip / none.
 Respects $HOME, so tests run against a sandbox home.
@@ -28,7 +36,6 @@ Respects $HOME, so tests run against a sandbox home.
 import fcntl
 import json
 import os
-import re
 import shlex
 import stat
 import sys
@@ -38,9 +45,6 @@ CURSOR_DIR = os.path.join(os.path.expanduser("~"), ".cursor")
 HOOKS = os.path.join(CURSOR_DIR, "hooks.json")
 LOCK = os.path.join(CURSOR_DIR, ".coffee-paladin-hooks.lock")
 EVENT = "beforeShellExecution"
-# 23.10: the binary path may be shell-quoted (a home with a space), so the closing
-# quote can sit between the two words.
-GATE_MARK = re.compile(r"coffee-paladin'? hook-gate")
 MISSING = object()
 BROKEN = object()
 
@@ -79,7 +83,7 @@ def save(data):
 
 
 def _is_ours(hook):
-    return isinstance(hook, dict) and bool(GATE_MARK.search(str(hook.get("command", ""))))
+    return isinstance(hook, dict) and hook.get("command") == gate_command()
 
 
 def hook_wire():
@@ -123,22 +127,18 @@ def hook_unwire():
         print("none")
         return
     hooks = data["hooks"]
-    changed = False
-    for name in list(hooks):
-        entries = hooks[name]
-        if not isinstance(entries, list):
-            continue
-        kept = [h for h in entries if not _is_ours(h)]
-        if len(kept) == len(entries):
-            continue
-        changed = True
-        if kept:
-            hooks[name] = kept
-        else:
-            del hooks[name]     # an event we emptied held only ours
-    if not changed:
+    entries = hooks.get(EVENT)
+    if not isinstance(entries, list):
         print("none")
         return
+    kept = [h for h in entries if not _is_ours(h)]
+    if len(kept) == len(entries):
+        print("none")
+        return
+    if kept:
+        hooks[EVENT] = kept
+    else:
+        del hooks[EVENT]        # an event we emptied held only ours
     save(data)
     print("ok")
 
