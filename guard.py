@@ -3183,16 +3183,26 @@ def do_terminate(cfg, st, reason, only_keys=None):
         sig(pid, info.get("pgid"), signal.SIGCONT)
         sig(pid, info.get("pgid"), signal.SIGTERM)
         victims.append((key, info))
-        log(T("TERMINATED (SIGTERM) %s (pid %d) - %s") % (info.get("comm", "?"), pid, reason), tag="KILL")
-        event_jsonl("terminate", name=info.get("comm"), pid=pid,
-                    pgid=info.get("pgid"), reason_code=info.get("powod"),
-                    pause_s=round(_pause_age(info)))
-        licznik(st, "kills")
+        if info.get("term_sent"):
+            # 23.10: the termination of this job was counted, tagged [KILL] and written to
+            # the event stream at its first SIGTERM. Doing it again for the repeat counted
+            # one job twice in kills_total, twice in the day's statistics and in the event
+            # stream, and sent a second STOPPED notification.
+            log("SIGTERM repeated for %s (pid %d) - the SIGKILL is still owed"
+                % (info.get("comm", "?"), pid))
+        else:
+            log(T("TERMINATED (SIGTERM) %s (pid %d) - %s") % (info.get("comm", "?"), pid, reason),
+                tag="KILL")
+            event_jsonl("terminate", name=info.get("comm"), pid=pid,
+                        pgid=info.get("pgid"), reason_code=info.get("powod"),
+                        pause_s=round(_pause_age(info)))
+            licznik(st, "kills")
         del st["paused"][key]
     if victims:
-        notify(cfg, T("Thermal guard: STOPPED"),
-               T("Jobs terminated (%s). Resume from a checkpoint once the Mac has cooled down.")
-               % reason, "kill")
+        if any(not info.get("term_sent") for _key, info in victims):
+            notify(cfg, T("Thermal guard: STOPPED"),
+                   T("Jobs terminated (%s). Resume from a checkpoint once the Mac has cooled down.")
+                   % reason, "kill")
         time.sleep(20)
         table = process_table()
         for key, info in victims:
@@ -6273,8 +6283,12 @@ def main():
                 expired_keys = []
             if expired_keys:
                 for k in expired_keys:
+                    # 23.10: no [KILL] tag. do_terminate tags its TERMINATED line, and this
+                    # notice is written also when do_terminate then skips the entry, so the
+                    # day's count read from guard.log had every such job twice or a kill
+                    # that never happened.
                     log(T("PAUSE >%d min - terminating job %s (pid %s)")
-                        % (limit_min, st["paused"][k].get("comm"), k), tag="KILL")
+                        % (limit_min, st["paused"][k].get("comm"), k))
                 do_terminate(cfg, st, T("paused for longer than %d min") % limit_min,
                              only_keys=expired_keys)
 

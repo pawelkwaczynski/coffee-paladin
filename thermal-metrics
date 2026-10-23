@@ -280,7 +280,8 @@ def collect(reg, snap, path, labels, readable=True):
         for field, metric, help_text in (
                 ("pauses", "pauses_total", "Jobs frozen since the guard was installed"),
                 ("resumes", "resumes_total", "Jobs resumed after cooling"),
-                ("kills", "kills_total", "Jobs terminated at the kill threshold"),
+                ("kills", "kills_total",
+                 "Terminations started (SIGTERM), once per job, at the kill threshold or after the pause limit"),
                 ("awake_released_hot", "awake_released_hot_total",
                  "Times the sleep lock was released because of heat")):
             reg.add(metric, total.get(field), labels=labels, kind="counter",

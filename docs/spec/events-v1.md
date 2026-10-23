@@ -122,7 +122,9 @@ Source `guard`. The guard forgot a pause entry without sending any signal.
 
 Source `guard`. Written when the guard ended a paused process: `SIGCONT` followed by
 `SIGTERM`, at the critical level or when a pause outlasted its limit. Manual freezes are never
-terminated, so they never produce this event.
+terminated, so they never produce this event. Written once per job: when the process listing
+after the grace period fails, the `SIGKILL` waits and the next attempt repeats `SIGTERM`, and
+that repeat writes no second line.
 
 | Field | Type | Meaning |
 |---|---|---|

@@ -676,7 +676,9 @@ for _l in ("en", "pl", "ru", "zh", "es"):
         "pauza": "[PAUSE] " + _entry(_l, K_PAUSE, ("ffmpeg", 1, 99, "chip 90 C")),
         "wznow": "[RESUME] " + _entry(_l, K_RESUME, ("ffmpeg", 1, "cooled down")),
         "ubicie": "[KILL] " + _entry(_l, K_KILL, ("ffmpeg", 1, "chip 95 C")),
-        "zapowiedz": "[KILL] " + _entry(_l, K_ANNOUNCE, (45, "ffmpeg", 1)),
+        # 23.10: the pause-limit notice carries no tag in production; the TERMINATED line
+        # that follows it is the one kill.
+        "zapowiedz": _entry(_l, K_ANNOUNCE, (45, "ffmpeg", 1)),
     }
 
 
@@ -746,6 +748,10 @@ def fuzz_day_stats(seed, n):
             if st["kills"] < oczek["kills"]:
                 s.nonsense(input_path, "language %s: counted %d kills instead of %d"
                          % (lang, st["kills"], oczek["kills"]), "MEDIUM", key="ubicia-jezyki")
+            if not poisoned and st["kills"] > oczek["kills"]:
+                s.nonsense(input_path, "language %s: counted %d kills instead of %d - the "
+                           "pause-limit notice was counted as a kill"
+                           % (lang, st["kills"], oczek["kills"]), "MEDIUM", key="zapowiedz-jako-kill")
             if announcements and not poisoned and st["pauses"] > oczek["pauses"]:
                 s.nonsense(input_path,
                          "language %s: kill announcement ('PAUZA >45 min - koncze zadanie') was "

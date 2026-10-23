@@ -106,8 +106,8 @@ every fourth cycle and repeated in between.
 | `awake_mode` | string or null | manual keep-awake mode set from the menu bar: `timer`, `forever`, `app` or `download`; null when none |
 | `awake_until` | number or null | end of a `timer` keep-awake, Unix epoch seconds |
 | `awake_app` | string or null | the app an `app` keep-awake waits for |
-| `stats` | object | today's interventions (local date): `pauses`, `resumes`, `kills`, integers; every ~1 min |
-| `stats_total` | object | interventions since the counters were last reset by hand: `since` (Unix epoch seconds) and the integer counters `pauses`, `resumes`, `kills`, `awake_released_hot`; a counter appears after its first event. Manual freezes are not counted |
+| `stats` | object | today's interventions (local date): `pauses`, `resumes`, `kills`, integers; `kills` counts terminations started (`SIGTERM` sent), once per job; every ~1 min |
+| `stats_total` | object | interventions since the counters were last reset by hand: `since` (Unix epoch seconds) and the integer counters `pauses`, `resumes`, `kills`, `awake_released_hot`; a counter appears after its first event. `kills` counts terminations started (`SIGTERM` sent), once per job, whether or not a `SIGKILL` followed. Manual freezes are not counted |
 | `stats_session` | object | the same counters since the daemon started |
 | `chip_profile` | object or null | what temperatures this Mac reaches, from its own `history.csv`, recomputed at most hourly; null with fewer than 200 chip readings |
 | `chip_profile.samples` | integer | readings the profile is built from |
@@ -218,7 +218,7 @@ or writes a file atomically for a textfile collector, and exits.
 | `coffee_paladin_dry_run` | gauge | host | `dry_run`; `1` means the machine is watched, not protected |
 | `coffee_paladin_pauses_total` | counter | host | `stats_total.pauses` |
 | `coffee_paladin_resumes_total` | counter | host | `stats_total.resumes` |
-| `coffee_paladin_kills_total` | counter | host | `stats_total.kills` |
+| `coffee_paladin_kills_total` | counter | host | `stats_total.kills`: terminations started, once per job |
 | `coffee_paladin_awake_released_hot_total` | counter | host | `stats_total.awake_released_hot` |
 | `coffee_paladin_chip_profile_samples` | gauge | host | `chip_profile.samples` |
 | `coffee_paladin_chip_p50_celsius` | gauge | host | `chip_profile.p50` |
