@@ -1329,7 +1329,7 @@ MIT - do whatever you like with it. If it saves your machine, that is satisfacti
 <p align="center"><sub>Click the product name at the top of the menu and the paladin steps out, pinned under the bar.</sub></p>
 
 **Artwork.** The paladin - the mascot you see above, in the welcome window, in the menu header
-and in the `heat --paladin` easter egg - is **the author's own design** and is used
+and in the `heat --paladin` easter egg - was **generated with ChatGPT (OpenAI)** and is used
 as the official mascot of the project. Everything else in `branding/` is derived from those two
 source files; details in [`branding/CREDITS.md`](branding/CREDITS.md).
 

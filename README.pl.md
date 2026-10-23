@@ -840,7 +840,7 @@ MIT. Rób z tym co chcesz. Jeśli uratuje Ci komputer, to wystarczająca satysfa
 <p align="center"><sub>Kliknij nazwę na górze menu, a paladyn wychodzi, przypięty pod paskiem.</sub></p>
 
 **Grafika.** Paladyn, maskotka z nagłówka, z okna powitalnego, z menu i z easter eggów
-`heat --paladin`, to **projekt własny autora** i jest używany jako oficjalna
+`heat --paladin`, został **wygenerowany w ChatGPT (OpenAI)** i jest używany jako oficjalna
 maskotka projektu. Reszta plików w `branding/` to pochodne tych dwóch źródeł; szczegóły
 w [`branding/CREDITS.md`](branding/CREDITS.md).
 

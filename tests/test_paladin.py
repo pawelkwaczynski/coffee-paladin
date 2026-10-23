@@ -186,17 +186,29 @@ test("10. derived assets: animated welcome.gif + PNG in same frame, no menu thum
      ok10, "welcome %sx%s frames=%s (%.1f MB), png %sx%s"
            % (ww, wh, wk, size_bytes / 1048576.0, fw, fh))
 
-# 11. Art provenance is recorded where someone will see it: CREDITS and README.
+# 11. Art provenance is recorded where someone will see it: CREDITS and every README.
+# 23.10: the authorship note said the paladin was generated with ChatGPT while the
+# Artwork paragraph called it the author's own design; the author confirmed ChatGPT.
+# Every language's artwork paragraph has to say the same as the note.
+ART_HEADS = {"README.md": "**Artwork.**", "README.pl.md": "**Grafika.**",
+             "README.es.md": "**Ilustración.**", "README.ru.md": "**Графика.**",
+             "README.zh.md": "**美术。**"}
 try:
     credits = read_file("branding/CREDITS.md")
-    rd = read_file("README.md")
-    ok11 = ("paladin.gif" in credits and "asny autora" in credits
-            and "own design" in rd)
+    art_ok = {}
+    for name, head in ART_HEADS.items():
+        txt = read_file(name)
+        para = txt[txt.index(head):].split("\n\n", 1)[0] if head in txt else ""
+        art_ok[name] = "ChatGPT" in para and "own design" not in para
+    credits_paladin = credits.split("## Ikona", 1)[0]
+    ok11 = ("paladin.gif" in credits and "ChatGPT" in credits_paladin
+            and "projekt własny" not in credits_paladin and all(art_ok.values()))
 except Exception:
-    credits = rd = ""
+    credits, art_ok = "", {}
     ok11 = False
-test("11. art provenance note in CREDITS.md and README", ok11,
-     "CREDITS: %s, README: %s" % ("asny autora" in credits, "own design" in rd))
+test("11. art provenance: ChatGPT in CREDITS.md and in every README's artwork paragraph", ok11,
+     "CREDITS paladin section: %s, README: %s"
+     % ("ChatGPT" in credits.split("## Ikona", 1)[0], art_ok))
 
 # 12. The welcome window prefers animation, and install.sh copies it.
 sh = read_file("install.sh")

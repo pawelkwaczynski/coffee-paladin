@@ -4,12 +4,12 @@
 
 | Plik | Co to jest | Skąd |
 |---|---|---|
-| `paladin.png` | oficjalna grafika statyczna, 1024×1536 | **projekt własny autora** |
-| `paladin.gif` | oficjalna animacja, 20 klatek, 768×1152, przezroczyste tło | **projekt własny autora** |
+| `paladin.png` | oficjalna grafika statyczna, 1024×1536 | **wygenerowana w ChatGPT (OpenAI)** |
+| `paladin.gif` | oficjalna animacja, 20 klatek, 768×1152, przezroczyste tło | **grafika z ChatGPT (OpenAI)** |
 | `paladin_welcome.gif` | animacja przeskalowana do okna powitalnego (352×480) | pochodna `paladin.gif` |
 | `paladin_welcome.png` | klatka statyczna jako fallback | pochodna `paladin.gif` |
 
-Grafika paladyna to **projekt własny autora projektu** i jest używana jako
+Grafika paladyna została **wygenerowana w ChatGPT (OpenAI)** i jest używana jako
 oficjalna maskotka `coffee-paladin`.
 Wersje pochodne (skalowanie, kadrowanie, konwersja na półbloki ANSI w CLI) powstały
 z tych dwóch plików źródłowych — nie ma innego źródła grafiki postaci.
