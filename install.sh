@@ -356,15 +356,28 @@ if [ -f "$SRC/integrations/claude-code/statusline.sh" ]; then
   cp "$SRC/integrations/claude-code/settings_wire.py" "$BASE/settings_wire.py"
   cp "$SRC/integrations/claude-code/agent_hook.py" "$BASE/agent_hook.py"
   chmod 0755 "$BASE/statusline.sh" "$BASE/settings_wire.py" "$BASE/agent_hook.py"
-  # Gate adapters for the other agent CLIs (Codex, Gemini, Grok, Antigravity).
-  # Copied so `coffee-paladin-wire` and uninstall.sh can run them later; the
-  # gate itself stays OPT-IN everywhere - nothing is wired here.
-  for AGENT_WIRE in codex gemini grok antigravity; do
+  # Gate adapters for the other agent CLIs (Codex, Gemini, Grok, Antigravity,
+  # Copilot). Copied so `coffee-paladin-wire` and uninstall.sh can run them
+  # later; the gate stays OPT-IN for each of them except Copilot CLI below.
+  # Cursor's adapter is not copied until it has been tried on a live Cursor.
+  for AGENT_WIRE in codex gemini grok antigravity copilot; do
     if [ -f "$SRC/integrations/$AGENT_WIRE/hooks_wire.py" ]; then
       cp "$SRC/integrations/$AGENT_WIRE/hooks_wire.py" "$BASE/${AGENT_WIRE}_hooks_wire.py"
       chmod 0755 "$BASE/${AGENT_WIRE}_hooks_wire.py"
     fi
   done
+  # 23.10: Copilot CLI is wired here, but only where the `copilot` command is on
+  # PATH. A ~/.copilot directory proves nothing: the IDE extension leaves one
+  # behind, and VS Code reads ~/.copilot/hooks through a harness of its own.
+  # The hook lives in its own file, answers on stdout and ends in `|| true`,
+  # so a missing or broken gate lets every tool call through.
+  if command -v copilot >/dev/null 2>&1 && [ -f "$BASE/copilot_hooks_wire.py" ]; then
+    case "$(/usr/bin/python3 "$BASE/copilot_hooks_wire.py" hook 2>/dev/null)" in
+      ok)   echo "  ✅ Copilot CLI: hook-gate wired (restart running copilot sessions to load it)" ;;
+      skip) echo "  ℹ️  Copilot CLI found, but its config directory does not exist yet - after the first"
+            echo "     copilot run:  python3 $BASE/copilot_hooks_wire.py hook" ;;
+    esac
+  fi
   if [ -d "$HOME/.claude" ]; then
     REPLACE_FLAG=""
     for a in "$@"; do [ "$a" = "--replace" ] && REPLACE_FLAG="--replace"; done

@@ -754,10 +754,18 @@ fail-open on anything unexpected, because a broken gate must never hold a
 coding session hostage. `PALADIN_HOOK=off` disables it for one deliberate
 command; `hook_heavy_patterns` in config.json replaces the built-in list.
 
+GitHub Copilot CLI and Cursor are told apart by their payloads (Copilot's
+`toolArgs`, Cursor's `cursor_version`) and get their own JSON deny on stdout
+with exit 0; a call that may run gets an empty stdout, never an "allow". Both
+are checked against the payloads in each host's documentation, not yet in a
+live session.
+
 Wiring stays **opt-in per host**, one adapter each, every one with the same
 manners as the Claude wiring (own entry appended under a file lock, foreign
 entries never touched, timestamped backup before every write, unwire removes
-exactly ours):
+exactly ours). The one exception is Copilot CLI: `install.sh` wires it when
+the `copilot` command is on PATH (a `~/.copilot` directory alone does not
+count), in a file of its own under `~/.copilot/hooks/`.
 
 ```bash
 python3 ~/.coffee-paladin/settings_wire.py hook          # Claude Code
@@ -765,9 +773,16 @@ python3 ~/.coffee-paladin/codex_hooks_wire.py hook       # Codex CLI (trust the 
 python3 ~/.coffee-paladin/gemini_hooks_wire.py hook      # Gemini CLI
 python3 ~/.coffee-paladin/grok_hooks_wire.py hook        # Grok Build
 python3 ~/.coffee-paladin/antigravity_hooks_wire.py hook # Antigravity
+python3 ~/.coffee-paladin/copilot_hooks_wire.py hook     # Copilot CLI (install.sh does this; restart copilot)
+
+# Cursor, experimental, not yet tried on a live Cursor; from the repository directory:
+cp integrations/cursor/hooks_wire.py ~/.coffee-paladin/cursor_hooks_wire.py
+python3 ~/.coffee-paladin/cursor_hooks_wire.py hook
 ```
 
-(`unhook` reverses each one; `uninstall.sh` runs them all.) Grok additionally
+(`unhook` reverses each one; `uninstall.sh` runs them all.) Copilot CLI does
+not read `~/.claude/settings.json`, so the Claude wiring does not cover it.
+Grok additionally
 scans `~/.claude/settings.json` for hooks by default, so a Claude-wired gate
 already covers it - the native file only matters when that compatibility is
 switched off. Gemini's timeout field is in milliseconds where everyone else
@@ -831,8 +846,8 @@ Off switch: `"agent_activity": false`.
   integration is writing `~/.coffee-paladin/claude_usage_cache.json` (whitelisted fields, no
   session ids or paths); when that file is missing or older than five minutes the function
   returns nothing and the row is not drawn. The bar never queries any account.
-- `integrations/` holds hooks for five CLI agents (Claude Code, Codex, Gemini CLI, Grok,
-  Antigravity) next to the terminal integrations. A hook makes the agent ask the guard before
+- `integrations/` holds hooks for six agent hosts (Claude Code, Codex, Gemini CLI, Grok,
+  Antigravity, Copilot CLI) plus an experimental one for Cursor, next to the terminal integrations. A hook makes the agent ask the guard before
   heavy work; without the hook the guard still pauses that work when the chip gets hot.
 
 ---

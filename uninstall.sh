@@ -95,7 +95,8 @@ if [ -f "$HOME/.coffee-paladin/settings_wire.py" ]; then
 fi
 # The other hosts' gate registrations: same dangling-entry logic, one adapter
 # per dialect. Each prints none/skip harmlessly where it was never wired.
-for AGENT_WIRE in codex gemini grok antigravity; do
+# 23.10: cursor's adapter is there only if it was copied by hand (README).
+for AGENT_WIRE in codex gemini grok antigravity copilot cursor; do
   if [ -f "$HOME/.coffee-paladin/${AGENT_WIRE}_hooks_wire.py" ]; then
     case "$(/usr/bin/python3 "$HOME/.coffee-paladin/${AGENT_WIRE}_hooks_wire.py" unhook 2>/dev/null)" in
       ok) echo "  🗑  hook-gate removed from $AGENT_WIRE" ;;
