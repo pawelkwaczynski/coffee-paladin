@@ -4356,7 +4356,28 @@ def _hook_command_hit(cmd, patterns, with_segment=False):
     return analyze(cmd, 0)
 
 
-def _hook_unread(tool, data, antigravity=False):
+def _hook_host(data):
+    """Name the host that sent this tool call, from the payload's shape alone.
+
+    23.10: Copilot CLI and Cursor need their own stdout answer, so the gate has
+    to know who is asking - and the only safe witness is the payload. A new
+    command-line flag would make an older guard.py exit 2 on "unknown argument",
+    which both hosts read as deny for every tool call; an environment marker
+    such as CURSOR_VERSION can leak into a Claude Code session started from
+    Cursor's terminal. Hosts that come back "" keep the exit-2 contract:
+    Claude Code, Codex, Gemini, Grok, and Copilot's Claude-compatible
+    PreToolUse payload (snake_case, which honours exit 2).
+    """
+    if isinstance(data.get("toolCall"), dict):
+        return "antigravity"
+    if "cursor_version" in data:
+        return "cursor"           # every Cursor hook payload carries it
+    if "toolArgs" in data and "toolName" in data:
+        return "copilot"          # camelCase preToolUse; Grok says toolInput
+    return ""
+
+
+def _hook_unread(tool, data, host=""):
     """Allow a tool call the gate could not read, and say so (22.10).
 
     A Copilot CLI hook sends the command inside a JSON string (toolArgs) and
@@ -4365,7 +4386,8 @@ def _hook_unread(tool, data, antigravity=False):
     into them looked wired and checked nothing. The answer stays fail-open,
     but it is now visible: one line on stderr for the host and one [HOOK?]
     line in guard.log, naming the tool and the top-level field names only -
-    never values, so no command text lands in the log.
+    never values, so no command text lands in the log. 23.10: both shapes
+    are read now; what lands here is a payload of theirs that is broken.
     """
     try:
         name = re.sub(r"[^A-Za-z0-9_.-]", "", str(tool or ""))[:40] or "-"
@@ -4384,8 +4406,9 @@ def _hook_unread(tool, data, antigravity=False):
                   "campos: %s) y la dejó pasar sin comprobarla.",
         }
         msg = messages.get(LANG, messages["en"]) % (name, fields)
-        if antigravity:
+        if host == "antigravity":
             # Antigravity reads only the stdout decision, so the allow is said there too.
+            # 23.10: Copilot and Cursor get an empty stdout, their default, never an "allow".
             sys.stdout.write(json.dumps({"decision": "allow"}) + "\n")
         sys.stderr.write(msg + "\n")
         log(msg, tag="HOOK?")
@@ -4400,6 +4423,10 @@ def hook_gate(cfg):
     stdin carries the agent's tool-call JSON; exit 0 allows, exit 2 blocks with
     the reason on stderr - the contract Claude Code, Codex CLI, Gemini CLI and
     Grok Build all share, which is why this one command can serve them all.
+    23.10: Copilot CLI (camelCase preToolUse) and Cursor are told apart by
+    their payloads and answered on stdout instead: a deny is their own JSON
+    with exit 0, an allow is an empty stdout - never "allow" (in Copilot it
+    skips the user's permission prompt) and never "ask".
 
     The gate checks PROCESS DISCIPLINE, not temperature: heavy work belongs
     under safe-run, which measures, registers and supervises. No measurement
@@ -4425,12 +4452,32 @@ def hook_gate(cfg):
     # host's own docs. Reading only one spelling means the other host's gate
     # silently allows everything - the worst failure mode, because it LOOKS
     # wired.
-    call = data.get("toolCall")
-    antigravity = isinstance(call, dict)
+    host = _hook_host(data)
+    antigravity = host == "antigravity"
+    event = data.get("hook_event_name")
     if antigravity:
+        call = data["toolCall"]
         tool = str(call.get("name") or "").lower()
         args = call.get("args")
         cmd = args.get("CommandLine") if isinstance(args, dict) else None
+    elif host == "cursor" and event == "beforeShellExecution":
+        # 23.10: the command sits at the top level and there is no tool name.
+        tool = "shell"
+        cmd = data.get("command")
+    elif host == "cursor" and event == "beforeMCPExecution":
+        # 23.10: its `command` is the MCP server's launch line, not a shell call.
+        return 0
+    elif host == "copilot":
+        # 23.10: toolArgs is a JSON string in the documented sample and in the
+        # field (copilot-cli issue #3349); accept a parsed object as well.
+        tool = str(data.get("toolName") or "").lower()
+        args = data.get("toolArgs")
+        if isinstance(args, str):
+            try:
+                args = json.loads(args)
+            except (ValueError, RecursionError):
+                args = None
+        cmd = args.get("command") if isinstance(args, dict) else None
     else:
         tool = str(data.get("tool_name") or data.get("toolName")
                    or data.get("tool") or "").lower()
@@ -4438,18 +4485,17 @@ def hook_gate(cfg):
         if not isinstance(ti, dict):
             ti = data.get("toolInput")
         cmd = ti.get("command") if isinstance(ti, dict) else None
-    # 22.10: no tool name at all (Cursor's beforeShellExecution) or a shell tool
-    # without a command string (Copilot's toolArgs is a JSON string) is a call
-    # the gate cannot read, not a call with nothing to check.
+    # 22.10: no tool name at all or a shell tool without a command string is a
+    # call the gate cannot read, not a call with nothing to check.
     if not tool:
-        return _hook_unread(tool, data, antigravity)
+        return _hook_unread(tool, data, host)
     # Claude Code's Monitor tool runs a background command under the same rules
     # as Bash, so a bare encoder started there needs the same answer (20.10).
     if tool not in ("bash", "monitor", "shell", "run_shell_command", "run_terminal_command",
                     "run_command", "exec_command", "local_shell"):
         return 0
     if not isinstance(cmd, str):
-        return _hook_unread(tool, data, antigravity)
+        return _hook_unread(tool, data, host)
     if not cmd.strip():
         return 0
     try:
@@ -4542,6 +4588,18 @@ def hook_gate(cfg):
                 "es": " Para bucles y condiciones, envuelve todo el comando: safe-run -- bash -c '<comando completo>'.",
             }
             reason += loop_notes.get(LANG, loop_notes["en"])
+        if host in ("copilot", "cursor"):
+            # 23.10: one JSON object on stdout and exit 0. Copilot parses stdout
+            # only at exit 0 and ignores two objects as invalid JSON; Cursor
+            # takes these three keys for both of its permission events.
+            if host == "copilot":
+                answer = {"permissionDecision": "deny", "permissionDecisionReason": reason}
+            else:
+                answer = {"permission": "deny", "user_message": reason.split("\n", 1)[0],
+                          "agent_message": reason}
+            sys.stdout.write(json.dumps(answer) + "\n")
+            sys.stderr.write(reason + "\n")
+            return 0
         if antigravity or os.environ.get("GROK_HOOK_EVENT"):
         # Grok is fail-open on anything but an explicit decision, and
         # Antigravity blocks ONLY on a stdout decision; Claude Code, on the

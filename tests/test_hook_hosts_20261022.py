@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""The hook gate against payloads recorded from each host's own documentation (22.10).
+"""The hook gate against payloads recorded from each host's own documentation (22.10, 23.10).
 
 Field notes said a Copilot CLI or Cursor hook would get nothing out of the gate: their payloads
 do not carry the Claude-style `tool_input.command`, so the gate found "no command" and allowed
-everything without a word - a wired gate that is blind and LOOKS wired. There are no Copilot or
-Cursor adapters in integrations/, so the gate does not learn their formats here; it has to say
-that it could not read a call (stderr plus one [HOOK?] line in guard.log) and then fail open, as
-it always has. Formats it does read keep their answers, and Codex never gets an "ask".
+everything without a word - a wired gate that is blind and LOOKS wired. On 22.10 the gate learnt
+to say that it could not read a call (stderr plus one [HOOK?] line in guard.log) and then fail
+open. On 23.10 it reads both shapes: Copilot's camelCase preToolUse (toolArgs, a JSON string or
+an object) and Cursor's payloads (cursor_version; beforeShellExecution has the command at the
+top level). The host is told by the payload alone, never by an environment variable, and both
+get their own answer on stdout with exit 0: a deny is their JSON, an allow is an empty stdout -
+never "allow" and never "ask". A broken payload of theirs is still said out loud. Formats it
+read before keep their answers, and Codex never gets an "ask".
 
 Samples, trimmed to the fields the gate looks at plus the ids around them:
   Copilot CLI, camelCase (`preToolUse`), toolArgs is a JSON STRING:
@@ -17,7 +21,8 @@ Samples, trimmed to the fields the gate looks at plus the ids around them:
   Copilot CLI, VS Code compatible (`PreToolUse`), snake_case with a parsed tool_input:
     https://docs.github.com/en/copilot/reference/hooks-configuration
   Cursor `beforeShellExecution` (common fields + command/cwd/sandbox) and `preToolUse` (Shell):
-    https://cursor.com/docs/agent/hooks
+    https://cursor.com/docs/agent/hooks (beforeMCPExecution carries a `command` too: the MCP
+    server's launch line, not a shell call)
   Codex PreToolUse input (schema + the request fixture with tool_name "Bash"), and the parser
   that turns permissionDecision "ask" into a failed hook that blocks nothing:
     https://github.com/openai/codex/blob/main/codex-rs/hooks/schema/generated/pre-tool-use.command.input.schema.json
@@ -83,33 +88,101 @@ def unread(name, payload, field, env_extra=None):
     return r
 
 
+def decision(r):
+    """The one JSON object on stdout, or None when stdout is anything else."""
+    try:
+        answer = json.loads(r.stdout)
+    except ValueError:
+        return None
+    return answer if isinstance(answer, dict) and r.stdout.strip().count("\n") == 0 else None
+
+
+def quiet(name, payload, env_extra=None):
+    """A call the gate read and let through: exit 0, nothing on stdout or stderr, nothing logged."""
+    before = len(log_lines())
+    r = gate(payload, env_extra)
+    test(name + ": exit 0, stdout and stderr empty, no [HOOK?] line",
+         r.returncode == 0 and r.stdout == "" and r.stderr == "" and len(log_lines()) == before,
+         (r.returncode, r.stdout[:120], r.stderr[:120], log_lines()[before:]))
+    return r
+
+
 print("1. Copilot CLI")
 copilot_doc = {"timestamp": 1704614400000, "cwd": "/tmp", "toolName": "bash",
                "toolArgs": "{\"command\":\"ls\"}"}
-r = unread("camelCase sample from the docs", copilot_doc, "toolArgs")
-test("camelCase: stdout stays empty (no guessed decision schema)", r.stdout.strip() == "", r.stdout[:120])
-unread("camelCase with a bare encoder in toolArgs",
-       dict(copilot_doc, toolArgs=json.dumps({"command": HEAVY})), "toolArgs")
+quiet("camelCase sample from the docs (ls)", copilot_doc)
+for label, args in [("toolArgs as a JSON string", json.dumps({"command": HEAVY})),
+                    ("toolArgs as an object", {"command": HEAVY})]:
+    r = gate(dict(copilot_doc, sessionId="s-1", toolArgs=args))
+    answer = decision(r)
+    test("camelCase, %s, bare encoder: exit 0 (any other exit is a crash there)" % label,
+         r.returncode == 0, r.returncode)
+    test("camelCase, %s: one JSON object, permissionDecision deny with the safe-run hint" % label,
+         answer is not None and set(answer) == {"permissionDecision", "permissionDecisionReason"}
+         and answer["permissionDecision"] == "deny"
+         and "safe-run -- " in answer["permissionDecisionReason"], r.stdout[:200])
+    test("camelCase, %s: never 'allow' or 'ask' on stdout" % label,
+         '"allow"' not in r.stdout and '"ask"' not in r.stdout, r.stdout[:200])
+    test("camelCase, %s: the reason is on stderr as well" % label, "safe-run -- " in r.stderr,
+         r.stderr[:160])
+r = unread("camelCase with toolArgs that is not JSON", dict(copilot_doc, toolArgs="{zepsuty"), "toolArgs")
+test("broken toolArgs: stdout stays empty (Copilot's default, not an allow)", r.stdout == "", r.stdout[:120])
+quiet("camelCase non-shell tool (view) on a path with ffmpeg in it",
+      dict(copilot_doc, toolName="view", toolArgs=json.dumps({"path": "/tmp/ffmpeg -i a.mov"})))
+r = gate(dict(copilot_doc, toolArgs=json.dumps({"command": HEAVY})), {"TG_LANG": "pl"})
+answer = decision(r)
+test("camelCase in Polish: still one valid JSON object with a deny",
+     answer is not None and answer.get("permissionDecision") == "deny", r.stdout[:200])
 r = gate({"hook_event_name": "PreToolUse", "session_id": "s-1", "timestamp": "2026-10-22T10:00:00Z",
           "cwd": "/tmp", "tool_name": "Bash", "tool_input": {"command": HEAVY}})
 test("VS Code compatible format: read and refused with the safe-run hint (exit 2 = deny there)",
      r.returncode == 2 and "safe-run" in r.stderr, (r.returncode, r.stderr[:120]))
+test("VS Code compatible format: stdout stays empty", r.stdout == "", r.stdout[:120])
 
 print("2. Cursor")
 cursor_common = {"conversation_id": "c-1", "generation_id": "g-1", "hook_event_name": "beforeShellExecution",
-                 "cursor_version": "1.0.0", "workspace_roots": ["/project"], "user_email": None,
+                 "cursor_version": "3.27.6", "workspace_roots": ["/project"], "user_email": None,
                  "transcript_path": None}
-r = unread("beforeShellExecution sample", dict(cursor_common, command=HEAVY, cwd="/project", sandbox=False),
-           "cursor_version")
-test("beforeShellExecution: stdout stays empty", r.stdout.strip() == "", r.stdout[:120])
+before_shell = dict(cursor_common, command="npm install", cwd="/project", sandbox=False)
+quiet("beforeShellExecution sample (npm install)", before_shell)
+r = gate(dict(before_shell, command=HEAVY))
+answer = decision(r)
+test("beforeShellExecution with a bare encoder: exit 0", r.returncode == 0, r.returncode)
+test("beforeShellExecution: permission deny, exactly permission/user_message/agent_message",
+     answer is not None and set(answer) == {"permission", "user_message", "agent_message"}
+     and answer["permission"] == "deny", r.stdout[:200])
+test("beforeShellExecution: the agent gets the safe-run hint, the user one non-empty line",
+     answer is not None and "safe-run -- " in answer["agent_message"]
+     and answer["user_message"].strip() != "" and "\n" not in answer["user_message"], r.stdout[:200])
 shell = {"tool_name": "Shell", "tool_input": {"command": "npm install", "working_directory": "/project"},
          "tool_use_id": "abc123", "cwd": "/project"}
+pre_tool = dict(cursor_common, hook_event_name="preToolUse", **shell)
+quiet("preToolUse Shell with the common fields (npm install)", pre_tool)
+r = gate(dict(pre_tool, tool_input={"command": HEAVY, "working_directory": "/project"}))
+answer = decision(r)
+test("preToolUse Shell with the common fields and a bare encoder: exit 0 and a JSON deny",
+     r.returncode == 0 and answer is not None and answer.get("permission") == "deny",
+     (r.returncode, r.stdout[:200]))
 r = gate(shell)
-test("preToolUse Shell sample (npm install) passes quietly", r.returncode == 0 and r.stderr == "",
-     (r.returncode, r.stderr[:120]))
+test("preToolUse Shell sample trimmed to its own fields (npm install) passes quietly",
+     r.returncode == 0 and r.stderr == "", (r.returncode, r.stderr[:120]))
 r = gate(dict(shell, tool_input={"command": HEAVY, "working_directory": "/project"}))
-test("preToolUse Shell with a bare encoder is refused", r.returncode == 2 and "safe-run" in r.stderr,
-     (r.returncode, r.stderr[:120]))
+test("...the trimmed sample with a bare encoder keeps the exit-2 answer",
+     r.returncode == 2 and "safe-run" in r.stderr and r.stdout == "", (r.returncode, r.stderr[:120]))
+quiet("beforeMCPExecution whose launch command is an encoder (not a shell call)",
+      dict(cursor_common, hook_event_name="beforeMCPExecution", tool_name="transcode",
+           tool_input="{}", mcp_server_name="media", command=HEAVY))
+r = unread("beforeShellExecution without a command", dict(cursor_common, cwd="/project"), "cursor_version")
+test("beforeShellExecution without a command: stdout stays empty", r.stdout == "", r.stdout[:120])
+for label, payload in [("Claude Code", {"session_id": "s-1", "hook_event_name": "PreToolUse",
+                                        "tool_name": "Bash", "tool_input": {"command": HEAVY}}),
+                       ("Codex", {"session_id": "s-1", "turn_id": "t-1", "hook_event_name": "PreToolUse",
+                                  "tool_name": "Bash", "tool_use_id": "u-1",
+                                  "tool_input": {"command": HEAVY}})]:
+    r = gate(payload, {"CURSOR_VERSION": "3.27.6", "CURSOR_PROJECT_DIR": "/project"})
+    test("%s started from Cursor's terminal (CURSOR_VERSION set): still exit 2, stdout empty" % label,
+         r.returncode == 2 and r.stdout == "" and "safe-run -- " in r.stderr,
+         (r.returncode, r.stdout[:120]))
 
 print("3. Codex never gets 'ask'")
 codex = {"session_id": "s-1", "turn_id": "t-1", "transcript_path": None, "cwd": "/tmp",
