@@ -15,6 +15,10 @@ Every number here is read from guard.py with ast, never from a list kept next to
 3. skills/coffee-paladin/SKILL.md: the pause message points at thresholds in status.json and
    names both profiles; no fanless sentence gives the fan profile's pause as its default; the
    grep incident uses the temperature README.md reports for it.
+4. The menu-bar slider: README.md promised it "takes the pause threshold lower", and its range,
+   read from heatbar.swift, starts above both pause thresholds. The fanless paragraph names
+   that range and sends a lower threshold to config.json.
+5. FAQ.md names both profiles' pause and resume.
 
 Run with:  python3 tests/test_progi_dokumentacja_20261023.py
 Reads files only.
@@ -127,6 +131,23 @@ skill_incident = re.search(r"fanless Mac was held at (\d+) °C", flat(skill))
 test("the grep incident uses the temperature README.md reports for it",
      readme_incident and skill_incident and readme_incident.group(1) == skill_incident.group(1),
      (readme_incident and readme_incident.group(0), skill_incident and skill_incident.group(0)))
+
+print("4. the menu-bar slider")
+slider = re.search(r'title: T\("Chip pause threshold"\), min: (\d+), max: (\d+)', read("heatbar.swift"))
+test("heatbar.swift: the chip pause slider and its range are found", slider is not None)
+if slider:
+    span = "%s-%s °C" % slider.groups()
+    test("the fanless paragraph names the slider's range, %s" % span, span in cooling, cooling)
+    test("and sends a lower pause threshold to config.json, not to the slider",
+         "`soc_pause_c`" in cooling and "lower if you want" not in cooling
+         and "exactly what the slider is for" not in cooling, cooling)
+
+print("5. FAQ.md")
+faq = flat(read("FAQ.md"))
+test("the pause threshold of both profiles",
+     "(default %s °C, %s °C on a fanless Mac)" % (PAUSE, AIR_PAUSE) in faq, faq[:600])
+test("the resume threshold of both profiles",
+     "below %s °C (%s °C without fans)" % (RESUME, AIR_RESUME) in faq, faq[:600])
 
 print("\nRESULT: %d/%d" % (passed, total))
 sys.exit(0 if passed == total else 1)

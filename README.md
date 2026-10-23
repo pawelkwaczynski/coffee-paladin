@@ -1220,8 +1220,9 @@ no reason to expect M5 or M6 to leave that range.
 **Cooling is what differs.** A fanless Mac (Air, 12-inch) dumps heat into the chassis and gets hot
 sooner, so a lower threshold - around 75-78 °C - is kinder to it. coffee-paladin detects the
 absence of fans, turns the fan alarm off there and, unless you have set the thresholds yourself,
-calibrates them to 78/70/88 (pause, resume, terminate). The slider takes the pause threshold
-lower if you want.
+calibrates them to 78/70/88 (pause, resume, terminate). The menu-bar slider covers 93-103 °C, so
+on a fanless Mac it can only raise the pause threshold; a lower one goes into the config file
+below (`soc_pause_c`, with `soc_resume_c` under it).
 
 `~/.coffee-paladin/config.json`. The defaults:
 

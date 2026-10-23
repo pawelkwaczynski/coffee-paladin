@@ -32,10 +32,11 @@ resolve to the old Intel one through your PATH.
 ### How do I stop my Mac from overheating during ffmpeg or video encoding?
 
 Run the encode under supervision: `safe-run --hours 3 --name encode -- ffmpeg -i in.mov out.mp4`.
-coffee-paladin watches the chip temperature and, if it crosses the threshold (default 85 °C),
-pauses the encoder with SIGSTOP; it resumes automatically below 76 °C. Nothing is lost — the
-process freezes in place and continues from the same instruction. `safe-run` also refuses to
-start on an already-hot machine and can cap the job's CPU or pin it to efficiency cores.
+coffee-paladin watches the chip temperature and, if it crosses the threshold (default 85 °C,
+78 °C on a fanless Mac), pauses the encoder with SIGSTOP; it resumes automatically below 76 °C
+(70 °C without fans). Nothing is lost: the process freezes in place and continues from the same
+instruction. `safe-run` also refuses to start on an already-hot machine and can cap the job's CPU
+or pin it to efficiency cores.
 
 ### Can I pause a process when my Mac gets hot, instead of killing it?
 

@@ -808,8 +808,8 @@ def guard_alive():
 
 
 # ---------------------------------------------------------------- profile
-# Thresholds are shipped as one number for every Mac, and no single number can
-# fit a fanless Air and a 14-inch Pro at once. This reads what THIS machine has
+# Thresholds ship as two profiles, one for a Mac with fans and one without, and
+# neither knows this particular machine. This reads what THIS machine has
 # actually been doing and says where its own limits are. It only reports:
 # nothing here writes config.json, because a fuse that retunes itself while you
 # are not looking is not a fuse.
