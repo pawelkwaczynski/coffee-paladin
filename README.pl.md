@@ -264,8 +264,8 @@ alerty i może wysyłać fałszywe; dialog podpowiada losową, niezgadywalną na
 z dowolnego miejsca na świecie - to push internetowy, nie łączność lokalna: Mac i telefon
 NIE muszą być w tej samej sieci WiFi (Bluetooth nie bierze w tym udziału) - demon wysyła
 przez HTTPS do ntfy.sh, a telefon odbiera systemowym pushem gdziekolwiek ma internet (LTE
-w pociągu, hotelowe WiFi, inny kraj). Zostawiasz Maca z renderem w biurze, pauzę przy 90 °C
-dostajesz na telefon w domu parę sekund później. Dwa uczciwe przypadki brzegowe: gdy MAC
+w pociągu, hotelowe WiFi, inny kraj). Zostawiasz Maca z renderem w biurze, a powiadomienie
+o pauzie dostajesz na telefon w domu parę sekund później. Dwa uczciwe przypadki brzegowe: gdy MAC
 straci internet, pushe nie wychodzą (sama ochrona działa dalej lokalnie - dźwięki i baner
 to osobna warstwa); gdy TELEFON jest chwilowo offline, ntfy.sh buforuje wiadomości (~12 h)
 i dowozi po powrocie zasięgu. Przełącznik **Uruchamiaj przy starcie komputera** (domyślnie włączony)
@@ -308,8 +308,8 @@ To jeden kawałek krzemu, ale różne rejony, osobne czujniki i różne zadania:
    ochrona działa tak samo.
 3. **Bateria to zupełnie inna liga.** Osobny fizyczny podzespół, który grzeje się
    wolno (od ładowania i ciepła obudowy), ale ma dużo niższe granice: lit-jon
-   degraduje się już powyżej ~40 °C. Dlatego jej próg pauzy to 40 °C, gdy chip może
-   spokojnie chodzić do 90 °C.
+   degraduje się już powyżej ~40 °C. Dlatego jej próg pauzy to 40 °C, a próg chipa
+   85 °C (78 °C w Macu bez wentylatora).
 
 Krótko: chip i GPU to dwa termometry w jednym kawałku krzemu (różne zadania, różne
 temperatury), a bateria to trzeci termometr w delikatniejszym miejscu.

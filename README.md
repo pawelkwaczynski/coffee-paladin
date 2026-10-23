@@ -353,7 +353,7 @@ This works from anywhere - it is internet push, not local networking. The Mac an
 do NOT need to share a WiFi network (and Bluetooth plays no part): the daemon posts over
 HTTPS to ntfy.sh, and the phone receives it through normal system push wherever it has any
 connection - LTE on a train, hotel WiFi, another country. Leave the Mac rendering at the
-office, get the 90 °C pause on your phone at home, seconds later. Two honest edge cases:
+office, get the pause alert on your phone at home, seconds later. Two honest edge cases:
 if the MAC loses internet, pushes stop (protection itself keeps working locally - sounds
 and the critical banner are a separate layer); if the PHONE is briefly offline, ntfy.sh
 buffers messages (about 12 h) and delivers when it is back.
@@ -870,7 +870,7 @@ It is one piece of silicon, but different regions, separate sensors and differen
 3. **The battery is a different league entirely.** A separate physical component that
    heats slowly (from charging and from case heat), but with much lower limits:
    lithium-ion degrades above ~40 °C. That is why its pause threshold is 40 °C while
-   the chip is allowed to run to 90 °C.
+   the chip's is 85 °C (78 °C on a fanless Mac).
 
 In short: chip and GPU are two thermometers in one piece of silicon (different jobs,
 different temperatures), and the battery is a third thermometer in a more fragile place.
@@ -1016,9 +1016,9 @@ Plus what is currently burning CPU, the 24-hour peak, and the guard's recent int
 
 ### `heat --profile` - what THIS Mac does, read from its own history
 
-Thresholds ship as one number for every Mac, and no single number fits a fanless Air and a
-14-inch Pro at once. This reads the measurements the guard has been writing all along and says
-where your machine's own limits are: the temperature it idles at, the plateau it settles on
+Thresholds ship as two profiles, 85/76/90 with fans and 78/70/88 without, and neither knows
+your particular machine. This reads the measurements the guard has been writing all along and
+says where your machine's own limits are: the temperature it idles at, the plateau it settles on
 under sustained load, the temperature that starts the fans, and whether macOS ever had to hold
 the CPU back.
 
@@ -1219,8 +1219,9 @@ no reason to expect M5 or M6 to leave that range.
 
 **Cooling is what differs.** A fanless Mac (Air, 12-inch) dumps heat into the chassis and gets hot
 sooner, so a lower threshold - around 75-78 °C - is kinder to it. coffee-paladin detects the
-absence of fans and simply skips the fan alarm there, but the temperature threshold is yours to
-set. That is exactly what the slider is for.
+absence of fans, turns the fan alarm off there and, unless you have set the thresholds yourself,
+calibrates them to 78/70/88 (pause, resume, terminate). The slider takes the pause threshold
+lower if you want.
 
 `~/.coffee-paladin/config.json`. The defaults:
 

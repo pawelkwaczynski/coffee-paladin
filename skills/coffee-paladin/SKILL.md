@@ -127,7 +127,7 @@ permitted`. Core placement is the wrapper's job (`--normal`, `--efficiency`, `--
 
 Say it plainly and do not work around it:
 
-> The Mac reached its pause threshold (85 °C by default), so coffee-paladin paused the encode. It resumes on its own once it cools (76 °C by default) -
+> The Mac reached its pause threshold (`thresholds.pause` in status.json: 85 °C by default, 78 °C on a fanless Mac), so coffee-paladin paused the encode. It resumes on its own once it cools to `thresholds.resume` (76 °C by default, 70 °C on a fanless Mac) -
 > nothing was lost, the process is frozen mid-instruction. Waiting.
 
 Then wait and re-read `status.json`. If a pause lasts beyond `max_pause_minutes` the guard
@@ -194,6 +194,6 @@ Two habits that cost more than any thermal threshold:
   that nobody reaps keeps a core busy for hours.
 - **No recursive search across iCloud-backed folders** (`~/Desktop`, `~/Documents`). It costs
   almost no CPU of its own while forcing `fileproviderd` and `cloudd` to materialise files -
-  a fanless Mac reached its pause threshold (85 °C by default) this way on a `grep` that used 13 seconds of CPU in 1 h 42 min.
+  a fanless Mac was held at 90 °C this way on a `grep` that used 13 seconds of CPU in 1 h 42 min.
 
 Full documentation: https://github.com/pawelkwaczynski/coffee-paladin
