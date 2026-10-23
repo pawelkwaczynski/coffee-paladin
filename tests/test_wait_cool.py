@@ -25,6 +25,11 @@ BASE = tempfile.mkdtemp()
 os.environ["TG_BASE"] = BASE
 os.environ["TG_LANG"] = "en"
 os.environ["SAFE_RUN_WAIT_POLL"] = "0.01"
+# 23.10: under an outer safe-run, an inherited TG_SAFE_RUN_PGID sends sr.main() down the
+# nested path, which execs the job: this very process became `true` and exited 0 before its
+# RESULT line, a silent pass. The same clean start as the other safe-run tests.
+for _k in ("TG_SAFE_RUN_PGID", "PALADIN_PROGRESS"):
+    os.environ.pop(_k, None)
 sr = load_source("sr", os.path.join(SRC, "safe-run"))
 json.dump({"soc_pause_c": 95.0, "soc_resume_c": 87.0}, open(os.path.join(BASE, "config.json"), "w"))
 
