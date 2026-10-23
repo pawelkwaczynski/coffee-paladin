@@ -172,6 +172,13 @@ test("...the trimmed sample with a bare encoder keeps the exit-2 answer",
 quiet("beforeMCPExecution whose launch command is an encoder (not a shell call)",
       dict(cursor_common, hook_event_name="beforeMCPExecution", tool_name="transcode",
            tool_input="{}", mcp_server_name="media", command=HEAVY))
+# 23.10: an MCP tool may carry a shell tool's name; its params are a JSON string and it is
+# still not a shell call, so the generic path (unread, or a deny) must not catch it.
+for label, params in [("as a JSON string, per the docs", json.dumps({"command": HEAVY})),
+                      ("as an object", {"command": HEAVY})]:
+    quiet("beforeMCPExecution of an MCP tool named 'shell', params %s" % label,
+          dict(cursor_common, hook_event_name="beforeMCPExecution", tool_name="shell",
+               tool_input=params, mcp_server_name="tools", command="npx some-mcp-server"))
 r = unread("beforeShellExecution without a command", dict(cursor_common, cwd="/project"), "cursor_version")
 test("beforeShellExecution without a command: stdout stays empty", r.stdout == "", r.stdout[:120])
 for label, payload in [("Claude Code", {"session_id": "s-1", "hook_event_name": "PreToolUse",
