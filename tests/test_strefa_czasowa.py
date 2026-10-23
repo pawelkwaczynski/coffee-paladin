@@ -93,6 +93,29 @@ def prepare(stamp, epoch_field=True):
                 % (stamp, ('"epoch": %d, ' % epoch_field) if epoch_field else ""))
 
 
+def section(t, header):
+    """Body of one report section: from its `## ` header to the next header or footer.
+
+    Every detector reads only its own section. The timeline detector used to
+    search the whole document for a line starting with a date, and the
+    SHUTDOWN CAUSES section copies `log show --style compact` lines, which
+    start with a date too (the boot date, not the range). On a CI runner booted
+    minutes earlier that log holds a "shutdown cause" line, so Auckland, where
+    the event lies outside the range and every section is correctly empty,
+    looked like "timeline yes, everything else no". On a Mac booted days ago
+    the log window is empty and the test passed: the result depended on the
+    machine, not on the report.
+    Returns None when the header is missing, so a renamed section fails the
+    test instead of making every detector silently say "no".
+    """
+    start = t.find(header)
+    if start < 0:
+        return None
+    body = t[start + len(header):]
+    end = re.search(r"^(## |={20,})", body, re.M)
+    return body[:end.start()] if end else body
+
+
 def sections(zone):
     target = os.path.join(BASE, "r_%s.txt" % zone.replace("/", "_"))
     subprocess.run([sys.executable, os.path.join(SRC, "thermal-report"),
@@ -100,17 +123,24 @@ def sections(zone):
                    capture_output=True, text=True, timeout=90,
                    env=dict(os.environ, TG_BASE=BASE, TG_LANG="en", TZ=zone))
     t = io.open(target, encoding="utf-8", errors="replace").read()
-    return {"zdarzenie": "HARD_SHUTDOWN" in t,
-            "os_czasu": bool(re.search(r"^  \d{4}-\d{2}-\d{2} ", t, re.M)),
-            "interwencja": "[KILL]" in t,
-            "szczyt": "PEAK MEASURED" in t}
+    events = section(t, "## CRITICAL EVENTS")
+    inter = section(t, "## GUARD INTERVENTIONS")
+    timeline = section(t, "## MEASUREMENT TIMELINE")
+
+    def seen(part, check):
+        return None if part is None else bool(check(part))
+
+    return {"zdarzenie": seen(events, lambda p: "HARD_SHUTDOWN" in p),
+            "os_czasu": seen(timeline, lambda p: re.search(r"^  \d{4}-\d{2}-\d{2} ", p, re.M)),
+            "interwencja": seen(inter, lambda p: "[KILL]" in p),
+            "szczyt": seen(timeline, lambda p: "PEAK MEASURED" in p)}
 
 
 prepare(STAMP, EPOCH)
 inconsistent = []
 for zone in ("Europe/Warsaw", "America/Los_Angeles", "Pacific/Auckland", "Pacific/Midway"):
     s_ = sections(zone)
-    if len(set(s_.values())) != 1:
+    if None in s_.values() or len(set(s_.values())) != 1:
         inconsistent.append((zone, s_))
 test("6. in EVERY zone the document is consistent (all sections see event or none do)",
      not inconsistent, "inconsistent: %s" % inconsistent)

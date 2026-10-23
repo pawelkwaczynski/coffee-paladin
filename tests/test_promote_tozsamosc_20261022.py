@@ -56,11 +56,30 @@ def pri(pid):
     return int(out) if out else None
 
 
-def backgrounded():
-    """A sleep child this test starts and puts in the background itself, not the guard."""
+def child():
+    """A sleep child with the priority it started with, before anyone backgrounds it.
+
+    23.10: promotion undoes -b, it does not lift a job above where it began. On the
+    GitHub runner the promoted child came back at pri 20, not 31: jobs there start lower
+    (taskpolicy -c utility gives the same 20 here). So the expected value is measured
+    per child instead of assumed.
+    """
     p = subprocess.Popen([SLEEP, "300"], start_new_session=True)
     CHILDREN.append(p)
     time.sleep(0.3)
+    p.base_pri = pri(p.pid)
+    return p
+
+
+def back_to_base(p):
+    """Back at its starting priority, and that start is not background (or it proves nothing)."""
+    now_pri = pri(p.pid)
+    return p.base_pri is not None and p.base_pri > 4 and now_pri == p.base_pri
+
+
+def backgrounded():
+    """A sleep child this test starts and puts in the background itself, not the guard."""
+    p = child()
     subprocess.call(["taskpolicy", "-b", "-p", str(p.pid)])
     time.sleep(0.2)
     return p
@@ -115,6 +134,8 @@ try:
 
     print("1. do_promote leaves a pid alone when the note names another process")
     p = backgrounded()
+    test("a fresh child starts above background, so a return can be seen",
+         p.base_pri is not None and p.base_pri > 4, p.base_pri)
     test("the child is in the background (pri 4)", pri(p.pid) == 4, pri(p.pid))
     st = {"paused": {}, "demoted": [p.pid],
           "demoted_info": {str(p.pid): {"comm": "ffmpeg", "born": STALE_BORN, "boot_session": boot}}}
@@ -130,9 +151,7 @@ try:
          pri(p.pid) == 4, pri(p.pid))
 
     print("2. the guard's own demotion records an identity and is undone")
-    q = subprocess.Popen([SLEEP, "300"], start_new_session=True)
-    CHILDREN.append(q)
-    time.sleep(0.3)
+    q = child()
     st = {"paused": {}, "demoted": [], "demoted_info": {}}
     g.demote_pid(CFG, st, q.pid, "jobsleep", q.pid, 90.0, 95.0, "DEMOTED jobsleep")
     time.sleep(0.2)
@@ -142,17 +161,19 @@ try:
     test("the child runs in the background", pri(q.pid) == 4, pri(q.pid))
     g.do_promote(CFG, st, {}, 50.0)
     time.sleep(0.2)
-    test("the matching identity is promoted", pri(q.pid) == 31 and q.pid not in st["demoted"],
-         (pri(q.pid), st["demoted"]))
+    test("the matching identity is promoted", back_to_base(q) and q.pid not in st["demoted"],
+         (pri(q.pid), q.base_pri, st["demoted"]))
 
     print("3. an unreadable identity does not keep a job slowed down")
     subprocess.call(["taskpolicy", "-b", "-p", str(q.pid)])
+    time.sleep(0.2)
+    test("the child is back in the background", pri(q.pid) == 4, pri(q.pid))
     st = {"paused": {}, "demoted": [q.pid],
           "demoted_info": {str(q.pid): {"comm": "jobsleep", "born": STALE_BORN, "boot_session": boot}}}
     with patch.object(g, "process_identity", return_value=None):
         g.do_promote(CFG, st, {}, 50.0)
     time.sleep(0.2)
-    test("ps gives no answer: promotion goes ahead", pri(q.pid) == 31, pri(q.pid))
+    test("ps gives no answer: promotion goes ahead", back_to_base(q), (pri(q.pid), q.base_pri))
 
     print("4. daemon shutdown undoes only its own demotions and forgets the list")
     a = backgrounded()
@@ -163,7 +184,7 @@ try:
         str(b.pid): {"comm": "ffmpeg", "born": STALE_BORN, "boot_session": boot}}}
     started, _running, after = run_daemon(state)
     test("the daemon started", started)
-    test("its own demotion is undone at shutdown", pri(a.pid) == 31, pri(a.pid))
+    test("its own demotion is undone at shutdown", back_to_base(a), (pri(a.pid), a.base_pri))
     test("a note naming another process is not", pri(b.pid) == 4, pri(b.pid))
     test("state.json keeps no demotion after shutdown",
          after.get("demoted") == [] and after.get("demoted_info") == {}, after.get("demoted_info"))

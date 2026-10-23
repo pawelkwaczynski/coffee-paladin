@@ -56,6 +56,30 @@ def clean():
         os.remove(os.path.join(BASE, n))
 
 
+def timeline_rows_of(report):
+    """Measurement rows of the MEASUREMENT TIMELINE section, and nothing else.
+
+    Counting every line that starts with "  20" over the WHOLE document also
+    counted the system log quoted under SHUTDOWN CAUSES: `log show --style
+    compact` lines begin with a date. On a Mac booted days ago that window
+    holds no entry, on a CI virtual machine booted minutes before the run it
+    can, and the one-row dataset "had" more rows. No heading = no rows, so a
+    missing section fails instead of passing.
+    """
+    lines = report.splitlines()
+    try:
+        start = lines.index("## MEASUREMENT TIMELINE") + 1
+    except ValueError:
+        return []
+    end = next((i for i in range(start, len(lines)) if lines[i] == "=" * 78), len(lines))
+    return [l for l in lines[start:end] if l.startswith("  20")]
+
+
+def dated_lines_outside_timeline(report):
+    rows = set(timeline_rows_of(report))
+    return [l for l in report.splitlines() if l.startswith("  20") and l not in rows]
+
+
 # ---------------------------------------------------------------- item 6
 print("=== item 6: no MEASUREMENTS does not mean no EVENTS ===")
 clean()
@@ -142,7 +166,7 @@ with io.open(os.path.join(BASE, "history.csv"), "w", encoding="utf-8") as f:
 target = os.path.join(BASE, "duzy.txt")
 run_tool("--file", target, "--all")
 text = io.open(target, encoding="utf-8").read()
-timeline_rows = len([l for l in text.splitlines() if l.startswith("  20")])
+timeline_rows = len(timeline_rows_of(text))
 
 test("18. long report was shortened", timeline_rows < 12000,
      "%d rows on the axis out of 12000" % timeline_rows)
@@ -160,9 +184,14 @@ write_measurements()
 target = os.path.join(BASE, "maly.txt")
 run_tool("--file", target, "--all")
 small_report = io.open(target, encoding="utf-8").read()
+small_rows = timeline_rows_of(small_report)
 test("22. small dataset: no shortening and all rows in place",
      "TIMELINE SHORTENED" not in small_report
-     and len([l for l in small_report.splitlines() if l.startswith("  20")]) == 1)
+     and len(small_rows) == 1
+     and small_rows[0].startswith("  %s 10:00:00+0200, nominal, 55.0," % TODAY),
+     "shortened=%s timeline rows=%r, dated lines elsewhere (not counted)=%r"
+     % ("TIMELINE SHORTENED" in small_report, small_rows,
+        dated_lines_outside_timeline(small_report)[:3]))
 
 shutil.rmtree(BASE, ignore_errors=True)
 ok = sum(results)
