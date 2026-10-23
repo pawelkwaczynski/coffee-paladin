@@ -1239,7 +1239,9 @@ set. That is exactly what the slider is for.
 | `demote_above_c` | `soc_resume_c + 4` | demotion only happens at or above this chip temperature - a cool machine never slows anyone down |
 | `system_demote_patterns` | Spotlight/photo-analysis daemons | system indexing daemons that stay **untouchable for pause and kill** but may be moved to E-cores when they grind on a warm machine (they otherwise burn 200 %+ CPU with total impunity) |
 | `protected_apps` | named call, recording, dictation, password and VPN app bundles | replaces the protected bundle-name list; matching `.app` processes and nested helpers are named in `gui_hot` but never demoted, paused or terminated by the guard; `[]` disables it |
-| `protected_daemons` | FaceTime call and screen-capture engines | exact executable names outside any `.app` bundle (`avconferenced`, `callservicesd`, `com.apple.FaceTime.FTConversationService`, `replayd`, `screencaptureui`), never demoted, paused or terminated, even in an emergency; `[]` disables it |
+| `protected_apps_extra` | `[]` | your own bundle names added to `protected_apps` without replacing the defaults |
+| `protected_daemons` | FaceTime call and screen-capture engines | replaces the default list of exact executable names outside any `.app` bundle (`avconferenced`, `callservicesd`, `com.apple.FaceTime.FTConversationService`, `replayd`, `screencaptureui`), never demoted, paused or terminated, even in an emergency; `[]` disables it |
+| `protected_daemons_extra` | `[]` | your own executable names added to `protected_daemons` without replacing the defaults |
 | `keep_awake_hold_s` | 300 | after the last heavy job ends, keep-awake holds the sleep block this many seconds longer - the gap between two files of a batch queue no longer lets the Mac fall asleep mid-queue; heat still releases the block **immediately** |
 | `unknown_cpu_percent` | 50 | catch-all threshold for unrecognised processes |
 | `never_patterns` | see `guard.py` | never touched, overrides everything |

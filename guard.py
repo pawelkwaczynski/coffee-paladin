@@ -193,6 +193,10 @@ DEFAULTS = {
     "protected_daemons": ["avconferenced", "callservicesd",
                           "com.apple.FaceTime.FTConversationService", "replayd",
                           "screencaptureui"],
+    # 23.10: same trap as protected_apps: one custom name in protected_daemons dropped all
+    # five call and screen-capture engines. This list adds to it; protected_daemons still
+    # replaces the defaults, and [] there still turns them off.
+    "protected_daemons_extra": [],
     "notify": True,
     "notify_min_gap_s": 300,
     # Critical-level banner: a normal notification is easy to miss (Focus, fullscreen app).
@@ -569,7 +573,7 @@ def load_cfg():
         _ostatnio_odrzucone["v"] = []
     for key in ("never_patterns", "never_arg_patterns", "never_extra",
                   "managed_patterns", "system_demote_patterns", "protected_apps",
-                  "protected_apps_extra", "protected_daemons"):
+                  "protected_apps_extra", "protected_daemons", "protected_daemons_extra"):
         items = [w for w in (cfg.get(key) or []) if isinstance(w, str) and w.strip()]
         if key in ("never_patterns", "never_arg_patterns"):
             for name in OWN_NAMES:
@@ -2403,7 +2407,8 @@ def bundle_protected(path, names):
 
 
 def protected_daemon_names(cfg):
-    return frozenset(name.strip().casefold() for name in cfg.get("protected_daemons") or []
+    return frozenset(name.strip().casefold() for name in list(cfg.get("protected_daemons") or [])
+                     + list(cfg.get("protected_daemons_extra") or [])
                      if isinstance(name, str) and name.strip())
 
 
