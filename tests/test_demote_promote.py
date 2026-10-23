@@ -103,8 +103,16 @@ def main():
         check("chip 80 C (<= soc_resume_c): promotes", pid not in st["demoted"])
         check("demoted_info cleared", str(pid) not in st["demoted_info"])
         import time; time.sleep(0.5)
-        check("priority returned to the pre-demotion value", priority_from_ps(pid) == priority_before,
-              "pri=%s expected %s" % (priority_from_ps(pid), priority_before))
+        priority_after_promote = priority_from_ps(pid)
+        # 23.10: a busy `yes` loses scheduler priority as it burns CPU, more so on a loaded Mac
+        # (19-26 seen against 31 at the start), so an exact match with the first reading was
+        # luck: it failed 4 runs in 6 at load 11. What promotion owes is leaving the
+        # background band that demotion put the process in.
+        check("priority left the background band again",
+              priority_after_promote is not None and priority_after_demote is not None
+              and priority_after_promote > priority_after_demote + 4,
+              "pri %s after demotion, %s after promotion (%s at the start)"
+              % (priority_after_demote, priority_after_promote, priority_before))
         check("timer reset - return is return, not a 15 s gap",
               hist.get(pid) == 0.0, str(hist.get(pid)))
 
