@@ -178,7 +178,18 @@ os.makedirs(FAKE_BIN)
 with open(os.path.join(FAKE_BIN, "launchctl"), "w") as f:
     f.write("#!/bin/sh\nexit 0\n")
 os.chmod(os.path.join(FAKE_BIN, "launchctl"), 0o755)
-ENV = dict(os.environ, TG_BASE=BASE, TG_LANG="en", PATH=FAKE_BIN + os.pathsep + os.environ.get("PATH", ""))
+# 23.10: safe-run refuses to start on a hot Mac, and it reads thermalState from ~/.local/bin and
+# the battery from ioreg, so on a warm Mac this test fails with rc 3 for a reason that has
+# nothing to do with it. A fake HOME answers "nominal" and a fake ioreg reports no battery.
+FAKE_HOME = os.path.join(BASE, "home")
+os.makedirs(os.path.join(FAKE_HOME, ".local", "bin"))
+for _path, _body in ((os.path.join(FAKE_HOME, ".local", "bin", "thermalstate"), "echo nominal"),
+                     (os.path.join(FAKE_BIN, "ioreg"), "exit 0")):
+    with open(_path, "w") as f:
+        f.write("#!/bin/sh\n%s\n" % _body)
+    os.chmod(_path, 0o755)
+ENV = dict(os.environ, TG_BASE=BASE, TG_LANG="en", HOME=FAKE_HOME,
+           PATH=FAKE_BIN + os.pathsep + os.environ.get("PATH", ""))
 write_status(0)
 base_nice = os.nice(0)
 

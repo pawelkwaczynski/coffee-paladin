@@ -127,9 +127,10 @@ notices = [node for node in ast.walk(tree)
            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "log"
            and node.args and any(isinstance(c, ast.Constant) and c.value == NOTICE for c in ast.walk(node.args[0]))]
 test("the notice is logged in exactly one place", len(notices) == 1, len(notices))
+# log(msg, tag=None): a tag passed by position counts as much as one passed by name.
 test("and carries no tag, so the TERMINATED line that follows is the only kill",
-     notices and not any(k.arg == "tag" for k in notices[0].keywords),
-     [k.arg for k in notices[0].keywords] if notices else None)
+     notices and len(notices[0].args) < 2 and not any(k.arg == "tag" for k in notices[0].keywords),
+     (len(notices[0].args), [k.arg for k in notices[0].keywords]) if notices else None)
 
 print("3. what the counter means, said where readers look")
 m = load_source("metrics_kills_once", os.path.join(SRC, "thermal-metrics"))
