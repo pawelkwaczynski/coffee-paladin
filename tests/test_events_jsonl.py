@@ -25,6 +25,11 @@ SRC = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BASE = tempfile.mkdtemp(prefix="tg-events-")
 os.environ["TG_BASE"] = BASE
 os.environ.setdefault("TG_LANG", "en")
+# 23.10: run under an outer safe-run (as heavy work on this Mac must be), the children
+# inherited its TG_SAFE_RUN_PGID and PALADIN_PROGRESS: the inner safe-run went nested,
+# exec'd the job unsupervised, and the heartbeat pointed outside TG_BASE.
+for _k in ("TG_SAFE_RUN_PGID", "PALADIN_PROGRESS"):
+    os.environ.pop(_k, None)
 
 g = load_source("ev_guard", os.path.join(SRC, "guard.py"))
 g.notify = lambda *a, **k: None

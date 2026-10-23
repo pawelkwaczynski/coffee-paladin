@@ -19,6 +19,10 @@ import tempfile
 
 DIRECTORY = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 os.environ["TG_BASE"] = tempfile.mkdtemp(prefix="tg_test_demote_")
+# 23.10: the same clean start as the safe-run tests, so an outer safe-run's job markers
+# (TG_SAFE_RUN_PGID, PALADIN_PROGRESS) never reach the `yes` load or the guard under test.
+for _k in ("TG_SAFE_RUN_PGID", "PALADIN_PROGRESS"):
+    os.environ.pop(_k, None)
 sys.path.insert(0, DIRECTORY)
 import guard  # noqa: E402  (TG_BASE must be in the environment before import.)
 

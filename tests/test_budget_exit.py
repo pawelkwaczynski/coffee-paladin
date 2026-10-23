@@ -21,6 +21,11 @@ import time
 SRC = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SAFE_RUN = os.path.join(SRC, "safe-run")
 BASE = tempfile.mkdtemp()
+# 23.10: run under an outer safe-run (as heavy work on this Mac must be), the children
+# inherited its TG_SAFE_RUN_PGID and PALADIN_PROGRESS: the inner safe-run went nested,
+# exec'd the job unsupervised, and the heartbeat pointed outside TG_BASE.
+for _k in ("TG_SAFE_RUN_PGID", "PALADIN_PROGRESS"):
+    os.environ.pop(_k, None)
 json.dump({}, open(os.path.join(BASE, "config.json"), "w"))
 # TG_BASE does not isolate launchctl (services are per-user, not per-HOME), and
 # safe-run kickstarts the daemon when it looks dead. Shadow launchctl with a
