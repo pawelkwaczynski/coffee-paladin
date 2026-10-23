@@ -6,7 +6,11 @@ Contract under test: the paladin owns exactly ONE file in the Copilot hooks dire
 ($COPILOT_HOME/hooks, by default ~/.copilot/hooks) and never touches anything else there;
 no Copilot home means skip (never create a config tree the user does not have); the file has
 the documented shape (version 1, camelCase preToolUse, matcher bash, timeoutSec in seconds);
-wiring is idempotent; unwiring removes only our file. End to end, the command written into
+wiring is idempotent; unwiring removes only our file. 23.10: a coffee-paladin.json holding
+anything but exactly what the adapter writes (another shape, hand edits, not JSON at all) is
+"foreign": wiring never replaces it and unwiring never removes it. unhook records the choice in
+~/.coffee-paladin/copilot_hook_off for install.sh, hook by hand takes it back, and a file system
+that says no ends in one word ("error", exit 1), not a traceback. End to end, the command written into
 the file, run the way Copilot runs it (sh -c, payload on stdin), answers a bare encoder with
 Copilot's JSON deny and exit 0, and exits 0 with an empty stdout when the binary is gone:
 Copilot denies every tool call on a crashed preToolUse hook, so a missing gate must not crash.
@@ -88,24 +92,69 @@ test("6. nothing in it says allow or ask", '"allow"' not in open(own).read()
 before = open(own).read()
 r = run(home, "hook")
 test("7. wiring twice is idempotent", r.stdout.strip() == "ok" and open(own).read() == before)
-open(own, "w").write("{broken")
-r = run(home, "hook")
-test("8. our own corrupted file is rewritten, not obeyed",
-     r.stdout.strip() == "ok" and json.load(open(own)) == expected, repr(open(own).read()[:60]))
-test("9. a stranger's hook file is untouched byte for byte", open(foreign).read() == foreign_body)
+test("8. a stranger's hook file is untouched byte for byte", open(foreign).read() == foreign_body)
 leftovers = [n for n in os.listdir(os.path.dirname(own)) if n not in ("coffee-paladin.json", "other.json")]
-test("10. no temporary files left behind", not leftovers, leftovers)
+test("9. no temporary files left behind", not leftovers, leftovers)
+
+print("=== a coffee-paladin.json we did not write ===")
+stale = json.dumps({"version": 1, "hooks": {"preToolUse": [
+    {"type": "command", "matcher": "bash", "bash": "/Users/someone-else/.local/bin/coffee-paladin hook-gate",
+     "timeoutSec": 10}], "sessionStart": [{"type": "command", "bash": "./my-own-start.sh"}]}})
+for label, body in [("another shape, a hook of the user's inside", stale), ("not JSON at all", "{broken")]:
+    open(own, "w").write(body)
+    r = run(home, "hook")
+    test("10. %s: wire says foreign and leaves every byte" % label,
+         r.stdout.strip() == "foreign" and open(own).read() == body, (r.stdout, open(own).read()[:60]))
+    r = run(home, "unhook")
+    test("11. %s: unhook says foreign and does not delete it" % label,
+         r.stdout.strip() == "foreign" and os.path.exists(own) and open(own).read() == body,
+         (r.stdout, os.path.exists(own)))
+if os.path.exists(own):
+    os.remove(own)
+r = run(home, "hook")
+test("12. once that file is gone, wiring writes ours again", r.stdout.strip() == "ok"
+     and json.load(open(own)) == expected, repr(r.stdout))
+
+print("=== the choice made with unhook ===")
+paladin = os.path.join(home, ".coffee-paladin")
+os.makedirs(paladin)
+marker = os.path.join(paladin, "copilot_hook_off")
+r = run(home, "unhook")
+test("13. unhook removes our file and records the choice for install.sh",
+     r.stdout.strip() == "ok" and not os.path.exists(own) and os.path.exists(marker), repr(r.stdout))
+r = run(home, "hook")
+test("14. hook by hand wires again and takes the choice back",
+     r.stdout.strip() == "ok" and os.path.exists(own) and not os.path.exists(marker), repr(r.stdout))
+
+print("=== a file system that says no ===")
+home3 = tempfile.mkdtemp(prefix="tg-copilotwire-err-")
+os.makedirs(os.path.join(home3, ".copilot"))
+open(os.path.join(home3, ".copilot", "hooks"), "w").write("not a directory")
+r = run(home3, "hook")
+test("15. hooks is a file: one word 'error', exit 1, no traceback",
+     r.stdout.strip() == "error" and r.returncode == 1 and "Traceback" not in r.stderr,
+     (r.stdout, r.returncode, r.stderr[-160:]))
+os.remove(os.path.join(home3, ".copilot", "hooks"))
+r = run(home3, "hook")
+locked_own = os.path.join(home3, ".copilot", "hooks", "coffee-paladin.json")
+os.chmod(locked_own, 0)
+r = run(home3, "unhook")
+if os.path.exists(locked_own):
+    os.chmod(locked_own, 0o600)
+test("16. our file unreadable: unhook says 'error', exit 1, no traceback, the file stays",
+     r.stdout.strip() == "error" and r.returncode == 1 and "Traceback" not in r.stderr
+     and os.path.exists(locked_own), (r.stdout, r.returncode, r.stderr[-160:]))
 
 print("=== COPILOT_HOME is respected ===")
 home2 = tempfile.mkdtemp(prefix="tg-copilotwire-home2-")
 ch = os.path.join(home2, "elsewhere")
 os.makedirs(ch)
 r = run(home2, "hook", COPILOT_HOME=ch)
-test("11. wired into $COPILOT_HOME/hooks, ~/.copilot not created",
+test("17. wired into $COPILOT_HOME/hooks, ~/.copilot not created",
      r.stdout.strip() == "ok" and os.path.exists(os.path.join(ch, "hooks", "coffee-paladin.json"))
      and not os.path.exists(os.path.join(home2, ".copilot")), repr(r.stdout))
 r = run(home2, "unhook", COPILOT_HOME=ch)
-test("12. unhook under COPILOT_HOME removes it there",
+test("18. unhook under COPILOT_HOME removes it there",
      r.stdout.strip() == "ok" and not os.path.exists(os.path.join(ch, "hooks", "coffee-paladin.json")))
 
 print("=== end to end: the command Copilot would run ===")
@@ -123,7 +172,7 @@ def hook(payload):
 payload = {"sessionId": "s-1", "timestamp": 1704614400000, "cwd": "/tmp", "toolName": "bash",
            "toolArgs": json.dumps({"command": HEAVY})}
 r = hook(payload)
-test("13. without the binary: exit 0 and an empty stdout (Copilot's default, not a crash)",
+test("19. without the binary: exit 0 and an empty stdout (Copilot's default, not a crash)",
      r.returncode == 0 and r.stdout == "", (r.returncode, r.stdout[:120]))
 os.makedirs(os.path.dirname(binary))
 os.symlink(os.path.join(SRC, "guard.py"), binary)
@@ -132,11 +181,11 @@ try:
     answer = json.loads(r.stdout)
 except ValueError:
     answer = {}
-test("14. a bare encoder: exit 0 and one JSON deny with the safe-run hint",
+test("20. a bare encoder: exit 0 and one JSON deny with the safe-run hint",
      r.returncode == 0 and answer.get("permissionDecision") == "deny"
      and "safe-run -- " in answer.get("permissionDecisionReason", ""), (r.returncode, r.stdout[:200]))
 r = hook(dict(payload, toolArgs=json.dumps({"command": "git status"})))
-test("15. a light command: exit 0, stdout empty", r.returncode == 0 and r.stdout == "",
+test("21. a light command: exit 0, stdout empty", r.returncode == 0 and r.stdout == "",
      (r.returncode, r.stdout[:120]))
 
 print("=== a home with a space in it ===")
@@ -150,15 +199,15 @@ command = json.load(open(os.path.join(spaced, ".copilot", "hooks", "coffee-palad
 r = subprocess.run(["/bin/sh", "-c", command], input=json.dumps(payload),
                    env=env_for(spaced, TG_BASE=base, TG_LANG="en"),
                    capture_output=True, text=True, timeout=30)
-test("16. the path is quoted: the gate still answers with a deny",
+test("22. the path is quoted: the gate still answers with a deny",
      r.returncode == 0 and '"deny"' in r.stdout, (r.returncode, r.stdout[:120], r.stderr[:160]))
 
 print("=== unwiring ===")
 r = run(home, "unhook")
-test("17. unhook removes only our file",
+test("23. unhook removes only our file",
      r.stdout.strip() == "ok" and not os.path.exists(own) and open(foreign).read() == foreign_body)
 r = run(home, "unhook")
-test("18. unhook with nothing of ours: none", r.stdout.strip() == "none")
+test("24. unhook with nothing of ours: none", r.stdout.strip() == "none")
 
 print("\nRESULT: %d/%d" % (passed, total))
 sys.exit(0 if passed == total else 1)
