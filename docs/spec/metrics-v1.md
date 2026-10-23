@@ -73,7 +73,7 @@ every fourth cycle and repeated in between.
 | `eta_pause_min` | number or null | minutes until the pause threshold at the current trend; null unless the chip is rising faster than 0.5 °C per minute and is still below the threshold |
 | `dry_run` | boolean | `true` in watch-only mode: the guard pauses nothing, however hot the machine gets |
 | `manual_pause` | boolean | `true` while a human freeze from the menu bar is in effect |
-| `paused` | array | names of the processes paused right now, strings |
+| `paused` | array | names of the processes in the guard's pause list, strings: the ones paused right now, and any whose termination is under way, which may be running; `paused_details.terminating` tells them apart |
 | `paused_details` | array | one object per paused process |
 | `paused_details.name` | string | process name |
 | `paused_details.pid` | integer | its pid |
@@ -81,7 +81,7 @@ every fourth cycle and repeated in between.
 | `paused_details.reason` | string | `termika` (heat) or `bateria` (low battery); see events-v1.md |
 | `paused_details.manual` | boolean | `true` for a human freeze |
 | `paused_details.age_s` | integer | how long it has been paused, seconds |
-| `paused_details.terminating` | boolean | `true` when the guard has already sent `SIGCONT` and `SIGTERM` and still owes the `SIGKILL`, because the process listing after the grace period failed; such a process may be running. Absent for an ordinary pause |
+| `paused_details.terminating` | boolean | `true` when the guard has already sent `SIGCONT` and `SIGTERM` and still owes the `SIGKILL`, because the process listing after the grace period failed; such a process may be running, and the guard sends the `SIGKILL` on its next cycle with a readable listing. Absent for an ordinary pause |
 | `demoted` | array | names of the processes moved to efficiency cores right now; they run, slower |
 | `unpausable` | array | names the guard tried to pause and could not. Not empty means protection is incomplete right now |
 | `heavy_count` | integer | heavy processes the guard could act on, children not counted twice |

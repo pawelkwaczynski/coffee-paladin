@@ -3001,13 +3001,20 @@ def do_resume(cfg, st, reason, only_keys=None, after_cooling=False):
     `except` swallowed. A job frozen for overheating never returned to work and only waited
     for SIGTERM after `max_pause_minutes`. Classic silent failure: no log entry looks the
     same as no need to act.
+
+    23.10: an entry that owes its SIGKILL (term_sent) is never resumed, whoever asks. It is a
+    termination under way, not a pause; resuming it deleted the only record that the KILL was
+    still due. The menu bar was fixed first, and daemon startup and shutdown kept doing it.
+    finish_owed_kills() ends such entries.
     """
-    if not st["paused"]:
+    keys = [k for k, v in st["paused"].items()
+            if not v.get("term_sent") and (only_keys is None or k in only_keys)]
+    if not keys:
         return False
     # 22.10: one listing for every entry: identity, start time, zombie and stopped group.
     table = process_table()
     for key, info in list(st["paused"].items()):
-        if only_keys is not None and key not in only_keys:
+        if key not in keys:
             continue          # the rest stays frozen deliberately: min pause time or manual
         pid = int(key)
         if not leader_dead(pid, table):
@@ -3226,6 +3233,33 @@ def do_terminate(cfg, st, reason, only_keys=None):
                 info["term_sent"] = now()
                 st["paused"][key] = info
     return bool(victims)
+
+
+def owed_kills(st):
+    """Return {key: term_sent} for the entries that got SIGTERM and still owe their SIGKILL."""
+    return {k: v["term_sent"] for k, v in st["paused"].items() if v.get("term_sent")}
+
+
+def finish_owed_kills(cfg, st, stopped, owed):
+    """Repeat SIGTERM and send the owed SIGKILL to the entries in `owed`, on every cycle.
+
+    `owed` is owed_kills() taken at the start of the cycle; an entry whose term_sent changed
+    since then was retried by a do_terminate of this cycle and waits for the next one, so one
+    cycle never sleeps through two grace periods for the same job.
+
+    23.10: the retry used to wait for the pause limit, counted from the first SIGSTOP. A job
+    frozen minutes before the critical level, whose listing after the grace failed, ran on
+    for up to max_pause_minutes after its SIGTERM; a child that ignores TERM kept heating the
+    Mac, with no SIGSTOP from reassert_paused and no fresh pause from do_pause, both of which
+    leave this entry alone. The KILL was decided already, so neither age nor level gates it;
+    only a readable listing does, as for any termination.
+    """
+    if stopped is None or cfg["dry_run"]:
+        return False
+    keys = [k for k, t in owed.items() if (st["paused"].get(k) or {}).get("term_sent") == t]
+    if not keys:
+        return False
+    return do_terminate(cfg, st, "SIGKILL still owed", only_keys=keys)
 
 
 def demote_threshold(cfg):
@@ -3607,11 +3641,12 @@ def handle_command(cfg, st, targets):
                    T("No heavy job meets the conditions"), key="freeze")
     elif command == "resume":
         st["reczna_pauza"] = False
-        # 23.10: an entry that owes its SIGKILL (term_sent) is not a pause to undo. Resuming
-        # it deleted the entry, and with it the only record that the KILL was still due.
-        keys = [k for k, v in st["paused"].items() if not v.get("term_sent")]
-        if keys:
-            do_resume(cfg, st, T("manual resume (from the menu bar)"), only_keys=keys)
+        # 23.10: do_resume leaves entries that owe their SIGKILL (term_sent). Say so: the menu
+        # bar still shows them as held, and a click with no effect and no line looked broken.
+        owed = sum(1 for v in st["paused"].values() if v.get("term_sent"))
+        if owed:
+            log("manual resume: %d entr(ies) owe their SIGKILL and stay until it is sent" % owed)
+        do_resume(cfg, st, T("manual resume (from the menu bar)"))
 
 
 _CHIP_PROFILE = {"at": 0.0, "data": None}
@@ -5946,6 +5981,11 @@ def main():
             else:
                 log("startup: machine still hot - %d paused entr(ies) stay frozen, "
                     "the loop will resume them after cooling" % len(st["paused"]))
+            # 23.10: do_resume leaves an entry that owes its SIGKILL; it survived the restart
+            # in state.json so that the first cycle with a readable listing sends it.
+            n_owed = len(owed_kills(st))
+            if n_owed:
+                log("startup: %d entr(ies) owe their SIGKILL - the loop sends it" % n_owed)
         elif not fresh:
             # State from before reboot: PIDs may belong to completely unrelated processes.
             log("stale state from before boot - dropping %d paused entries and %d demotions "
@@ -6164,6 +6204,8 @@ def main():
             if stopped is None and not st.get("_ps_cicho"):
                 log("ps unavailable - postponing decisions about paused jobs")
             st["_ps_cicho"] = stopped is None
+            # Taken before any do_terminate of this cycle; see finish_owed_kills.
+            owed = owed_kills(st)
 
             # Update latches in EVERY cycle, even while hot. Otherwise a battery crossing
             # 40 C during a pause would never turn on its latch.
@@ -6273,7 +6315,10 @@ def main():
             # while its entry keeps aging. SIGTERM after 45 minutes then hits a healthy job
             # mid-work. The clock starts at the FIRST stop, as intended; proof that the
             # process is running saves it, not rewinding the stopwatch.
-            expired_keys = expired_entries(st["paused"], limit_min * 60, stopped)
+            # 23.10: entries that owe their SIGKILL are not over-limit pauses; finish_owed_kills
+            # below ends them, whatever their age, and they must not get a second grace here.
+            expired_keys = [k for k in expired_entries(st["paused"], limit_min * 60, stopped)
+                            if not st["paused"][k].get("term_sent")]
             # Never end a job while the chip reading is a memory. The kill counter already
             # refuses remembered readings, but this second road to SIGTERM does not go
             # through it: a pause entered on a remembered number could age out and be
@@ -6294,6 +6339,7 @@ def main():
                         % (limit_min, st["paused"][k].get("comm"), k))
                 do_terminate(cfg, st, T("paused for longer than %d min") % limit_min,
                              only_keys=expired_keys)
+            finish_owed_kills(cfg, st, stopped, owed)
 
             for _p in [p for p in _nie_da_sie if not alive(p)]:
                 del _nie_da_sie[_p]
@@ -6343,6 +6389,8 @@ def main():
                 break
             time.sleep(0.5)
 
+    # 23.10: an entry that owes its SIGKILL is not resumed here either; it stays in state.json
+    # and the next start finishes it.
     do_resume(cfg, st, T("guard is shutting down"))
     # E-core demotion survived daemon shutdown: the process stayed pinned to E-cores for
     # the rest of its life, invisible in temperature and visible only in throughput. Undo it
