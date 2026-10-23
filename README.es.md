@@ -46,8 +46,9 @@ de kernel. Sin demonios ejecutándose como root. Todo se lee con un proceso de u
 - **No depende de ninguna herramienta de IA.** El skill para agentes, los hooks, la statusline
   y el manifiesto del plugin son integraciones opcionales. `install.sh` instala el skill y
   cablea la statusline solo donde la herramienta correspondiente ya existe en la máquina, y
-  nunca sustituye una statusline que ya hubieras configurado a menos que pases `--replace`. No
-  cablea ningún hook: los adaptadores de hooks se copian a `~/.coffee-paladin/` y cada uno se
+  nunca sustituye una statusline que ya hubieras configurado a menos que pases `--replace`. Por
+  su cuenta solo cablea un hook, el de GitHub Copilot CLI, y solo donde esa CLI está instalada y
+  ya se ha usado; los demás adaptadores de hooks se copian a `~/.coffee-paladin/` y cada uno se
   activa a mano (ver la sección de hooks más abajo). El demonio funciona sin ninguno de ellos.
 
 ---
@@ -276,10 +277,20 @@ cualquier imprevisto deja pasar, porque una puerta rota jamás debe secuestrar
 una sesión de trabajo. `PALADIN_HOOK=off` la desactiva para un comando
 deliberado y `hook_heavy_patterns` en config.json sustituye la lista interna.
 
-El cableado es **voluntario host por host**, un adaptador para cada uno, todos
-con los mismos modales que el cableado de Claude: la entrada propia se añade
+El cableado es **voluntario host por host**, un adaptador para cada uno. Donde
+el host guarda sus hooks en un archivo compartido con los del usuario, el
+adaptador tiene los modales del cableado de Claude: la entrada propia se añade
 bajo un bloqueo de archivo, las ajenas no se tocan, cada escritura deja copia
-con marca de tiempo y el desconectado quita exactamente la nuestra.
+con marca de tiempo y el desconectado quita exactamente la nuestra. Grok y
+Copilot CLI leen un directorio entero de archivos de hooks, así que allí el
+paladín tiene un archivo propio, `coffee-paladin.json`, y no abre ningún otro.
+
+La única excepción a lo voluntario es Copilot CLI: `install.sh` lo cablea por
+sí mismo cuando el comando `copilot` está en el PATH y GitHub Copilot CLI ha
+dejado en `~/.copilot` el rastro de una sesión. `copilot_hooks_wire.py unhook`
+lo apaga para siempre y las instalaciones siguientes lo respetan. Los detalles
+de Copilot CLI y del adaptador experimental para Cursor están en el README en
+inglés.
 
 ```bash
 python3 ~/.coffee-paladin/settings_wire.py hook          # Claude Code
@@ -287,6 +298,7 @@ python3 ~/.coffee-paladin/codex_hooks_wire.py hook       # Codex CLI (confirma l
 python3 ~/.coffee-paladin/gemini_hooks_wire.py hook      # Gemini CLI
 python3 ~/.coffee-paladin/grok_hooks_wire.py hook        # Grok Build
 python3 ~/.coffee-paladin/antigravity_hooks_wire.py hook # Antigravity
+python3 ~/.coffee-paladin/copilot_hooks_wire.py hook     # Copilot CLI (install.sh ya lo hace; reinicia copilot)
 ```
 
 (`unhook` deshace cada uno; `uninstall.sh` los recorre todos.) Grok además lee
@@ -328,8 +340,9 @@ nunca con señales.
   filtrados, sin ids de sesión ni rutas); cuando ese archivo falta o tiene más de cinco
   minutos, la función no devuelve nada y la fila no se dibuja. La barra nunca consulta
   ninguna cuenta.
-- `integrations/` guarda hooks para cinco agentes de CLI (Claude Code, Codex, Gemini CLI,
-  Grok, Antigravity) junto a las integraciones de terminal. Un hook hace que el agente le
+- `integrations/` guarda hooks para seis hosts de agentes (Claude Code, Codex, Gemini CLI,
+  Grok, Antigravity, Copilot CLI) y uno experimental para Cursor, junto a las integraciones de
+  terminal. Un hook hace que el agente le
   pregunte al guard antes de un trabajo pesado; sin el hook, el guard igual pausa ese trabajo
   cuando el chip se calienta.
 

@@ -27,7 +27,7 @@
 - **没有监听端口。** `thermal-metrics` 为 `node_exporter` 的 textfile collector 输出 Prometheus 文本格式，本项目里没有任何东西在监听 socket。
 - **守护进程里只有一条可选的外发通道。** 手机推送走 ntfy.sh，而且只有在 `config.json` 里设置了 `ntfy_topic` 才会发生，默认为空，这时守护进程完全不发起任何网络请求。（`install.sh` 只用一次 Homebrew，用来取 `macmon`。）菜单栏是唯一的例外：如果装了外部的 `ccusage` 二进制程序，菜单栏每十分钟就会运行它一次来生成花费那一行，而 `ccusage` 会在线获取模型定价，除非加上 `--offline` 参数，但菜单栏并没有传这个参数。
 - **它自己不是传感器。** 芯片、GPU、风扇和功耗读数都来自 [`macmon`](https://github.com/vladkens/macmon)，一个不需要 `sudo` 就能读取苹果传感器接口的外部开源二进制程序（温度和风扇走 SMC，功耗走 IOReport），guard 只是解析它的输出，没有它就退回到电池温度。
-- **不绑定任何 AI 工具。** 代理 skill、钩子、状态行和插件清单都是可选的集成。`install.sh` 会安装 skill，并且只在对应工具已经存在于这台机器上时才接好状态行，也绝不会替换别人配置好的状态行，除非你自己传入 `--replace`。它完全不接通任何钩子：钩子适配器只是被复制进 `~/.coffee-paladin/`，要不要接通每一个都得自己动手（见下面钩子那一节）。没有它们，守护进程照样运行。
+- **不绑定任何 AI 工具。** 代理 skill、钩子、状态行和插件清单都是可选的集成。`install.sh` 会安装 skill，并且只在对应工具已经存在于这台机器上时才接好状态行，也绝不会替换别人配置好的状态行，除非你自己传入 `--replace`。它自己只接通一个钩子，即 GitHub Copilot CLI 的，而且只在这个 CLI 已经安装并运行过的地方；其余钩子适配器只是被复制进 `~/.coffee-paladin/`，要不要接通每一个都得自己动手（见下面钩子那一节）。没有它们，守护进程照样运行。
 
 ---
 
@@ -208,9 +208,16 @@ Antigravity 的 `toolCall.args.CommandLine`），再按该宿主听得懂的方�
 `PALADIN_HOOK=off` 可为一条自觉的命令临时关闭它，config.json 里的
 `hook_heavy_patterns` 可替换内置清单。
 
-接线**按宿主自愿启用**，一个宿主一个适配器，每个都守着与 Claude 接线相同的
-规矩：自己的条目在文件锁下追加，别人的条目一律不碰，每次写入前留一份带时间戳
-的备份，解除时只删掉我们那一条。
+接线**按宿主自愿启用**，一个宿主一个适配器。凡是宿主把钩子和用户自己的钩子
+放在同一个文件里的，适配器都守着与 Claude 接线相同的规矩：自己的条目在文件锁下
+追加，别人的条目一律不碰，每次写入前留一份带时间戳的备份，解除时只删掉我们那
+一条。Grok 和 Copilot CLI 读取整个钩子文件目录，所以在那里 coffee-paladin 只有
+一个自己的文件 `coffee-paladin.json`，其他文件一概不打开。
+
+唯一的例外是 Copilot CLI：当 `copilot` 命令在 PATH 中、并且 GitHub Copilot CLI
+已在 `~/.copilot` 里留下会话痕迹时，`install.sh` 会自己把它接上。
+`copilot_hooks_wire.py unhook` 会把它永久关闭，之后的安装都会尊重这个选择。
+Copilot CLI 和 Cursor 实验性适配器的细节见英文 README。
 
 ```bash
 python3 ~/.coffee-paladin/settings_wire.py hook          # Claude Code
@@ -218,6 +225,7 @@ python3 ~/.coffee-paladin/codex_hooks_wire.py hook       # Codex CLI（首次运
 python3 ~/.coffee-paladin/gemini_hooks_wire.py hook      # Gemini CLI
 python3 ~/.coffee-paladin/grok_hooks_wire.py hook        # Grok Build
 python3 ~/.coffee-paladin/antigravity_hooks_wire.py hook # Antigravity
+python3 ~/.coffee-paladin/copilot_hooks_wire.py hook     # Copilot CLI（install.sh 会自己做；需重启 copilot）
 ```
 
 （`unhook` 逐个撤销；`uninstall.sh` 会全部跑一遍。）Grok 默认还会扫描
@@ -244,7 +252,7 @@ iTerm2 的状态栏组件，每个都只有复制粘贴的大小，安装说明�
 
 - `.claude-plugin/plugin.json` 是 Claude Code 的插件清单，把代理 skill（`skills/coffee-paladin/`）打包成插件分发。它不会安装或启动 guard，守护进程依然来自 `install.sh` 或 Homebrew。这只是拿到 skill 的又一条可选途径，不是另一个产品。
 - 菜单栏有一行「Claude 限额：…」，它只在 Claude Code 状态行集成正在写入 `~/.coffee-paladin/claude_usage_cache.json`（白名单字段，没有会话 id 或路径）时才存在，文件缺失或超过五分钟没更新，函数就什么都不返回，这一行也不会画出来。菜单栏从不查询任何账号。
-- `integrations/` 目录为五个命令行代理（Claude Code、Codex、Gemini CLI、Grok、Antigravity）提供钩子，和终端集成放在一起。有了钩子，代理会在重活之前先问 guard，没有钩子，guard 照样会在芯片发热时暂停那个任务。
+- `integrations/` 目录为六个代理宿主（Claude Code、Codex、Gemini CLI、Grok、Antigravity、Copilot CLI）提供钩子，另有一个给 Cursor 的实验性适配器，和终端集成放在一起。有了钩子，代理会在重活之前先问 guard，没有钩子，guard 照样会在芯片发热时暂停那个任务。
 
 ---
 

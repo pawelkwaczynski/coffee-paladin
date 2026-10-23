@@ -73,7 +73,8 @@ Maców na Intelu uczciwie nie wspieram.
 - **Nie jest przywiązany do żadnego narzędzia AI.** Skill dla agenta, haki, statusline
   i manifest wtyczki to opcjonalne integracje. `install.sh` instaluje skill i podpina
   statusline tylko tam, gdzie pasujące narzędzie już jest na maszynie, i nigdy nie podmienia
-  statusline'a, który ustawił ktoś inny, chyba że podasz `--replace`. Żadnego haka nie podpina:
+  statusline'a, który ustawił ktoś inny, chyba że podasz `--replace`. Sam podpina tylko jeden hak,
+  GitHub Copilot CLI, i tylko tam, gdzie to CLI jest zainstalowane i już działało; pozostałe
   adaptery haków trafiają do `~/.coffee-paladin/`, a każdy włączasz ręcznie (patrz sekcja o hakach niżej).
   Demon działa bez żadnej z nich.
 
@@ -607,9 +608,18 @@ bramka nie może brać sesji kodowania w niewolę. `PALADIN_HOOK=off` wyłącza 
 dla jednej świadomej komendy; `hook_heavy_patterns` w config.json podmienia
 wbudowaną listę.
 
-Wpinanie pozostaje **opt-in per host**, po jednym adapterze, każdy z manierami
-wpięcia Claude (własny wpis dopisany pod blokadą pliku, cudze wpisy nietykalne,
-kopia zapasowa z datą przed każdym zapisem, unhook zdejmuje dokładnie nasze):
+Wpinanie pozostaje **opt-in per host**, po jednym adapterze. Tam, gdzie host
+trzyma haki we wspólnym pliku z hakami użytkownika, adapter ma maniery wpięcia
+Claude (własny wpis dopisany pod blokadą pliku, cudze wpisy nietykalne, kopia
+zapasowa z datą przed każdym zapisem, unhook zdejmuje dokładnie nasze). Grok
+i Copilot CLI czytają cały katalog plików z hakami, więc tam paladyn ma jeden
+własny plik, `coffee-paladin.json`, i nie otwiera żadnego innego.
+
+Jedyny wyjątek od opt-in to Copilot CLI: `install.sh` wpina go sam, gdy
+polecenie `copilot` jest w PATH, a GitHub Copilot CLI zostawił w `~/.copilot`
+ślad sesji. `copilot_hooks_wire.py unhook` wyłącza go na stałe i kolejne
+instalacje to uszanują. Szczegóły o Copilot CLI i o eksperymentalnym adapterze
+dla Cursora są w angielskim README.
 
 ```bash
 python3 ~/.coffee-paladin/settings_wire.py hook          # Claude Code
@@ -617,6 +627,7 @@ python3 ~/.coffee-paladin/codex_hooks_wire.py hook       # Codex CLI (zaufaj hoo
 python3 ~/.coffee-paladin/gemini_hooks_wire.py hook      # Gemini CLI
 python3 ~/.coffee-paladin/grok_hooks_wire.py hook        # Grok Build
 python3 ~/.coffee-paladin/antigravity_hooks_wire.py hook # Antigravity
+python3 ~/.coffee-paladin/copilot_hooks_wire.py hook     # Copilot CLI (install.sh robi to sam; zrestartuj copilot)
 ```
 
 (`unhook` odwraca każde; `uninstall.sh` uruchamia wszystkie.) Grok domyślnie
@@ -651,8 +662,8 @@ wielkości jednego wklejenia, z notką instalacyjną w środku.
   statusline'a Claude Code zapisuje `~/.coffee-paladin/claude_usage_cache.json` (pola z białej
   listy, bez identyfikatorów sesji i ścieżek); gdy tego pliku nie ma albo jest starszy niż pięć
   minut, funkcja nie zwraca nic i wiersz się nie rysuje. Pasek nigdy nie odpytuje żadnego konta.
-- `integrations/` trzyma haki do pięciu agentów CLI (Claude Code, Codex, Gemini CLI, Grok,
-  Antigravity) obok integracji terminalowych. Hak sprawia, że agent pyta strażnika przed ciężką
+- `integrations/` trzyma haki do sześciu hostów agentowych (Claude Code, Codex, Gemini CLI, Grok,
+  Antigravity, Copilot CLI) i eksperymentalny dla Cursora, obok integracji terminalowych. Hak sprawia, że agent pyta strażnika przed ciężką
   pracą; bez haka strażnik i tak wstrzyma tę pracę, gdy chip się rozgrzeje.
 
 ## Testy
