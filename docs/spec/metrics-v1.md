@@ -41,6 +41,7 @@ every fourth cycle and repeated in between.
 | Field | Type | Meaning |
 |---|---|---|
 | `time` | string | when the snapshot was written |
+| `guard_version` | string | the version of the daemon that wrote the snapshot; absent in snapshots written by releases up to and including 3.3.5 |
 | `level` | integer | the guard's verdict: `0` cool, `1` warm, `2` hot (the guard pauses heavy jobs), `3` critical (the guard terminates paused jobs once the level holds) |
 | `reason` | string | why the level is what it is, for humans, translated, comma-separated; empty when calm. Do not parse it |
 | `thermal_state` | string | macOS thermal state: `nominal`, `fair`, `serious`, `critical`, or `unknown` when the helper did not answer |
@@ -225,7 +226,7 @@ or writes a file atomically for a textfile collector, and exits.
 | `coffee_paladin_chip_p90_celsius` | gauge | host | `chip_profile.p90` |
 | `coffee_paladin_chip_p99_celsius` | gauge | host | `chip_profile.p99` |
 | `coffee_paladin_chip_max_celsius` | gauge | host | `chip_profile.max` |
-| `coffee_paladin_build_info` | gauge | host, version | always `1`; `version` is `guard_version`, which only fleet snapshots carry. Printed for the other machines in the fleet folder; the local machine is read from `status.json` and has no sample |
+| `coffee_paladin_build_info` | gauge | host, version | always `1`; `version` is the snapshot's `guard_version`. Printed for the local machine and for every machine in the fleet folder; no sample for a snapshot without `guard_version`, which is a local `status.json` written by a release up to and including 3.3.5 (fleet snapshots always carried it) |
 
 The counters count since the last manual reset, not since boot; a reset shows up as a drop,
 which Prometheus `rate()` treats as a counter reset.

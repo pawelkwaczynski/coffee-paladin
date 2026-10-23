@@ -223,7 +223,8 @@ def collect(reg, snap, path, labels, readable=True):
             reg.add("fan_rpm", rpm, labels=lab, help_text="Fan speed")
 
     reg.add("power_watts", snap.get("watts"), labels=labels,
-            help_text="Power draw at the wall")
+            help_text=("Chip power reported by macmon (CPU, GPU and neural engine), watts; "
+                       "not the whole Mac and not at the wall"))
     reg.add("on_ac", snap.get("on_ac"), labels=labels,
             help_text="1 on the power adapter, 0 on battery")
     reg.add("load1", snap.get("load1"), labels=labels,
@@ -301,7 +302,7 @@ def collect(reg, snap, path, labels, readable=True):
         lab = dict(labels)
         lab["version"] = ver
         reg.add("build_info", 1, labels=lab, kind="gauge",
-                help_text="Guard version, as a label")
+                help_text="Version of the guard that wrote the snapshot, as a label")
 
 
 def read_config():

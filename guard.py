@@ -5435,6 +5435,9 @@ def status_write(state, temp, soc, soc_t, ac, pct, speed, load, lvl, why, target
         _last_pressure["level"] = pressure[0]
     data = {
         "time": ts(), "thermal_state": state,
+        # 23.10: only fleet snapshots carried the version, and thermal-metrics reads the
+        # local machine from this file, so on a single Mac build_info never had a sample.
+        "guard_version": GUARD_VERSION,
         "thermal_pressure": ({"level": pressure[0], "name": pressure[1]}
                              if pressure is not None else None),
         "level": lvl, "reason": why,
