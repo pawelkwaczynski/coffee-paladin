@@ -169,6 +169,7 @@ tried to register it with the daemon.
 | `pgid` | integer | the job's process group; equal to `pid`, because the job leads its own group |
 | `cores` | integer | cores the job declared with `--cores`, or the default declaration when admission control is on; absent when nothing was declared |
 | `cpu_limit_pct` | number | the CPU duty-cycle cap applied to the job, percent, between 10 and 100 |
+| `protected` | boolean | `true` when the command is a protected app (calls, recording, passwords): it runs on all cores with `cpu_limit_pct` 100, and its `cores` still count in the admission queue and budget but are not enforced as a limit; absent for every other job |
 
 ### `job_end`
 

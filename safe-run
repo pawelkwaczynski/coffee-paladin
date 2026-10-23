@@ -1419,6 +1419,16 @@ def main():
             drop_registration(waiting)
             return 130
 
+    # 22.10: a protected app as the command itself gets neither the efficiency-core wrapper
+    # nor the CPU limiter. Both the path PATH finds and where a symlink there leads count:
+    # a command in a bin directory may be a link to OBS.app/Contents/MacOS/OBS.
+    # 23.10: resolved before --cores, which used to print "becomes a 17% CPU limit" right
+    # above "no CPU limit" for the same job. Protection still wins over the declaration.
+    found = shutil.which(cmd[0]) or ""
+    names = protected_names(cfg())
+    bundle = (protected_bundle(found, names)
+              or protected_bundle(os.path.realpath(found) if found else "", names))
+
     admission_on = bool(cfg().get("admission_control"))
     if opt["cores"] is None and admission_on:
         opt["cores"] = default_cores()
@@ -1427,9 +1437,12 @@ def main():
         # above it could NEVER be admitted and would block the whole queue
         # from the head - clamp it to the largest admissible value.
         opt["cores"] = min(opt["cores"], default_cores())
-    if opt["cores"] is not None:
+    if opt["cores"] is not None and not bundle:
         # The declaration is HARD: the duty-cycle limiter caps the job at its
         # declared share of the machine, so the arbiter's budget stays truthful.
+        # A protected app keeps its declaration for the admission queue but gets no
+        # cap: stopping a call or a recording for a core budget is the one thing
+        # protection promises never to do. Its registration says "protected".
         cap = max(10, round(100.0 * opt["cores"] / (os.cpu_count() or 8)))
         if cap < opt["cpu_limit"]:
             opt["cpu_limit"] = float(cap)
@@ -1437,13 +1450,6 @@ def main():
                     "becomes a %d%% CPU limit for the whole machine")
                   % (opt["cores"], int(cap)))
 
-    # 22.10: a protected app as the command itself gets neither the efficiency-core wrapper
-    # nor the CPU limiter. Both the path PATH finds and where a symlink there leads count:
-    # a command in a bin directory may be a link to OBS.app/Contents/MacOS/OBS.
-    found = shutil.which(cmd[0]) or ""
-    names = protected_names(cfg())
-    bundle = (protected_bundle(found, names)
-              or protected_bundle(os.path.realpath(found) if found else "", names))
     if bundle:
         opt["normal"], opt["cpu_limit"] = True, 100.0
         routine(opt, T("safe-run: %s is a protected app (call/recording/passwords) - no CPU limit "
@@ -1589,19 +1595,25 @@ def main():
             # "normal": the user explicitly asked for all cores. The guard must not
             # silently undo that decision five minutes later by demoting the job to
             # E-cores.
-            json.dump({"pid": proc.pid, "pgid": proc.pid, "name": opt["name"],
-                       "cmd": cmd, "started": t0, "hours": opt["hours"],
-                       "cores": opt["cores"], "priority": opt["priority"],
-                       "cpu_limit_pct": opt["cpu_limit"],
-                       "progress_path": progress_path,
-                       "progress_interval_s": opt["progress_interval"],
-                       "normal": bool(opt["normal"])}, f, indent=1)
+            entry = {"pid": proc.pid, "pgid": proc.pid, "name": opt["name"],
+                     "cmd": cmd, "started": t0, "hours": opt["hours"],
+                     "cores": opt["cores"], "priority": opt["priority"],
+                     "cpu_limit_pct": opt["cpu_limit"],
+                     "progress_path": progress_path,
+                     "progress_interval_s": opt["progress_interval"],
+                     "normal": bool(opt["normal"])}
+            # 23.10: "cores" of a protected app is a reservation, not a limit; absent, never
+            # false, for every other job, like the event stream.
+            if bundle:
+                entry["protected"] = True
+            json.dump(entry, f, indent=1)
     except OSError:
         # 21.10: Read-only managed/ can reject registration after Popen; keep
         # supervising that child and report the single missing-guard warning.
         eprint(T("safe-run: cannot register the job, it runs without the guard's registration"))
     event_jsonl("job_start", name=event_name(opt["name"]), pid=proc.pid,
-                pgid=proc.pid, cores=opt["cores"], cpu_limit_pct=opt["cpu_limit"])
+                pgid=proc.pid, cores=opt["cores"], cpu_limit_pct=opt["cpu_limit"],
+                protected=True if bundle else None)
     if placeholder:
         # The admission placeholder held the declared cores between "admitted"
         # and this registration; from here the real entry carries them.
