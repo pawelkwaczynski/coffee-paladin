@@ -13,6 +13,7 @@ kept by hand next to it:
 4. history.csv: the header, column by column, in order
 5. thermal-metrics: every metric it prints for a complete snapshot and a fleet folder
 6. fleet snapshot: every field fleet_write() adds to status.json
+7. the versioning rule for event records (23.10): no `v` field means version 1
 
 Metrics listed under "Added in this version" may be missing from the code: the spec names
 them before the release that prints them.
@@ -267,6 +268,16 @@ listed = names(mt, "4. Fleet snapshot")
 test("the fleet_write() scan finds its fields", {"host", "guard_version", "epoch"} <= added, sorted(added))
 test("every field the fleet snapshot adds is in the spec", added <= listed, sorted(added - listed))
 test("every fleet field in the spec is still written", listed <= added, sorted(listed - added))
+
+print("7. versioning of event records")
+# 23.10: records carry no version field, and the rule for telling versions apart in a mixed
+# file (safe-run from an older release next to a newer daemon) must stay written down.
+compat = read(EVENTS).split("## Compatibility", 1)[-1].split("\n## ", 1)[0]
+compat = " ".join(compat.split())
+test("events-v1.md: a record without a `v` field is version 1",
+     "A record without a `v` field is version 1" in compat, compat)
+test("events-v1.md: an incompatible version 2 would say so with a `v` field",
+     re.search(r"incompatible version 2 .*with a `v` field", compat) is not None, compat)
 
 print("\nRESULT: %d/%d" % (passed, total))
 sys.exit(0 if passed == total else 1)

@@ -26,6 +26,8 @@ into the user's language, and is not covered here.
   bumps the version: it gets a new document (`events-v2.md`) and a line in the release notes.
 - Records carry no version field. A reader that follows the first rule keeps working across
   every version 1 release.
+- A record without a `v` field is version 1; should an incompatible version 2 ever be needed,
+  its records will say so with a `v` field.
 
 ## Conventions shared by both files
 
